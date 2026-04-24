@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
+  import { slide } from "svelte/transition";
   import type {
     AgentListItem,
     PipelineInfo,
@@ -8,15 +9,27 @@
     TriggerSourceInput,
     TriggerDefinitionView,
   } from "$lib/types";
+  import {
+    Calendar,
+    Timer,
+    CalendarCheck,
+    FolderOpen,
+    Webhook,
+    PlusCircle,
+    Pencil,
+    Trash2,
+    ChevronDown,
+  } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
-  import { Checkbox } from "$lib/components/ui/checkbox";
   import { RadioItem } from "$lib/components/ui/radio";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
   import { DatePicker, TimePicker } from "$lib/components/ui/date-picker";
+  import CronBuilder from "./CronBuilder.svelte";
+  import IntervalPicker from "./IntervalPicker.svelte";
 
   interface Props {
     open: boolean;
@@ -30,6 +43,19 @@
   type SourceType = "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
   type TargetKind = "agent" | "pipeline";
 
+  const TRIGGER_TYPE_CONFIGS: {
+    value: SourceType;
+    labelKey: string;
+    descKey: string;
+    icon: typeof Calendar;
+  }[] = [
+    { value: "cron", labelKey: "triggers.type_cron_label", descKey: "triggers.type_cron_desc", icon: Calendar },
+    { value: "interval", labelKey: "triggers.type_interval_label", descKey: "triggers.type_interval_desc", icon: Timer },
+    { value: "oneshot", labelKey: "triggers.type_oneshot_label", descKey: "triggers.type_oneshot_desc", icon: CalendarCheck },
+    { value: "file_watch", labelKey: "triggers.type_file_watch_label", descKey: "triggers.type_file_watch_desc", icon: FolderOpen },
+    { value: "webhook", labelKey: "triggers.type_webhook_label", descKey: "triggers.type_webhook_desc", icon: Webhook },
+  ];
+
   let agents = $state<AgentListItem[]>([]);
   let pipelines = $state<PipelineInfo[]>([]);
   let loading = $state(false);
@@ -42,6 +68,7 @@
   let enabled = $state(true);
   let onBusy = $state<"queue" | "drop">("queue");
   let inputTemplate = $state("");
+  let advancedOpen = $state(false);
 
   let cronSchedule = $state("");
   let intervalEvery = $state("");
@@ -124,9 +151,9 @@
       case "oneshot": {
         const fa = (cfg.fire_at as string) ?? "";
         oneshotFireAt = fa;
-        const [d, t] = fa.split("T");
+        const [d, tm] = fa.split("T");
         oneshotDate = d ?? "";
-        oneshotTime = (t ?? "").slice(0, 5);
+        oneshotTime = (tm ?? "").slice(0, 5);
         break;
       }
       case "file_watch":
@@ -205,6 +232,7 @@
     loadError = null;
     submitError = null;
     touched = false;
+    advancedOpen = false;
     try {
       const [agentsList, pipelinesList] = await Promise.all([
         invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
@@ -240,13 +268,14 @@
       </div>
     </div>
   {:else}
-    <div class="space-y-4">
-      <!-- ID (readonly) -->
+    <div class="space-y-5">
+
+      <!-- ID (readonly) — always visible for reference -->
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-id">{$t("triggers.field_id")}</label>
         <Input
           id="edit-trigger-id"
-          class="bg-muted"
+          class="bg-muted font-mono text-xs"
           value={triggerId}
           readonly
           data-testid="edit-trigger-id-input"
@@ -255,7 +284,7 @@
 
       <!-- Target: Agent / Pipeline -->
       <div>
-        <p class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_target")}</p>
+        <p class="mb-1.5 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
         <div class="mb-2 flex gap-3">
           <RadioItem
             value="agent"
@@ -302,50 +331,68 @@
         {/if}
       </div>
 
-      <!-- Source type -->
+      <!-- Source type: visual cards -->
       <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-source-type">{$t("triggers.field_source_type")}</label>
-        <Select
-          id="edit-trigger-source-type"
-          bind:value={sourceType}
-          data-testid="edit-trigger-source-select"
-        >
-          <option value="cron">{$t("triggers.field_type_cron")}</option>
-          <option value="interval">{$t("triggers.field_type_interval")}</option>
-          <option value="oneshot">{$t("triggers.field_type_oneshot")}</option>
-          <option value="file_watch">{$t("triggers.field_type_file_watch")}</option>
-          <option value="webhook">{$t("triggers.field_type_webhook")}</option>
-        </Select>
+        <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_source_type")}</p>
+        <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label={$t("triggers.field_source_type")}>
+          {#each TRIGGER_TYPE_CONFIGS as typeConfig}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={sourceType === typeConfig.value}
+              class="flex items-start gap-2.5 rounded-lg border p-3 text-left transition-colors
+                {sourceType === typeConfig.value
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-border hover:border-primary/40 hover:bg-muted/30'}
+                {typeConfig.value === 'webhook' ? 'col-span-2' : ''}"
+              onclick={() => { sourceType = typeConfig.value; }}
+              data-testid="edit-trigger-type-card-{typeConfig.value}"
+            >
+              <typeConfig.icon
+                size={16}
+                class="mt-0.5 shrink-0 {sourceType === typeConfig.value ? 'text-primary' : 'text-muted-foreground'}"
+              />
+              <div class="min-w-0">
+                <p class="text-[13px] font-medium leading-tight">{$t(typeConfig.labelKey)}</p>
+                <p class="mt-0.5 text-[11px] leading-snug text-muted-foreground">{$t(typeConfig.descKey)}</p>
+              </div>
+            </button>
+          {/each}
+        </div>
       </div>
 
       <!-- Dynamic source fields -->
       {#if sourceType === "cron"}
         <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-schedule">{$t("triggers.field_schedule")}</label>
-          <Input
-            id="edit-trigger-schedule"
-            class="font-mono"
-            placeholder={$t("triggers.field_schedule_placeholder")}
-            bind:value={cronSchedule}
-            data-testid="edit-trigger-schedule-input"
-          />
-          <p class="mt-0.5 text-xs text-muted-foreground">{$t("triggers.field_schedule_help")}</p>
+          <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_schedule")}</p>
+          <div data-testid="edit-trigger-schedule-input">
+            <CronBuilder
+              value={cronSchedule}
+              onchange={(expr) => { cronSchedule = expr; }}
+            />
+          </div>
+          {#if sourceError && sourceType === "cron"}
+            <p class="mt-1 text-xs text-destructive">{sourceError}</p>
+          {/if}
         </div>
+
       {:else if sourceType === "interval"}
         <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-every">{$t("triggers.field_every")}</label>
-          <Input
-            id="edit-trigger-every"
-            class="font-mono"
-            placeholder={$t("triggers.field_every_placeholder")}
-            bind:value={intervalEvery}
-            data-testid="edit-trigger-every-input"
-          />
-          <p class="mt-0.5 text-xs text-muted-foreground">{$t("triggers.field_every_help")}</p>
+          <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_every")}</p>
+          <div data-testid="edit-trigger-every-input">
+            <IntervalPicker
+              value={intervalEvery}
+              onchange={(val) => { intervalEvery = val; }}
+            />
+          </div>
+          {#if sourceError && sourceType === "interval"}
+            <p class="mt-1 text-xs text-destructive">{sourceError}</p>
+          {/if}
         </div>
+
       {:else if sourceType === "oneshot"}
         <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-fire-at">{$t("triggers.field_fire_at")}</label>
+          <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="edit-trigger-fire-at">{$t("triggers.field_fire_at")}</label>
           <div class="grid grid-cols-2 gap-2">
             <DatePicker
               id="edit-trigger-fire-at"
@@ -357,88 +404,144 @@
               data-testid="edit-trigger-fire-at-time-input"
             />
           </div>
+          {#if sourceError && sourceType === "oneshot"}
+            <p class="mt-0.5 text-xs text-destructive">{sourceError}</p>
+          {/if}
         </div>
+
       {:else if sourceType === "file_watch"}
-        <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-watch-path">{$t("triggers.field_path")}</label>
-          <Input
-            id="edit-trigger-watch-path"
-            placeholder={$t("triggers.field_path_placeholder")}
-            bind:value={fileWatchPath}
-            data-testid="edit-trigger-path-input"
-          />
-        </div>
-        <div>
-          <p class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_events")}</p>
-          <div class="flex gap-4">
-            <label class="flex items-center gap-1.5 text-sm">
-              <Checkbox bind:checked={fileWatchCreate} data-testid="edit-trigger-event-create" />
-              {$t("triggers.field_events_create")}
-            </label>
-            <label class="flex items-center gap-1.5 text-sm">
-              <Checkbox bind:checked={fileWatchModify} data-testid="edit-trigger-event-modify" />
-              {$t("triggers.field_events_modify")}
-            </label>
-            <label class="flex items-center gap-1.5 text-sm">
-              <Checkbox bind:checked={fileWatchDelete} data-testid="edit-trigger-event-delete" />
-              {$t("triggers.field_events_delete")}
-            </label>
-          </div>
-        </div>
-      {:else if sourceType === "webhook"}
-        <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-secret">{$t("triggers.field_secret")}</label>
-          <div class="flex gap-2">
+        <div class="space-y-3">
+          <div>
+            <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="edit-trigger-watch-path">{$t("triggers.field_path")}</label>
             <Input
-              id="edit-trigger-secret"
-              class="flex-1 font-mono"
-              placeholder={$t("triggers.field_secret_placeholder")}
-              bind:value={webhookSecret}
-              data-testid="edit-trigger-secret-input"
+              id="edit-trigger-watch-path"
+              class={sourceError && sourceType === 'file_watch' && !fileWatchPath.trim() ? 'border-destructive' : ''}
+              placeholder={$t("triggers.field_path_placeholder")}
+              bind:value={fileWatchPath}
+              data-testid="edit-trigger-path-input"
             />
-            <Button size="sm" variant="outline" onclick={generateSecret} data-testid="edit-trigger-secret-generate-btn">
-              {$t("triggers.field_secret_generate")}
-            </Button>
+            <p class="mt-0.5 text-[11px] text-muted-foreground">The agent runs whenever a file event occurs in this folder.</p>
+          </div>
+          <div>
+            <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_events")}</p>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                  {fileWatchCreate ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}"
+                onclick={() => { fileWatchCreate = !fileWatchCreate; }}
+                data-testid="edit-trigger-event-create"
+              >
+                <PlusCircle size={11} />
+                {$t("triggers.field_events_create")}
+              </button>
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                  {fileWatchModify ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'}"
+                onclick={() => { fileWatchModify = !fileWatchModify; }}
+                data-testid="edit-trigger-event-modify"
+              >
+                <Pencil size={11} />
+                {$t("triggers.field_events_modify")}
+              </button>
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors
+                  {fileWatchDelete ? 'border-destructive/80 bg-destructive/10 text-destructive' : 'border-border text-muted-foreground hover:border-destructive/40'}"
+                onclick={() => { fileWatchDelete = !fileWatchDelete; }}
+                data-testid="edit-trigger-event-delete"
+              >
+                <Trash2 size={11} />
+                {$t("triggers.field_events_delete")}
+              </button>
+            </div>
+            {#if sourceError && sourceType === "file_watch" && !fileWatchCreate && !fileWatchModify && !fileWatchDelete}
+              <p class="mt-1 text-xs text-destructive">{$t("triggers.field_events_required")}</p>
+            {/if}
+          </div>
+        </div>
+
+      {:else if sourceType === "webhook"}
+        <div class="space-y-3">
+          <div class="rounded-md border border-border bg-muted/30 px-3.5 py-2.5 text-[12px] text-muted-foreground leading-relaxed">
+            {$t("triggers.webhook_explain")}
+          </div>
+          <div>
+            <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="edit-trigger-secret">{$t("triggers.field_secret")}</label>
+            <div class="flex gap-2">
+              <Input
+                id="edit-trigger-secret"
+                class="flex-1 font-mono text-xs {sourceError && sourceType === 'webhook' ? 'border-destructive' : ''}"
+                placeholder={$t("triggers.field_secret_placeholder")}
+                bind:value={webhookSecret}
+                data-testid="edit-trigger-secret-input"
+              />
+              <Button size="sm" variant="outline" onclick={generateSecret} data-testid="edit-trigger-secret-generate-btn">
+                {$t("triggers.field_secret_generate")}
+              </Button>
+            </div>
+            {#if sourceError && sourceType === "webhook"}
+              <p class="mt-0.5 text-xs text-destructive">{sourceError}</p>
+            {/if}
           </div>
         </div>
       {/if}
 
-      {#if sourceError}
-        <p class="text-xs text-destructive">{sourceError}</p>
-      {/if}
+      <!-- Enabled toggle -->
+      <label class="flex items-center gap-2 text-sm">
+        <Toggle bind:checked={enabled} data-testid="edit-trigger-enabled-toggle" />
+        {$t("triggers.field_enabled")}
+      </label>
 
-      <!-- Input template -->
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-input-template">
-          {$t("triggers.field_input_template")}
-          <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
-        </label>
-        <Textarea
-          id="edit-trigger-input-template"
-          rows={2}
-          placeholder={$t("triggers.field_input_template_placeholder")}
-          bind:value={inputTemplate}
-          data-testid="edit-trigger-input-template-textarea"
-        />
-      </div>
-
-      <!-- On busy + Enabled -->
-      <div class="flex items-center gap-6">
-        <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-on-busy">{$t("triggers.field_on_busy")}</label>
-          <Select
-            id="edit-trigger-on-busy"
-            bind:value={onBusy}
-            data-testid="edit-trigger-on-busy-select"
+      <!-- Advanced settings (collapsible, closed by default for both profiles) -->
+      <div class="rounded-md border border-border">
+        <button
+          type="button"
+          class="flex w-full items-center justify-between px-3 py-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/30"
+          onclick={() => { advancedOpen = !advancedOpen; }}
+          data-testid="edit-trigger-advanced-toggle"
+        >
+          {$t("triggers.advanced_section")}
+          <ChevronDown
+            size={14}
+            class="transition-transform duration-200 {advancedOpen ? 'rotate-180' : ''}"
+          />
+        </button>
+        {#if advancedOpen}
+          <div
+            class="space-y-4 border-t border-border px-3 pb-3 pt-3"
+            transition:slide={{ duration: 180 }}
           >
-            <option value="queue">{$t("triggers.field_on_busy_queue")}</option>
-            <option value="drop">{$t("triggers.field_on_busy_drop")}</option>
-          </Select>
-        </div>
-        <label class="flex items-center gap-2 text-sm">
-          <Toggle bind:checked={enabled} data-testid="edit-trigger-enabled-toggle" />
-          {$t("triggers.field_enabled")}
-        </label>
+            <!-- On busy -->
+            <div>
+              <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-on-busy">{$t("triggers.field_on_busy")}</label>
+              <Select
+                id="edit-trigger-on-busy"
+                bind:value={onBusy}
+                data-testid="edit-trigger-on-busy-select"
+              >
+                <option value="queue">{$t("triggers.field_on_busy_queue")}</option>
+                <option value="drop">{$t("triggers.field_on_busy_drop")}</option>
+              </Select>
+            </div>
+
+            <!-- Input template -->
+            <div>
+              <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-input-template">
+                {$t("triggers.field_input_template")}
+                <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+              </label>
+              <Textarea
+                id="edit-trigger-input-template"
+                rows={2}
+                placeholder={$t("triggers.field_input_template_placeholder")}
+                bind:value={inputTemplate}
+                data-testid="edit-trigger-input-template-textarea"
+              />
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Submit error -->

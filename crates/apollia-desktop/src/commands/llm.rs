@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use apollia_core::LlmBackendRepository;
 use apollia_llm::LlmRouter;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -335,6 +336,57 @@ pub async fn reload_llm(shared: State<'_, SharedLlmRouter>) -> Result<(), String
     *shared.write().map_err(|e| format!("lock poisoned: {e}"))? = Some(Arc::new(router));
 
     tracing::info!("LLM router reloaded from apollia.toml");
+    Ok(())
+}
+
+/// Reconstruit le `SharedLlmRouter` depuis `system.db` (SQLite).
+///
+/// Appelé par le frontend Settings après `create_llm_backend` / `update_llm_backend`
+/// pour que les agents utilisent immédiatement la nouvelle configuration.
+/// Contrairement à `reload_llm` (lecture TOML), lit le dépôt CRUD `system.db`.
+///
+/// L'ancien `Arc<LlmRouter>` est explicitement dropped avant d'écrire le nouveau,
+/// ce qui libère le modèle GGUF de la RAM dès qu'il n'y a plus de requêtes en cours.
+#[tauri::command]
+pub async fn reload_llm_from_db(shared: State<'_, SharedLlmRouter>) -> Result<(), String> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let db_path = home.join(".apollia").join("system.db");
+
+    // LlmBackendRepository is !Send (uses RefCell<Connection>), so all DB work
+    // must stay inside spawn_blocking. We extract the raw configs and return them.
+    let (all_configs, default_name) = tokio::task::spawn_blocking(move || {
+        let repo = LlmBackendRepository::open(&db_path)
+            .map_err(|e| format!("failed to open system.db: {e}"))?;
+        let all = repo
+            .list()
+            .map_err(|e| format!("failed to list LLM backends: {e}"))?;
+        let default_cfg = repo
+            .find_default()
+            .map_err(|e| format!("failed to find default backend: {e}"))?
+            .ok_or_else(|| "no default LLM backend configured in system.db".to_string())?;
+        Ok::<_, String>((all, default_cfg.name))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    let new_router = Arc::new(
+        LlmRouter::from_backend_configs(all_configs, default_name)
+            .await
+            .map_err(|e| format!("failed to build LLM router: {e}"))?,
+    );
+
+    // Drop the old router before writing the new one so the GGUF is freed from RAM
+    // as soon as no other Arc references remain (e.g. in-flight agent requests).
+    let mut guard = shared
+        .write()
+        .map_err(|e| format!("lock poisoned: {e}"))?;
+    let old = guard.take();
+    drop(old);
+    *guard = Some(new_router);
+
+    tracing::info!("LLM router reloaded from system.db");
     Ok(())
 }
 

@@ -22,9 +22,10 @@
     message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">;
     sessionId: string;
     isOperator: boolean;
+    content?: string;
   }
 
-  let { message, sessionId, isOperator }: Props = $props();
+  let { message, sessionId, isOperator, content }: Props = $props();
 
   const toolCalls = $derived<ToolCallView[]>(message.tool_calls ?? []);
   const pendingCalls = $derived(
@@ -43,7 +44,7 @@
     tool_calls: nonPendingCalls,
     metadata: message.metadata,
   });
-  const items = $derived(buildReasoningSequence(nonPendingMessage));
+  const items = $derived(buildReasoningSequence(nonPendingMessage, content));
 
   // US-SP42-035 (B.55): cap visible reasoning items, paginate by 30 on demand.
   // Persist `visibleCount` per-message in sessionStorage so scroll-back through
@@ -91,7 +92,7 @@
   );
 </script>
 
-{#if toolCalls.length > 0 || message.metadata?.thinking_trace}
+{#if items.length > 0 || pendingCalls.length > 0}
   <div class="mt-2 space-y-1.5" data-testid="reasoning-sequence">
     <!-- Non-pending items rendered via the unified ReasoningCard -->
     {#each visibleItems as item (item.id)}

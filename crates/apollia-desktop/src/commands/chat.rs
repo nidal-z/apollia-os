@@ -315,6 +315,40 @@ pub async fn respond_user_input(
         .map_err(|e| e.to_string())
 }
 
+/// Reject a pending `ask_user` request with a mandatory reason.
+#[tauri::command]
+pub async fn respond_user_input_rejected(
+    state: State<'_, RuntimeHandle>,
+    request_id: String,
+    reason: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .reject_user_input(request_id, reason)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// List all currently pending `ask_user` requests (for inbox / reconnection).
+#[tauri::command]
+pub async fn list_pending_user_inputs(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<apollia_runtime::chat::manager::PendingUserInputView>, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .list_pending_user_inputs()
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// List recently resolved chat tool approvals for the history view.
 #[tauri::command]
 pub async fn list_chat_approval_history(

@@ -389,6 +389,15 @@ fn main() {
             AgentRepository::open(&db_path).expect("failed to open agents.db for desktop app"),
         ))
     };
+
+    // Open PackageRepository for Tauri IPC commands (same agents.db, WAL allows concurrent readers).
+    let pkg_repo: Arc<std::sync::Mutex<apollia_tools::PackageRepository>> = {
+        let db_path = apollia_data_dir.join("agents.db");
+        Arc::new(std::sync::Mutex::new(
+            apollia_tools::PackageRepository::open(&db_path)
+                .expect("failed to open agents.db for PackageRepository"),
+        ))
+    };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
     let mcp_registry_client = match McpRegistryClient::new(&apollia_data_dir) {
@@ -407,12 +416,17 @@ fn main() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(runtime_handle.clone())
         .manage(agent_repo)
+        .manage(pkg_repo)
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
         .manage(mcp_registry_client)
         .manage(SecretStore::new())
         .manage(stt_flow_state.clone())
+        .manage(std::sync::Arc::new(
+            tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
+        ) as commands::model_hub::SharedDownloadManager)
+        .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
         .setup(move |app| {
             tray::setup_tray(app)?;
 
@@ -527,6 +541,11 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::agent_packages::preview_agent_package,
+            commands::agent_packages::install_agent_package,
+            commands::agent_packages::list_agent_packages,
+            commands::agent_packages::get_agent_package_detail,
+            commands::agent_packages::uninstall_agent_package,
             commands::agents::list_agents,
             commands::agents::agent_status_snapshot,
             commands::agents::list_agent_messages,
@@ -563,6 +582,13 @@ fn main() {
             commands::llm::get_llm_cost_stats,
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
+            commands::llm::reload_llm_from_db,
+            commands::model_hub::get_hardware_profile,
+            commands::model_hub::search_hf_models,
+            commands::model_hub::get_hf_model,
+            commands::model_hub::start_model_download,
+            commands::model_hub::cancel_model_download,
+            commands::model_hub::list_model_downloads,
             commands::meta_automation::meta_parse_automation,
             commands::apollia_coach::apollia_coach_invoke,
             commands::apollia_coach::apollia_guide_bootstrap,
@@ -633,6 +659,8 @@ fn main() {
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
             commands::chat::respond_user_input,
+            commands::chat::respond_user_input_rejected,
+            commands::chat::list_pending_user_inputs,
             commands::chat::list_chat_approval_history,
             commands::chat::link_chat_to_project,
             commands::chat::list_chats_by_project,

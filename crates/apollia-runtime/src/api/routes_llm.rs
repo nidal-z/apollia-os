@@ -612,9 +612,23 @@ fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResp
         LlmBackendError::InvalidName(_) | LlmBackendError::Serialization(_) => {
             (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
         }
-        LlmBackendError::Db(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        LlmBackendError::Db(_) | LlmBackendError::Io(_) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+        }
     };
     (status, Json(BackendErrorResponse { error: msg }))
+}
+
+/// Sync backends from DB to `apollia.toml` after a mutation (best-effort — never fails the request).
+fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    guard: &LlmBackendRepository,
+) {
+    if let Some(path) = &state.config_path {
+        if let Err(e) = guard.sync_to_toml(path) {
+            tracing::warn!(error = %e, "failed to sync llm backends to apollia.toml");
+        }
+    }
 }
 
 /// Extract the `llm_backend_repo` from state, returning 503 if absent.
@@ -743,6 +757,7 @@ pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
         )
     })?;
     guard.save(&cfg).map_err(map_backend_error)?;
+    sync_toml_after_mutation(&state, &guard);
     let created = guard
         .find_by_name(&cfg.name)
         .map_err(map_backend_error)?
@@ -811,6 +826,7 @@ pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
         is_default: body.is_default,
     };
     guard.save(&cfg).map_err(map_backend_error)?;
+    sync_toml_after_mutation(&state, &guard);
     let updated = guard
         .find_by_name(&name)
         .map_err(map_backend_error)?
@@ -842,6 +858,7 @@ pub async fn delete_llm_backend<B: ExecutionBackend + Clone>(
         )
     })?;
     guard.delete(&name).map_err(map_backend_error)?;
+    sync_toml_after_mutation(&state, &guard);
     Ok(Json(DeleteBackendResponse { deleted: name }))
 }
 
@@ -862,6 +879,7 @@ pub async fn set_default_llm_backend<B: ExecutionBackend + Clone>(
         )
     })?;
     guard.set_default(&name).map_err(map_backend_error)?;
+    sync_toml_after_mutation(&state, &guard);
     Ok(Json(SetDefaultResponse { default: name }))
 }
 

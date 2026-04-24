@@ -78,3 +78,39 @@ apollia-os config show --json
 ---
 
 > **Référence complète :** [Config-apollia-toml](https://github.com/nidal-z/apollia-os/wiki/Config-apollia-toml) — toutes les sections `[runtime]`, `[oria]`, `[memory]`, `[tools]`, `[logging]`, `[a2a]`, `[chat]`, `[observability]`, `[stt]`, et `[[llm.backends]]` avec leurs valeurs par défaut.
+
+---
+
+## Lire les métriques de session depuis votre code
+
+Le runtime maintient pour chaque exécution une `SessionMetrics` agrégée — steps consommés, appels d'outils par catégorie, latence cumulée, tokens LLM si applicable. Vous pouvez les lire depuis `ctx` à n'importe quel moment de `run()`, par exemple pour les logger en fin de tâche ou les exporter vers votre observabilité maison.
+
+```python
+async def run(self, task, ctx):
+    # ... logique de l'agent ...
+
+    # En fin de tâche : récupérer les métriques accumulées
+    metrics = await ctx.session.metrics()
+
+    # Forme : dict avec steps_used, tool_calls, llm_calls, llm_tokens_in,
+    # llm_tokens_out, elapsed_secs, errors_count
+    ctx.log.info(
+        "session_done",
+        steps=metrics["steps_used"],
+        tools=metrics["tool_calls"],
+        tokens=metrics["llm_tokens_in"] + metrics["llm_tokens_out"],
+        elapsed=metrics["elapsed_secs"],
+    )
+
+    # Exporter vers une API maison (asynchrone, fire-and-forget)
+    if metrics["llm_tokens_out"] > 5000:
+        await ctx.tools.call("http_fetch", {
+            "url":    "https://obs.example.com/ingest",
+            "method": "POST",
+            "body":   {"agent": "file-assistant", "metrics": metrics},
+        })
+
+    return {"task_id": task["task_id"], "status": "completed", "output": [...]}
+```
+
+Les métriques sont également émises automatiquement sur l'EventBus en fin de tâche (`RuntimeEvent::TaskCompleted`) — utilisez `ctx.session.metrics()` uniquement si vous avez besoin de la valeur pendant l'exécution.

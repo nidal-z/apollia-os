@@ -712,4 +712,4 @@ impl NotificationEngine {
 
 ---
 
-*Voir aussi : [API HTTP Reference](./API-HTTP-Reference) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*
+*Voir aussi : [API-HTTP-Workspace](./API-HTTP-Workspace#notifications-sprint-11-crud-sprint-17) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*

@@ -18,16 +18,31 @@
   let stream: MediaStream | null = null;
 
   async function startVisualizer() {
+    // Start fallback immediately so bars are always animated.
+    // getUserMedia can hang forever in Tauri overlay windows — never reaching the catch.
+    animateFallback();
+
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const result = await Promise.race([
+        navigator.mediaDevices.getUserMedia({ audio: true }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("mic_timeout")), 800)
+        ),
+      ]);
+      // Mic access granted — cancel fallback and switch to real audio input.
+      if (animFrameId !== null) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      stream = result;
       audioCtx = new AudioContext();
       analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;           // time-domain buffer size
-      analyser.smoothingTimeConstant = 0; // manual smoothing below
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0;
       audioCtx.createMediaStreamSource(stream).connect(analyser);
       tickVisualizer();
     } catch {
-      animateFallback();
+      // Fallback animation is already running — nothing to do.
     }
   }
 
@@ -55,11 +70,11 @@
   }
 
   function animateFallback() {
-    let t = 0;
+    let phase = 0;
     const tick = () => {
-      t += 0.06;
+      phase += 0.06;
       bars = Array.from({ length: BAR_COUNT }, (_, i) =>
-        Math.max(0.06, 0.42 + 0.36 * Math.sin(t + i * 0.35))
+        Math.max(0.06, 0.42 + 0.36 * Math.sin(phase + i * 0.35))
       );
       animFrameId = requestAnimationFrame(tick);
     };
@@ -123,7 +138,7 @@
   <div class="overlay" role="status" aria-live="polite">
     <div class="visualizer" aria-hidden="true">
       {#each bars as h}
-        <span class="bar" style="--h: {Math.round(h * 100)}%"></span>
+        <span class="bar" style="height: {Math.round(h * 100)}%"></span>
       {/each}
     </div>
     <span class="hint">
@@ -183,7 +198,7 @@
     flex-shrink: 0;
     border-radius: 2px;
     background: var(--bar);
-    height: var(--h, 6%);
+    height: 6%;
     min-height: 3px;
     max-height: 100%;
     transition: height 55ms ease-out;

@@ -148,6 +148,7 @@
     "dashboard": "Tableau de bord",
     "home": "Accueil",
     "my_assistants": "Mes assistants",
+    "my_triggers": "Mes déclencheurs",
     "activity": "Mon travail",
     "activity_subtitle": "Tâches récentes et en cours",
     "running_tasks_count_tooltip": "Nombre de tâches en cours",
@@ -646,6 +647,9 @@
     "loading_tasks": "Chargement des tâches...",
     "no_tasks": "Aucune tâche trouvée pour cet agent.",
     "tasks_label": "tâches",
+    "task_no_description": "Aucune description",
+    "task_error_label": "Erreur",
+    "task_output_label": "Résultat",
     "section_active": "Agents actifs",
     "section_inactive": "Agents inactifs",
     "section_assistants": "Assistants",
@@ -779,13 +783,18 @@
     "status_label": "Statut",
     "agent_label": "Agent",
     "agent_all": "Tous les agents",
-    "status": { "pending": "En attente", "resolved": "Résolues", "all": "Toutes" },
+    "status": {
+      "pending": "En attente",
+      "resolved": "Résolues",
+      "all": "Toutes"
+    },
     "kind": {
       "task": "Approbation de tâche",
       "tool": "Appel d'outil",
       "bash": "Commande shell",
       "filesystem": "Système de fichiers",
-      "always_accept": "Toujours autoriser"
+      "always_accept": "Toujours autoriser",
+      "ask_user": "Question"
     },
     "preview": {
       "tool": "Outil",
@@ -825,113 +834,83 @@
       "always_accepted": "Règle enregistrée — futurs appels auto-approuvés",
       "bulk_approved": "{count} actions approuvées",
       "bulk_rejected": "{count} actions refusées"
+    },
+    "ask_user_gate": {
+      "title": "L'agent veut vous poser une question",
+      "body": "Approuvez pour laisser l'agent continuer. Il vous posera ensuite ses questions directement dans la conversation."
     }
   },
   "permissions": {
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "always_allow": "Toujours autoriser",
+    "approving": "Approbation...",
+    "rejecting": "Refus...",
+    "reject_reason_placeholder": "Motif du refus...",
+    "reject_reason_min": "{min} caractères minimum",
+    "always_allow_success": "Règle enregistrée — sera auto-approuvé à l'avenir",
+    "always_allow_error": "Impossible d'enregistrer la règle",
+    "type_bash": "Commande",
+    "type_file_edit": "Édition fichier",
+    "type_file_write": "Écriture fichier",
+    "type_filesystem": "Système de fichiers",
+    "type_mcp": "Outil MCP",
+    "type_generic": "Action outil",
+    "mode_create": "Créer",
+    "mode_overwrite": "Écraser",
+    "op_delete": "Supprimer",
+    "op_move": "Déplacer",
+    "op_mkdir": "Créer dossier",
+    "working_dir": "Répertoire de travail",
+    "file_label": "Fichier",
+    "target_label": "Destination",
+    "server_label": "Serveur",
+    "tool_label": "Outil",
+    "arguments_label": "Arguments",
+    "input_label": "Entrée",
     "preview": {
       "lazy_hint": "Aperçu non calculé — cliquer pour charger",
-      "load": "Charger l’aperçu",
-      "loading": "Chargement de l’aperçu…",
-      "fs": {
-        "action": {
-          "create": "Créer",
-          "update": "Modifier",
-          "delete": "Supprimer",
-          "chmod": "Droits"
-        },
-        "show_more": "Afficher {count} lignes supplémentaires"
-      },
-      "bash": {
-        "command": "Commande",
-        "dry_run_output": "Sortie du dry-run",
-        "detected": "Commandes détectées",
-        "warnings": "Avertissements",
-        "no_dry_run_title": "Cette commande ne peut pas être simulée",
-        "no_dry_run_body": "Exécution réelle requise — consultez l’analyse statique ci-dessous."
-      },
-      "mcp": {
-        "parameters": "Paramètres",
-        "col_name": "Nom",
-        "col_type": "Type",
-        "col_required": "Requis",
-        "col_description": "Description",
-        "required": "Requis",
-        "output": "Schéma de sortie",
-        "example": "Exemple d’appel"
-      },
-      "network": {
-        "headers": "En-têtes",
-        "body_size": "Taille estimée du corps",
-        "body_excerpt": "Extrait du corps"
-      }
+      "load": "Charger l'aperçu",
+      "loading": "Chargement de l'aperçu…"
     },
-    "impact": {
-      "label": "Impact estimé",
-      "if_approved": "Si vous approuvez",
-      "if_refused": "Si vous refusez"
-    },
-    "error": {
-      "unknown_title": "Erreur inattendue",
-      "unknown_body": "Aucun détail disponible.",
-      "unknown_action": "Consultez les logs, ou réessayez l’action.",
-      "suggested_action": "Essayez :",
-      "learn_more": "En savoir plus"
-    },
-    "actions": {
-      "accept": "Approuver",
-      "refuse": "Refuser"
+    "rules": {
+      "manage_link": "Gérer mes règles"
     },
     "always": {
       "button": "Toujours autoriser",
-      "tooltip": "Ne plus demander la confirmation pour cette action exacte",
+      "tooltip": "Auto-approuver les prochains appels correspondant au périmètre sélectionné",
       "scope": {
-        "label": "Portée de la règle",
-        "example_label": "Exemple —",
+        "label": "Périmètre",
+        "example_label": "Exemple :",
         "session_only": {
-          "label": "Dans cette session uniquement",
-          "help": "La règle expire à la fin de la session en cours.",
-          "example": "Accepter les appels futurs pour cet outil jusqu’à la fermeture de la session."
+          "label": "Cette session uniquement",
+          "help": "Auto-approuve les appels correspondants pour la durée de cette session.",
+          "example": "Utile pour des workflows temporaires que vous contrôlez."
         },
         "agent_tool_pair": {
-          "label": "Pour cet assistant et cet outil, à l’avenir",
-          "help": "La règle s’applique quand cet agent précis appelle cet outil précis.",
-          "example": "Seul l’assistant Dev peut appeler `bash:git` sans demander."
+          "label": "Cet agent + cet outil",
+          "help": "Toujours autoriser cet agent à utiliser cet outil spécifique.",
+          "example": "Utile quand vous faites confiance à un agent pour une capacité précise."
         },
         "tool_global": {
-          "label": "Pour cet outil, sur tous les assistants",
-          "help": "Tous les assistants qui appellent cet outil sauteront la demande.",
-          "example": "N’importe quel assistant peut appeler `mcp:linear.search` sans demander."
+          "label": "Cet outil (tous les agents)",
+          "help": "Toujours autoriser n'importe quel agent à utiliser cet outil.",
+          "example": "Utile pour les outils en lecture seule sans danger."
         },
         "all_always": {
-          "label": "Tout accepter automatiquement (pas recommandé)",
-          "help": "Toutes les demandes de permission futures seront auto-approuvées.",
-          "example": "Apollia ne vous demandera plus jamais d’approbation.",
-          "danger": "C’est le réglage le plus dangereux. Vous perdez tous les garde-fous.",
-          "confirm_title": "Tout auto-approuver ?",
-          "confirm_body": "Ceci désactive toutes les demandes de permission, tous assistants et outils confondus. Vous pourrez toujours révoquer depuis Paramètres → Règles de permission.",
-          "confirm_action": "Je comprends, activer"
+          "label": "Tout (tous les agents, tous les outils)",
+          "help": "Désactive toutes les demandes d'approbation. Réservé aux environnements entièrement de confiance.",
+          "example": "À utiliser avec une extrême prudence — les agents s'exécuteront sans aucune validation.",
+          "danger": "Ceci désactive toutes les demandes d'approbation à l'échelle du système.",
+          "confirm_title": "Désactiver toutes les approbations ?",
+          "confirm_body": "Cela auto-approuvera chaque action de chaque agent. Vous pouvez réactiver des règles individuelles dans Paramètres → Règles de permission.",
+          "confirm_action": "Confirmer — désactiver toutes les validations"
         }
       }
     },
-    "rules": {
-      "title": "Règles de permission",
-      "subtitle": "Règles qui auto-approuvent les actions futures. Révoquez celles qui ne sont plus de confiance.",
-      "empty_title": "Aucune règle d’auto-approbation",
-      "empty_subtitle": "Les règles apparaissent ici quand vous choisissez « Toujours autoriser ».",
-      "col_tool": "Outil",
-      "col_scope": "Portée",
-      "col_agent": "Agent",
-      "col_created": "Créée le",
-      "revoke": "Révoquer",
-      "revoke_all": "Révoquer toutes les règles",
-      "revoke_all_confirm_title": "Révoquer toutes les règles d’auto-approbation ?",
-      "revoke_all_confirm_body": "Les futures actions redemanderont l’approbation. Action irréversible.",
-      "revoke_all_type_prompt": "Tapez votre nom pour confirmer",
-      "manage_link": "Gérer mes règles",
-      "toast": {
-        "revoked": "Règle révoquée",
-        "revoked_all": "Toutes les règles révoquées"
-      }
+    "actions": {
+      "refuse": "Refuser",
+      "accept": "Approuver"
     }
   },
   "approvals": {
@@ -954,7 +933,11 @@
     "rejected_toast": "Approbation rejetée",
     "approving": "Approbation...",
     "approve": "Approuver",
-    "reject": "Rejeter",
+    "reject": {
+      "reason_required": "Motif requis (min {min} caractères)",
+      "reason_optional": "Motif (facultatif)",
+      "placeholder": "Expliquez pourquoi vous refusez…"
+    },
     "rejecting": "Rejet...",
     "reject_reason": "Raison du rejet (min {min} caractères)",
     "reject_placeholder": "Décrivez pourquoi vous rejetez cette action...",
@@ -997,11 +980,6 @@
       "confirm_always": "Confirmer",
       "stop_agent": "Arrêter l'agent",
       "stop": "Stopper"
-    },
-    "reject": {
-      "reason_required": "Motif requis (min {min} caractères)",
-      "reason_optional": "Motif (facultatif)",
-      "placeholder": "Expliquez pourquoi vous refusez…"
     },
     "scope": {
       "open_disclosure": "Changer la portée du « toujours accepter »",
@@ -1209,7 +1187,35 @@
     "field_on_busy_drop": "Ignorer",
     "field_enabled": "Activé",
     "edit": "Modifier",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "enabled_toast": "Trigger « {id} » activé",
+    "disabled_toast": "Trigger « {id} » désactivé",
+    "type_cron_label": "Sur un calendrier",
+    "type_cron_desc": "Quotidien, hebdomadaire, à une heure précise",
+    "type_interval_label": "À intervalle régulier",
+    "type_interval_desc": "Toutes les 30 minutes, toutes les heures…",
+    "type_oneshot_label": "Une seule fois",
+    "type_oneshot_desc": "Se déclenche une fois à la date/heure indiquée",
+    "type_file_watch_label": "Quand un fichier change",
+    "type_file_watch_desc": "Réagit aux créations, modifications ou suppressions dans un dossier",
+    "type_webhook_label": "Via une URL externe",
+    "type_webhook_desc": "Déclenché par n'importe quel service via HTTP POST",
+    "webhook_explain": "Un webhook vous fournit une URL unique. Envoyez une requête HTTP POST depuis n'importe quel service externe (GitHub, Zapier, etc.) pour démarrer votre agent.",
+    "cron_preset_every_15m": "Toutes les 15 min",
+    "cron_preset_every_30m": "Toutes les 30 min",
+    "cron_preset_hourly": "Toutes les heures",
+    "cron_preset_daily": "Chaque jour à…",
+    "cron_preset_weekly": "Chaque semaine…",
+    "cron_preset_custom": "Planification personnalisée",
+    "cron_at_time": "À",
+    "cron_on_days": "Les",
+    "interval_unit_minutes": "minutes",
+    "interval_unit_hours": "heures",
+    "interval_unit_days": "jours",
+    "interval_custom": "Intervalle personnalisé",
+    "advanced_section": "Paramètres avancés",
+    "field_id_auto": "Généré automatiquement — personnalisable ci-dessous",
+    "empty_subtitle_operator": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Créez votre premier trigger ci-dessous."
   },
   "pipelines": {
     "title": "Pipelines",
@@ -1587,6 +1593,7 @@
       "profile": "Profil",
       "stt": "Reconnaissance vocale",
       "llm": "Backends LLM",
+      "model_hub": "Hub de modèles",
       "configuration": "Configuration",
       "system": "Informations système",
       "memories": "Mémoires",
@@ -1757,7 +1764,43 @@
     "memories_source_chat_inference": "Inféré",
     "memories_source_user_explicit": "Explicite",
     "memories_source_agent_observation": "Agent",
-    "stt": "Speech-to-Text",
+    "stt": {
+      "section": {
+        "essential_title": "ESSENTIEL",
+        "essential_description": "Backend, langue et mode d'activation.",
+        "advanced_title": "DÉCLENCHEURS AVANCÉS",
+        "advanced_description": "Raccourci, mot-clé vocal et seuil d'activité.",
+        "performance_title": "PERFORMANCE",
+        "performance_description": "Taux d'échantillonnage, taille du modèle et accélération GPU.",
+        "status_title": "ÉTAT",
+        "status_description": "Dernière transcription, latence moyenne, erreurs récentes."
+      },
+      "hotkey": {
+        "label": "Raccourci global",
+        "change": "Modifier le raccourci",
+        "preview_placeholder": "Aucun raccourci défini",
+        "capture_title": "Appuyez sur votre combinaison de touches",
+        "capture_subtitle": "Maintenez le(s) modificateur(s) et appuyez sur une touche. Entrée pour valider, Échap pour annuler.",
+        "waiting": "Appuyez sur une touche…",
+        "cancel": "Annuler",
+        "confirm": "Confirmer",
+        "needs_modifier": "Ajoutez au moins un modificateur (Cmd, Ctrl ou Alt).",
+        "collision_warning": "Attention : {combo} est déjà utilisé par le système ou Apollia. Il peut ne pas fonctionner de manière fiable.",
+        "timeout_countdown": "Annulation auto dans {seconds}s",
+        "captured": "Capturé : {combo}",
+        "updated_toast": "Raccourci mis à jour : {combo}",
+        "cancelled_toast": "Capture annulée",
+        "timeout_toast": "Aucune touche — capture annulée"
+      },
+      "status_refresh": "Rafraîchir",
+      "status_updated": "Mis à jour {relative}",
+      "status_never": "Jamais rafraîchi",
+      "status_live_updates": "Mises à jour en direct",
+      "status_last_transcription": "Dernière transcription",
+      "status_avg_latency": "Latence moyenne",
+      "status_recent_errors": "Erreurs récentes",
+      "status_none": "Aucune"
+    },
     "stt_subtitle": "Configurez le moteur de transcription vocale embarqué (whisper.cpp).",
     "stt_engine_status": "État du moteur",
     "stt_engine_status_section": "ÉTAT DU MOTEUR",
@@ -1806,43 +1849,6 @@
     "stt_config_hint": "Pour modifier manuellement, éditez la section [stt] dans apollia.toml.",
     "stt_yes": "Oui",
     "stt_no": "Non",
-    "stt": {
-      "section": {
-        "essential_title": "ESSENTIEL",
-        "essential_description": "Backend, langue et mode d'activation.",
-        "advanced_title": "DÉCLENCHEURS AVANCÉS",
-        "advanced_description": "Raccourci, mot-clé vocal et seuil d'activité.",
-        "performance_title": "PERFORMANCE",
-        "performance_description": "Taux d'échantillonnage, taille du modèle et accélération GPU.",
-        "status_title": "ÉTAT",
-        "status_description": "Dernière transcription, latence moyenne, erreurs récentes."
-      },
-      "hotkey": {
-        "label": "Raccourci global",
-        "change": "Modifier le raccourci",
-        "preview_placeholder": "Aucun raccourci défini",
-        "capture_title": "Appuyez sur votre combinaison de touches",
-        "capture_subtitle": "Maintenez le(s) modificateur(s) et appuyez sur une touche. Entrée pour valider, Échap pour annuler.",
-        "waiting": "Appuyez sur une touche…",
-        "cancel": "Annuler",
-        "confirm": "Confirmer",
-        "needs_modifier": "Ajoutez au moins un modificateur (Cmd, Ctrl ou Alt).",
-        "collision_warning": "Attention : {combo} est déjà utilisé par le système ou Apollia. Il peut ne pas fonctionner de manière fiable.",
-        "timeout_countdown": "Annulation auto dans {seconds}s",
-        "captured": "Capturé : {combo}",
-        "updated_toast": "Raccourci mis à jour : {combo}",
-        "cancelled_toast": "Capture annulée",
-        "timeout_toast": "Aucune touche — capture annulée"
-      },
-      "status_refresh": "Rafraîchir",
-      "status_updated": "Mis à jour {relative}",
-      "status_never": "Jamais rafraîchi",
-      "status_live_updates": "Mises à jour en direct",
-      "status_last_transcription": "Dernière transcription",
-      "status_avg_latency": "Latence moyenne",
-      "status_recent_errors": "Erreurs récentes",
-      "status_none": "Aucune"
-    },
     "llm_backends": "Backends LLM",
     "llm_backends_subtitle": "Configurez les backends de modèle de langage utilisés par Apollia et vos agents.",
     "llm_add_backend": "Ajouter un backend",
@@ -1877,6 +1883,17 @@
       "field_timeout": "Timeout (secondes)",
       "field_extra_json": "Config supplémentaire (objet JSON)",
       "advanced": "Avancé",
+      "section_gen_params": "Paramètres de génération",
+      "field_temperature": "Température",
+      "field_top_k": "Top-K",
+      "field_top_p": "Top-P",
+      "field_repeat_penalty": "Pénalité de répétition",
+      "field_context_size": "Taille du contexte (tokens)",
+      "gen_params_hint": "Laisser vide pour utiliser les valeurs par défaut du modèle. Auto-remplissage depuis HuggingFace ci-dessous.",
+      "hf_autofill_title": "Auto-remplissage depuis HuggingFace",
+      "hf_autofill_btn": "Récupérer les paramètres",
+      "hf_no_config": "Aucun generation_config.json trouvé pour ce dépôt.",
+      "hf_filled": "Paramètres récupérés depuis HuggingFace.",
       "api_key_unchanged": "Laisser vide pour conserver la clé existante",
       "test_connection": "Tester la connexion",
       "testing": "Test en cours…",
@@ -1884,6 +1901,14 @@
       "test_failed": "Échec de la connexion",
       "test_invalid": "Corrigez les erreurs de validation avant de tester.",
       "test_local_ok": "La configuration semble valide. Le test complet s'exécutera après l'enregistrement.",
+      "field_model_path": "Fichier modèle",
+      "browse": "Parcourir…",
+      "browse_title": "Sélectionner un fichier modèle GGUF",
+      "scan": "Scanner",
+      "scan_empty": "Aucun fichier .gguf trouvé dans ~/.apollia/models, ~/Downloads ou ~/.cache/lm-studio.",
+      "recommended": "Recommandé",
+      "multipart_first": "Modèle multi-partie ({total} fichiers) — tous les fichiers doivent être dans le même dossier.",
+      "multipart_corrected": "Partie {part}/{total} sélectionnée — chemin corrigé vers la première partie automatiquement.",
       "err_required": "Requis",
       "err_invalid_name": "Utilisez lettres minuscules, chiffres, _ ou -",
       "err_invalid_url": "Doit être une URL http(s) valide",
@@ -1900,7 +1925,8 @@
       "missing_hint": "Fichier introuvable. Les valeurs par défaut sont utilisées jusqu'à sa création.",
       "show_raw": "Afficher la vue brute",
       "hide_raw": "Masquer la vue brute",
-      "empty": "Aucune entrée dans cette section."
+      "empty": "Aucune entrée dans cette section.",
+      "path_label": "Fichier de configuration"
     },
     "system": {
       "refresh": "Rafraîchir",
@@ -2310,11 +2336,26 @@
     },
     "commands": {
       "menu_label": "Commandes slash",
-      "clear": { "label": "Fermer la session", "description": "Terminer la conversation en cours." },
-      "export": { "label": "Exporter la conversation", "description": "Enregistrer en Markdown avec les appels d'outils." },
-      "rename": { "label": "Renommer", "description": "Donner un titre personnalisé à cette conversation." },
-      "memory": { "label": "Mémoire", "description": "Ouvrir l'onglet mémoire du tiroir de contexte." },
-      "tools": { "label": "Outils", "description": "Ouvrir le panneau d'outils du tiroir de contexte." }
+      "clear": {
+        "label": "Fermer la session",
+        "description": "Terminer la conversation en cours."
+      },
+      "export": {
+        "label": "Exporter la conversation",
+        "description": "Enregistrer en Markdown avec les appels d'outils."
+      },
+      "rename": {
+        "label": "Renommer",
+        "description": "Donner un titre personnalisé à cette conversation."
+      },
+      "memory": {
+        "label": "Mémoire",
+        "description": "Ouvrir l'onglet mémoire du tiroir de contexte."
+      },
+      "tools": {
+        "label": "Outils",
+        "description": "Ouvrir le panneau d'outils du tiroir de contexte."
+      }
     },
     "no_sessions": "Aucune conversation",
     "close_confirm": "Clôturer cette session ?",
@@ -2378,7 +2419,7 @@
     "delete_confirm_title": "Supprimer la conversation",
     "delete_confirm_message": "Cette action est irréversible. Tous les messages seront perdus.",
     "status_processing": "En cours",
-    "no_preview": "Conversation vide",
+    "no_preview": "Pas d'aperçu",
     "a2a_workers": "Agents workers",
     "a2a_no_workers": "Aucun agent worker disponible",
     "mode_auto": "Auto",
@@ -2876,35 +2917,6 @@
       "step_3_body": "Approuvez, refusez, ou activez « toujours autoriser » pour un périmètre de confiance."
     }
   },
-  "permissions": {
-    "approve": "Approuver",
-    "reject": "Refuser",
-    "always_allow": "Toujours autoriser",
-    "approving": "Approbation...",
-    "rejecting": "Refus...",
-    "reject_reason_placeholder": "Motif du refus...",
-    "reject_reason_min": "{min} caractères minimum",
-    "always_allow_success": "Règle enregistrée — sera auto-approuvé à l'avenir",
-    "always_allow_error": "Impossible d'enregistrer la règle",
-    "type_bash": "Commande",
-    "type_file_edit": "Édition fichier",
-    "type_file_write": "Écriture fichier",
-    "type_filesystem": "Système de fichiers",
-    "type_mcp": "Outil MCP",
-    "type_generic": "Action outil",
-    "mode_create": "Créer",
-    "mode_overwrite": "Écraser",
-    "op_delete": "Supprimer",
-    "op_move": "Déplacer",
-    "op_mkdir": "Créer dossier",
-    "working_dir": "Répertoire de travail",
-    "file_label": "Fichier",
-    "target_label": "Destination",
-    "server_label": "Serveur",
-    "tool_label": "Outil",
-    "arguments_label": "Arguments",
-    "input_label": "Entrée"
-  },
   "projects": {
     "title": "Projets",
     "subtitle": "Organisez le contexte des agents avec instructions, documents et providers",
@@ -2954,6 +2966,8 @@
     "add_agent": "Ajouter un agent",
     "no_chats": "Aucun chat lié à ce projet",
     "no_agents": "Aucun agent lié à ce projet",
+    "no_workspace": "Aucun répertoire défini",
+    "start_chat_with_agent": "Démarrer un chat avec cet agent",
     "upload_document": "Ajouter",
     "choose_template": "Démarrer à partir d'un template",
     "add_provider": "Ajouter",
@@ -3051,7 +3065,7 @@
     },
     "triggers": {
       "title": "Laissez vos agents tourner tout seuls",
-      "description": "Les triggers lancent des tâches sur un cron, un fichier modifié ou un webhook. Déclarez-les dans apollia.toml ou créez-en un depuis le mode Builder.",
+      "description": "Les triggers lancent des tâches sur un cron, un fichier modifié ou un webhook. Déclarez-les dans apollia.toml ou créez-en un ci-dessous.",
       "primary_cta": "Créer un trigger",
       "secondary_cta": "Recharger la config"
     },

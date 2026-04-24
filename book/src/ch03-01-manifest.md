@@ -201,22 +201,29 @@ Si plusieurs backends sont configurés (par exemple, un backend local rapide pou
 
 ## Tableau récapitulatif
 
-| Champ | Obligatoire | Défaut | Effet si absent |
-|---|---|---|---|
-| `name` | oui | — | Erreur au démarrage |
-| `version` | oui | — | Erreur au démarrage |
-| `description` | oui | — | Erreur au démarrage |
-| `tools_required` | oui | `[]` | Erreur au démarrage |
-| `tools_optional` | non | `[]` | Ignoré |
-| `memory_namespace` | non | `None` | `ctx.memory` est `None` |
-| `shared_memory_namespaces` | non | `[]` | Aucun accès partagé |
-| `max_concurrent_tasks` | non | `1` | 1 tâche à la fois |
-| `step_budget` | non | `None` | Défauts runtime |
-| `network_allowlist` | non | `None` | Aucun accès réseau |
-| `tools_requiring_approval` | non | `[]` | Aucune approbation |
-| `supports_a2a` | non | `False` | Pas d'AgentCard |
-| `skills` | non | `[]` | Requis si `supports_a2a: True` |
-| `llm_backend` | non | `None` | Backend par défaut |
+### Champs obligatoires
+
+| Champ | Type | Effet si absent |
+|---|---|---|
+| `name` | `str` | Erreur au démarrage |
+| `version` | `str` (semver) | Erreur au démarrage |
+| `description` | `str` | Erreur au démarrage |
+| `tools_required` | `list[str]` (peut être `[]`) | Erreur au démarrage |
+
+### Champs optionnels
+
+| Champ | Défaut | Effet si absent |
+|---|---|---|
+| `tools_optional` | `[]` | Ignoré |
+| `memory_namespace` | `None` | `ctx.memory` est `None` |
+| `shared_memory_namespaces` | `[]` | Aucun accès partagé |
+| `max_concurrent_tasks` | `1` | 1 tâche à la fois |
+| `step_budget` | `None` | Défauts runtime appliqués |
+| `network_allowlist` | `None` | Aucun accès réseau |
+| `tools_requiring_approval` | `[]` | Aucune approbation |
+| `supports_a2a` | `False` | Pas d'AgentCard |
+| `skills` | `[]` | Requis si `supports_a2a: True` |
+| `llm_backend` | `None` | Backend par défaut |
 
 ---
 

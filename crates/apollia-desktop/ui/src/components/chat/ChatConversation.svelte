@@ -11,6 +11,7 @@
     chatConversationStats, globalTokenBuffers,
     clearGlobalBuffer, closeSessionBuffer, removePendingChatApproval,
     getPendingChatApprovalForSession,
+    getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
@@ -387,7 +388,11 @@
           return;
         }
         if (evt.event_type === "ChatUserInputResolved") {
+          const inner = (evt.payload as Record<string, unknown>)?.ChatUserInputResolved as
+            { request_id?: string } | undefined;
+          const p = inner ?? evt.payload as { request_id?: string };
           pendingUserInput = null;
+          if (p.request_id) removePendingUserInput(String(p.request_id));
           return;
         }
         if (evt.event_type === "ChatResponseCompleted") {
@@ -757,8 +762,25 @@
       scrollToBottom();
     }
 
+    // Restore pending ask_user request from global store
+    const userInput = getPendingUserInputForSession(sessionId);
+    if (userInput && !pendingUserInput) {
+      try {
+        const questions = JSON.parse(userInput.questions_json);
+        pendingUserInput = {
+          requestId: userInput.request_id,
+          questions,
+          context: userInput.context,
+        };
+        isStreaming = false;
+        scrollToBottom();
+      } catch {
+        // Malformed questions_json — ignore, will be re-emitted by backend
+      }
+    }
+
     // If session is still processing but we have no tokens yet, show processing state
-    if (sessionStatus === "processing" && !bufferedText && !approval) {
+    if (sessionStatus === "processing" && !bufferedText && !approval && !userInput) {
       isProcessing = true;
     }
   }

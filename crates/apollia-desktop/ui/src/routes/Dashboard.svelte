@@ -18,8 +18,6 @@
   import PendingActionsBlock from "../components/dashboard/PendingActionsBlock.svelte";
   import CompletedTodayBlock from "../components/dashboard/CompletedTodayBlock.svelte";
   import MyAssistantsBlock from "../components/dashboard/MyAssistantsBlock.svelte";
-  import NextStepsPanel from "../components/common/NextStepsPanel.svelte";
-  import { GLOBAL_SCOPE, type NextStepsFacts } from "$lib/stores/nextSteps";
 
   // Builder-mode (legacy layout preserved).
   import DashboardHeader from "../components/dashboard/DashboardHeader.svelte";
@@ -58,7 +56,7 @@
     $agents.filter((a) => a.agent_type !== "worker" && (a.runtime_status === "active" || a.runtime_status === "degraded")),
   );
   const installedAssistants = $derived(
-    $agents.filter((a) => a.agent_type !== "worker").slice(0, 12),
+    $agents.slice(0, 12),
   );
   const allWorkers = $derived($agents.filter((a) => a.agent_type === "worker"));
 
@@ -116,20 +114,6 @@
     automationsFailed: 0,
     firstFailureLabel: null,
     topAssistant,
-  });
-
-  // Facts passed to the Next Steps panel (US-SP42-059). Recent messages are
-  // left empty on the Dashboard — the session-scoped panel fills them.
-  const nextStepsFacts = $derived<NextStepsFacts>({
-    recentMessages: [],
-    toolsUsed: [],
-    memoriesCreated: 0,
-    memoriesRecalled: 0,
-    inboxPending: $pendingCount + $pendingChatApprovalCount,
-    tasksFailed: tasksFailed24h,
-    tasksCompleted: tasksCompleted24h,
-    automationsFailing: 0,
-    signals: topAssistant ? [`top_assistant:${topAssistant}`] : [],
   });
 
   // ── Inbox items adapter (light — just enough for the compact preview) ──────
@@ -230,18 +214,11 @@
         />
       </div>
     {:else}
-      <!-- 2x2 grid on lg, 1-col stack on smaller viewports. -->
-      <div class="mt-6 grid gap-4 lg:grid-cols-2" data-testid="dashboard-grid">
+      <!-- 3-col grid on lg, 1-col stack on smaller viewports. -->
+      <div class="mt-6 grid gap-4 lg:grid-cols-3" data-testid="dashboard-grid">
         <PendingActionsBlock items={inboxItems} {totalPending} limit={PENDING_BLOCK_LIMIT} />
         <CompletedTodayBlock tasks={$tasks} limit={COMPLETED_TODAY_LIMIT} />
         <MyAssistantsBlock agents={installedAssistants} />
-        <NextStepsPanel
-          scopeKey={GLOBAL_SCOPE}
-          context="global_context"
-          mode="operator"
-          facts={nextStepsFacts}
-          title={$t('dashboard.next_steps_title')}
-        />
       </div>
     {/if}
   </div>

@@ -20,6 +20,7 @@
 //! - `notebook_edit` — apply atomic cell operations to Jupyter `.ipynb` notebooks
 
 pub mod agent_repository;
+pub mod package_repository;
 pub mod audit;
 pub mod descriptor;
 pub mod executor;
@@ -34,6 +35,7 @@ pub mod task_repository;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
+pub use package_repository::{InstalledPackage, PackageRepository, PackageRepositoryError};
 pub use apollia_permissions::{PermissionDecision, PermissionEngine, PermissionError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,

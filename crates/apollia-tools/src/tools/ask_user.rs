@@ -89,6 +89,8 @@ pub struct PendingUserInput {
     pub questions: Vec<UserQuestion>,
     /// Optional context from the agent.
     pub context: Option<String>,
+    /// Chat session that originated this request (empty when unknown).
+    pub session_id: Option<String>,
     /// Channel to deliver the user's response.
     pub reply_tx: oneshot::Sender<AskUserOutput>,
 }
@@ -248,6 +250,8 @@ impl AskUser {
 /// once the user has responded.
 pub struct AskUserExecutor {
     pending_tx: mpsc::Sender<(String, PendingUserInput)>,
+    /// Session identifier threaded from the chat context (for UI routing).
+    session_id: Option<String>,
 }
 
 impl AskUserExecutor {
@@ -255,6 +259,15 @@ impl AskUserExecutor {
     pub fn new(pending: &PendingUserInputs) -> Self {
         Self {
             pending_tx: pending.sender(),
+            session_id: None,
+        }
+    }
+
+    /// Create a new executor with a known session identifier.
+    pub fn new_with_session(pending: &PendingUserInputs, session_id: Option<String>) -> Self {
+        Self {
+            pending_tx: pending.sender(),
+            session_id,
         }
     }
 }
@@ -308,6 +321,7 @@ impl crate::executor::ToolExecutor for AskUserExecutor {
         let pending = PendingUserInput {
             questions: parsed.questions,
             context: parsed.context,
+            session_id: self.session_id.clone(),
             reply_tx,
         };
 

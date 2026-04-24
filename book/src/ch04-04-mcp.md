@@ -171,3 +171,90 @@ L'écosystème MCP est ouvert. Points de départ :
 **Pas d'exposition en serveur MCP** — Apollia OS peut consommer des serveurs MCP mais ne peut pas encore s'exposer lui-même comme serveur MCP. Cette fonctionnalité est prévue en v0.3.
 
 **Naming `mcp:<serveur>/<outil>`** — le nom complet d'un outil MCP dépend du nom de serveur dans `mcp.toml` et du nom d'outil retourné par le serveur. Consultez `apollia-os tools list` pour voir les noms exacts disponibles.
+
+---
+
+## Construire son propre serveur MCP exposant un outil custom
+
+Quand aucun serveur existant ne couvre votre besoin (API interne, format propriétaire, base de données métier), vous pouvez écrire votre propre serveur MCP en quelques dizaines de lignes. Voici un exemple end-to-end : un serveur Python qui expose un seul outil `weather_lookup` consommé ensuite depuis un agent Apollia.
+
+### 1. Le serveur — `weather_server.py`
+
+Le SDK `mcp` officiel (`pip install mcp`) gère le protocole JSON-RPC pour vous. Vous déclarez un `ToolDescriptor` (nom + description + schéma JSON des entrées) puis l'implémentation `async`.
+
+```python
+# weather_server.py
+import asyncio
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import Tool, TextContent
+
+server = Server("weather")
+
+@server.list_tools()
+async def list_tools() -> list[Tool]:
+    return [
+        Tool(
+            name="weather_lookup",
+            description="Retourne la météo actuelle pour une ville donnée.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string", "description": "Nom de la ville"},
+                },
+                "required": ["city"],
+            },
+        )
+    ]
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    if name != "weather_lookup":
+        raise ValueError(f"Outil inconnu : {name}")
+    city = arguments["city"]
+    # Ici, appel HTTP à votre API météo — simplifié pour l'exemple
+    text = f"Météo {city}: 18°C, ciel dégagé"
+    return [TextContent(type="text", text=text)]
+
+async def main():
+    async with stdio_server() as (read, write):
+        await server.run(read, write, server.create_initialization_options())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 2. La déclaration côté Apollia — `~/.apollia/mcp.toml`
+
+```toml
+[[servers]]
+name      = "weather"
+transport = "stdio"
+command   = "python"
+args      = ["/abs/path/to/weather_server.py"]
+```
+
+Au prochain démarrage du runtime (ou via `apollia-os mcp add`), l'outil apparaît sous le nom `mcp:weather/weather_lookup`.
+
+### 3. L'invocation depuis un agent
+
+```python
+def manifest(self):
+    return {
+        "name": "concierge",
+        "version": "0.1.0",
+        "description": "Concierge qui consulte la météo",
+        "tools_required": ["mcp:weather/weather_lookup"],
+        "step_budget": 5,
+    }
+
+async def run(self, task, ctx):
+    result = await ctx.tools.call("mcp:weather/weather_lookup", {"city": "Paris"})
+    return {
+        "task_id": task["task_id"],
+        "status": "completed",
+        "output": [{"type": "text", "text": result["content"][0]["text"]}],
+    }
+```
+
+L'outil custom est traité exactement comme un outil natif — `tools_required` le valide au démarrage, le step_budget s'applique, l'audit trail enregistre chaque appel.

@@ -466,7 +466,7 @@ $ apollia-os pipeline status r-3f7a2b9c
 
 ## 8. API REST
 
-Voir [API HTTP Reference](./API-HTTP-Reference) — section Pipelines pour la référence complète.
+Voir [API-HTTP-Workspace](./API-HTTP-Workspace#pipelines-sprint-12-crud-sprint-17) — section Pipelines pour la référence complète.
 
 | Méthode | Route | Description |
 |---|---|---|
@@ -786,7 +786,7 @@ $ apollia pipeline list
 
 ## Voir aussi
 
-- [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/pipelines`
+- [API-HTTP-Workspace](./API-HTTP-Workspace) — endpoints CRUD `/api/v1/pipelines`
 - [Briques Triggers](./Briques-Triggers) — déclenchement automatique de pipelines
 - [Briques Notifications](./Briques-Notifications) — canal `pipeline.suspended`
 - [Briques Runtime Core](./Briques-Runtime-Core) — acteur `PipelineEngine` dans le Supervisor

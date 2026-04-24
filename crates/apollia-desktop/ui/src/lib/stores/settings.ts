@@ -9,12 +9,13 @@ import type {
   CliStatus,
 } from "$lib/types";
 
-/** The 9 canonical settings sub-routes. */
+/** The 10 canonical settings sub-routes. */
 export type SettingsSubRoute =
   | "appearance"
   | "profile"
   | "stt"
   | "llm"
+  | "model-hub"
   | "configuration"
   | "system"
   | "memories"
@@ -26,6 +27,7 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "profile",
   "stt",
   "llm",
+  "model-hub",
   "configuration",
   "system",
   "memories",

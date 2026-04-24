@@ -5,9 +5,9 @@
  * runtime can surface — HITL task approvals, chat tool approvals, always-
  * accept requests, and (forward-compat) bash/filesystem approvals.
  */
-import type { PendingApproval, PendingChatApproval } from "$lib/types";
+import type { PendingApproval, PendingChatApproval, PendingUserInputView } from "$lib/types";
 
-export type InboxItemKind = "task" | "tool" | "filesystem" | "bash" | "always_accept";
+export type InboxItemKind = "task" | "tool" | "filesystem" | "bash" | "always_accept" | "ask_user";
 
 /** Optional risk payload (US-SP42-054 / Chantier 4 P9). */
 export interface InboxRisk {
@@ -40,7 +40,14 @@ export interface ToolInboxItem extends BaseInboxItem {
   source: PendingChatApproval;
 }
 
-export type InboxItem = TaskInboxItem | ToolInboxItem;
+export interface AskUserInboxItem extends BaseInboxItem {
+  kind: "ask_user";
+  source: PendingUserInputView;
+  /** Questions parsed from questions_json (cached). */
+  questions: unknown[];
+}
+
+export type InboxItem = TaskInboxItem | ToolInboxItem | AskUserInboxItem;
 
 /** Urgency threshold default (30 min) in milliseconds. */
 export const DEFAULT_URGENCY_THRESHOLD_MS = 30 * 60 * 1000;

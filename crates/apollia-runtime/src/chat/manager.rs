@@ -270,6 +270,8 @@ pub enum ChatCommand {
     RegisterUserInputReply {
         /// Unique request identifier.
         request_id: String,
+        /// Chat session that triggered the ask_user call.
+        session_id: String,
         /// Questions JSON for event emission.
         questions_json: String,
         /// Agent context for the questions.
@@ -286,6 +288,20 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Reject a pending `ask_user` request with a mandatory reason.
+    RejectUserInput {
+        /// Unique request identifier.
+        request_id: String,
+        /// Operator-provided reason (non-empty, enforced by the frontend).
+        reason: String,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// List all currently pending `ask_user` requests (for inbox / reconnection).
+    ListPendingUserInputs {
+        /// Response channel.
+        reply: oneshot::Sender<Vec<PendingUserInputView>>,
+    },
     /// Fetch aggregated metrics for a session (tokens, cost, tool stats, context window).
     GetSessionMetrics {
         /// Target session.
@@ -295,6 +311,29 @@ pub enum ChatCommand {
     },
     /// Shut down the actor.
     Shutdown,
+}
+
+/// Snapshot of a pending `ask_user` request, safe to send across the IPC boundary.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PendingUserInputView {
+    /// Unique request identifier.
+    pub request_id: String,
+    /// Chat session that owns this request.
+    pub session_id: String,
+    /// Questions serialised as JSON (Vec<UserQuestion>).
+    pub questions_json: String,
+    /// Optional context string from the agent.
+    pub context: Option<String>,
+    /// ISO-8601 timestamp when the request was registered.
+    pub created_at: String,
+}
+
+/// Internal metadata kept alongside the oneshot sender for each pending `ask_user`.
+struct PendingUserInputMeta {
+    session_id: String,
+    questions_json: String,
+    context: Option<String>,
+    created_at: String,
 }
 
 /// Internal state of the [`ChatSessionManager`] actor.
@@ -333,11 +372,11 @@ struct ChatSessionManager {
     project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
-    /// Map of pending `ask_user` reply channels, keyed by request_id.
+    /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
     pending_user_replies: HashMap<
         String,
-        tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
+        (PendingUserInputMeta, tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>),
     >,
     /// Per-session aggregated metrics (US-SP42-030).
     ///
@@ -580,18 +619,23 @@ impl ChatSessionManager {
                 }
                 ChatCommand::RegisterUserInputReply {
                     request_id,
+                    session_id,
                     questions_json,
                     context,
                     reply_tx,
                 } => {
-                    // Store the reply channel for later resolution.
-                    self.pending_user_replies
-                        .insert(request_id.clone(), reply_tx);
-                    // Emit event so the UI can render the AskUserCard.
+                    let created_at = chrono::Utc::now().to_rfc3339();
+                    let meta = PendingUserInputMeta {
+                        session_id: session_id.clone(),
+                        questions_json: questions_json.clone(),
+                        context: context.clone(),
+                        created_at,
+                    };
+                    self.pending_user_replies.insert(request_id.clone(), (meta, reply_tx));
                     let _ = self.event_bus.send(
                         apollia_core::RuntimeEvent::ChatUserInputRequired {
                             request_id,
-                            session_id: String::new(), // TODO: associate with session
+                            session_id,
                             message_id: String::new(),
                             questions_json,
                             context,
@@ -603,12 +647,30 @@ impl ChatSessionManager {
                     answers,
                     reply,
                 } => {
-                    // The PendingUserInputs registry is consumed by the executor
-                    // in a background task. We need to find the pending request
-                    // and deliver the answers. Since the executor is already
-                    // listening on the oneshot, we use a dedicated resolution map.
                     let result = self.resolve_user_input_internal(&request_id, answers);
                     let _ = reply.send(result);
+                }
+                ChatCommand::RejectUserInput {
+                    request_id,
+                    reason,
+                    reply,
+                } => {
+                    let result = self.reject_user_input_internal(&request_id, reason);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ListPendingUserInputs { reply } => {
+                    let views = self
+                        .pending_user_replies
+                        .iter()
+                        .map(|(req_id, (meta, _))| PendingUserInputView {
+                            request_id: req_id.clone(),
+                            session_id: meta.session_id.clone(),
+                            questions_json: meta.questions_json.clone(),
+                            context: meta.context.clone(),
+                            created_at: meta.created_at.clone(),
+                        })
+                        .collect();
+                    let _ = reply.send(views);
                 }
                 ChatCommand::GetSessionMetrics { session_id, reply } => {
                     let result = self.metrics.get(&session_id).cloned();
@@ -682,6 +744,17 @@ impl ChatSessionManager {
             return Err(ChatError::NoLlmConfigured);
         }
 
+        // When no tools are explicitly specified, default to all tools in the registry.
+        // Users can override by passing an explicit tools list when creating the session.
+        let resolved_tools = if tools.is_empty() {
+            let all = self.tool_registry.list().await.map_err(|e| {
+                ChatError::InternalError(format!("tool registry list failed: {e}"))
+            })?;
+            all.into_iter().map(|d| d.name).collect()
+        } else {
+            tools
+        };
+
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = now_rfc3339();
         let prompt = system_prompt.unwrap_or_default();
@@ -692,7 +765,7 @@ impl ChatSessionManager {
             &mode,
             agent_name.as_deref(),
             &prompt,
-            &tools,
+            &resolved_tools,
             &now,
             None,
             project_id.as_deref(),
@@ -707,7 +780,7 @@ impl ChatSessionManager {
             status: SessionStatus::Active,
             history: Vec::new(),
             authorized_tools: std::collections::HashSet::new(),
-            available_tools: tools,
+            available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,
             llm_backend: None,
@@ -933,6 +1006,7 @@ impl ChatSessionManager {
                         return;
                     }
                 };
+                let agent_workspace = native_invoker.workspace_path().map(|p| p.to_path_buf());
                 let session_invoker: Arc<dyn ToolInvoker> = if let Some(ref a2a) = a2a_for_agent {
                     Arc::new(CompositeToolInvoker::new(native_invoker, a2a.clone()))
                 } else {
@@ -946,7 +1020,8 @@ impl ChatSessionManager {
                     event_bus,
                     session_user_memory,
                     a2a_for_agent,
-                );
+                )
+                .with_workspace_path(agent_workspace);
 
                 // On the first message, inject project context if the session belongs to a project.
                 let system_prompt = if is_first_message && !is_companion {
@@ -1704,7 +1779,7 @@ impl ChatSessionManager {
         request_id: &str,
         answers: Vec<apollia_tools::tools::ask_user::UserAnswer>,
     ) -> Result<(), ChatError> {
-        let reply_tx = self
+        let (meta, reply_tx) = self
             .pending_user_replies
             .remove(request_id)
             .ok_or_else(|| {
@@ -1713,7 +1788,41 @@ impl ChatSessionManager {
                 ))
             })?;
 
+        let _ = self.event_bus.send(apollia_core::RuntimeEvent::ChatUserInputResolved {
+            request_id: request_id.to_string(),
+            session_id: meta.session_id,
+        });
+
         let output = apollia_tools::tools::ask_user::AskUserOutput { answers };
+        reply_tx.send(output).map_err(|_| {
+            ChatError::InternalError(
+                "ask_user reply channel closed (agent may have timed out)".into(),
+            )
+        })
+    }
+
+    /// Reject a pending `ask_user` request — sends skipped answers to unblock the agent.
+    fn reject_user_input_internal(
+        &mut self,
+        request_id: &str,
+        _reason: String,
+    ) -> Result<(), ChatError> {
+        let (meta, reply_tx) = self
+            .pending_user_replies
+            .remove(request_id)
+            .ok_or_else(|| {
+                ChatError::InternalError(format!(
+                    "no pending ask_user request with id '{request_id}'"
+                ))
+            })?;
+
+        let _ = self.event_bus.send(apollia_core::RuntimeEvent::ChatUserInputResolved {
+            request_id: request_id.to_string(),
+            session_id: meta.session_id,
+        });
+
+        // Deliver all-skipped answers to unblock the agent loop.
+        let output = apollia_tools::tools::ask_user::AskUserOutput { answers: vec![] };
         reply_tx.send(output).map_err(|_| {
             ChatError::InternalError(
                 "ask_user reply channel closed (agent may have timed out)".into(),
@@ -1809,9 +1918,10 @@ impl ChatSessionManager {
 /// Resolves the sandbox root for a chat session based on its project association.
 ///
 /// Called once per message, inside the async tokio task spawned by `handle_send_message`.
-/// Returns a [`NativeChatToolInvoker`] configured with the project's `workspace_path` when
-/// available, or falling back to `current_dir()` when the session has no project or the
-/// project has no workspace set yet. Never falls back to `$HOME`.
+/// Returns a [`NativeChatToolInvoker`] configured with:
+/// - the project's `workspace_path` when the session is linked to a project;
+/// - `~/.apollia/` for free-chat sessions (no project), if that directory exists;
+/// - `None` as a last resort (bash will then inherit the process CWD).
 ///
 /// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
 async fn resolve_workspace_for_session(
@@ -1821,7 +1931,13 @@ async fn resolve_workspace_for_session(
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let workspace_path = match project_id {
-        None => None,
+        None => {
+            // Free chat: default to ~/.apollia/ so bash commands don't inherit the Tauri process CWD.
+            std::env::var("HOME")
+                .ok()
+                .map(|h| std::path::PathBuf::from(h).join(".apollia"))
+                .filter(|p| p.is_dir())
+        }
         Some(pid) => {
             let repo = project_repo
                 .as_ref()
@@ -1970,6 +2086,7 @@ impl ChatSessionManagerHandle {
                             let _ = cmd_tx
                                 .send(ChatCommand::RegisterUserInputReply {
                                     request_id,
+                                    session_id: pending_input.session_id.unwrap_or_default(),
                                     questions_json,
                                     context: pending_input.context,
                                     reply_tx: pending_input.reply_tx,
@@ -2103,6 +2220,40 @@ impl ChatSessionManagerHandle {
         reply_rx
             .await
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Reject a pending `ask_user` request with a mandatory reason.
+    pub async fn reject_user_input(
+        &self,
+        request_id: String,
+        reason: String,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::RejectUserInput {
+                request_id,
+                reason,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// List all currently pending `ask_user` requests.
+    pub async fn list_pending_user_inputs(&self) -> Result<Vec<PendingUserInputView>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ListPendingUserInputs { reply: reply_tx })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))
     }
 
     /// Update session configuration (system_prompt, tools, llm_backend).

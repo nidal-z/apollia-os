@@ -54,7 +54,10 @@
 - [[Config-apollia-toml|apollia.toml]]
 
 **API & Intégration**
-- [[API-HTTP-Reference|API HTTP]]
+- [[API-HTTP-Reference|API HTTP — Index]]
+  - [[API-HTTP-Agents|Agents, Chat, LLM, A2A]]
+  - [[API-HTTP-Workspace|Triggers, Pipelines, Notifications]]
+  - [[API-HTTP-Observability|Observability, STT, MCP]]
 - [[MCP-Guide-Utilisateur|MCP — Guide utilisateur]]
 - [[Integrations-Guide|Intégrations — Guide desktop]]
 - [[MCP-Integration|MCP — Intégration technique]]
@@ -78,7 +81,12 @@
 - [[Decisions-Log|Décisions (ADR)]]
 
 **Vision**
+- [[Pourquoi-Apollia|Pourquoi Apollia]]
 - [[Vision-Pivot-et-Renouveau|Pivot & Renouveau]]
 - [[Vision-Probleme-et-Solution|Problème & Solution]]
 - [[Vision-Ambition-Open-Source|Ambition Open-Source]]
 - [[Vision-Positionnement-Concurrentiel|Positionnement]]
+
+**Référence**
+- [[Glossaire|Glossaire]]
+- [[Integrations-Guide|Intégrations — Guide desktop]]

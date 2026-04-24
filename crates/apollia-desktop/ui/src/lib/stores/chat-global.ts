@@ -10,7 +10,7 @@
  * unchanged so existing callers keep working.
  */
 import { writable, derived, get } from "svelte/store";
-import type { PendingChatApproval } from "$lib/types";
+import type { PendingChatApproval, PendingUserInputView } from "$lib/types";
 
 // ─── Global streaming state ──────────────────────────────────────────────────
 
@@ -72,4 +72,42 @@ export function getPendingChatApprovalForSession(
 ): PendingChatApproval | null {
   const list = get(pendingChatApprovals);
   return list.find((a) => a.sessionId === sessionId) ?? null;
+}
+
+// ─── Global ask_user / user-input state ──────────────────────────────────────
+
+/**
+ * Global pending ask_user requests — populated by the SSE event dispatcher
+ * so they remain visible even when the user navigates away from the chat page.
+ */
+export const pendingUserInputs = writable<PendingUserInputView[]>([]);
+
+/** Number of pending ask_user requests. */
+export const pendingUserInputCount = derived(
+  pendingUserInputs,
+  ($inputs) => $inputs.length,
+);
+
+/** Add or replace a pending user input entry (idempotent by request_id). */
+export function addPendingUserInput(input: PendingUserInputView): void {
+  pendingUserInputs.update((list) => {
+    const without = list.filter((i) => i.request_id !== input.request_id);
+    return [...without, input];
+  });
+}
+
+/** Remove a resolved or rejected pending user input entry. */
+export function removePendingUserInput(requestId: string): void {
+  pendingUserInputs.update((list) =>
+    list.filter((i) => i.request_id !== requestId),
+  );
+}
+
+/** Get the pending user input for a specific session (first match). */
+export function getPendingUserInputForSession(
+  sessionId: string,
+): PendingUserInputView | null {
+  const list = get(pendingUserInputs);
+  // Match by session_id, or return empty-session entries to any session.
+  return list.find((i) => i.session_id === sessionId || i.session_id === "") ?? null;
 }

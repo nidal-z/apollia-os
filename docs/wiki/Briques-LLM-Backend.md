@@ -922,7 +922,7 @@ model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python
 - [Briques ORIA Engine](./Briques-ORIA-Engine) — Reasoner LLM en Mode Orchestré
 - [Briques AIP Specification](./Briques-AIP-Specification) — champ `llm_backend` dans `AgentManifest`
-- [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/llm/backends`
+- [API-HTTP-Agents](./API-HTTP-Agents#get-apiv1llmbackends-sprint-28) — endpoints CRUD `/api/v1/llm/backends`
 - [Config apollia.toml](./Config-apollia-toml) — section `[llm.observability]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
 - [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — Google Vertex AI : ADC vs clé de service

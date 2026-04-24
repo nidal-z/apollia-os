@@ -64,11 +64,11 @@
   class="glass-card glass-border rounded-lg p-4"
   data-testid="completed-today-block"
 >
-  <header class="mb-3 flex items-center justify-between gap-3">
-    <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+  <header class="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground shrink-0">
       {$t("dashboard.completed_today_title")}
     </h2>
-    <div class="inline-flex items-center gap-0.5 rounded-md border border-border/50 bg-card p-0.5 text-[10px]" role="tablist">
+    <div class="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border/50 bg-card p-0.5 text-[10px]" role="tablist">
       {#each ["today", "week", "all"] as r (r)}
         <button
           role="tab"

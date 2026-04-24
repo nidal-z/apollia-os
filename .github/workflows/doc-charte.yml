@@ -1,0 +1,24 @@
+name: Doc charte L1.4
+
+on:
+  pull_request:
+    paths:
+      - 'book/src/**'
+      - 'docs/wiki/**'
+      - 'help/**'
+      - 'scripts/lints/**'
+  push:
+    branches: [main]
+    paths:
+      - 'book/src/**'
+      - 'docs/wiki/**'
+      - 'help/**'
+      - 'scripts/lints/**'
+
+jobs:
+  charte:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run charte linter
+        run: bash scripts/lints/charte-doc.sh

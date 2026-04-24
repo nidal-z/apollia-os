@@ -200,8 +200,8 @@ $ curl http://localhost:7771/api/v1/tasks/t-abc123/timeline
 
 Cette API agrège 5 sources SQLite (hitl.db, plans.db, llm_calls.db, audit.db) et retourne une liste d'événements ordonnés par timestamp : transitions d'état, steps ORIA, appels outils, appels LLM, suspensions HITL.
 
-Voir [API HTTP Reference — Timeline](./API-HTTP-Reference#get-apiv1tasksidtimeline) pour le schéma complet de la réponse.
+Voir [API-HTTP-Observability — Timeline](./API-HTTP-Observability#get-apiv1tasksidtimeline) pour le schéma complet de la réponse.
 
 ---
 
-*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API HTTP Reference](./API-HTTP-Reference) · [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature)*
+*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API-HTTP-Observability](./API-HTTP-Observability) · [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature)*

@@ -128,7 +128,7 @@
       if (initialPrompt && initialPrompt.trim().length > 0) {
         await invoke("send_chat_message", {
           sessionId: session.id,
-          request: { content: initialPrompt.trim() },
+          content: initialPrompt.trim(),
         }).catch(() => { /* message can be retried manually */ });
       }
       oncreated(session);
@@ -152,7 +152,7 @@
       if (prompt.trim().length > 0) {
         await invoke("send_chat_message", {
           sessionId: session.id,
-          request: { content: prompt.trim() },
+          content: prompt.trim(),
         }).catch(() => { /* user can retry */ });
       }
       oncreated(session);

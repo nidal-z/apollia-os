@@ -104,12 +104,10 @@
           align="start"
           class="min-w-[180px] p-1"
         >
-          {#snippet trigger()}
+          {#snippet trigger(triggerProps: Record<string, unknown>)}
             <button
-              type="button"
+              {...triggerProps}
               aria-label="Show collapsed breadcrumb items"
-              aria-haspopup="menu"
-              aria-expanded={mobilePopoverOpen}
               class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden="true" />

@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { Bot, Minus, X } from "lucide-svelte";
+  import { Minus, X } from "lucide-svelte";
   import {
     companionStore,
     isCompanionPanelVisible,
-    isCompanionRestoreVisible,
     COMPANION_SESSION_TIMEOUT_MS,
     type CompanionPosition,
   } from "$lib/stores/companion";
@@ -22,7 +21,6 @@
   import ChatConversation from "../chat/ChatConversation.svelte";
   import CompanionDragHandle from "./CompanionDragHandle.svelte";
   import CompanionResizeHandle from "./CompanionResizeHandle.svelte";
-  import CompanionRestoreButton from "./CompanionRestoreButton.svelte";
   import CompanionSessionSkeleton from "./CompanionSessionSkeleton.svelte";
   import CompanionErrorState from "./CompanionErrorState.svelte";
 
@@ -31,15 +29,12 @@
   const fullscreen = $derived($sidebarState === "drawer");
 
   const panelVisible = $derived(isCompanionPanelVisible($companionStore));
-  const restoreVisible = $derived(isCompanionRestoreVisible($companionStore));
   const sessionId = $derived($companionStore.sessionId);
   const position = $derived($companionStore.position);
   const size = $derived($companionStore.size);
   const route = $derived($companionStore.currentRoute);
   const sessionStatus = $derived($companionStore.sessionStatus);
   const sessionError = $derived($companionStore.error);
-  const unreadCount = $derived($companionStore.unreadCount);
-  const restorePulse = $derived($companionStore.restorePulseActive);
 
   const showSkeleton = $derived(
     sessionStatus === "connecting" || sessionStatus === "creating",
@@ -315,10 +310,6 @@
   }
 </script>
 
-{#if restoreVisible}
-  <CompanionRestoreButton {unreadCount} pulse={restorePulse} />
-{/if}
-
 {#if panelVisible}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
@@ -350,7 +341,7 @@
       {#if !fullscreen}
         <CompanionDragHandle />
       {/if}
-      <Bot size={16} class="shrink-0 text-primary" />
+      <img src="/logo.svg" alt="Apollia" class="h-4 w-4 shrink-0" />
       <span class="flex-1 truncate text-sm font-medium text-foreground">
         {$t("companion.title")}
       </span>

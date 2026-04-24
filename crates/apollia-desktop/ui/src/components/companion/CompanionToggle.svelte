@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
-  import { Sparkles } from "lucide-svelte";
   import { companionStore } from "$lib/stores/companion";
   import { readyLlmBackends } from "$lib/stores/llm";
 
@@ -58,7 +57,7 @@
       : undefined}
   data-testid="companion-sidebar-toggle"
 >
-  <Sparkles size={18} strokeWidth={1.75} class="shrink-0" />
+  <img src="/logo.svg" alt="Apollia" class="h-[18px] w-[18px] shrink-0" />
   {#if !collapsed}
     <span>{$t("companion.toggle_label")}</span>
   {/if}

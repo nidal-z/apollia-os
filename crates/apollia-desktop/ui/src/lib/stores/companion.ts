@@ -266,9 +266,14 @@ function createCompanionStore() {
      * The new enabled state is persisted asynchronously to UserMemory.
      */
     toggleCompanion(): void {
-      let nextEnabled = false;
+      let persistEnabled: boolean | null = null;
       mutate((s) => {
-        nextEnabled = !s.enabled;
+        // If minimized, just restore — don't toggle the enabled preference
+        if (s.enabled && s.minimized) {
+          return { ...s, minimized: false, unreadCount: 0, restorePulseActive: false };
+        }
+        const nextEnabled = !s.enabled;
+        persistEnabled = nextEnabled;
         return {
           ...s,
           enabled: nextEnabled,
@@ -276,7 +281,9 @@ function createCompanionStore() {
           minimized: false,
         };
       });
-      invoke("set_companion_enabled", { enabled: nextEnabled }).catch(() => {});
+      if (persistEnabled !== null) {
+        invoke("set_companion_enabled", { enabled: persistEnabled }).catch(() => {});
+      }
     },
 
     /**
@@ -411,8 +418,6 @@ function createCompanionStore() {
           mutate((s) => ({
             ...s,
             enabled: true,
-            visible: true,
-            minimized: false,
           }));
         }
       } catch {

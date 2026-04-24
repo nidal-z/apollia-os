@@ -829,6 +829,18 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         }
     };
 
+    // Open PackageRepository for Phase 10.6 integrity check.
+    let package_repository: Option<apollia_tools::PackageRepository> = {
+        let db_path = data_dir.join("agents.db");
+        match apollia_tools::PackageRepository::open(&db_path) {
+            Ok(repo) => Some(repo),
+            Err(e) => {
+                tracing::warn!(error = %e, "PackageRepository failed to open — Phase 10.6 disabled");
+                None
+            }
+        }
+    };
+
     // Resolve [api] section (absent = all defaults).
     let api_cfg = api_file_config.unwrap_or_default();
     let bind_addr = api_cfg.bind.clone();
@@ -864,6 +876,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
+        package_repository,
         pipelines_config,
         bundled_agents_path: {
             // Look for agents/bundled/ adjacent to the binary, then in the current directory.

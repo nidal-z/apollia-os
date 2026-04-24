@@ -8,18 +8,18 @@ Apollia OS embarque **10 outils natifs** couvrant les opérations fichiers, l'ex
 
 ## Vue d'ensemble des 10 outils
 
-| Outil | Catégorie | Ce qu'il fait |
-|---|---|---|
-| `file_read` | Fichiers | Lire un fichier (lecture partielle incluse) |
-| `file_write` | Fichiers | Créer ou remplacer un fichier |
-| `file_edit` | Fichiers | Remplacer une chaîne exacte dans un fichier |
-| `file_list` | Fichiers | Lister les entrées d'un répertoire |
-| `file_glob` | Recherche | Trouver des fichiers par pattern (`**/*.txt`) |
-| `file_grep` | Recherche | Chercher par regex dans des fichiers |
-| `bash_executor` | Shell | Exécuter une commande shell |
-| `python_executor` | Python | Exécuter du code Python dans un venv isolé |
-| `http_fetch` | Réseau | Faire une requête HTTP |
-| `memory_search` | Mémoire | Chercher dans la mémoire persistante de l'agent |
+- `file_read` — lire un fichier (lecture partielle possible)
+- `file_write` — créer ou remplacer un fichier (atomique)
+- `file_edit` — remplacer chirurgicalement une chaîne exacte
+- `file_list` — lister les entrées d'un répertoire
+- `file_glob` — trouver des fichiers par pattern (`**/*.txt`)
+- `file_grep` — recherche regex dans des fichiers
+- `bash_executor` — exécuter une commande shell isolée
+- `python_executor` — code Python dans un venv par agent
+- `http_fetch` — requête HTTP (whitelist de domaines)
+- `memory_search` — recherche FTS5 dans la mémoire persistante
+
+> Pour les paramètres, formes de retour et codes d'erreur de chacun, voir la **section 1 — [Les outils natifs](./ch04-01-native-tools.md)**.
 
 `http_fetch` et `memory_search` sont des **fonctionnalités optionnelles** (feature flags à la compilation). Ils ne sont disponibles que si le binaire a été compilé avec `--features http` et `--features memory-search` respectivement. Vérifiez avec `apollia-os tools list`.
 

@@ -104,6 +104,21 @@ pub struct RuntimeConfig {
     /// Défaut : 100. Bornes : [10, 10000].
     #[serde(default = "default_mailbox_capacity")]
     pub mailbox_capacity: usize,
+
+    /// Timeout de démarrage du runtime en secondes.
+    ///
+    /// Temps maximum alloué pour charger tous les composants au démarrage,
+    /// y compris le chargement des modèles LLM locaux. Les modèles volumineux
+    /// (ex. 70B–400B) peuvent nécessiter plusieurs minutes.
+    /// Défaut : 300. Aucune borne maximale (0 désactive le timeout).
+    ///
+    /// Exemple `apollia.toml` :
+    /// ```toml
+    /// [runtime]
+    /// startup_timeout_secs = 600
+    /// ```
+    #[serde(default = "default_startup_timeout_secs")]
+    pub startup_timeout_secs: u64,
 }
 
 impl Default for RuntimeConfig {
@@ -111,6 +126,7 @@ impl Default for RuntimeConfig {
         Self {
             eventbus_capacity: default_eventbus_capacity(),
             mailbox_capacity: default_mailbox_capacity(),
+            startup_timeout_secs: default_startup_timeout_secs(),
         }
     }
 }
@@ -130,6 +146,10 @@ impl RuntimeConfig {
         validate_bounds("runtime.mailbox_capacity", self.mailbox_capacity, 10, 10000)?;
         Ok(())
     }
+}
+
+fn default_startup_timeout_secs() -> u64 {
+    300
 }
 
 fn default_eventbus_capacity() -> usize {
@@ -226,16 +246,19 @@ fn default_chain_timeout() -> u64 {
 pub struct HitlConfig {
     /// Durée maximale d'attente d'approbation humaine, en heures.
     ///
-    /// Une tâche `input_required` suspendue depuis plus de `timeout_hours` heures
-    /// est automatiquement annulée par le `TimeoutWatcher`.
-    /// Défaut : 24. Bornes : [1, 168] (1 heure à 7 jours).
-    #[serde(default = "default_timeout_hours")]
-    pub timeout_hours: u64,
+    /// `None` (défaut) : la tâche reste en pause indéfiniment jusqu'à réponse
+    /// explicite de l'opérateur. `Some(n)` : annulation automatique après `n` heures.
+    /// Bornes si `Some` : [1, 168] (1 heure à 7 jours).
+    ///
+    /// Ne pas configurer de timeout global sauf si l'agent en demande un explicitement.
+    #[serde(default)]
+    pub timeout_hours: Option<u64>,
 
     /// Intervalle de scan des tâches HITL expirées, en secondes.
     ///
     /// Fréquence à laquelle le `TimeoutWatcher` vérifie les tâches suspirées.
     /// Défaut : 60. Bornes : [10, 3600].
+    /// Ignoré si `timeout_hours` est `None`.
     #[serde(default = "default_scan_interval_secs")]
     pub scan_interval_secs: u64,
 }
@@ -243,7 +266,7 @@ pub struct HitlConfig {
 impl Default for HitlConfig {
     fn default() -> Self {
         Self {
-            timeout_hours: default_timeout_hours(),
+            timeout_hours: None,
             scan_interval_secs: default_scan_interval_secs(),
         }
     }
@@ -252,17 +275,15 @@ impl Default for HitlConfig {
 impl HitlConfig {
     /// Valide les bornes de la configuration HITL au démarrage (Principe #4 — Fail fast).
     ///
-    /// - `timeout_hours` : doit être dans [1, 168].
+    /// - `timeout_hours` : si `Some`, doit être dans [1, 168].
     /// - `scan_interval_secs` : doit être dans [10, 3600].
     pub fn validate(&self) -> Result<(), ConfigError> {
-        validate_bounds("hitl.timeout_hours", self.timeout_hours, 1, 168)?;
+        if let Some(h) = self.timeout_hours {
+            validate_bounds("hitl.timeout_hours", h, 1, 168)?;
+        }
         validate_bounds("hitl.scan_interval_secs", self.scan_interval_secs, 10, 3600)?;
         Ok(())
     }
-}
-
-fn default_timeout_hours() -> u64 {
-    24
 }
 
 fn default_scan_interval_secs() -> u64 {
@@ -1205,7 +1226,7 @@ mod tests {
         assert_eq!(runtime.eventbus_capacity, 1024);
         assert_eq!(runtime.mailbox_capacity, 100);
         assert_eq!(a2a.chain_timeout_secs, 300);
-        assert_eq!(hitl.timeout_hours, 24);
+        assert_eq!(hitl.timeout_hours, None);
         assert_eq!(hitl.scan_interval_secs, 60);
         assert_eq!(api.unix_socket, PathBuf::from("/tmp/apollia.sock"));
 
@@ -1259,7 +1280,29 @@ mod tests {
         let cfg: HitlConfig = toml::from_str(toml).expect("valid toml");
 
         // THEN
-        assert_eq!(cfg.timeout_hours, 48);
+        assert_eq!(cfg.timeout_hours, Some(48));
+        cfg.validate().expect("valid bounds");
+    }
+
+    #[test]
+    fn test_hitl_no_timeout_by_default() {
+        // GIVEN default config (no TOML)
+        let cfg = HitlConfig::default();
+
+        // THEN timeout is None — tasks pause indefinitely
+        assert_eq!(cfg.timeout_hours, None);
+        cfg.validate().expect("default must be valid");
+    }
+
+    #[test]
+    fn test_hitl_explicit_none_timeout_valid() {
+        // GIVEN TOML without timeout_hours field
+        let toml = r#"scan_interval_secs = 120"#;
+        let cfg: HitlConfig = toml::from_str(toml).expect("valid toml");
+
+        // THEN timeout is None, scan interval is set
+        assert_eq!(cfg.timeout_hours, None);
+        assert_eq!(cfg.scan_interval_secs, 120);
         cfg.validate().expect("valid bounds");
     }
 
@@ -1293,6 +1336,7 @@ mod tests {
         let cfg = RuntimeConfig {
             eventbus_capacity: 10,
             mailbox_capacity: 100,
+            startup_timeout_secs: 30,
         };
 
         // WHEN
@@ -1311,6 +1355,7 @@ mod tests {
         let cfg = RuntimeConfig {
             eventbus_capacity: 100_000,
             mailbox_capacity: 100,
+            startup_timeout_secs: 30,
         };
 
         // WHEN
@@ -1329,6 +1374,7 @@ mod tests {
         let cfg = RuntimeConfig {
             eventbus_capacity: 1024,
             mailbox_capacity: 5,
+            startup_timeout_secs: 30,
         };
 
         // WHEN
@@ -1361,9 +1407,9 @@ mod tests {
 
     #[test]
     fn test_hitl_timeout_out_of_bounds_fails() {
-        // GIVEN timeout_hours = 0, below min 1
+        // GIVEN timeout_hours = Some(0), below min 1
         let cfg = HitlConfig {
-            timeout_hours: 0,
+            timeout_hours: Some(0),
             scan_interval_secs: 60,
         };
 
@@ -1381,7 +1427,7 @@ mod tests {
     fn test_scan_interval_out_of_bounds_fails() {
         // GIVEN scan_interval_secs = 5, below min 10
         let cfg = HitlConfig {
-            timeout_hours: 24,
+            timeout_hours: None,
             scan_interval_secs: 5,
         };
 
@@ -1402,10 +1448,12 @@ mod tests {
         let runtime_min = RuntimeConfig {
             eventbus_capacity: 64,
             mailbox_capacity: 10,
+            startup_timeout_secs: 30,
         };
         let runtime_max = RuntimeConfig {
             eventbus_capacity: 65536,
             mailbox_capacity: 10000,
+            startup_timeout_secs: 600,
         };
         let a2a_min = A2AConfig {
             chain_timeout_secs: 10,
@@ -1416,11 +1464,11 @@ mod tests {
             ..A2AConfig::default()
         };
         let hitl_min = HitlConfig {
-            timeout_hours: 1,
+            timeout_hours: Some(1),
             scan_interval_secs: 10,
         };
         let hitl_max = HitlConfig {
-            timeout_hours: 168,
+            timeout_hours: Some(168),
             scan_interval_secs: 3600,
         };
 

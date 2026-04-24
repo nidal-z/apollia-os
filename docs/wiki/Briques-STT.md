@@ -566,7 +566,7 @@ trigger_mode = "toggle"        # "toggle" | "push_to_talk"
 - [Briques Desktop](./Briques-Desktop) — integration Tauri, hotkey, overlay
 - [Config apollia.toml](./Config-apollia-toml) — section `[stt]`
 - [Briques CLI](./Briques-CLI) — sous-commande `apollia-os stt`
-- [API HTTP Reference](./API-HTTP-Reference) — routes `/api/v1/stt/*`
+- [API-HTTP-Observability](./API-HTTP-Observability#stt-speech-to-text-sprint-24--28) — routes `/api/v1/stt/*`
 
 ---
 

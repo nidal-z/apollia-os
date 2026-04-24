@@ -133,6 +133,7 @@
 
   const catalogueEntries = $derived.by(() => {
     return registry.filter((s) => {
+      if (!s) return false;
       const cat = s.enrichment?.category ?? s.category;
       if (category !== "all" && cat !== category) return false;
       const title = s.enrichment?.operator_label ?? s.title ?? s.name;
@@ -145,6 +146,7 @@
 
   const suggestedEntries = $derived.by(() => {
     return suggestions.filter((s) => {
+      if (!s) return false;
       const cat = s.enrichment?.category ?? s.category;
       if (category !== "all" && cat !== category) return false;
       const title = s.enrichment?.operator_label ?? s.title ?? s.name;
@@ -245,8 +247,10 @@
   // ── routing browse catalogue CTA ───────────────────────────────────────────
 
   function handleBrowseCatalogue() {
+    query = "";
+    category = "all";
+    status = "all";
     activeSegment = "catalogue";
-    status = "not_installed";
   }
 
   $effect(() => {
@@ -265,8 +269,8 @@
       <ConnectionHeroSection
         active={activeSegment}
         activeCount={servers.length}
-        suggestedCount={suggestions.length}
-        catalogueCount={registry.length}
+        suggestedCount={suggestedEntries.length}
+        catalogueCount={catalogueEntries.length}
         onchange={(seg) => (activeSegment = seg)}
       />
     </div>
@@ -352,15 +356,17 @@
         class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         data-testid="connections-suggested-grid"
       >
-        {#each suggestedEntries as entry (entry.name)}
-          <ConnectionAppCard
-            registry={entry}
-            enrichment={registryEnrichment(entry)}
-            toolsCount={entry.packages[0]?.package_arguments.length ?? 0}
-            installed={installedNames.has(entry.name)}
-            onconnect={handleConnect}
-            onmanage={handleManage}
-          />
+        {#each suggestedEntries as entry (entry?.name)}
+          {#if entry}
+            <ConnectionAppCard
+              registry={entry}
+              enrichment={registryEnrichment(entry)}
+              toolsCount={(entry.packages ?? [])[0]?.package_arguments.length ?? 0}
+              installed={installedNames.has(entry.name)}
+              onconnect={handleConnect}
+              onmanage={handleManage}
+            />
+          {/if}
         {/each}
       </div>
     {/if}
@@ -379,15 +385,17 @@
         class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         data-testid="connections-catalogue-grid"
       >
-        {#each catalogueEntries as entry (entry.name)}
-          <ConnectionAppCard
-            registry={entry}
-            enrichment={registryEnrichment(entry)}
-            toolsCount={entry.packages[0]?.package_arguments.length ?? 0}
-            installed={entry.is_installed || installedNames.has(entry.name)}
-            onconnect={handleConnect}
-            onmanage={handleManage}
-          />
+        {#each catalogueEntries as entry (entry?.name)}
+          {#if entry}
+            <ConnectionAppCard
+              registry={entry}
+              enrichment={registryEnrichment(entry)}
+              toolsCount={(entry.packages ?? [])[0]?.package_arguments.length ?? 0}
+              installed={entry.is_installed || installedNames.has(entry.name)}
+              onconnect={handleConnect}
+              onmanage={handleManage}
+            />
+          {/if}
         {/each}
       </div>
     {/if}

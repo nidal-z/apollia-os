@@ -32,6 +32,7 @@
     profile: () => import("./settings/Profile.svelte"),
     stt: () => import("./settings/Stt.svelte"),
     llm: () => import("./settings/Llm.svelte"),
+    "model-hub": () => import("./settings/ModelHub.svelte"),
     configuration: () => import("./settings/Configuration.svelte"),
     system: () => import("./settings/System.svelte"),
     memories: () => import("./settings/Memories.svelte"),

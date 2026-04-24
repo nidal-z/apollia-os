@@ -72,7 +72,7 @@
 
 | Document | Description |
 |---|---|
-| [API HTTP](./API-HTTP-Reference) | Endpoints REST, SSE, codes d'erreur |
+| [API HTTP — Index](./API-HTTP-Reference) | Endpoints REST, SSE, codes d'erreur (3 pages : [Agents](./API-HTTP-Agents), [Workspace](./API-HTTP-Workspace), [Observability](./API-HTTP-Observability)) |
 | [MCP Integration](./MCP-Integration) | Consommer des serveurs MCP depuis les agents |
 | [A2A / ACP](./A2A-ACP-Alignement) | Alignement avec les standards émergents |
 

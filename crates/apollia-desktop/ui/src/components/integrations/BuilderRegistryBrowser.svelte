@@ -131,7 +131,7 @@
   {:else}
     <div class="flex flex-col gap-1" data-testid="registry-server-list">
       {#each filteredServers as server (server.name)}
-        {@const firstPkg = server.packages[0] ?? null}
+        {@const firstPkg = server.packages?.[0] ?? null}
         <button
           type="button"
           class="glass-card glass-border w-full rounded-lg px-4 py-3 text-left transition-colors hover:bg-muted/30"

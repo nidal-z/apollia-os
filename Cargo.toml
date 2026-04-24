@@ -93,10 +93,10 @@ async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 # llama-cpp-2 = bindings Rust safe pour llama.cpp — ADR-042
 # Compilation statique, binaire unique, 30+ architectures GGUF.
-llama-cpp-2 = "0.1.140"
+llama-cpp-2 = "0.1.144"
 # llama-cpp-sys-2 = bindings FFI bruts — requis pour `llama_model_load_from_splits`
 # (naming scheme custom, non exposé par le wrapper safe).
-llama-cpp-sys-2 = "0.1.140"
+llama-cpp-sys-2 = "0.1.145"
 encoding_rs = "0.8"
 # LRU cache (apollia-llm MetaLlmOrchestrator)
 lru = "0.12"

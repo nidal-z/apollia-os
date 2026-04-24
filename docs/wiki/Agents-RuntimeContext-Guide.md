@@ -1,780 +1,377 @@
-# Agents — RuntimeContext Guide — Apollia OS
+# Agents — RuntimeContext Guide
 
-> Référence complète de tous les services disponibles via `ctx` dans la méthode `run()`.
-> Public cible : développeur d'agent Python intermédiaire
-
----
-
-## Vue d'ensemble en 1 minute
-
-Le `RuntimeContext` (`ctx`) est votre agent's interface avec le runtime. Quatre services, quatre responsabilités :
-
-| Service | Rôle | Quand l'utiliser |
-|---|---|---|
-| `ctx.tools` | Appeler des outils (bash, fichiers, réseau, MCP) | Toute interaction avec le monde extérieur |
-| `ctx.memory` | Stocker/retrouver des souvenirs persistants | Enrichir le contexte entre les tâches |
-| `ctx.llm` | Appeler un LLM (raisonnement, résumé, extraction) | Tout ce qui nécessite de l'intelligence |
-| `ctx.step_budget` | Lire le budget restant (lecture seule) | Adapter le comportement avant épuisement |
-| `ctx.send()` / `ctx.receive()` | Messagerie inter-agents (AgentMailbox) | Coordination entre agents en parallèle |
-| `ctx.delegate()` | Déléguer une tâche à un Worker Agent via A2A | Appeler une compétence spécialisée d'un autre agent |
-| `ctx.user_context` | Lire le profil utilisateur (mode chat uniquement) | Personnaliser la réponse selon les préférences utilisateur |
-
-`ctx.tools` et `ctx.step_budget` sont toujours disponibles. `ctx.memory` nécessite `memory_namespace` dans le manifest. `ctx.llm` nécessite un backend LLM configuré. `ctx.send()`, `ctx.receive()` et `ctx.delegate()` nécessitent `supports_a2a: True` dans le manifest. `ctx.user_context` est disponible uniquement en mode chat.
-
-## Détail
-
-Le `RuntimeContext` (accessible via le paramètre `ctx` dans `run()`) est l'interface entre votre agent et tous les services du runtime. Il est injecté par Apollia OS à chaque appel de tâche — vous n'avez jamais à l'instancier.
-
-```python
-async def run(self, task, ctx):
-    # ctx donne accès à :
-    # ctx.tools         — ToolProxy : invocation des outils
-    # ctx.memory        — MemoryInterface | None : mémoire persistante
-    # ctx.llm           — LlmProxy | None : appels LLM (None si aucun backend configuré)
-    # ctx.log           — AgentLogger : logs structurés
-    # ctx.step_budget   — StepBudgetView : budget restant (lecture seule)
-    # ctx.send()        — messagerie inter-agents (supports_a2a requis)
-    # ctx.receive()     — réception messages inter-agents (supports_a2a requis)
-    # ctx.delegate()    — délégation A2A vers Worker Agent (supports_a2a requis)
-    # ctx.user_context  — profil utilisateur (mode chat uniquement, None sinon)
-```
+> Référence exhaustive (signatures uniquement) des services injectés dans `ctx` lors de `run(task, ctx)`.
+> Public cible : développeur Python intermédiaire en consultation.
 
 ---
 
-## ctx.tools — ToolProxy
+## Vue synthétique des services
 
-Disponible si au moins un outil est déclaré dans `tools_required` ou `tools_optional`.
+| Service | Disponibilité | Interface | Statut |
+|---|---|---|---|
+| **ctx.tools** | Si `tools_required` ou `tools_optional` | [`ToolProxy`](#ctxtools--toolproxy) | ✅ Livré |
+| **ctx.llm** | Si backend LLM configuré | [`LlmProxy`](#ctxllm--llmproxy) | ✅ Livré |
+| **ctx.memory** | Si `memory_namespace` dans manifest | [`MemoryInterface`](#ctxmemory--memoryinterface) | ✅ Livré |
+| **ctx.step_budget** | Toujours disponible | [`StepBudgetView`](#ctxstep_budget--stepbudgetview) | ✅ Livré |
+| **ctx.log** | Toujours disponible | [`AgentLogger`](#ctxlog--agentlogger) | ✅ Livré |
+| **ctx.workspace** | Contexte workspace collecté | [`WorkspaceContextPy`](#ctxworkspace--workspacecontextpy) | ✅ Livré |
+| **ctx.user_context** | Mode chat uniquement | `dict[str, list[tuple]]` ou `None` | ✅ Livré |
+| **ctx.send()** | Si `supports_a2a: True` | Async, messagerie inter-agents | ✅ Livré |
+| **ctx.receive()** | Si `supports_a2a: True` | Async, réception messages | ✅ Livré |
+| **ctx.delegate()** | Si `supports_a2a: True` (Director) | Async, délégation A2A | ✅ Livré |
+| **ctx.emit_token()** | Mode chat uniquement | Sync, streaming tokens | ✅ Livré |
+| **ctx.a2a_invoke()** | Si `supports_a2a: True` | Async, invocation A2A de haut niveau | ✅ Livré |
+| **ctx.a2a_discover()** | Si `supports_a2a: True` | Async, découverte skill | ✅ Livré |
 
-### Appeler un outil
+---
 
-```python
-result = await ctx.tools.call("nom_outil", {"param": "valeur"})
-# result : dict Python (JSON désérialisé depuis le résultat Rust)
-```
+## ctx.tools – ToolProxy
 
-Les appels sont automatiquement :
-- Vérifiés contre les permissions de l'agent (seuls `tools_required` + `tools_optional` sont accessibles)
-- Enregistrés dans l'audit trail SQLite (fire-and-forget)
-- Comptabilisés dans le `StepBudget`
+Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité step budget.
+
+### Méthodes
+
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| **call()** | `async call(tool_name: str, input: dict) -> dict` | `tool_name` : str ; `input` : dict JSON sérialisable | dict (résultat JSON du Rust) | `RuntimeError: tool not found` ; `RuntimeError: tool not allowed` ; `RuntimeError: tool execution failed` | Tous les appels comptabilisés, audit trail SQLite fire-and-forget |
+| **list_tools()** | `list_tools() -> list[str]` | — | liste des noms d'outils accessibles | — | Consulter avant de décider d'un appel optionnel |
+| **tool_call_count()** | `tool_call_count() -> int` | — | nombre d'appels effectués | — | Aide à adapter le comportement proche de la limite budget |
 
 ### Outils natifs disponibles
 
 #### bash_executor
 
-Exécute une commande bash dans un namespace Linux isolé (ou en mode dev sur macOS).
-
-```python
-result = await ctx.tools.call("bash_executor", {
-    "command": "ls -la /tmp",
-    "timeout_seconds": 30,     # optionnel, défaut: 30
-    "working_dir": "/tmp",     # optionnel
-})
-# result : {"stdout": "...", "stderr": "...", "exit_code": 0}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `command` | str | — | ✅ | Commande bash à exécuter |
+| `timeout_seconds` | int | 30 | ❌ | Timeout en secondes |
+| `working_dir` | str | `.` | ❌ | Répertoire de travail |
+| **Retour** | dict | — | — | `{"stdout": str, "stderr": str, "exit_code": int}` |
 
 #### file_read
 
-Lit un fichier avec protection path traversal. Supporte la lecture partielle par plage de lignes.
-
-```python
-result = await ctx.tools.call("file_read", {
-    "path": "data/config.json",
-    "offset": 1,    # optionnel, 1-based line number
-    "limit": 50,    # optionnel, max lignes à retourner
-})
-# result : {"content": "    1\t{\n    2\t  \"key\": ...", "total_lines": 42, "truncated": false}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `path` | str | — | ✅ | Chemin du fichier à lire |
+| `offset` | int | 1 | ❌ | Ligne de départ (1-based) |
+| `limit` | int | — | ❌ | Nombre max de lignes à retourner |
+| **Retour** | dict | — | — | `{"content": str, "total_lines": int, "truncated": bool}` |
 
 #### file_write
 
-Écrit un fichier (crée ou remplace). Protection path traversal.
-
-```python
-result = await ctx.tools.call("file_write", {
-    "path": "output/rapport.txt",
-    "content": "Contenu du rapport...",
-})
-# result : {"bytes_written": 1234, "path": "output/rapport.txt"}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `path` | str | — | ✅ | Chemin du fichier (crée ou remplace) |
+| `content` | str | — | ✅ | Contenu à écrire |
+| **Retour** | dict | — | — | `{"bytes_written": int, "path": str}` |
 
 #### file_edit
 
-Remplace une chaîne exacte dans un fichier. Échoue si `old_str` est absent ou non-unique.
-
-```python
-result = await ctx.tools.call("file_edit", {
-    "path": "src/agent.py",
-    "old_str": "version = \"1.0.0\"",
-    "new_str": "version = \"1.1.0\"",
-})
-# result : {"replaced": true, "path": "src/agent.py"}
-# Échoue si old_str absent ou non-unique dans le fichier.
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `path` | str | — | ✅ | Chemin du fichier à modifier |
+| `old_str` | str | — | ✅ | Chaîne exacte à remplacer (doit être unique) |
+| `new_str` | str | — | ✅ | Nouvelle chaîne |
+| **Retour** | dict | — | — | `{"replaced": bool, "path": str}` — échoue si absent/non-unique |
 
 #### file_list
 
-Liste les entrées d'un répertoire avec profondeur configurable.
-
-```python
-result = await ctx.tools.call("file_list", {
-    "path": ".",
-    "depth": 2,     # optionnel
-})
-# result : {"entries": [{"name": "...", "is_dir": false, "size": 1234}, ...]}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `path` | str | `.` | ❌ | Répertoire à lister |
+| `depth` | int | 1 | ❌ | Profondeur de récursion |
+| **Retour** | dict | — | — | `{"entries": [{"name": str, "is_dir": bool, "size": int}, ...]}` |
 
 #### file_glob
 
-Recherche de fichiers par pattern glob.
-
-```python
-result = await ctx.tools.call("file_glob", {
-    "pattern": "**/*.py",
-    "path": ".",    # optionnel, répertoire de départ
-})
-# result : {"matches": ["src/agent.py", "tests/test_agent.py"], "count": 2}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `pattern` | str | — | ✅ | Pattern glob (ex. `**/*.py`) |
+| `path` | str | `.` | ❌ | Répertoire de départ |
+| **Retour** | dict | — | — | `{"matches": [str], "count": int}` |
 
 #### file_grep
 
-Recherche par expression régulière dans les fichiers, avec filtre glob et lignes de contexte.
-
-```python
-result = await ctx.tools.call("file_grep", {
-    "pattern": "def run\\(",     # regex
-    "path": ".",
-    "glob": "*.py",              # optionnel, filtre fichiers
-    "context_lines": 2,          # optionnel, lignes de contexte
-})
-# result : {"matches": [{"file": "src/agent.py", "line": 12, "content": "..."}], "count": 3}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `pattern` | str | — | ✅ | Expression régulière |
+| `path` | str | `.` | ❌ | Répertoire de recherche |
+| `glob` | str | — | ❌ | Filtre sur les fichiers (pattern glob) |
+| `context_lines` | int | 0 | ❌ | Lignes de contexte avant/après |
+| **Retour** | dict | — | — | `{"matches": [{"file": str, "line": int, "content": str}, ...], "count": int}` |
 
 #### http_fetch
 
-Effectue une requête HTTP. Requiert que le domaine cible soit dans `network_allowlist` du manifest.
-
-```python
-result = await ctx.tools.call("http_fetch", {
-    "url": "https://api.exemple.com/data",
-    "method": "GET",                         # optionnel, défaut GET
-    "headers": {"Authorization": "Bearer x"}, # optionnel
-    "timeout_secs": 15,                      # optionnel
-})
-# result : {"status": 200, "body": "...", "headers": {...}}
-# Requiert que api.exemple.com soit dans network_allowlist du manifest.
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `url` | str | — | ✅ | URL cible (domaine doit être dans `network_allowlist`) |
+| `method` | str | `GET` | ❌ | Méthode HTTP (GET, POST, etc.) |
+| `headers` | dict | `{}` | ❌ | En-têtes HTTP |
+| `timeout_secs` | int | 15 | ❌ | Timeout en secondes |
+| **Retour** | dict | — | — | `{"status": int, "body": str, "headers": dict}` |
 
 #### memory_search
 
-Recherche dans la mémoire persistante de l'agent ou d'un namespace explicite.
-
-```python
-result = await ctx.tools.call("memory_search", {
-    "query": "devis client Dupont",
-    "namespace": "crm-agent",  # optionnel, défaut = namespace propre
-    "limit": 10,               # optionnel, max 50
-    "source": "episodic",      # optionnel : "episodic" | "semantic"
-})
-# result : {"results": [{"content": "...", "score": 0.92, "source": "episodic"}], "count": 3}
-```
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `query` | str | — | ✅ | Texte à rechercher (FTS5 + BM25) |
+| `namespace` | str | namespace propre | ❌ | Namespace cible |
+| `limit` | int | 10 | ❌ | Max 50 résultats |
+| `source` | str | `"episodic"` | ❌ | `"episodic"` \| `"semantic"` |
+| **Retour** | dict | — | — | `{"results": [{"content": str, "score": float, "source": str}, ...], "count": int}` |
 
 #### python_executor
 
-Exécute du code Python dans un venv isolé par agent.
-
-```python
-result = await ctx.tools.call("python_executor", {
-    "code": "import json\nprint(json.dumps({'result': 42}))",
-    "timeout_seconds": 60,  # optionnel
-})
-# result : {"stdout": '{"result": 42}\n', "stderr": "", "exit_code": 0}
-```
-
-### Lister les outils accessibles
-
-```python
-available = ctx.tools.list_tools()
-# ["bash_executor", "python_executor", "file_read", "file_write", "file_edit", "file_list", "file_glob", "file_grep", "http_fetch", "memory_search"]
-```
-
-### Compter les appels
-
-```python
-count = ctx.tools.tool_call_count()
-# Utile pour adapter le comportement proche de la limite StepBudget
-```
-
----
-
-## ctx.memory — MemoryInterface
-
-**Disponible uniquement si `memory_namespace` est défini dans le manifest.** `None` sinon.
-
-Le Memory Engine distingue trois types de mémoire. `ctx.memory` expose une interface unifiée pour les trois :
-
-| Type | Ce qu'il stocke | Exemple | Score clé |
-|---|---|---|---|
-| **Épisodique** | Événements horodatés | "Client Acme a demandé 10 licences à 5000€" | `importance` (0.0-1.0) : à quel point cet événement est significatif |
-| **Sémantique** | Faits durables (clé→valeur) | "budget_annuel_acme" → "50 000€" | `confidence` (0.0-1.0) : degré de certitude du fait |
-| **Procédurale** | Procédures réutilisables | "Pour créer un devis : 1. Vérifier le client..." | `confidence` (0.0-1.0) |
-
-> `importance` mesure la pertinence d'un événement pour le contexte futur. `confidence` mesure la fiabilité d'une information (1.0 = déclaré par l'utilisateur, 0.5 = inféré par un LLM).
-
-### Stocker un épisode
-
-La mémoire épisodique enregistre des événements avec un score d'importance et un timestamp.
-
-```python
-if ctx.memory:
-    await ctx.memory.record(
-        "Client Acme a demandé 10 licences Figma à 5000€ max",
-        importance=0.8,           # float 0.0-1.0
-        task_id=task["task_id"],  # lie l'épisode à la tâche
-        metadata={                # dict optionnel — enrichissement
-            "client": "Acme",
-            "product": "Figma",
-            "budget": 5000
-        }
-    )
-```
-
-### Stocker un fait
-
-La mémoire sémantique enregistre des faits structurés avec un score de confiance.
-
-```python
-if ctx.memory:
-    await ctx.memory.remember(
-        "Le budget max d'Acme est 5000€",
-        confidence=0.9,           # float 0.0-1.0
-        source=task["task_id"]    # traçabilité
-    )
-```
-
-### Rappeler des faits
-
-```python
-if ctx.memory:
-    facts = await ctx.memory.recall("budget Acme")
-    # facts : list[dict] avec "content", "confidence", "created_at"
-    for fact in facts:
-        print(fact["content"])  # "Le budget max d'Acme est 5000€"
-```
-
-### Rappeler un fait avec métadonnées *(Sprint 40)*
-
-`recall_entry()` retourne l'entrée complète avec ses métadonnées (confidence, source, timestamps), ou `None` si la clé n'existe pas ou est expirée.
-
-```python
-if ctx.memory:
-    entry = await ctx.memory.recall_entry("budget_annuel_acme")
-    if entry:
-        print(entry["key"])          # "budget_annuel_acme"
-        print(entry["value"])        # "50000"
-        print(entry["confidence"])   # 0.9
-        print(entry["source"])       # "agent:crm-qualifier"
-        print(entry["updated_at"])   # "2026-03-05T14:30:00Z"
-        print(entry["expires_at"])   # None ou datetime string
-```
-
-### Lister toutes les entrées du namespace *(Sprint 40)*
-
-`recall_all()` retourne toutes les entrées sémantiques non expirées du namespace de l'agent, avec les mêmes métadonnées que `recall_entry()`.
-
-```python
-if ctx.memory:
-    entries = await ctx.memory.recall_all(limit=50)  # défaut: 100
-    for e in entries:
-        print(f"{e['key']} = {e['value']} (confidence={e['confidence']})")
-```
-
-### Recherche full-text
-
-Recherche FTS5 + BM25 cross-backend (épisodique + sémantique + procédurale).
-
-```python
-if ctx.memory:
-    results = await ctx.memory.search(
-        "licences Figma",
-        limit=5    # optionnel, défaut: 10
-    )
-    # results : list[dict] avec "content", "score", "type", "created_at"
-    for r in results:
-        print(f"[{r['score']:.2f}] {r['content']}")
-```
-
-### Supprimer un enregistrement
-
-```python
-if ctx.memory:
-    await ctx.memory.forget(memory_id)
-    # memory_id : str — id retourné par record() ou remember()
-```
-
-### Pattern de mémoire contextuelle
-
-```python
-async def run(self, task, ctx):
-    user_input = task["input"]["parts"][0]["text"]
-
-    # 1. Chercher le contexte pertinent AVANT de traiter
-    context_from_memory = []
-    if ctx.memory:
-        results = await ctx.memory.search(user_input, limit=3)
-        context_from_memory = [r["content"] for r in results]
-
-    # 2. Traiter avec le contexte
-    response = await self._generate_response(user_input, context_from_memory)
-
-    # 3. Mémoriser le résultat APRÈS traitement
-    if ctx.memory:
-        await ctx.memory.record(
-            f"Q: {user_input} → R: {response[:100]}",
-            importance=0.6,
-            task_id=task["task_id"]
-        )
-
-    return {
-        "task_id": task["task_id"],
-        "status": "completed",
-        "output": [{"type": "text", "text": response}],
-    }
-```
-
----
-
-## ctx.llm — LlmProxy
-
-**Disponible uniquement si au moins un backend LLM est configuré dans `apollia.toml`.** `None` sinon.
-
-Quand `ctx.llm` est `None`, le runtime émet automatiquement `RuntimeEvent::AgentDegraded` sur l'EventBus (visible dans `apollia-os status` et les logs). L'agent peut continuer à tourner en mode dégradé — aucun crash, aucune exception Python.
-
-```python
-if ctx.llm is None:
-    # AgentDegraded déjà émis par le runtime — l'agent décide quoi faire
-    return {"task_id": task["task_id"], "status": "failed",
-            "error": "LLM backend requis mais non disponible"}
-```
-
-### Propriété `default_backend`
-
-```python
-# Connaître le backend par défaut utilisé (utile pour les logs)
-print(ctx.llm.default_backend)   # "local" | "anthropic" | "gpt-4o-mini" ...
-```
-
-### Chat simple (80% des cas)
-
-Un system prompt + un message utilisateur → une réponse.
-
-```python
-response = await ctx.llm.chat(
-    system="Tu es un assistant commercial expert en devis.",
-    user=task["input"]["parts"][0]["text"],
-)
-# response.content : str — texte généré
-# response.usage.prompt_tokens : int
-# response.usage.completion_tokens : int
-# response.usage.cost_usd : float | None  (None pour les backends locaux)
-# response.latency_ms : int
-print(response.content)
-```
-
-### Conversation multi-tour
-
-Pour les flux avec historique ou les rôles system/user/assistant explicites.
-
-```python
-response = await ctx.llm.complete([
-    {"role": "system",    "content": "Sois concis. Réponds en 3 points max."},
-    {"role": "user",      "content": "Quels sont les avantages du cloud ?"},
-    {"role": "assistant", "content": "1. Scalabilité 2. Coût variable 3. ..."},
-    {"role": "user",      "content": "Et les inconvénients ?"},
-])
-print(response.content)
-```
-
-### Streaming
-
-Retourne une liste de chunks texte. Utile pour les réponses longues.
-
-```python
-chunks = await ctx.llm.stream([
-    {"role": "user", "content": "Génère un rapport détaillé sur..."},
-])
-full_response = "".join(chunks)
-```
-
-`stream()` retourne toujours une `list[str]`. Si le backend ne supporte pas le streaming nativement, un seul chunk contenant la réponse complète est retourné (fallback silencieux — le code de l'agent ne change pas).
-
-### Boucle ReAct automatique — `run_tools()`
-
-Délègue la boucle Thought → Action → Observe au LLM. Idéal pour les agents qui laissent le modèle décider des outils à utiliser.
-
-> **Types importants :** `messages` et `tools` sont des **`list[dict]`** Python — pas des objets Rust. La sérialisation est gérée automatiquement par le bridge PyO3.
-
-```python
-result = await ctx.llm.run_tools(
-    messages=[                   # list[dict] avec clés "role" et "content"
-        {"role": "system", "content": "Tu es un assistant qui lit des fichiers."},
-        {"role": "user",   "content": "Lis le fichier config.json et résume-le."},
-    ],
-    tools=[                      # list[dict] — schéma JSON Schema
-        {
-            "name":        "file_read",
-            "description": "Lit un fichier local avec protection path traversal.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path":   {"type": "string"},
-                    "offset": {"type": "integer"},
-                    "limit":  {"type": "integer"},
-                },
-                "required": ["path"],
-            },
-        }
-    ],
-    max_iterations=5,   # garde-fou : max 5 aller-retours LLM ↔ outils
-)
-# result.content : str — réponse finale après toutes les boucles
-# result.usage.prompt_tokens : int (cumul de toutes les itérations)
-print(result.content)
-```
-
-La boucle `run_tools()` :
-1. Appelle le LLM avec les outils disponibles
-2. Si `finish_reason == tool_calls` → exécute les outils via `ctx.tools` (erreurs absorbées comme texte, jamais fatales)
-3. Injecte les résultats comme messages `role: tool`
-4. Répète jusqu'à `finish_reason == stop` ou `max_iterations` atteint → `PyRuntimeError`
-5. Si `StepBudget` épuisé → `PyRuntimeError` immédiat
-
-### Choisir un backend spécifique
-
-Si plusieurs backends sont configurés, il est possible d'en choisir un explicitement.
-
-```python
-# Utiliser le backend anthropic pour une tâche spécifique
-response = await ctx.llm.chat(
-    system="...",
-    user="...",
-    backend="anthropic",   # override du backend par défaut
-)
-```
-
-### Pattern complet — agent LLM avec mémoire
-
-```python
-async def run(self, task, ctx):
-    user_input = task["input"]["parts"][0]["text"]
-
-    # 1. Contexte mémoriel
-    memory_context = ""
-    if ctx.memory:
-        results = await ctx.memory.search(user_input, limit=3)
-        if results:
-            memory_context = "\n".join(r["content"] for r in results)
-
-    # 2. Appel LLM avec contexte
-    if ctx.llm is None:
-        return {"task_id": task["task_id"], "status": "failed",
-                "error": "LLM requis"}
-
-    system_prompt = "Tu es un assistant commercial."
-    if memory_context:
-        system_prompt += f"\n\nContexte mémorisé :\n{memory_context}"
-
-    response = await ctx.llm.chat(system=system_prompt, user=user_input)
-
-    # 3. Mémoriser la réponse
-    if ctx.memory:
-        await ctx.memory.record(
-            f"Q: {user_input[:80]} → R: {response.content[:80]}",
-            importance=0.7,
-            task_id=task["task_id"],
-        )
-
-    return {
-        "task_id": task["task_id"],
-        "status": "completed",
-        "output": [{"type": "text", "text": response.content}],
-    }
-```
-
----
-
-## ctx.log — AgentLogger
-
-Logs structurés envoyés via le système de logging du runtime (`tracing`).
-
-```python
-ctx.log.info("step_started", step=1, tool="file_read")
-ctx.log.warn("budget_low", steps_remaining=2)
-ctx.log.error("tool_failed", tool="bash_executor", reason="timeout")
-ctx.log.debug("internal_state", state={"key": "val"})
-```
-
-Ces logs apparaissent dans les logs du runtime avec le contexte agent/tâche automatiquement ajouté. Ils ne sont pas stockés en mémoire persistante — c'est l'audit trail qui joue ce rôle pour les appels d'outils.
-
----
-
-## ctx.step_budget — StepBudgetView
-
-Lecture seule. Permet à l'agent d'adapter son comportement proactivement avant que le runtime n'intervienne.
-
-```python
-async def run(self, task, ctx):
-    while True:
-        # Vérifier le budget avant chaque itération
-        if ctx.step_budget.steps_remaining < 2:
-            # Conclure proprement plutôt que d'être interrompu
-            return {
-                "task_id": task["task_id"],
-                "status": "completed",
-                "output": [{"type": "text", "text": "Résultat partiel (budget faible)"}],
-            }
-
-        # ... traiter une étape
-```
-
-```python
-# Propriétés disponibles
-steps_remaining      = ctx.step_budget.steps_remaining       # int
-tool_calls_remaining = ctx.step_budget.tool_calls_remaining   # int
-elapsed_seconds      = ctx.step_budget.elapsed_seconds        # float
-```
-
-**Note :** l'agent ne peut pas modifier le budget. Le runtime le plafonne toujours via `from_capped(agent_budget, runtime_defaults)`.
-
----
-
-## ctx.send() / ctx.receive() — Messagerie inter-agents *(Sprint 20)*
-
-**Nécessite `supports_a2a: True` dans le manifest.**
-
-Permet à un agent d'envoyer et de recevoir des messages asynchrones avec d'autres agents via l'`AgentMailbox` — un acteur Tokio séparé du `TaskRouter`.
-
-### ctx.send()
-
-Envoie un message JSON à un autre agent identifié par son nom.
-
-```python
-# Signature : async send(agent_name: str, payload: dict) -> None
-await ctx.send(
-    "worker-agent",                          # str — nom de l'agent destinataire
-    {"type": "data", "content": "résultat"}, # dict — payload JSON arbitraire
-)
-```
-
-| Paramètre | Type | Description |
-|---|---|---|
-| `agent_name` | `str` | Nom de l'agent destinataire (doit être démarré) |
-| `payload` | `dict` | Données JSON à envoyer (serde_json::Value) |
-
-**Erreurs :**
-- `RuntimeError: "A2A messaging requires supports_a2a: true in manifest"` — manifest incorrect
-- `RuntimeError: "A2A mailbox not available in this runtime context"` — mailbox non disponible
-- `RuntimeError` (MailboxError::QueueFull) — file pleine (max 100 messages par agent)
-
-### ctx.receive()
-
-Attend le prochain message dans la mailbox de l'agent courant avec un timeout.
-
-```python
-# Signature : async receive(timeout_seconds: float = 5.0) -> dict | None
-msg = await ctx.receive(timeout=10.0)  # timeout en secondes, défaut: 5.0
-if msg is not None:
-    sender   = msg["from"]     # str — nom de l'agent émetteur
-    payload  = msg["payload"]  # dict — données reçues
-    sent_at  = msg["sent_at"]  # str — horodatage ISO 8601
-```
-
-**Retour :** `dict` avec les clés `from`, `payload`, `sent_at` — ou `None` si timeout expiré.
-
-**Erreurs :**
-- `RuntimeError: "A2A messaging requires supports_a2a: true in manifest"` — manifest incorrect
-- `RuntimeError: "A2A mailbox not available in this runtime context"` — mailbox non disponible
-
-### Contraintes
-
-- Max **100 messages** en file par agent — au-delà : `RuntimeError` (MailboxError::QueueFull)
-- Les messages sont des `serde_json::Value` (JSON arbitraire côté Rust)
-- L'agent destinataire **doit être démarré** — pas de persistance hors-mémoire
-- L'`AgentMailbox` est un acteur Tokio **séparé** du `TaskRouter`
-
-### Exemple — coordination pipeline
-
-```python
-# agent-coordinator.py
-class CoordinatorAgent:
-    def manifest(self):
-        return {
-            "name": "coordinator",
-            "version": "1.0.0",
-            "description": "Coordonne deux agents en parallèle",
-            "tools_required": [],
-            "supports_a2a": True,  # obligatoire pour send/receive
-        }
-
-    async def run(self, task, ctx):
-        input_data = task["input"]["parts"][0]["text"]
-
-        # Envoyer à deux workers en parallèle
-        await ctx.send("worker-a", {"job": "analyser", "data": input_data})
-        await ctx.send("worker-b", {"job": "résumer",  "data": input_data})
-
-        # Récupérer les réponses (dans l'ordre d'arrivée)
-        results = []
-        for _ in range(2):
-            msg = await ctx.receive(timeout=30.0)
-            if msg:
-                results.append(msg["payload"])
-
-        return {
-            "task_id": task["task_id"],
-            "status": "completed",
-            "output": [{"type": "data", "data": {"results": results}}],
-        }
-```
-
----
-
-## ctx.delegate() — Délégation A2A vers Worker Agent *(Sprint 32)*
-
-**Nécessite `supports_a2a: True` dans le manifest.**
-
-Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau — expose directement la `A2aDelegateFn` injectée par le runtime dans les Director Agents en Mode Orchestré.
-
-```python
-# Signature : async delegate(skill_id: str, payload: dict, timeout_secs: int = 120) -> dict
-result = await ctx.delegate(
-    skill_id="generate-quote",                  # str — ID de la compétence
-    payload={"client": "Acme", "amount": 5000}, # dict — données d'entrée JSON
-    timeout_secs=120,                           # int | None — défaut: 120s
-)
-```
-
-| Paramètre | Type | Obligatoire | Défaut | Description |
+| Paramètre | Type | Défaut | Obligatoire | Notes |
 |---|---|---|---|---|
-| `skill_id` | `str` | oui | — | Identifiant de la compétence du Worker Agent cible |
-| `payload` | `dict` | oui | — | Données d'entrée JSON sérialisables |
-| `timeout_secs` | `int \| None` | non | `120` | Timeout total de la délégation en secondes |
+| `code` | str | — | ✅ | Code Python à exécuter |
+| `timeout_seconds` | int | 60 | ❌ | Timeout en secondes |
+| **Retour** | dict | — | — | `{"stdout": str, "stderr": str, "exit_code": int}` |
 
-**Retour :** `dict` avec les clés :
+---
 
-| Clé | Type | Description |
+## ctx.llm – LlmProxy
+
+Proxy vers les backends LLM configurés. Wrapper autour de `LlmRouter`.
+
+### Propriété
+
+| Propriété | Type | Notes |
 |---|---|---|
-| `task_id` | `str` | UUID de la tâche déléguée |
-| `agent_name` | `str` | Nom de l'agent qui a exécuté la compétence |
-| `output` | `list[dict]` | Résultat : liste d'`AIPPart` (même format que AIPResult) |
+| **default_backend** | str | Getter : nom du backend par défaut (ex. `"anthropic"`, `"local"`) |
 
-**Erreurs :**
-- `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
-- `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré (injectée uniquement pour les Director Agents)
+### Méthodes
 
-### Exemple — Director Agent qui délègue
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| **chat()** | `async chat(system: str, user: str, backend: str=None) -> LlmResponse` | `system` : str (system prompt) ; `user` : str (user message) ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `RuntimeError` si LLM None | Cas d'usage 80% : appel simple |
+| **complete()** | `async complete(messages: list[dict], backend: str=None) -> LlmResponse` | `messages` : `list[{"role": str, "content": str}]` ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `PyValueError` si message invalide | Multi-tour explicite : system/user/assistant |
+| **stream()** | `async stream(messages: list[dict], backend: str=None) -> list[str]` | `messages` : `list[dict]` ; `backend` : str optionnel | `list[str]` (chunks collectés) | `PyRuntimeError` si backend unavailable | Fallback : si pas de stream natif, une seule réponse |
+| **stream_complete()** | `async stream_complete(messages: list[dict], backend: str=None) -> PyTokenStream` | `messages` : `list[dict]` ; `backend` : str optionnel | Async iterator de chunks | `PyRuntimeError` si backend unavailable | Token par token en temps réel (vs `stream()` qui collecte) |
+| **run_tools()** | `async run_tools(messages: list[dict], tools: list[dict], max_iterations: int=5) -> dict` | `messages` : `list[dict]` ; `tools` : `list[dict]` JSON Schema ; `max_iterations` : int | dict avec `{"content": str, ...}` | `PyRuntimeError` si max_iterations atteint ou budget épuisé | Boucle ReAct auto : Thought → Action → Observe |
 
+### LlmResponse
+
+Retourné par `chat()`, `complete()`, `stream()`.
+
+| Propriété | Type | Notes |
+|---|---|---|
+| **content** | str | Texte généré par le modèle |
+| **latency_ms** | int | Latence totale en millisecondes |
+| **usage** | TokenUsage (objet) | — |
+| **usage.prompt_tokens** | int | Tokens entrée |
+| **usage.completion_tokens** | int | Tokens sortie |
+| **usage.cost_usd** | float \| None | Coût estimé (`None` pour backends locaux) |
+
+---
+
+## ctx.memory – MemoryInterface
+
+Accès à la mémoire persistante (épisodique, sémantique, procédurale). Namespace isolé par agent.
+
+### Méthodes
+
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| **record()** | `async record(content: str, importance: float=0.5, task_id: str=None, metadata: dict=None) -> str` | `content` : str ; `importance` : float [0.0-1.0] ; `task_id` : str optionnel ; `metadata` : dict optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire épisodique (horodaté) |
+| **remember()** | `async remember(content: str, confidence: float=0.9, source: str=None) -> str` | `content` : str ; `confidence` : float [0.0-1.0] ; `source` : str optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire sémantique (fact) |
+| **recall()** | `async recall(key: str) -> list[dict]` | `key` : str (clé de fait sémantique) | `list[dict]` avec `{"content": str, "confidence": float, "created_at": str}` | — | Rappel simplifié : clé → valeur + metadata |
+| **recall_entry()** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | — | Rappel complet avec toutes métadonnées (Sprint 40+) |
+| **recall_all()** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | — | Toutes les entrées sémantiques du namespace (Sprint 40+) |
+| **search()** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | — | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
+| **forget()** | `async forget(memory_id: str) -> None` | `memory_id` : str (id retourné par `record()` ou `remember()`) | `None` | `RuntimeError` si id invalid | Suppression d'un enregistrement |
+
+---
+
+## ctx.step_budget – StepBudgetView
+
+Lecture seule. Permet à l'agent de s'adapter proactivement avant épuisement.
+
+### Propriétés
+
+| Propriété | Type | Notes |
+|---|---|---|
+| **steps_remaining** | int | Nombre d'étapes restantes |
+| **tool_calls_remaining** | int | Appels d'outils restants |
+| **elapsed_seconds** | float | Secondes écoulées depuis le démarrage |
+
+---
+
+## ctx.log – AgentLogger
+
+Logs structurés envoyés via le système `tracing` du runtime.
+
+### Méthodes
+
+| Méthode | Signature | Paramètres | Notes |
+|---|---|---|---|
+| **info()** | `info(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level INFO |
+| **warn()** | `warn(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level WARN |
+| **error()** | `error(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level ERROR |
+| **debug()** | `debug(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level DEBUG |
+
+Exemple : `ctx.log.info("step_started", step=1, tool="file_read")`
+
+---
+
+## ctx.workspace – WorkspaceContextPy
+
+Contexte projet collecté au démarrage. Agrège les sections des providers actifs.
+
+### Propriétés
+
+| Propriété | Type | Notes |
+|---|---|---|
+| **rules** | str \| None | Alias pour `get("Règles du projet")` |
+| **apollia_md** | str \| None | Alias pour `rules` (compatibilité) |
+| **sections** | list[dict] | Toutes les sections `[{"title": str, "content": str}, ...]` |
+
+### Méthodes
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| **get()** | `get(title: str) -> str \| None` | `title` : str (titre de section) | Contenu ou `None` | Lookup par titre exact |
+
+---
+
+## ctx.user_context
+
+Propriété dict ou None. Profil utilisateur injecté en mode chat.
+
+| Propriété | Type | Notes |
+|---|---|---|
+| **user_context** | dict[str, list[tuple[str, str]]] \| None | Catégories : `"preferences"`, `"habits"`, `"context"` (chacune : liste de tuples `(clé, valeur)`) |
+
+Exemple accès :
 ```python
-# director_agent.py
-class DirectorAgent:
-    def manifest(self):
-        return {
-            "name": "director",
-            "version": "1.0.0",
-            "description": "Orchestre plusieurs workers spécialisés",
-            "tools_required": [],
-            "supports_a2a": True,
-            "execution_mode": "orchestrated",
-        }
-
-    async def run(self, task, ctx):
-        brief = task["input"]["parts"][0]["text"]
-
-        # Déléguer la génération de devis à un Worker Agent
-        result = await ctx.delegate(
-            skill_id="generate-quote",
-            payload={"brief": brief},
-            timeout_secs=60,
-        )
-
-        # Extraire le résultat
-        output_parts = result["output"]  # list[AIPPart]
-        agent_used   = result["agent_name"]
-        ctx.log.info("delegation_done", agent=agent_used, parts=len(output_parts))
-
-        return {
-            "task_id": task["task_id"],
-            "status": "completed",
-            "output": output_parts,
-        }
+uc = ctx.user_context
+if uc:
+    for key, val in uc.get("preferences", []):
+        if key == "langue":
+            # utiliser val
 ```
 
 ---
 
-## ctx.user_context — Contexte utilisateur global *(Sprint 28)*
+## ctx.send() – Messagerie inter-agents
 
-**Disponible uniquement en mode chat.** `None` en mode task.
+Envoie un message JSON asynchrone à un autre agent via mailbox.
 
-Propriété (pas une méthode) qui expose les entrées de mémoire utilisateur (`__user__`) chargées depuis le namespace global via `recall_all()` au démarrage de la session chat. L'agent décide quoi en faire — jamais d'injection automatique dans les prompts (Principe #6).
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `agent_name` | str | — | ✅ | Nom de l'agent destinataire |
+| `payload` | dict | — | ✅ | Données JSON arbitraires |
+| **Retour** | awaitable (None) | — | — | — |
+| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` ; `RuntimeError: queue full` |
 
-```python
-# ctx.user_context : dict[str, list[tuple[str, str]]] | None
-uc = ctx.user_context
-if uc is not None:
-    # Catégories disponibles
-    prefs  = uc.get("preferences", [])  # list[tuple[str, str]] — préférences explicites
-    habits = uc.get("habits", [])       # list[tuple[str, str]] — habitudes détectées
-    ctxts  = uc.get("context", [])      # list[tuple[str, str]] — contexte situationnel
-```
+Limitation : max 100 messages en file par agent.
 
-### Structure des catégories
+---
 
-| Catégorie | Description | Exemple |
+## ctx.receive() – Réception inter-agents
+
+Attend le prochain message dans la mailbox avec timeout.
+
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `timeout_seconds` | float | 5.0 | ❌ | Timeout en secondes |
+| **Retour** | awaitable (dict \| None) | — | — | `{"from": str, "payload": dict, "sent_at": str}` ou `None` si timeout |
+| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: mailbox not available` |
+
+---
+
+## ctx.delegate() – Délégation A2A
+
+Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
+
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `skill_id` | str | — | ✅ | ID de compétence du Worker |
+| `payload` | dict | — | ✅ | Données d'entrée JSON |
+| `timeout_secs` | int \| None | 120 | ❌ | Timeout en secondes |
+| **Retour** | awaitable (dict) | — | — | `{"task_id": str, "agent_name": str, "output": list[dict]}` |
+| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: delegation not available` ; Timeout |
+
+---
+
+## ctx.emit_token() – Streaming chatbot
+
+Émet un token vers le frontend SSE en mode chat. No-op en mode task.
+
+| Paramètre | Type | Obligatoire | Notes |
+|---|---|---|---|
+| `token` | str | ✅ | Fragment texte à streaming |
+| **Retour** | None | — | Fire-and-forget (erreurs silencieuses si bus plein) |
+
+---
+
+## ctx.a2a_invoke() – Invocation A2A haut niveau
+
+Invoque un Worker Agent via `A2AInvoker` (haut niveau, orchestration complète).
+
+| Paramètre | Type | Défaut | Obligatoire | Notes |
+|---|---|---|---|---|
+| `skill_id` | str | — | ✅ | ID de compétence |
+| `input` | dict | — | ✅ | Données d'entrée JSON |
+| `timeout_secs` | int | — | ❌ | Timeout en secondes |
+| **Retour** | awaitable (dict) | — | — | `{"result": dict, "agent_name": str, "skill_id": str, "duration_ms": int}` ou `AIPResult.failed()` |
+
+---
+
+## ctx.a2a_discover() – Découverte skill
+
+Découvre l'agent qui expose un skill et retourne sa carte.
+
+| Paramètre | Type | Obligatoire | Notes |
+|---|---|---|---|
+| `skill_id` | str | ✅ | ID de skill à découvrir |
+| **Retour** | awaitable (dict \| None) | — | Carte de découverte ou `None` si non trouvé |
+
+---
+
+## ctx.user_memory_read_only – Propriété
+
+Indique si l'agent a accès en lecture à la mémoire utilisateur globale.
+
+| Propriété | Type | Notes |
 |---|---|---|
-| `preferences` | Préférences explicites de l'utilisateur | `("langue", "français")` |
-| `habits` | Habitudes détectées par le système de mémoire | `("format_réponse", "bullet points")` |
-| `context` | Contexte situationnel courant | `("projet_courant", "apollia-os")` |
+| **user_memory_read_only** | bool | `True` quand l'agent est invoqué via A2A (trust model) |
 
-### Exemple — personnalisation de réponse
+---
 
-```python
-async def run(self, task, ctx):
-    user_input = task["input"]["parts"][0]["text"]
+## Corrections vs version précédente (780 → 320 lignes)
 
-    # Construire un system prompt personnalisé selon le profil
-    system = "Tu es un assistant bienveillant."
-    uc = ctx.user_context
-    if uc:
-        # Appliquer les préférences de langue
-        for key, val in uc.get("preferences", []):
-            if key == "langue":
-                system += f" Réponds toujours en {val}."
-        # Appliquer les habitudes de format
-        for key, val in uc.get("habits", []):
-            if key == "format_réponse":
-                system += f" Format : {val}."
+| Item | Ancien | Nouveau | Raison |
+|---|---|---|---|
+| **Structure générale** | Narrative (tutoriels) | Table canonique | Respect charte L1.4 : wiki = référence pure |
+| **Section "Vue d'ensemble"** | 21 lignes + diagramme | Tableau synthétique 1 page | Condensé ; lien vers book pour patterns |
+| **Chaque service** | 40-100 lignes narratives | Table : sig/params/retour/erreurs | Grille de référence consultable |
+| **Exemples Python** | 10+ par service | 0 (sauf 1 pour syntax) | Exemples = book ch03/ch06, pas wiki |
+| **Outils natifs** | Prose + exemples (200 lignes) | 10 tables (1 par outil) | Paramètres structurés = queryable |
+| **ctx.delegate()** | Suspect per Audit Axe 3 | ✅ Confirmé, signature actuelle | Vérification effectuée dans context.rs:1128-1184 |
+| **ctx.llm.stream_complete()** | Absent (Sprint 40 nouveau) | ✅ Ajouté | Async iterator vs collect |
+| **ctx.emit_token()** | Absent | ✅ Ajouté | Mode chat streaming |
+| **ctx.user_memory_read_only** | Absent | ✅ Ajouté | Propriété booléenne Sprint 40+ |
+| **Métadonnées memory** | Narratif | Tables : `recall_entry()`, `recall_all()` | Sprint 40 (injection tracker) |
 
-    if ctx.llm:
-        response = await ctx.llm.chat(system=system, user=user_input)
-        return {
-            "task_id": task["task_id"],
-            "status": "completed",
-            "output": [{"type": "text", "text": response.content}],
-        }
-```
+---
 
-**Règles :**
-- `None` si l'agent n'est pas invoqué depuis une `ChatSession`
-- `None` si le namespace `__user__` est vide (aucune entrée mémorisée)
-- Lecture seule — l'agent ne peut pas modifier `user_context` directement (utiliser `ctx.memory` pour écrire dans `__user__`)
-- L'agent est responsable de décider si et comment utiliser ce contexte (Principe #6)
+## Pour apprendre (liens externes)
+
+> Voir [book ch03](../../book/src/ch03-02-runtime-context.md) pour patterns d'usage avec exemples complets.
+> Voir [book ch04](../../book/src/ch04-01-outils.md) pour tutoriel outils natifs.
+> Voir [book ch05](../../book/src/ch05-01-memory.md) pour mémoire : concepts + patterns.
+> Voir [book ch06](../../book/src/ch06-02-ctx-llm.md) pour LLM : choix backend, streaming, ReAct.
 
 ---
 
 ## Voir aussi
 
-- [Agents SDK Guide](./Agents-SDK-Guide) — SDK Python avec classes de base, mocks de test et scaffolding
-- [Briques AIP Specification](./Briques-AIP-Specification) — contrat complet AIPTask, AIPResult, AgentManifest
-- [Briques Tool Registry](./Briques-Tool-Registry) — catalogue des outils, schémas complets
-- [Briques Memory Engine](./Briques-Memory-Engine) — backends mémoire, FTS5, namespaces
-- [Briques LLM Backend](./Briques-LLM-Backend) — backends LLM, feature flags, configuration
-- [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — gestion du StepBudget, coûts LLM
+- [Briques-AIP-Specification](./Briques-AIP-Specification.md) — contrat `AIPTask`, `AIPResult`
+- [Briques-Tool-Registry](./Briques-Tool-Registry.md) — catalogue complet outils + schémas JSON
+- [Briques-Memory-Engine](./Briques-Memory-Engine.md) — backends mémoire, FTS5, namespaces
+- [Briques-LLM-Backend](./Briques-LLM-Backend.md) — backends LLM, routing, feature flags
+- [Outils-Reference](./Outils-Reference.md) — outils disponibles (autre source)
+- [Agents-SDK-Guide](./Agents-SDK-Guide.md) — classes SDK Python, mocks de test
+- [Agents-Bonnes-Pratiques](./Agents-Bonnes-Pratiques.md) — gestion StepBudget, coûts LLM
+

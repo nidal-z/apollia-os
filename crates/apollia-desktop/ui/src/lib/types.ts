@@ -1,3 +1,61 @@
+// ─── Agent Packages (ADR-081) ─────────────────────────────────────────────
+
+/** Résumé d'un agent dans un package. */
+export interface PackageAgentSummary {
+  name: string;
+  role: "director" | "worker" | "assistant" | string;
+  entry: string;
+}
+
+/** Élément de la liste des packages installés. */
+export interface AgentPackageListItem {
+  name: string;
+  version: string;
+  description: string;
+  agent_count: number;
+  agents: PackageAgentSummary[];
+  installed_at: string;
+  root_path: string;
+  root_missing: boolean;
+}
+
+/** Détail complet d'un package. */
+export interface AgentPackageDetailView {
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  agents: PackageAgentSummary[];
+  installed_at: string;
+  updated_at: string;
+  root_path: string;
+  root_missing: boolean;
+  manifest: Record<string, unknown>;
+}
+
+/** Résultat d'un preview (dry-run). */
+export interface PackagePreview {
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  agents: PackageAgentSummary[];
+  trigger_count: number;
+  pip_packages: string[];
+  valid: boolean;
+  error?: string;
+}
+
+/** Résultat d'une installation de package. */
+export interface InstallPackageResponse {
+  name: string;
+  version: string;
+  agent_count: number;
+  trigger_count: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Skill exposé par un worker agent via A2A. */
 export interface A2ASkillListing {
   skill_id: string;
@@ -841,6 +899,15 @@ export interface PendingChatApproval {
   receivedAt: string;
 }
 
+/** Pending ask_user request — tracked globally so it survives page navigation. */
+export interface PendingUserInputView {
+  request_id: string;
+  session_id: string;
+  questions_json: string;
+  context: string | null;
+  created_at: string;
+}
+
 // ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
 
 /** Résumé d'un outil pour l'affichage en liste. */
@@ -1322,7 +1389,7 @@ export interface RegistryServerView {
   version: string;
   repository_url: string | null;
   website_url: string | null;
-  packages: RegistryPackageView[];
+  packages: RegistryPackageView[] | null;
   trust_level: TrustLevel;
   category: string | null;
   enrichment: ConnectorEnrichmentView | null;

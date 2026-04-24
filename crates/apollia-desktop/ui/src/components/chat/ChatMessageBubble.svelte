@@ -8,6 +8,7 @@
   import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
+  import { parseStream } from "$lib/chat/streamParser";
 
   interface Props {
     message: ChatMessageView;
@@ -35,6 +36,19 @@
 
   const hasToolCalls = $derived(
     message.tool_calls !== null && message.tool_calls.length > 0,
+  );
+
+  // Strip <think>...</think> blocks from rendered content — they are shown via ReasoningSequence.
+  const parsedContentBlocks = $derived(parseStream(message.content ?? ""));
+  const cleanContent = $derived(
+    parsedContentBlocks
+      .filter((b) => b.type !== "thinking")
+      .map((b) => b.content)
+      .join(""),
+  );
+  const hasInlineThinking = $derived(
+    !message.metadata?.thinking_trace &&
+      parsedContentBlocks.some((b) => b.type === "thinking" && b.closed),
   );
 
   // Adaptive width — B.2. Compact variant falls back to 72 %.
@@ -66,10 +80,16 @@
 </script>
 
 <div
-  class="group flex {isUser ? 'justify-end' : 'justify-start'}"
+  class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1"
   data-testid="chat-message-{message.id}"
   in:fly={{ y: 4, duration: 200 }}
 >
+  {#if hasToolCalls || message.metadata?.thinking_trace || hasInlineThinking}
+    <div class="{widthClass}">
+      <ReasoningSequence {message} {sessionId} {isOperator} content={message.content ?? undefined} />
+    </div>
+  {/if}
+
   <div
     class="relative {widthClass} px-3.5 py-2.5 text-[13px] leading-relaxed {bubbleClass} {!isUser && message.content ? 'pr-10' : ''}"
   >
@@ -99,15 +119,11 @@
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
       {:else}
         <MessageRenderer
-          content={message.content}
+          content={cleanContent}
           citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
         />
-        <LinkPreviewList content={message.content} />
+        <LinkPreviewList content={cleanContent} />
       {/if}
-    {/if}
-
-    {#if hasToolCalls || message.metadata?.thinking_trace}
-      <ReasoningSequence {message} {sessionId} {isOperator} />
     {/if}
 
     {#if showTimestamp}

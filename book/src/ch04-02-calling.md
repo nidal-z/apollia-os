@@ -187,3 +187,46 @@ async def run(self, task, ctx):
 ```
 
 Attention : chaque appel parallèle consomme quand même 1 step. Avec `asyncio.gather`, les steps sont consommés simultanément — le step_budget peut s'épuiser plus vite qu'avec des appels séquentiels si vous n'y prenez pas garde.
+
+---
+
+## Patterns d'erreur avancés
+
+La `ResilienceLayer` du runtime applique déjà un retry automatique sur certaines erreurs transitoires (timeout réseau, sandbox temporairement saturé). Mais quand votre logique métier exige un comportement spécifique — réessai sur un code d'erreur particulier, ou bascule vers un outil de secours — vous devez l'écrire explicitement dans `run()`.
+
+### Retry custom avec backoff
+
+```python
+import asyncio
+
+async def _read_with_retry(ctx, path: str, attempts: int = 3):
+    for i in range(attempts):
+        result = await ctx.tools.call("file_read", {"path": path})
+        if not result.get("error"):
+            return result
+        code = result["error"].split(":")[0]
+        # Ne réessayer que sur les erreurs transitoires
+        if code not in ("timeout", "io_error"):
+            return result
+        await asyncio.sleep(0.5 * (2 ** i))   # backoff exponentiel
+    return result   # dernier résultat, encore en erreur
+```
+
+Chaque tentative consomme 1 step — calibrez `attempts` en conséquence.
+
+### Fallback entre 2 outils similaires
+
+Quand un outil principal est indisponible (MCP DEGRADED) ou échoue, basculez sur une alternative :
+
+```python
+async def _search_web(ctx, query: str):
+    # Préférer Brave si disponible, sinon DuckDuckGo natif
+    if "mcp:brave-search/brave_web_search" in ctx.tools.list_tools():
+        result = await ctx.tools.call("mcp:brave-search/brave_web_search", {"query": query})
+        if not result.get("error"):
+            return result
+    # Fallback vers l'outil natif
+    return await ctx.tools.call("web_search", {"query": query})
+```
+
+Ce pattern est typique des agents avec `tools_optional` : la disponibilité change selon la machine cible, et l'agent doit dégrader gracieusement plutôt que de planter.

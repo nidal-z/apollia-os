@@ -354,10 +354,17 @@ fn extract_text_output(result: &AIPResult) -> String {
         .join("\n")
 }
 
-/// Build a [`ChatAgentResponse`] with the given content and newly authorized tools.
+/// Build a [`ChatAgentResponse`], extracting any `<think>...</think>` blocks
+/// emitted by reasoning models (e.g. Qwen3 235B) into `thinking_trace`.
 fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentResponse {
+    let thinking_trace = extract_think_blocks(&content);
+    let clean_content = if thinking_trace.is_some() {
+        strip_think_blocks(&content)
+    } else {
+        content
+    };
     ChatAgentResponse {
-        content,
+        content: clean_content,
         tool_calls: vec![],
         newly_authorized,
         tokens_used: apollia_llm::types::TokenUsage {
@@ -366,8 +373,48 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
             cost_usd: None,
             ..Default::default()
         },
-        thinking_trace: None,
+        thinking_trace,
     }
+}
+
+/// Extracts the content of `<think>...</think>` blocks from reasoning models.
+fn extract_think_blocks(text: &str) -> Option<String> {
+    let mut blocks = Vec::new();
+    let mut cursor = 0;
+    while let Some(start) = text[cursor..].find("<think>") {
+        let after_open = cursor + start + 7;
+        if let Some(end) = text[after_open..].find("</think>") {
+            let block = text[after_open..after_open + end].trim();
+            if !block.is_empty() {
+                blocks.push(block.to_string());
+            }
+            cursor = after_open + end + 8;
+        } else {
+            let block = text[after_open..].trim();
+            if !block.is_empty() {
+                blocks.push(block.to_string());
+            }
+            break;
+        }
+    }
+    if blocks.is_empty() { None } else { Some(blocks.join("\n\n")) }
+}
+
+/// Strips `<think>...</think>` blocks from the content.
+fn strip_think_blocks(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(start) = text[cursor..].find("<think>") {
+        result.push_str(&text[cursor..cursor + start]);
+        let after_open = cursor + start + 7;
+        if let Some(end) = text[after_open..].find("</think>") {
+            cursor = after_open + end + 8;
+        } else {
+            break;
+        }
+    }
+    result.push_str(&text[cursor..]);
+    result.trim().to_string()
 }
 
 /// Return the current time as an RFC-3339/ISO-8601 string.

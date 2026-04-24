@@ -14,8 +14,8 @@
     align?: "start" | "center" | "end";
     /** Extra classes merged into the content element. */
     class?: string;
-    /** Renders the trigger element — wire props/events on your own element. */
-    trigger: Snippet;
+    /** Renders the trigger element. Receives bits-ui merged props to spread on your element. */
+    trigger: Snippet<[Record<string, unknown>]>;
     /** Renders the floating popover content. */
     content: Snippet;
   }
@@ -39,7 +39,9 @@
 
 <PopoverPrimitive.Root bind:open>
   <PopoverPrimitive.Trigger>
-    {@render trigger()}
+    {#snippet child({ props })}
+      {@render trigger(props)}
+    {/snippet}
   </PopoverPrimitive.Trigger>
   <PopoverPrimitive.Portal>
     <PopoverPrimitive.Content

@@ -479,4 +479,4 @@ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers/test \
 - [Briques Tool Registry](./Briques-Tool-Registry) — architecture du Tool Registry et section outils MCP
 - [MCP Integration](./MCP-Integration) — alignement Apollia OS ↔ standard MCP
 - [Sécurité — Local-first](./Securite-Local-First) — principes de souveraineté des données
-- [API HTTP Reference](./API-HTTP-Reference) — référence complète de l'API REST
+- [API HTTP — Index](./API-HTTP-Reference) — référence complète de l'API REST (voir [API-HTTP-Observability](./API-HTTP-Observability#mcp-sprint-26-adr-044) pour la section MCP)

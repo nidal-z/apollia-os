@@ -168,25 +168,23 @@
       >
         {$t('triggers.logs')}
       </Button>
-      {#if isBuilder}
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={() => onedit(trigger.id)}
-          data-testid="trigger-edit-btn"
-        >
-          {$t('triggers.edit')}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-destructive"
-          onclick={() => ondelete(trigger.id)}
-          data-testid="trigger-delete-btn"
-        >
-          {$t('triggers.delete')}
-        </Button>
-      {/if}
+      <Button
+        size="sm"
+        variant="ghost"
+        onclick={() => onedit(trigger.id)}
+        data-testid="trigger-edit-btn"
+      >
+        {$t('triggers.edit')}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        class="text-destructive"
+        onclick={() => ondelete(trigger.id)}
+        data-testid="trigger-delete-btn"
+      >
+        {$t('triggers.delete')}
+      </Button>
     </div>
   </div>
 </div>

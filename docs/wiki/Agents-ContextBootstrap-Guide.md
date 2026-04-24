@@ -1,7 +1,8 @@
-# Agents — ContextBootstrap Guide — Apollia OS
+# Agents — ContextBootstrap Guide
 
-> Protocole SDK pour explorer et persister un contexte projet cross-session. Un agent bootstrappé ne re-lit pas APOLLIA.md à chaque session — il détecte la péremption et re-bootstrap uniquement quand le projet a changé.
-> Public cible : développeur d'agent Python
+> **Référence technique** — signatures de la classe abstraite `ContextBootstrap` et table des implémentations livrées dans le SDK. Pour le **pattern d'usage** dans un agent, voir [book ch05-04](../../book/src/ch05-04-context-bootstrap.md).
+>
+> Audit : page conservée en spec (audit B1.6). Sections narratives historiques traitées par filtrage CI à venir.
 
 ---
 

@@ -14,6 +14,7 @@ import type {
   ToolCallRationale,
   ToolCallView,
 } from "$lib/types";
+import { parseStream } from "./streamParser";
 
 export type ReasoningStatus =
   | "pending"
@@ -204,6 +205,7 @@ export function toReasoningItem(
  */
 export function buildReasoningSequence(
   message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">,
+  content?: string,
 ): ReasoningItem[] {
   const items: ReasoningItem[] = [];
   const thinking =
@@ -216,6 +218,19 @@ export function buildReasoningSequence(
       status: "success",
       content: thinking,
     });
+  } else if (content) {
+    // Models like Qwen3 235B embed thinking in <think>...</think> tags inside content.
+    const thinkingBlocks = parseStream(content).filter(
+      (b) => b.type === "thinking" && b.closed,
+    );
+    if (thinkingBlocks.length > 0) {
+      items.push({
+        id: `${message.id}-think`,
+        kind: "thinking",
+        status: "success",
+        content: thinkingBlocks.map((b) => b.content).join("\n\n"),
+      });
+    }
   }
 
   const calls = message.tool_calls ?? [];

@@ -31,9 +31,9 @@
 
 {#if visible}
   <Popover bind:open side="bottom" align="end" class="min-w-[240px] p-3">
-    {#snippet trigger()}
+    {#snippet trigger(triggerProps: Record<string, unknown>)}
       <button
-        type="button"
+        {...triggerProps}
         class="inline-flex h-9 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors {isOffline
           ? 'border-destructive/40 bg-destructive/10 text-destructive'
           : 'border-warning/40 bg-warning/10 text-warning'}"

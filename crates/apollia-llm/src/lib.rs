@@ -10,6 +10,9 @@
 //! disponibles quelle que soit la feature activée.
 
 pub mod backends;
+pub mod downloader;
+pub mod hardware;
+pub mod hf_registry;
 pub mod meta;
 pub mod meta_orchestrator;
 pub mod pricing;
@@ -48,4 +51,14 @@ pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,
     FinishReason, LlmError, MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
+};
+pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
+#[cfg(feature = "cloud")]
+pub use hf_registry::{
+    CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
+    HfRegistryClient, HfSearchFilter, SearchPage,
+};
+#[cfg(feature = "cloud")]
+pub use downloader::{
+    DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
 };

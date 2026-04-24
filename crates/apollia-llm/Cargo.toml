@@ -56,6 +56,8 @@ lru            = { workspace = true }
 sha2           = { workspace = true }
 # tool_performance_hints — US-SP42-038
 toml           = { workspace = true }
+# Hardware detection (RAM, CPU, GPU — toujours disponible)
+sysinfo        = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

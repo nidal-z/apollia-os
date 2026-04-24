@@ -15,7 +15,7 @@
   import { Button } from "$lib/components/ui/button";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import { addToast } from "$lib/components/ui/toast";
-  import { systemInfoStore, cliStatusStore, settingsLoaders } from "$lib/stores/settings";
+  import { systemInfoStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
   import type { CliStatus } from "$lib/types";
 
   let cliActionLoading = $state(false);
@@ -86,6 +86,7 @@
   onMount(() => {
     void settingsLoaders.systemInfo();
     void settingsLoaders.cliStatus();
+    void settingsLoaders.config();
     tickHandle = setInterval(() => {
       now = new Date();
     }, 15000);
@@ -154,6 +155,20 @@
               <span class="text-sm font-mono text-muted-foreground italic">{$t("settings.system_python_not_found")}</span>
             {/if}
           </div>
+          {#if $configStore.data?.config_path}
+            <div class="grid grid-cols-2 gap-2 sm:col-span-2">
+              <span class="text-sm text-muted-foreground">{$t("settings.config.path_label")}</span>
+              <button
+                type="button"
+                class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
+                onclick={() => copyPath($configStore.data?.config_path)}
+                title={$t("settings.config.copy_path")}
+              >
+                <span class="truncate">{$configStore.data.config_path}</span>
+                <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
+              </button>
+            </div>
+          {/if}
         </div>
       </div>
     {:else if $systemInfoStore.error}

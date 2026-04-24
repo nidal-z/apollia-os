@@ -111,6 +111,11 @@ pub struct SupervisorConfig {
     /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
     /// `None` → l'auto-load est désactivé (compatibilité tests existants).
     pub agent_repository: Option<AgentRepository>,
+    /// Repository des packages installés (migration 008).
+    ///
+    /// `Some` → la Phase 10.6 valide l'intégrité des packages au boot.
+    /// `None` → la validation est désactivée (rétrocompatibilité).
+    pub package_repository: Option<apollia_tools::PackageRepository>,
     /// Répertoire des agents bundled (ex: `agents/bundled/`).
     ///
     /// Si `Some`, `auto_load_bundled_agents` est appelé au boot pour enregistrer
@@ -1175,9 +1180,11 @@ impl Supervisor {
             info!("Supervisor: starting TimeoutWatcher");
             let watcher = TimeoutWatcher::new(
                 TimeoutWatcherConfig {
-                    input_required_timeout: Duration::from_secs(
-                        self.config.hitl_config.timeout_hours * 3600,
-                    ),
+                    input_required_timeout: self
+                        .config
+                        .hitl_config
+                        .timeout_hours
+                        .map(|h| Duration::from_secs(h * 3600)),
                     scan_interval: Duration::from_secs(self.config.hitl_config.scan_interval_secs),
                 },
                 Arc::clone(repo),
@@ -1227,6 +1234,17 @@ impl Supervisor {
                 repo,
                 &agent_loader_for_autoload,
             );
+        }
+
+        // Phase 10.6: Validate installed package integrity
+        //
+        // Lightweight check: for each installed package, verify root_path still
+        // exists on disk. If missing → log warning, disable all package agents.
+        // Never blocks boot. Phase 11 handles the actual loading.
+        if let (Some(ref pkg_repo), Some(ref repo)) =
+            (&self.config.package_repository, &self.config.agent_repository)
+        {
+            validate_installed_packages(pkg_repo, repo);
         }
 
         // Phase 11: Auto-load installed agents
@@ -1405,6 +1423,39 @@ impl Supervisor {
             mcp_handle,
             project_repository,
         })
+    }
+}
+
+/// Phase 10.6: validate installed package integrity.
+///
+/// Checks that each package's `root_path` still exists on disk.
+/// Missing packages → log warning, disable all package agents.
+/// Never panics, never blocks boot.
+fn validate_installed_packages(
+    pkg_repo: &apollia_tools::PackageRepository,
+    agent_repo: &AgentRepository,
+) {
+    let packages = match pkg_repo.list() {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(error = %e, "Phase 10.6: failed to list packages");
+            return;
+        }
+    };
+    for pkg in &packages {
+        if !pkg.root_path.exists() {
+            warn!(
+                package = %pkg.name,
+                path = %pkg.root_path.display(),
+                "Phase 10.6: package root_path missing — disabling agents"
+            );
+            let agent_names = pkg_repo.list_agents_for_package(&pkg.name).unwrap_or_default();
+            for agent_name in &agent_names {
+                if let Err(e) = agent_repo.set_enabled(agent_name, false) {
+                    warn!(agent = %agent_name, error = %e, "Phase 10.6: failed to disable agent");
+                }
+            }
+        }
     }
 }
 
@@ -1716,6 +1767,7 @@ mod tests {
             data_dir: temp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -1889,6 +1941,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2038,6 +2091,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2152,6 +2206,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2213,6 +2268,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2286,6 +2342,7 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2386,6 +2443,7 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };
@@ -2452,6 +2510,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            package_repository: None,
             bundled_agents_path: None,
             pipelines_config: PipelinesConfig::default(),
         };

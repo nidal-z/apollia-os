@@ -21,25 +21,26 @@ use crate::eventbus::EventBusSender;
 
 /// Configuration du watcher de timeout d'approbation HITL.
 ///
-/// Valeurs par défaut : 24 h de timeout, 60 s d'intervalle de scan.
+/// Valeurs par défaut : aucun timeout global (pause indéfinie), 60 s d'intervalle de scan.
 #[derive(Debug, Clone)]
 pub struct TimeoutWatcherConfig {
     /// Durée après laquelle une tâche `input_required` est annulée automatiquement.
     ///
-    /// Configurable via `[runtime] input_required_timeout_hours` dans `apollia.toml`.
-    /// Défaut : 24 heures.
-    pub input_required_timeout: Duration,
+    /// `None` (défaut) : aucune annulation automatique — la tâche reste suspendue
+    /// indéfiniment jusqu'à réponse explicite de l'opérateur.
+    /// `Some(d)` : annulation après `d` (opt-in via `[hitl] timeout_hours` dans `apollia.toml`).
+    pub input_required_timeout: Option<Duration>,
     /// Intervalle entre deux scans consécutifs.
     ///
     /// Utilise `tokio::time::interval` pour éviter la dérive temporelle.
-    /// Défaut : 60 secondes.
+    /// Défaut : 60 secondes. Sans effet si `input_required_timeout` est `None`.
     pub scan_interval: Duration,
 }
 
 impl Default for TimeoutWatcherConfig {
     fn default() -> Self {
         Self {
-            input_required_timeout: Duration::from_secs(24 * 3600),
+            input_required_timeout: None,
             scan_interval: Duration::from_secs(60),
         }
     }
@@ -67,16 +68,15 @@ pub enum TimeoutWatcherError {
 /// Tâche Tokio qui annule automatiquement les tâches `input_required` expirées.
 ///
 /// Scanne toutes les [`scan_interval`] secondes les tâches dont `input_required_at`
-/// dépasse [`input_required_timeout`]. Pour chaque tâche expirée :
+/// dépasse [`input_required_timeout`] (si configuré). Comportement selon config :
 ///
-/// 1. Met à jour son statut en `cancelled` dans SQLite via [`TaskRepository::cancel_task`].
-/// 2. Émet [`RuntimeEvent::TaskApprovalTimeout`] sur l'EventBus.
-/// 3. Émet [`RuntimeEvent::TaskCanceled`] sur l'EventBus.
+/// - `input_required_timeout = None` : aucune annulation automatique — no-op à chaque tick.
+/// - `input_required_timeout = Some(d)` : pour chaque tâche expirée :
+///   1. Met à jour son statut en `cancelled` via [`TaskRepository::cancel_task`].
+///   2. Émet [`RuntimeEvent::TaskApprovalTimeout`] sur l'EventBus.
+///   3. Émet [`RuntimeEvent::TaskCanceled`] sur l'EventBus.
 ///
 /// En cas d'erreur SQLite, logue un `tracing::warn!` et continue la boucle sans crash.
-///
-/// Le oneshot channel de `PendingApprovals` est libéré automatiquement
-/// lorsque la tâche annulée est droppée côté ORIA — aucune logique supplémentaire requise.
 ///
 /// [`scan_interval`]: TimeoutWatcherConfig::scan_interval
 /// [`input_required_timeout`]: TimeoutWatcherConfig::input_required_timeout
@@ -128,13 +128,19 @@ impl TimeoutWatcher {
 
     /// Scanne les tâches `input_required` expirées et les annule.
     ///
-    /// Retourne le nombre de tâches effectivement annulées.
+    /// Retourne `Ok(0)` immédiatement si `input_required_timeout` est `None` (no-op).
+    /// Retourne le nombre de tâches effectivement annulées sinon.
     /// Retourne une erreur uniquement si le scan DB initial échoue.
     /// Les erreurs d'annulation individuelle sont loguées en `warn!` mais ne font pas échouer.
     async fn scan_and_cancel(&self) -> Result<usize, TimeoutWatcherError> {
+        let timeout = match self.config.input_required_timeout {
+            Some(t) => t,
+            None => return Ok(0),
+        };
+
         let expired_ids = self
             .db
-            .find_input_required_older_than(self.config.input_required_timeout)
+            .find_input_required_older_than(timeout)
             .await?;
 
         let mut cancelled = 0usize;
@@ -160,9 +166,10 @@ impl TimeoutWatcher {
 
             let task_id: TaskId = task_id_str.as_str().into();
 
+            let after_secs = timeout.as_secs();
             let _ = self.event_bus.send(RuntimeEvent::TaskApprovalTimeout {
                 task_id: task_id.clone(),
-                after_secs: self.config.input_required_timeout.as_secs(),
+                after_secs,
             });
 
             let _ = self.event_bus.send(RuntimeEvent::TaskCanceled { task_id });
@@ -242,7 +249,7 @@ mod tests {
         let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
         let watcher = TimeoutWatcher::new(
             TimeoutWatcherConfig {
-                input_required_timeout: Duration::from_secs(24 * 3600),
+                input_required_timeout: Some(Duration::from_secs(24 * 3600)),
                 scan_interval: Duration::from_secs(3600),
             },
             Arc::new(repo),
@@ -297,7 +304,7 @@ mod tests {
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
         let watcher = TimeoutWatcher::new(
             TimeoutWatcherConfig {
-                input_required_timeout: Duration::from_secs(24 * 3600),
+                input_required_timeout: Some(Duration::from_secs(24 * 3600)),
                 scan_interval: Duration::from_secs(3600),
             },
             Arc::new(repo),
@@ -331,7 +338,7 @@ mod tests {
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
         let watcher = TimeoutWatcher::new(
             TimeoutWatcherConfig {
-                input_required_timeout: Duration::from_secs(2 * 3600),
+                input_required_timeout: Some(Duration::from_secs(2 * 3600)),
                 scan_interval: Duration::from_secs(3600),
             },
             Arc::new(repo),
@@ -366,7 +373,7 @@ mod tests {
         let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
         let watcher = TimeoutWatcher::new(
             TimeoutWatcherConfig {
-                input_required_timeout: Duration::from_secs(24 * 3600),
+                input_required_timeout: Some(Duration::from_secs(24 * 3600)),
                 scan_interval: Duration::from_secs(3600),
             },
             Arc::new(repo),
@@ -380,6 +387,40 @@ mod tests {
         assert!(
             result.is_err(),
             "scan_and_cancel doit retourner Err sur DB corrompue"
+        );
+    }
+
+    // Aucun timeout configuré → no-op, tâche expirée non annulée
+
+    #[tokio::test]
+    async fn test_ac6_no_global_timeout_is_noop() {
+        // GIVEN une tâche input_required depuis 100h + config sans timeout global
+        let (repo, db_path) = open_test_repo().await;
+        let task_id = "t-tw-006";
+        insert_expired_task(&db_path, task_id, 100).await;
+
+        let (tx, _rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
+        let watcher = TimeoutWatcher::new(
+            TimeoutWatcherConfig {
+                input_required_timeout: None,
+                scan_interval: Duration::from_secs(60),
+            },
+            Arc::new(repo),
+            tx,
+        );
+
+        // WHEN scan_and_cancel() sans timeout global
+        let result = watcher.scan_and_cancel().await;
+
+        // THEN 0 tâches annulées — la tâche reste en pause indéfinie
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0, "aucune annulation sans timeout global");
+
+        let status = get_task_status(&db_path, task_id).await;
+        assert_eq!(
+            status.as_deref(),
+            Some("input_required"),
+            "statut doit rester 'input_required' — pause indéfinie"
         );
     }
 }

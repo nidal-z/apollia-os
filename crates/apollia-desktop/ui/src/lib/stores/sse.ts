@@ -37,6 +37,8 @@ import {
   clearGlobalBuffer,
   addPendingChatApproval,
   removePendingChatApproval,
+  addPendingUserInput,
+  removePendingUserInput,
 } from "./chat-global";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
@@ -339,6 +341,26 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
             p.tool_name ? String(p.tool_name) : undefined,
           );
         }
+      } else if (event.event_type === "ChatUserInputRequired") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatUserInputRequired as
+            | { request_id?: string; session_id?: string; questions_json?: string; context?: string }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        addPendingUserInput({
+          request_id: String(p.request_id ?? ""),
+          session_id: String(p.session_id ?? ""),
+          questions_json: String(p.questions_json ?? "[]"),
+          context: p.context ? String(p.context) : null,
+          created_at: new Date().toISOString(),
+        });
+      } else if (event.event_type === "ChatUserInputResolved") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatUserInputResolved as
+            | { request_id?: string }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.request_id) removePendingUserInput(String(p.request_id));
       } else if (event.event_type === "ChatResponseCompleted") {
         const inner =
           (event.payload as Record<string, unknown>)?.ChatResponseCompleted as

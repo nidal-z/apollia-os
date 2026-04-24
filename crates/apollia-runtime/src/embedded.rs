@@ -28,7 +28,10 @@ use apollia_tools::ToolRegistryHandle;
 use apollia_triggers::TriggerEngineHandle;
 
 /// Default timeout (in seconds) to wait for the Supervisor to emit `AllReady`.
-const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 30;
+///
+/// 300 s (5 min) accommodates large local models (70B–400B, multi-shard).
+/// Override via `[runtime] startup_timeout_secs` in `apollia.toml`.
+const DEFAULT_STARTUP_TIMEOUT_SECS: u64 = 300;
 
 /// Handle vers le runtime embarqué, contenant tous les handles d'acteurs.
 ///
@@ -221,6 +224,9 @@ impl EmbeddedConfig {
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
             if let Some(rc) = s.runtime {
+                // Propagate startup_timeout_secs from [runtime] to EmbeddedConfig
+                // so large local models (70B+) don't hit the hardcoded default limit.
+                self.startup_timeout_secs = rc.startup_timeout_secs;
                 self.runtime_config = rc;
             }
             if let Some(hc) = s.hitl {
@@ -324,6 +330,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
+        package_repository: None,
         bundled_agents_path: config.bundled_agents_path,
         pipelines_config: config.pipelines_config,
     };

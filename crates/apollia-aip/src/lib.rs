@@ -16,6 +16,7 @@ pub mod context;
 #[allow(clippy::useless_conversion)]
 pub mod llm;
 pub mod loader;
+pub mod package_loader;
 #[allow(clippy::useless_conversion)]
 pub mod memory;
 pub mod python_provider;

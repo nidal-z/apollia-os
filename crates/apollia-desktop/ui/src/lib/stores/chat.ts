@@ -49,6 +49,11 @@ export {
   addPendingChatApproval,
   removePendingChatApproval,
   getPendingChatApprovalForSession,
+  pendingUserInputs,
+  pendingUserInputCount,
+  addPendingUserInput,
+  removePendingUserInput,
+  getPendingUserInputForSession,
 } from "./chat-global";
 
 /** Currently viewed session detail (set when navigating to a conversation). */

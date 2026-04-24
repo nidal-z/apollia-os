@@ -34,13 +34,11 @@
 </script>
 
 <Popover bind:open align="start" side="bottom">
-  {#snippet trigger()}
+  {#snippet trigger(triggerProps: Record<string, unknown>)}
     <button
-      type="button"
+      {...triggerProps}
       class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 transition-colors hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {toneClass}"
       class:px-1.5={collapsed}
-      aria-haspopup="menu"
-      aria-expanded={open}
       aria-label={$t("sidebar.mode.chip_aria", {
         values: { mode: $t(`sidebar.mode.${current}.label`) },
       })}

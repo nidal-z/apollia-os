@@ -24,7 +24,7 @@ pub use builtin_agent::{
 pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
-pub use manager::ChatSessionManagerHandle;
+pub use manager::{ChatSessionManagerHandle, PendingUserInputView};
 pub use project_context::DefaultProjectContextProvider;
 pub use repository::{
     AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,

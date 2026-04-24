@@ -129,6 +129,10 @@ pub enum LlmBackendError {
     /// Erreur de sérialisation JSON.
     #[error("serialization error: {0}")]
     Serialization(String),
+
+    /// Erreur I/O lors de la synchronisation vers `apollia.toml`.
+    #[error("io error syncing to toml: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -408,6 +412,129 @@ impl LlmBackendRepository {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// TOML sync helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Supprime tous les blocs `[[llm.backends]]` du contenu TOML donné.
+///
+/// Chaque bloc commence à la ligne `[[llm.backends]]` et se termine juste avant
+/// la prochaine ligne d'en-tête de section (`[...` ou `[[...`).
+fn strip_llm_backends_blocks(content: &str) -> String {
+    let mut result: Vec<&str> = Vec::new();
+    let mut in_backends = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[[llm.backends]]" {
+            in_backends = true;
+            continue;
+        }
+        if in_backends && trimmed.starts_with('[') {
+            in_backends = false;
+        }
+        if !in_backends {
+            result.push(line);
+        }
+    }
+
+    // Trim trailing blank lines then add exactly one newline.
+    let joined = result.join("\n");
+    let trimmed = joined.trim_end();
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{trimmed}\n")
+    }
+}
+
+/// Génère un bloc TOML `[[llm.backends]]` depuis un [`LlmBackendConfig`].
+fn backend_to_toml_block(cfg: &LlmBackendConfig) -> String {
+    let mut lines = vec![
+        "[[llm.backends]]".to_string(),
+        format!("name     = {:?}", cfg.name),
+    ];
+
+    match cfg.provider {
+        LlmProvider::LlamaCpp => {
+            lines.push(r#"type     = "embedded""#.to_string());
+            lines.push(format!("model_path   = {:?}", cfg.model));
+            if let Some(q) = cfg.config_json.get("quantization").and_then(|v| v.as_str()) {
+                lines.push(format!("quantization = {:?}", q));
+            }
+            if let Some(d) = cfg.config_json.get("device").and_then(|v| v.as_str()) {
+                lines.push(format!("device       = {:?}", d));
+            }
+        }
+        _ => {
+            lines.push(r#"type        = "api""#.to_string());
+            lines.push(format!("provider    = {:?}", cfg.provider.to_string()));
+            lines.push(format!("model       = {:?}", cfg.model));
+            if let Some(url) = cfg.config_json.get("api_url").and_then(|v| v.as_str()) {
+                lines.push(format!("api_url     = {:?}", url));
+            }
+            // Reconstruct api_key_env from stored "${VAR}" sentinel if present.
+            if let Some(key_ref) = cfg
+                .config_json
+                .get("api_key")
+                .and_then(|v| v.as_str())
+                .filter(|s| s.starts_with("${") && s.ends_with('}'))
+            {
+                let var_name = &key_ref[2..key_ref.len() - 1];
+                lines.push(format!("api_key_env = {:?}", var_name));
+            }
+        }
+    }
+
+    lines.join("\n")
+}
+
+impl LlmBackendRepository {
+    /// Synchronise tous les backends DB → section `[[llm.backends]]` dans `apollia.toml`.
+    ///
+    /// - Lit `toml_path` (crée le fichier si absent).
+    /// - Supprime les anciens blocs `[[llm.backends]]`.
+    /// - Ajoute un bloc auto-généré pour chaque backend présent en DB.
+    /// - Réécrit le fichier atomiquement.
+    ///
+    /// Un commentaire sentinel indique que la section est gérée automatiquement.
+    ///
+    /// # Errors
+    /// - [`LlmBackendError::Db`] si la lecture DB échoue.
+    /// - [`LlmBackendError::Io`] si le fichier ne peut pas être lu ou écrit.
+    pub fn sync_to_toml(&self, toml_path: &Path) -> Result<(), LlmBackendError> {
+        let backends = self.list()?;
+
+        let existing = if toml_path.exists() {
+            std::fs::read_to_string(toml_path)?
+        } else {
+            String::new()
+        };
+
+        let base = strip_llm_backends_blocks(&existing);
+
+        let mut output = base;
+
+        if !backends.is_empty() {
+            output.push_str("\n# ⚠️  Section gérée automatiquement par Apollia — éditer via Settings\n");
+            for cfg in &backends {
+                output.push('\n');
+                output.push_str(&backend_to_toml_block(cfg));
+                output.push('\n');
+            }
+        }
+
+        std::fs::write(toml_path, output)?;
+
+        tracing::debug!(
+            path = %toml_path.display(),
+            count = backends.len(),
+            "llm backends synced to apollia.toml"
+        );
+        Ok(())
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -580,6 +707,106 @@ mod tests {
             repo.save(&config),
             Err(LlmBackendError::InvalidName(_))
         ));
+    }
+
+    // GIVEN un contenu TOML avec deux blocs [[llm.backends]] et d'autres sections
+    // WHEN  strip_llm_backends_blocks()
+    // THEN  les blocs backends sont supprimés, le reste est préservé
+    #[test]
+    fn test_strip_llm_backends_blocks_preserves_other_sections() {
+        let input = "[runtime]\ndata_dir = \"~/.apollia\"\n\n[[llm.backends]]\nname = \"local\"\ntype = \"embedded\"\n\n[[llm.backends]]\nname = \"remote\"\ntype = \"api\"\n\n[api]\nbind = \"127.0.0.1:7771\"\n";
+        let result = strip_llm_backends_blocks(input);
+        assert!(result.contains("[runtime]"));
+        assert!(result.contains("[api]"));
+        assert!(!result.contains("[[llm.backends]]"));
+        assert!(!result.contains("name = \"local\""));
+    }
+
+    // GIVEN un contenu TOML sans aucun bloc [[llm.backends]]
+    // WHEN  strip_llm_backends_blocks()
+    // THEN  le contenu est inchangé (modulo trailing newline)
+    #[test]
+    fn test_strip_llm_backends_blocks_noop_when_absent() {
+        let input = "[runtime]\ndata_dir = \"~/.apollia\"\n";
+        let result = strip_llm_backends_blocks(input);
+        assert!(result.contains("[runtime]"));
+        assert!(!result.contains("[[llm.backends]]"));
+    }
+
+    // GIVEN un backend llama-cpp avec device et quantization
+    // WHEN  backend_to_toml_block()
+    // THEN  le bloc TOML contient les champs attendus
+    #[test]
+    fn test_backend_to_toml_block_embedded() {
+        let cfg = LlmBackendConfig {
+            name: "local".to_string(),
+            provider: LlmProvider::LlamaCpp,
+            model: "~/.apollia/models/model.gguf".to_string(),
+            config_json: serde_json::json!({ "device": "metal", "quantization": "q4_k_m" }),
+            enabled: true,
+            is_default: true,
+        };
+        let block = backend_to_toml_block(&cfg);
+        assert!(block.contains("[[llm.backends]]"));
+        assert!(block.contains(r#"type     = "embedded""#));
+        assert!(block.contains("model_path"));
+        assert!(block.contains("metal"));
+        assert!(block.contains("q4_k_m"));
+    }
+
+    // GIVEN un repository avec un backend
+    // WHEN  sync_to_toml() vers un fichier temporaire
+    // THEN  le fichier contient le bloc [[llm.backends]]
+    #[test]
+    fn test_sync_to_toml_writes_backends() {
+        let (repo, dir) = make_repo();
+        let cfg = LlmBackendConfig {
+            name: "local".to_string(),
+            provider: LlmProvider::LlamaCpp,
+            model: "~/.apollia/models/model.gguf".to_string(),
+            config_json: serde_json::json!({ "device": "metal", "quantization": "q4_k_m" }),
+            enabled: true,
+            is_default: true,
+        };
+        repo.save(&cfg).unwrap();
+
+        let toml_path = dir.path().join("apollia.toml");
+        repo.sync_to_toml(&toml_path).unwrap();
+
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        assert!(content.contains("[[llm.backends]]"));
+        assert!(content.contains("\"local\""));
+    }
+
+    // GIVEN un fichier TOML existant avec un ancien backend, et un backend différent en DB
+    // WHEN  sync_to_toml()
+    // THEN  l'ancien backend est remplacé par le nouveau, le reste du TOML est préservé
+    #[test]
+    fn test_sync_to_toml_replaces_old_backends() {
+        let (repo, dir) = make_repo();
+        let toml_path = dir.path().join("apollia.toml");
+
+        std::fs::write(
+            &toml_path,
+            "[runtime]\ndata_dir = \"~/.apollia\"\n\n[[llm.backends]]\nname = \"old\"\ntype = \"embedded\"\nmodel_path = \"old.gguf\"\nquantization = \"q8_0\"\n",
+        )
+        .unwrap();
+
+        let cfg = LlmBackendConfig {
+            name: "new".to_string(),
+            provider: LlmProvider::LlamaCpp,
+            model: "~/.apollia/models/new.gguf".to_string(),
+            config_json: serde_json::json!({ "device": "cpu", "quantization": "q4_0" }),
+            enabled: true,
+            is_default: true,
+        };
+        repo.save(&cfg).unwrap();
+        repo.sync_to_toml(&toml_path).unwrap();
+
+        let content = std::fs::read_to_string(&toml_path).unwrap();
+        assert!(content.contains("[runtime]"), "runtime section preserved");
+        assert!(!content.contains("\"old\""), "old backend removed");
+        assert!(content.contains("\"new\""), "new backend present");
     }
 
     // GIVEN un backend sauvegardé

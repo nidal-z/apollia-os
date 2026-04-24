@@ -179,6 +179,42 @@ impl ChatSessionRepository {
         )
         .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
 
+        // v10 migration: add 'companion' to the mode CHECK constraint.
+        // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the table.
+        conn.execute_batch(
+            "PRAGMA foreign_keys = OFF;
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS chat_sessions_new (
+                id              TEXT PRIMARY KEY,
+                mode            TEXT NOT NULL CHECK (mode IN ('libre', 'agent', 'companion')),
+                agent_name      TEXT,
+                system_prompt   TEXT NOT NULL DEFAULT '',
+                status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),
+                available_tools TEXT NOT NULL DEFAULT '[]',
+                created_at      TEXT NOT NULL,
+                closed_at       TEXT,
+                llm_backend     TEXT,
+                summary         TEXT,
+                title           TEXT,
+                parent_session_id TEXT REFERENCES chat_sessions_new(id),
+                fork_depth      INTEGER NOT NULL DEFAULT 0,
+                project_id      TEXT
+            );
+            INSERT OR IGNORE INTO chat_sessions_new
+                SELECT id, mode, agent_name, system_prompt, status, available_tools,
+                       created_at, closed_at, llm_backend, summary, title,
+                       parent_session_id, fork_depth, project_id
+                FROM chat_sessions;
+            DROP TABLE chat_sessions;
+            ALTER TABLE chat_sessions_new RENAME TO chat_sessions;
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON chat_sessions(status);
+            CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id);
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id);
+            COMMIT;
+            PRAGMA foreign_keys = ON;",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v10 migration failed: {e}")))?;
+
         Ok(Self { conn })
     }
 

@@ -53,12 +53,19 @@
     const now = Date.now();
     const then = new Date(isoDate).getTime();
     const diffSecs = Math.floor((now - then) / 1000);
-    if (diffSecs < 60) return `${diffSecs}s`;
+    if (diffSecs < 60) return `${diffSecs}s ago`;
     const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}m`;
+    if (diffMins < 60) return `${diffMins}min ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h`;
-    return `${Math.floor(diffHours / 24)}j`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(isoDate).toLocaleDateString();
+  }
+
+  function formatAbsoluteTime(isoDate: string): string {
+    if (!isoDate) return "";
+    return new Date(isoDate).toLocaleString();
   }
 
   async function fetchTasks() {
@@ -124,39 +131,61 @@
           {#each taskList as task, i (task.id)}
             {@const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.submitted}
             {@const IconComponent = cfg.icon}
+            {@const isFailed = task.status === 'failed'}
+            {@const hasOutput = !!task.output_text}
             <div
-              class="flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-150 hover:bg-primary/5"
+              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-150 hover:bg-primary/5"
               in:fly={{ y: 4, duration: 150, delay: i * 20 }}
             >
-              <!-- Status icon -->
-              <IconComponent
-                size={13}
-                class="{task.status === 'completed' ? 'text-success' :
-                  task.status === 'failed' ? 'text-destructive' :
-                  task.status === 'working' ? 'text-primary animate-spin' :
-                  'text-muted-foreground'} shrink-0"
-              />
+              <!-- Row 1: status + timing -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <IconComponent
+                    size={12}
+                    class="{task.status === 'completed' ? 'text-success' :
+                      task.status === 'failed' ? 'text-destructive' :
+                      task.status === 'working' ? 'text-primary animate-spin' :
+                      'text-muted-foreground'} shrink-0"
+                  />
+                  <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">
+                    {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
+                  </Badge>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  {#if task.duration_ms !== undefined && task.duration_ms !== null}
+                    <span class="text-[10px] text-muted-foreground/50">{formatDuration(task.duration_ms)}</span>
+                    <span class="text-muted-foreground/20 text-[10px]">·</span>
+                  {/if}
+                  <span
+                    class="text-[10px] text-muted-foreground/40"
+                    title={formatAbsoluteTime(task.created_at)}
+                  >
+                    {formatRelativeTime(task.created_at)}
+                  </span>
+                </div>
+              </div>
 
-              <!-- Task ID -->
-              <code class="text-[10px] text-muted-foreground/50 font-mono shrink-0 w-14">{shortId(task.id)}</code>
+              <!-- Row 2: input preview — what triggered the task -->
+              <p
+                class="text-[11px] text-foreground/75 leading-snug line-clamp-2"
+                title={task.input_preview || undefined}
+              >
+                {task.input_preview || $t('agents.task_no_description')}
+              </p>
 
-              <!-- Status badge -->
-              <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">{$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}</Badge>
-
-              <!-- Output preview -->
-              {#if task.output_text || task.input_preview}
-                <span class="flex-1 truncate text-[11px] text-muted-foreground/50">
-                  {(task.output_text ?? task.input_preview ?? "").slice(0, 40)}
-                </span>
-              {:else}
-                <span class="flex-1"></span>
+              <!-- Row 3: output / error detail -->
+              {#if hasOutput}
+                <p
+                  class="text-[10px] leading-snug line-clamp-2 {isFailed ? 'text-destructive/70' : 'text-muted-foreground/50'}"
+                  title={task.output_text || undefined}
+                >
+                  <span class="font-medium">{isFailed ? $t('agents.task_error_label') : $t('agents.task_output_label')}:</span>
+                  {task.output_text}
+                </p>
               {/if}
 
-              <!-- Duration + time -->
-              <div class="shrink-0 text-right">
-                <span class="text-[10px] text-muted-foreground/40">{formatDuration(task.duration_ms)}</span>
-                <span class="ml-1.5 text-[10px] text-muted-foreground/30">{formatRelativeTime(task.created_at)}</span>
-              </div>
+              <!-- UUID as subtle metadata -->
+              <code class="text-[9px] text-muted-foreground/25 font-mono">{shortId(task.id)}</code>
             </div>
           {/each}
         </div>

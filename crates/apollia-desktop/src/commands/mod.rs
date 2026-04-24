@@ -6,6 +6,7 @@
 //! ou à l'API REST interne pour les opérations complexes (timeline, start agent,
 //! resume task).
 
+pub mod agent_packages;
 pub mod agents;
 pub mod apollia_coach;
 pub mod artifacts;
@@ -16,6 +17,7 @@ pub mod hitl;
 pub mod link_preview;
 pub mod llm;
 pub mod mcp;
+pub mod model_hub;
 pub mod mcp_coaching;
 pub mod meta_automation;
 pub mod meta_digest;

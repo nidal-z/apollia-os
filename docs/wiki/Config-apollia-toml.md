@@ -390,7 +390,7 @@ Voir :
 - [Briques Triggers](./Briques-Triggers) — CRUD triggers
 - [Briques Pipelines](./Briques-Pipelines) — CRUD pipelines
 - [Briques Notifications](./Briques-Notifications) — CRUD notifications
-- [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD
+- [API HTTP — Index](./API-HTTP-Reference) — endpoints CRUD (3 pages par domaine)
 
 ---
 

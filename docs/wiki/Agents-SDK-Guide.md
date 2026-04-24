@@ -1,747 +1,424 @@
-# Agents — Python SDK Guide — Apollia OS
-
-> Guide complet du SDK Python `apollia-sdk` pour le développement d'agents.
-> Cible : développeur Python souhaitant construire des agents structurés et testables.
-
+---
+title: Agents SDK — Python API Reference
+description: Pure API reference for apollia-sdk classes, methods, and utilities. For tutorials, see the book.
+weight: 50
 ---
 
-## Vue d'ensemble
+# Agents SDK — Python API Reference
 
-Le SDK Apollia fournit des classes de base, des type stubs, des utilitaires de parsing/formatting, une infrastructure de test et un outil de scaffolding pour développer des agents professionnels sur Apollia OS.
+**Référence pure des signatures, paramètres, retours et exceptions du SDK Python Apollia.**
 
-**Caractéristiques :**
-- Pur Python, zéro dépendance runtime (ADR-037)
-- Type stubs PEP 561 pour `RuntimeContext`, `ToolProxy`, `LlmProxy`, `MemoryInterface`
-- 4 classes de base : `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`, `WorkerAgent`
-- Mocks + assertions pour tests unitaires sans runtime
-- CLI scaffolding : `apollia-os agent new <name> --type react` (ou `python -m apollia new <name>`)
-- Compatible Python 3.10+
+> ⚠️ **Ce document est une référence, pas un tutoriel.** Pour apprendre comment utiliser le SDK, voir [book ch03–ch04](../../book/src/ch03-intro-aip-et-manifest.md). Chaque section liste les méthodes publiques d'une classe ou module ; aucun exemple long. Les cas d'usage vont dans le book.
 
 ---
 
 ## Installation
 
 ```bash
-# Depuis le répertoire racine d'Apollia OS
 $ pip install -e ./sdk
-
-# Vérifier
 $ python3 -c "import apollia; print(apollia.__version__)"
 0.3.0
 ```
 
-Le SDK est un package Python standard dans `sdk/`. Il n'a aucune dépendance Rust — seul Python 3.10+ est requis.
+Requiert Python 3.10+. Zéro dépendance runtime (ADR-037).
 
 ---
 
-## Structure du package
+## Module structure
 
 ```
 sdk/apollia/
-├── __init__.py            ← AIPResult, ConversationalAgent, ContextBootstrap, __version__
-├── types.py               ← AIPResult dataclass
-├── bootstrap.py           ← ContextBootstrap (protocole de bootstrapping, Sprint 40)
-├── agents/
-│   ├── react.py           ← BaseReActAgent
-│   ├── conversational.py  ← ConversationalAgent
-│   ├── orchestrated.py    ← OrchestratedAgent
-│   └── worker.py          ← WorkerAgent
-├── utils/
-│   ├── parsing.py         ← extract_json, truncate, validate_action
-│   ├── formatting.py      ← format_as_markdown, aip_result_text
-│   └── hitl.py            ← resume_pending_tool
-├── tools/
-│   └── schemas.py         ← NATIVE_TOOL_SCHEMAS, build_tools_block
-├── testing/
-│   ├── mocks.py           ← MockContext, MockToolProxy, MockLlmProxy, MockMemory
-│   └── assertions.py      ← assert_result_completed, assert_tool_called
-├── stubs/
-│   ├── context.pyi        ← RuntimeContext
-│   ├── tools.pyi          ← ToolProxy
-│   ├── llm.pyi            ← LlmProxy
-│   ├── memory.pyi         ← MemoryInterface
-│   └── manifest.py        ← AgentManifestDict (TypedDict, Sprint 40)
-├── cli/
-│   ├── __main__.py        ← Entry point: python -m apollia
-│   └── scaffold.py        ← scaffold_agent, templates
-└── py.typed               ← PEP 561 marker
+├── agents/           BaseReActAgent, ConversationalAgent, OrchestratedAgent, WorkerAgent
+├── types.py          AIPResult (dataclass)
+├── bootstrap.py      ContextBootstrap (abstract class)
+├── utils/            parsing, formatting, HITL helpers
+├── tools/            NATIVE_TOOL_SCHEMAS, build_tools_block()
+├── testing/          mocks, assertions
+├── stubs/            RuntimeContext, ToolProxy, LlmProxy, MemoryInterface (PEP 561)
+└── py.typed          PEP 561 marker
 ```
 
 ---
 
 ## 1. Classes de base
 
-### 1.1 `BaseReActAgent`
+### 1.1 BaseReActAgent
 
-Boucle Reason-Act-Observe avec LLM et outils.
+Implémente la boucle Reason-Act-Observe avec LLM et outils.
 
-```python
-from apollia.agents import BaseReActAgent, AIPResult
+**Constantes de classe** (`class MyAgent(BaseReActAgent)`) :
 
-class MonAgent(BaseReActAgent):
-    SYSTEM_PROMPT = "Tu es un assistant spécialisé en analyse de code."
-    MAX_STEPS = 15
-    TEMPERATURE = 0.3
-
-    def manifest(self):
-        return {
-            "name": "mon-agent",
-            "version": "1.0.0",
-            "description": "Agent d'analyse de code",
-            "tools_required": ["bash_executor", "file_io"],
-            "memory_namespace": "mon-agent",
-            "execution_mode": "direct",
-        }
-
-    async def run(self, task, ctx):
-        user_msg = task["input"]["parts"][0]["text"]
-        result = await self.react(task, ctx, user_msg)
-
-        if isinstance(result, dict):
-            return result  # AIPResult (HITL ou erreur)
-        return AIPResult.completed(result).to_dict()
-
-agent = MonAgent()
-```
-
-**Méthodes clés :**
-
-| Méthode | Description |
-|---|---|
-| `react(task, ctx, user_message, *, extra_context="", pending_tool=None)` | Exécute la boucle ReAct complète. **Retourne** `str` (texte final) ou `dict` (AIPResult complet, ex: HITL `input_required`) |
-| `get_tool_schemas()` | Retourne les schémas des outils natifs |
-| `manifest()` | (abstraite) Retourne le manifest AIP |
-| `run(task, ctx)` | (abstraite) Point d'entrée principal |
-
-**Dégradation gracieuse :**
-- `ctx.llm is None` → retourne `AIPResult.failed("NO_LLM", ...)`
-- `ctx.tools is None` → la boucle fonctionne, les appels outils retournent une erreur en observation
-- `ctx.memory is None` → HITL reprend depuis une boucle vierge
-
-### 1.2 `ConversationalAgent`
-
-Agent dialogue uniquement, sans outils. Idéal pour des assistants conversationnels.
-
-```python
-from apollia.agents import ConversationalAgent
-
-class AssistantAgent(ConversationalAgent):
-    SYSTEM_PROMPT = "Tu es un assistant amical et utile."
-    MAX_TURNS = 20
-    TEMPERATURE = 0.7
-
-    def manifest(self):
-        return {
-            "name": "assistant",
-            "version": "1.0.0",
-            "description": "Assistant conversationnel",
-            "tools_required": [],
-        }
-
-    def on_response(self, response):
-        """Post-traitement optionnel de la réponse LLM."""
-        return response
-
-agent = AssistantAgent()
-```
-
-**Méthodes clés :**
-
-| Méthode | Description |
-|---|---|
-| `converse(ctx, user_message, history=None)` | Envoie un message et retourne `(response, updated_history)` |
-| `run(task, ctx)` | Appelle `converse()` et retourne `AIPResult.completed()` |
-| `on_response(response)` | (overridable) Post-traitement de la réponse |
-
-**Exigence :** `ctx.llm` doit être disponible. Lève `RuntimeError` sinon.
-
-### 1.3 `OrchestratedAgent`
-
-Agent piloté par ORIA en mode Orchestré. ORIA génère le plan, exécute les outils, et appelle `on_plan_complete()` en fin de plan.
-
-```python
-from apollia.agents import OrchestratedAgent
-
-class AnalyseAgent(OrchestratedAgent):
-    def manifest(self):
-        return {
-            "name": "analyse-contrat",
-            "version": "1.0.0",
-            "description": "Analyse des contrats via ORIA",
-            "tools_required": ["file_io"],
-            "execution_mode": "orchestrated",
-            "system_prompt": "Tu analyses des contrats juridiques.",
-        }
-
-    def on_plan_complete(self, step_results):
-        """Post-traitement après exécution du plan ORIA."""
-        summary = self.format_step_results(step_results)
-        return {"text": f"Analyse terminée :\n{summary}"}
-
-agent = AnalyseAgent()
-```
-
-**Méthodes clés :**
-
-| Méthode | Description |
-|---|---|
-| `on_plan_complete(step_results)` | (overridable) Post-traitement des résultats du plan |
-| `format_step_results(results)` | (statique) Formate les résultats en texte lisible |
-| `run(task, ctx)` | Lève `RuntimeError` — ORIA gère l'exécution |
-
-### 1.4 `WorkerAgent` *(Sprint 32)*
-
-Agent spécialisé dans un domaine métier. Hérite de `BaseReActAgent` — même boucle ReAct, même contrat AIP. La différence est dans les **helpers** fournis et la convention de `SYSTEM_PROMPT` structuré.
-
-#### Héritage
-
-```
-BaseReActAgent
-    └── WorkerAgent         ← ajoute helpers tools + domain errors
-```
-
-`WorkerAgent` ne redéfinit pas la boucle ReAct — il l'enrichit avec des méthodes utilitaires qui éliminent le boilerplate des `ctx.tools.call()` répétitifs.
-
-#### Exemple minimal
-
-```python
-from apollia.agents import AIPResult, WorkerAgent
-
-class ExcelAgent(WorkerAgent):
-    SYSTEM_PROMPT = """
-    Tu es ExcelAgent, un expert Python/openpyxl.
-
-    ## RÈGLES ABSOLUES
-    1. Toujours utiliser openpyxl pour lire/écrire des fichiers Excel.
-    2. Retourner domain_error("file_not_found", ...) si le fichier est absent.
-
-    ## FORMAT DE RÉPONSE
-    - Indiquer le nombre de lignes/colonnes lues.
-    """
-    MAX_STEPS = 8       # plus court qu'un agent générique
-    TEMPERATURE = 0.1   # plus déterministe pour du code Python
-
-    def manifest(self):
-        return {
-            "name": "excel-agent",
-            "version": "1.0.0",
-            "description": "Analyse et génère des fichiers Excel",
-            "tools_required": ["python_executor", "file_read"],
-            "packages": ["openpyxl>=3.1.0"],  # pip installé au démarrage
-            "supports_a2a": True,              # accessible via A2A routing
-            "skills": [
-                {
-                    "id": "read-excel",
-                    "name": "Lecture Excel",
-                    "description": "Lit et analyse un fichier .xlsx",
-                    "input_modes": ["text", "data"],
-                    "output_modes": ["data", "text"],
-                }
-            ],
-        }
-
-    async def run(self, task, ctx):
-        user_msg = task["input"]["parts"][0]["text"]
-        result = await self.react(task, ctx, user_msg)
-        if isinstance(result, dict):
-            return result
-        return AIPResult.completed(result).to_dict()
-
-agent = ExcelAgent()
-```
-
-#### Constantes de classe
-
-| Constante | Défaut recommandé | Description |
-|---|---|---|
-| `SYSTEM_PROMPT` | *voir ci-dessous* | Prompt expert compilé — guardrails, patterns, gestion erreurs domaine |
-| `MAX_STEPS` | `8` | Plus court que `BaseReActAgent` (15) — scope délimité |
-| `TEMPERATURE` | `0.1` | Déterministe — le Worker exécute, ne raisonne pas |
-
-**Convention `SYSTEM_PROMPT` pour un Worker Agent :**
-```python
-SYSTEM_PROMPT = """
-Tu es {Nom}, un agent expert de {domaine}.
-
-## RÈGLES ABSOLUES (non-négociables)
-1. [Guardrail 1] — RAISON : ...
-2. [Guardrail 2] — RAISON : ...
-
-## IMPORTS ET PATTERNS CORRECTS
-```python
-import openpyxl                  # toujours utiliser openpyxl
-wb = openpyxl.load_workbook(path)
-```
-
-## GESTION DES ERREURS DOMAINE
-- FileNotFoundError → domain_error("file_not_found", ...)
-- KeyError           → domain_error("sheet_not_found", ...)
-
-## FORMAT DE RÉPONSE
-- Toujours indiquer ce qui a été fait et le résultat.
-"""
-```
-
-#### Helpers fournis
-
-`WorkerAgent` expose des méthodes utilitaires sur `self` :
-
-**Exécution Python :**
-
-```python
-# Exécuter du code Python (python_executor)
-result = await self.run_python(ctx, code="import json; print(json.dumps({'x': 1}))")
-# result : {"stdout": '{"x": 1}\n', "stderr": "", "exit_code": 0, "duration_ms": 42}
-
-# Valider le résultat et extraire stdout (ou retourner AIPResult.failed())
-output = self.check_python_result(result, operation="excel_parse")
-if isinstance(output, dict):
-    return output  # AIPResult.failed avec "python_execution_failed"
-# output : str — contenu de stdout
-```
-
-**Opérations fichier :**
-
-```python
-# Lire un fichier → str
-content = await self.read_file(ctx, path="data/rapport.xlsx")
-
-# Écrire un fichier (crée les répertoires si nécessaire)
-await self.write_file(ctx, path="output/resultat.json", content=json.dumps(data))
-
-# Lister un répertoire → list[str]
-files = await self.list_files(ctx, path="data/", recursive=True)
-```
-
-**Délégation A2A :**
-
-```python
-# Déléguer à un autre Worker Agent par skill ID
-result = await self.delegate_skill(ctx, skill_id="generate-pdf", payload={"data": data})
-# Raccourci pour : await ctx.delegate(skill_id, payload, timeout_secs)
-```
-
-**Erreurs domaine :**
-
-```python
-# Retourner une erreur typée (codes standardisés)
-return self.domain_error("file_not_found", "Le fichier rapport.xlsx est introuvable",
-                          details={"path": path})
-```
-
-Codes d'erreur standardisés : `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied`.
-
-#### Différences avec les autres classes de base
-
-| | `BaseReActAgent` | `WorkerAgent` | `OrchestratedAgent` |
+| Constante | Type | Défaut | Description |
 |---|---|---|---|
-| Boucle ReAct | oui | oui (héritée) | non (ORIA gère) |
-| Helpers tools | non | oui | non |
-| Helpers erreurs domaine | non | oui | non |
-| Usage typique | Agent générique | Expert domaine métier | Agent piloté par ORIA |
-| `supports_a2a` | optionnel | recommandé (`True`) | optionnel |
-| `MAX_STEPS` recommandé | 15 | 8 | — |
-| `TEMPERATURE` recommandée | 0.3 | 0.1 | — |
+| `SYSTEM_PROMPT` | `str` | `"You are a helpful assistant."` | Prompt système pour le LLM |
+| `MAX_STEPS` | `int` | `30` | Iterations max avant timeout |
+| `TEMPERATURE` | `float` | `0.3` | Température LLM (0–2) |
 
-#### Scaffolding Worker Agent
+**Méthodes abstraites** (à implémenter) :
 
-```bash
-$ apollia-os agent new excel-agent --type worker
-# génère : excel_agent_agent.py + test_excel_agent_agent.py
-```
+| Méthode | Signature | Retour | Description |
+|---|---|---|---|
+| `manifest()` | `() -> dict[str, Any]` | Agent metadata dict | Renvoie nom, version, outils requis, mode execution, etc. |
+| `run(task, ctx)` | `async (dict, RuntimeContext) -> dict[str, Any]` | `AIPResult` serialized | Point d'entrée — appelé une fois par tâche |
 
-> **Voir aussi :** [Worker Agent Pattern](./Worker-Agent-Pattern) — guide complet concept, anatomie, bonnes pratiques, publishing.
+**Méthodes publiques** :
+
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| `react()` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM", ...)`. |
+| `get_tool_schemas()` | `() -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 10 outils natifs (bash_executor, file_io, python_executor, etc.) |
+
+---
+
+### 1.2 ConversationalAgent
+
+Agent dialogue uniquement, sans outils. Hérite de `ABC`.
+
+**Constantes de classe** :
+
+| Constante | Type | Défaut | Description |
+|---|---|---|---|
+| `SYSTEM_PROMPT` | `str` | `""` | Prompt système pour le LLM |
+| `MAX_TURNS` | `int` | `20` | Turns max par conversation |
+| `TEMPERATURE` | `float` | `0.7` | Température LLM |
+
+**Méthodes abstraites** :
+
+| Méthode | Signature | Retour | Description |
+|---|---|---|---|
+| `manifest()` | `() -> dict[str, Any]` | Manifest dict (requiert `tools_required: []`) | Métadonnées agent |
+
+**Méthodes publiques** :
+
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| `converse()` | `async (ctx, user_message, history=None) -> tuple[str, list[dict]]` | `ctx`: RuntimeContext; `user_message`: str; `history`: previous turns (list[dict] \| None) | `(response_text, updated_history)` | `RuntimeError` si `ctx.llm is None` | Persiste dans `ctx.memory` (importance=0.3) si disponible |
+| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | `AIPResult.completed()` | `RuntimeError` si `ctx.llm is None` | Extrait `task["input"]["parts"][0]["text"]` et appelle `converse()` |
+| `on_response()` | `(response: str) -> str` | `response`: LLM text (overridable) | Texte post-traité | — | Post-processing optionnel (défaut : pas de modification) |
+
+---
+
+### 1.3 OrchestratedAgent
+
+Agent piloté par ORIA (mode orchestré). Hérite de `ABC`.
+
+**Méthodes abstraites** :
+
+| Méthode | Signature | Retour | Description |
+|---|---|---|---|
+| `manifest()` | `() -> dict[str, Any]` | Manifest (requiert `execution_mode: "orchestrated"` + `system_prompt`) | Métadonnées |
+
+**Méthodes publiques** :
+
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | — | **`RuntimeError`** (toujours) | ORIA gère l'exécution — `run()` ne doit pas être appelée |
+| `on_plan_complete()` | `(step_results: dict[str, Any]) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}` (overridable) | `{"text": "...", ...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
+| `format_step_results()` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | — | Helper statique pour formatter les résultats |
+
+---
+
+### 1.4 WorkerAgent
+
+Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** — même boucle ReAct, mêmes constantes.
+
+**Helpers fournis** (méthodes d'instance) :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `run_python()` | `async (ctx, code, timeout_secs=30) -> dict[str, Any]` | `code`: str Python; `timeout_secs`: int | `{"stdout", "stderr", "exit_code", "duration_ms"}` | Exécute Python via `python_executor` |
+| `check_python_result()` | `(result: dict, operation: str) -> str \| dict` | `result`: output de `run_python()`; `operation`: str de log | Stdout (`str`) ou `AIPResult.failed()` dict | Vérifie `exit_code == 0` |
+| `read_file()` | `async (ctx, path: str) -> str` | `path`: chemin fichier | Contenu fichier | Via `file_read` tool |
+| `write_file()` | `async (ctx, path: str, content: str) -> None` | `path`: chemin; `content`: str | — | Via `file_write` tool ; crée répertoires |
+| `list_files()` | `async (ctx, path: str, recursive: bool=False) -> list[str]` | `path`: répertoire; `recursive`: bool | Chemins relatifs (list[str]) | Via `file_list` tool |
+| `delegate_skill()` | `async (ctx, skill_id: str, payload: dict, timeout_secs=120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Via `ctx.delegate()` ; lève `RuntimeError` si skill absent |
+| `domain_error()` | `(code: str, message: str, details=None) -> dict[str, Any]` | `code`: stable snake_case (ex: `file_not_found`); `message`: str; `details`: dict \| None | `AIPResult.failed()` dict | Codes: `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied` |
+
+**Constantes recommandées** :
+
+| Constante | Valeur recommandée | Raison |
+|---|---|---|
+| `MAX_STEPS` | `8` | Plus court que BaseReActAgent (15) — scope délimité |
+| `TEMPERATURE` | `0.1` | Déterministe — le Worker exécute, ne raisonne pas |
 
 ---
 
 ## 2. Types
 
-### `AIPResult`
+### AIPResult (dataclass)
 
-Dataclass pour les résultats d'exécution avec méthodes factory :
+Résultat retourné par `run()` pour le runtime.
 
-```python
-from apollia import AIPResult
+**Champs** :
 
-# Succès
-result = AIPResult.completed("Devis généré : 5100€ TTC", data={"amount": 5100})
+| Champ | Type | Optional | Description |
+|---|---|---|---|
+| `status` | `str` | ✓ | `"completed"` \| `"failed"` \| `"input_required"` |
+| `text` | `str \| None` | ✓ | Texte de réponse (completed) |
+| `error_code` | `str \| None` | ✓ | Code erreur (failed) |
+| `error_message` | `str \| None` | ✓ | Message erreur (failed) |
+| `input_prompt` | `str \| None` | ✓ | Demande HITL (input_required) |
+| `input_context` | `dict[str, Any] \| None` | ✓ | Contexte HITL (input_required) |
+| `data` | `dict[str, Any]` | — | Données additionnelles (défaut: `{}`) |
 
-# Échec
-result = AIPResult.failed("VALIDATION_ERROR", "Le montant doit être positif")
+**Méthodes factory** :
 
-# Demande HITL
-result = AIPResult.input_required(
-    "Confirmer l'envoi du devis ?",
-    context={"email": "dupont@sa.fr", "amount": 5100}
-)
-
-# Sérialisation
-dict_result = result.to_dict()
-```
-
----
-
-## 3. Utilitaires
-
-### 3.1 Parsing (`apollia.utils`)
-
-```python
-from apollia.utils import extract_json, extract_code_block, extract_xml_tag, truncate, safe_json_loads
-
-# Extraire du JSON depuis une réponse LLM
-data = extract_json('Voici le résultat: ```json\n{"key": "value"}\n```')
-# → {"key": "value"}
-
-# Extraire un bloc de code
-code = extract_code_block("```python\nprint('hello')\n```", language="python")
-# → "print('hello')"
-
-# Extraire un tag XML
-content = extract_xml_tag("<analysis>Important finding</analysis>", "analysis")
-# → "Important finding"
-
-# Tronquer un texte (UTF-8 safe)
-short = truncate("Texte très long...", max_chars=20, marker="…")
-
-# JSON safe (jamais d'exception)
-data = safe_json_loads('{"valid": true}', default={})
-```
-
-### 3.2 Formatting (`apollia.utils`)
-
-```python
-from apollia.utils import format_as_text, format_as_markdown, format_as_json, aip_result_text
-
-# Dict → texte lisible
-text = format_as_text({"name": "Dupont", "amount": 5100})
-# → "name: Dupont\namount: 5100"
-
-# Dict → tableau Markdown
-md = format_as_markdown({"name": "Dupont", "amount": 5100})
-# → | Key | Value |\n|---|---|\n| name | Dupont |\n| amount | 5100 |
-
-# JSON sérialisé (jamais d'exception)
-json_str = format_as_json(data, indent=2)
-
-# Extraire le texte d'un AIPResult dict
-text = aip_result_text(result_dict)
-```
-
-### 3.3 HITL (`apollia.utils`)
-
-```python
-from apollia.utils import resume_pending_tool
-
-async def run(self, task, ctx):
-    pending = resume_pending_tool(task)
-    result = await self.react(task, ctx, user_msg, pending_tool=pending)
-    # ...
-```
-
-### 3.4 Tool Schemas (`apollia.tools`)
-
-```python
-from apollia.tools import NATIVE_TOOL_SCHEMAS, describe_tool, build_tools_block
-
-# Schémas des outils natifs
-schemas = NATIVE_TOOL_SCHEMAS  # dict: bash_executor, file_io, python_executor
-
-# Description compacte d'un outil
-desc = describe_tool("bash_executor")
-
-# Bloc outils pour system prompt
-block = build_tools_block(["bash_executor", "file_io"])
-```
+| Méthode | Signature | Retour | Notes |
+|---|---|---|---|
+| `completed()` | `(text: str, data=None) -> AIPResult` | Status=`"completed"` | Succès avec texte optionnel + données |
+| `failed()` | `(code: str, message: str) -> AIPResult` | Status=`"failed"` | Erreur typée |
+| `input_required()` | `(prompt: str, context=None) -> AIPResult` | Status=`"input_required"` | Suspension HITL avec contexte optionnel |
+| `to_dict()` | `() -> dict[str, Any]` | Dict sérialisé | Pour runtime (omit fields=None) |
 
 ---
 
-## 4. Testing
+## 3. Parsing (`apollia.utils.parsing`)
 
-### 4.1 Mocks
-
-Le SDK fournit des mocks complets pour tester les agents sans runtime :
-
-```python
-from apollia.testing import MockContext, MockToolProxy, MockLlmProxy, MockMemory
-
-# Créer un contexte mock complet
-ctx = MockContext.create(
-    tools={
-        "bash_executor": {"stdout": "hello world", "stderr": "", "exit_code": 0},
-        "file_io": {"content": "file content", "success": True},
-    },
-    llm_responses=[
-        {"content": '{"thought": "Analyse", "action": "final_answer", "text": "Résultat"}'},
-    ],
-    memory=True,
-)
-
-# Exécuter l'agent
-agent = MonAgent()
-result = await agent.run(task, ctx)
-
-# Inspecter les appels
-assert ctx.tools.tool_call_count() == 2
-ctx.tools.assert_called("bash_executor")
-ctx.tools.assert_called_with("file_io", {"action": "read", "path": "/tmp/data.txt"})
-assert ctx.llm.call_count == 1
-```
-
-### 4.2 Assertions
-
-```python
-from apollia.testing import (
-    assert_result_completed,
-    assert_result_failed,
-    assert_result_input_required,
-    assert_tool_called,
-    assert_llm_called,
-)
-
-# Vérifier le résultat
-assert_result_completed(result, contains="Résultat")
-assert_result_failed(result, code="VALIDATION_ERROR")
-assert_result_input_required(result)
-
-# Vérifier les appels contextuels
-assert_tool_called(ctx, "bash_executor", times=2)
-assert_llm_called(ctx, times=1)
-```
-
-### 4.3 Exemple de test complet
-
-```python
-import pytest
-from apollia.testing import MockContext, assert_result_completed, assert_tool_called
-
-@pytest.mark.asyncio
-async def test_mon_agent_analyse():
-    ctx = MockContext.create(
-        tools={"bash_executor": {"stdout": "Python 3.12", "exit_code": 0}},
-        llm_responses=[
-            {"content": '{"thought":"check version","action":"tool_call","tool":"bash_executor","args":{"command":"python3 --version"}}'},
-            {"content": '{"thought":"done","action":"final_answer","text":"Python 3.12 détecté"}'},
-        ],
-        memory=True,
-    )
-
-    task = {
-        "task_id": "t-test-001",
-        "input": {"parts": [{"type": "text", "text": "Quelle version de Python ?"}]},
-    }
-
-    agent = MonAgent()
-    result = await agent.run(task, ctx)
-
-    assert_result_completed(result, contains="Python 3.12")
-    assert_tool_called(ctx, "bash_executor", times=1)
-```
+| Fonction | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `extract_json()` | `(content: str) -> dict[str, Any]` | `content`: str potentiellement avec JSON | Dict extrait ou `{}` | 4 stratégies : full JSON, fence, outermost braces, heuristic repair |
+| `extract_code_block()` | `(content: str, language: str = "") -> str` | `content`: str; `language`: Python, bash, etc. | Code extrait ou `""` | Extrait depuis fences `` ``` `` |
+| `extract_xml_tag()` | `(content: str, tag: str) -> str` | `content`: str XML; `tag`: nom tag | Contenu tag ou `""` | Extrait `<tag>...</tag>` |
+| `truncate()` | `(text: str, max_chars: int, marker: str = "…") -> str` | `text`: str; `max_chars`: int; `marker`: str suffix | Texte tronqué UTF-8 safe | Jamais de levée |
+| `safe_json_loads()` | `(content: str, default: Any = None) -> Any` | `content`: str JSON; `default`: valeur fallback | JSON désérialisé ou `default` | Jamais d'exception |
+| `validate_action()` | `(data: dict) -> dict` | `data`: extracted JSON (ReAct action) | Action dict validée | Lève `ActionParseError` si structure invalide |
 
 ---
 
-## 5. Scaffolding
+## 4. Formatting (`apollia.utils.formatting`)
 
-### 5.1 Via le SDK Python
-
-```bash
-# Via le CLI runtime (recommandé — détecte le SDK automatiquement)
-$ apollia-os agent new mon-agent
-$ apollia-os agent new assistant --type conversational
-$ apollia-os agent new analyseur --type orchestrated
-$ apollia-os agent new excel-agent --type worker
-
-# Ou directement via le SDK Python
-$ python -m apollia new mon-agent
-$ python -m apollia new mon-agent --output-dir ./agents/
-```
-
-Fichiers générés : `<module_name>_agent.py` + `test_<module_name>_agent.py`
-
-### 5.2 Via la CLI Apollia OS
-
-```bash
-# Intégration directe dans la CLI Rust
-$ apollia-os agent new mon-agent --type react
-  ✔ SDK disponible (apollia 0.1.0)
-  ✔ Nom disponible
-  → Création de l'agent dans ~/.apollia/agents/mon-agent/
-  ✔ Agent créé :
-    - mon_agent_agent.py
-    - test_mon_agent_agent.py
-```
-
-### 5.3 Via l'application Desktop
-
-Le dialog "Create from Template" dans la vue Agents permet de créer un agent visuellement :
-
-1. Cliquer sur le bouton "Create from Template"
-2. Sélectionner un template (ReAct, Conversational, Orchestrated)
-3. Saisir le nom de l'agent (kebab-case, validation temps réel)
-4. Cliquer sur "Create"
-
-Le dialog vérifie automatiquement la disponibilité du SDK et le conflit de noms.
+| Fonction | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `format_as_text()` | `(data: Any) -> str` | `data`: Any type | Texte lisible | dict → `key: value` par ligne; list → une ligne/element |
+| `format_as_markdown()` | `(data: Any) -> str` | `data`: Any type | Markdown | dict → table 2-colonnes; list[dict] → table multi-colonnes |
+| `format_as_json()` | `(data: Any, indent: int = 2) -> str` | `data`: Any; `indent`: int spaces | JSON indented | Non-serializable types → `str()` ; jamais d'exception |
+| `aip_result_text()` | `(result_dict: dict) -> str` | `result_dict`: AIPResult dict | Texte extrait | Extrait le texte principal de `result["output"]` ou `result["error"]` |
 
 ---
 
-## 6. Type Stubs
+## 5. HITL (`apollia.utils`)
 
-Le SDK inclut des type stubs PEP 561 pour les classes injectées par le runtime PyO3 :
-
-```python
-# sdk/apollia/stubs/context.pyi
-class RuntimeContext:
-    @property
-    def tools(self) -> ToolProxy | None: ...
-    @property
-    def llm(self) -> LlmProxy | None: ...
-    @property
-    def memory(self) -> MemoryInterface | None: ...
-
-# sdk/apollia/stubs/tools.pyi
-class ToolProxy:
-    async def call(self, tool_name: str, input: dict[str, object]) -> dict[str, object]: ...
-    def list_tools(self) -> list[str]: ...
-    def tool_call_count(self) -> int: ...
-    async def describe(self, name: str) -> dict[str, object] | None: ...
-
-# sdk/apollia/stubs/llm.pyi
-class LlmProxy:
-    async def complete(self, messages: list[dict[str, object]] | str, **kwargs) -> dict[str, object]: ...
-    async def chat(self, system: str, user: str, backend: str | None = None) -> dict[str, object]: ...
-    @property
-    def default_backend(self) -> str: ...
-
-# sdk/apollia/stubs/memory.pyi
-class MemoryInterface:
-    async def record(self, content: str, importance: float | None = None, ...) -> None: ...
-    async def remember(self, key: str, value: str, source: str | None = None) -> None: ...
-    async def recall(self, key: str) -> str | None: ...
-    async def search(self, query: str, limit: int | None = None) -> list[dict[str, object]]: ...
-    async def forget(self, key: str) -> None: ...
-```
-
-Avec le marker `py.typed`, les IDE (VSCode, PyCharm) et `mypy` résolvent automatiquement les types.
+| Fonction | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `resume_pending_tool()` | `(task: dict) -> dict \| None` | `task`: AIP task dict | `{"tool": str, "args": dict}` or `None` | À utiliser avec `react(..., pending_tool=...)` sur HITL resume |
 
 ---
 
-## 7. Migration depuis `apollia_base.py`
+## 6. Tool Schemas (`apollia.tools`)
 
-Si vous utilisez l'ancien `apollia_base.py`, la migration est simple :
+| Objet | Type | Description |
+|---|---|---|
+| `NATIVE_TOOL_SCHEMAS` | `dict[str, dict]` | Dict des 10 outils natifs : `bash_executor`, `file_io`, `python_executor`, etc. ; chaque valeur = spec JSON complète |
 
-```python
-# Avant (sans SDK)
-class MonAgent:
-    def manifest(self): ...
-    async def run(self, task, ctx): ...
-agent = MonAgent()
-
-# Après (avec SDK)
-from apollia.agents import BaseReActAgent, AIPResult
-
-class MonAgent(BaseReActAgent):
-    def manifest(self): ...
-    async def run(self, task, ctx):
-        result = await self.react(task, ctx, user_message)
-        return AIPResult.completed(result).to_dict()
-agent = MonAgent()
-```
-
-L'ancien fichier `apollia_base.py` reste un wrapper de compatibilité et continue de fonctionner.
+| Fonction | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `describe_tool()` | `(name: str) -> str` | `name`: outil natif | Description texte court | Utile pour affichage CLI |
+| `build_tools_block()` | `(tools: list[str]) -> str` | `tools`: noms outils | Bloc système prompt | Formate les specs pour injection dans system prompt |
 
 ---
 
-## 8. `ContextBootstrap` — Protocole de bootstrapping *(Sprint 40)*
+## 7. Testing (`apollia.testing`)
 
-Le SDK 0.3.0 introduit `ContextBootstrap`, une classe abstraite pour que les agents explorent et persistent un contexte projet cross-session. L'agent contrôle entièrement le cycle de vie du bootstrap (Principe #6 — mémoire à initiative de l'agent).
+### Mocks
 
-```python
-from apollia.bootstrap import ContextBootstrap
+| Classe | Constructeur | Description |
+|---|---|---|
+| `MockContext` | `create(tools={}, llm_responses=[], memory=False)` | Contexte mock complet ; retourne objet avec `.tools`, `.llm`, `.memory` |
+| `MockToolProxy` | (crée via `MockContext`) | Proxy outils mock ; méthodes : `call()`, `list_tools()`, `tool_call_count()`, `assert_called(name)`, `assert_called_with(name, args)` |
+| `MockLlmProxy` | (crée via `MockContext`) | Proxy LLM mock ; méthodes : `complete()`, `chat()`, `call_count` |
+| `MockMemory` | (crée via `MockContext`) | Mémoire mock ; méthodes : `record()`, `recall()`, `remember()`, `search()`, `forget()` |
 
-class MyBootstrap(ContextBootstrap):
-    async def is_stale(self, ctx) -> bool:
-        """Le snapshot existant est-il périmé ?"""
-        meta = await self.load_meta(ctx)
-        if meta is None:
-            return True
-        return meta.get("staleness_marker") != await self._current_hash(ctx)
+### Assertions
 
-    async def run_bootstrap(self, ctx) -> dict:
-        """Explore le domaine, construit un snapshot, persiste."""
-        snapshot = {"rules": ctx.workspace.rules or "", "version": "1.0"}
-        await self.persist(ctx, snapshot, staleness_marker=await self._current_hash(ctx))
-        return snapshot
-```
+| Fonction | Signature | Notes |
+|---|---|---|
+| `assert_result_completed()` | `(result: dict, contains: str = "") -> None` | Lève AssertionError si status ≠ `"completed"` ou contenu absent |
+| `assert_result_failed()` | `(result: dict, code: str = "") -> None` | Lève si status ≠ `"failed"` ou code absent |
+| `assert_result_input_required()` | `(result: dict) -> None` | Lève si status ≠ `"input_required"` |
+| `assert_tool_called()` | `(ctx: MockContext, name: str, times: int = 1) -> None` | Lève si tool non appelé `times` fois |
+| `assert_llm_called()` | `(ctx: MockContext, times: int = 1) -> None` | Lève si LLM non appelé `times` fois |
 
-**Méthodes héritées (rarement surchargées) :**
+---
 
-| Méthode | Description |
-|---|---|
-| `needs_bootstrap(ctx)` | Vérifie status + staleness — `True` si bootstrap nécessaire |
-| `load_snapshot(ctx)` | Charge le snapshot depuis la mémoire sémantique |
-| `load_meta(ctx)` | Charge les métadonnées (version, timestamp, staleness_marker) |
-| `persist(ctx, snapshot, *, staleness_marker, ...)` | Écrit snapshot + meta + status en mémoire |
+## 8. ContextBootstrap (`apollia.bootstrap`)
 
-**Clés mémoire convention :**
+Classe abstraite pour que les agents explorent et persistent un contexte cross-session.
+
+**Méthodes abstraites** (à implémenter) :
+
+| Méthode | Signature | Paramètres | Retour | Description |
+|---|---|---|---|---|
+| `is_stale()` | `async (ctx) -> bool` | `ctx`: RuntimeContext | `bool` | Snapshot existant est-il périmé ? |
+| `run_bootstrap()` | `async (ctx) -> dict` | `ctx`: RuntimeContext | Snapshot dict | Explore domaine, construit snapshot, persiste |
+
+**Méthodes héritées** (rarement surchargées) :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `needs_bootstrap()` | `async (ctx) -> bool` | `ctx`: RuntimeContext | `bool` | Vérifie status + staleness |
+| `load_snapshot()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Snapshot dict or None | Charge depuis mémoire sémantique |
+| `load_meta()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Métadonnées dict or None | Charge `{version, created_at, staleness_marker}` |
+| `persist()` | `async (ctx, snapshot, *, staleness_marker, ...)` | `ctx`: RuntimeContext; `snapshot`: dict; `staleness_marker`: str | — | Écrit snapshot + meta + status en mémoire |
+
+**Clés mémoire convention** :
+
 - `bootstrap.snapshot` — snapshot JSON complet
 - `bootstrap.meta` — `{version, created_at, staleness_marker}`
-- `bootstrap.status` — `"complete"` | `"partial"` | `"missing"`
-
-**Intégration dans `run()` :**
-
-```python
-class MonAssistant(ConversationalAgent):
-    def __init__(self):
-        self._bootstrap = MyBootstrap()
-
-    async def run(self, task, ctx):
-        if await self._bootstrap.needs_bootstrap(ctx):
-            await self._bootstrap.run_bootstrap(ctx)
-        snapshot = await self._bootstrap.load_snapshot(ctx)
-        # Utiliser snapshot pour enrichir le prompt...
-```
-
-> **Guide complet :** [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide)
-> **ADR :** [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention
+- `bootstrap.status` — `"complete"` \| `"partial"` \| `"missing"`
 
 ---
 
-## 9. `AgentManifestDict` — Type stubs *(Sprint 40)*
+## 9. Agent Manifest (`apollia.stubs.manifest`)
 
-Le SDK fournit un `TypedDict` complet pour typer `manifest()` et bénéficier de l'autocomplétion et de la validation mypy.
+`AgentManifestDict` — TypedDict pour typage static manifest.
 
-```python
-from apollia.stubs.manifest import AgentManifestDict
+**Champs clés** :
 
-def manifest(self) -> AgentManifestDict:
-    return {
-        "name": "mon-agent",
-        "version": "1.0.0",
-        "description": "Description",
-        "tools_required": ["bash_executor"],
-        "agent_type": "worker",          # AIP v2 (Sprint 40)
-        "examples": ["Analyse ce fichier"],
-        "limitations": ["Ne gère pas les PDF chiffrés"],
-        "setup_notes": "Nécessite Python 3.11+",
-    }
+| Champ | Type | Required | Description |
+|---|---|---|---|
+| `name` | `str` | ✓ | Identifiant unique kebab-case |
+| `version` | `str` | ✓ | Semver (ex: `"1.0.0"`) |
+| `description` | `str` | ✓ | Texte une ligne |
+| `execution_mode` | `str` | ✓ | `"direct"` (ReAct) ou `"orchestrated"` (ORIA) |
+| `tools_required` | `list[str]` | — | Outils natifs utilisés (ex: `["bash_executor", "file_io"]`) |
+| `tools_requiring_approval` | `list[str]` | — | Outils qui triggent HITL (subset de `tools_required`) |
+| `agent_type` | `str` | — | `"worker"` \| `"assistant"` \| `"system"` (Sprint 40) |
+| `examples` | `list[str]` | — | Cas d'usage exemple (UI + doc) |
+| `limitations` | `list[str]` | — | Contraintes connues |
+| `setup_notes` | `str` | — | Notes configuration |
+| `packages` | `list[str]` | — | Dépendances pip (ex: `["openpyxl>=3.1.0"]`) |
+| `supports_a2a` | `bool` | — | Accessible via A2A routing (défaut: false) |
+| `skills` | `list[dict]` | — | Skills publiés pour delegation A2A (Sprint 40) |
+
+---
+
+## 10. RuntimeContext (`apollia.stubs.context`)
+
+Injecté par le runtime Rust ; type stub PEP 561.
+
+**Propriétés** :
+
+| Propriété | Type | Nullable | Description |
+|---|---|---|---|
+| `llm` | `LlmProxy` | ✓ | Proxy pour LLM backend (Claude, etc.) |
+| `tools` | `ToolProxy` | ✓ | Proxy pour outils natifs (bash, file_io, etc.) |
+| `memory` | `MemoryInterface` | ✓ | Mémoire sémantique persistante |
+| `delegate` | callable | — | Fonction A2A pour déléguer à autres agents |
+
+**Méthode** :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `delegate()` | `async (skill_id: str, payload: dict, timeout_secs: int = 120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Lève `RuntimeError` si skill absent |
+
+---
+
+## 11. LlmProxy (`apollia.stubs.llm`)
+
+Stub pour backend LLM.
+
+**Propriétés** :
+
+| Propriété | Type | Description |
+|---|---|---|
+| `default_backend` | `str` | Backend actif (ex: `"claude-opus-4"`) |
+
+**Méthodes** :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `complete()` | `async (messages: list[dict] \| str, **kwargs) -> dict[str, object]` | `messages`: list ou str; `kwargs`: backend options | Response dict avec champ `"content"` (ou `"text"`) | Jamais de levée ; dégradation gracieuse si backend absent |
+| `chat()` | `async (system: str, user: str, backend: str \| None = None) -> dict[str, object]` | `system`: str; `user`: str; `backend`: optional override | Response dict | Wrapper `complete()` |
+| `stream_complete()` | `async (messages: list[dict]) -> AsyncIterator[str]` | `messages`: list | Async iterator de chunks str | Optional (certains backends ne supportent pas) |
+
+---
+
+## 12. ToolProxy (`apollia.stubs.tools`)
+
+Stub pour exécution outils.
+
+**Méthodes** :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `call()` | `async (tool_name: str, input: dict[str, object]) -> dict[str, object]` | `tool_name`: str; `input`: args dict | Résultat tool (dict) | Jamais de levée ; dégradation gracieuse si tool absent |
+| `list_tools()` | `() -> list[str]` | — | Noms outils disponibles | Immuable par session |
+| `tool_call_count()` | `() -> int` | — | Nombre d'appels cumulés | Test helper (mock seulement) |
+| `describe()` | `async (name: str) -> dict[str, object] \| None` | `name`: str outil | Spec dict ou None | Retourne schéma outil |
+
+---
+
+## 13. MemoryInterface (`apollia.stubs.memory`)
+
+Stub pour mémoire persistante.
+
+**Méthodes** :
+
+| Méthode | Signature | Paramètres | Retour | Notes |
+|---|---|---|---|---|
+| `record()` | `async (key: str, content: str, importance: float \| None = None, ...) -> None` | `key`: str identifier; `content`: str; `importance`: 0–1 float; kwargs pour metadata | — | Persiste en mémoire sémantique |
+| `remember()` | `async (key: str, value: str, source: str \| None = None) -> None` | `key`: str; `value`: str; `source`: optional | — | Alias pour `record()` |
+| `recall()` | `async (key: str) -> list[dict[str, object]] \| None` | `key`: str | Liste d'entrées avec metadata ou None | Retourne tous les matches pour clé |
+| `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | Résultats sémantiques (list[dict]) | Recherche full-text + vectorielle |
+| `forget()` | `async (key: str) -> None` | `key`: str | — | Supprime la clé |
+
+---
+
+## 14. CLI Scaffolding
+
+```bash
+# Via CLI Apollia OS (recommandé)
+$ apollia-os agent new mon-agent --type react
+$ apollia-os agent new mon-assistant --type conversational
+$ apollia-os agent new mon-orateur --type orchestrated
+$ apollia-os agent new mon-worker --type worker
+
+# Ou via SDK Python
+$ python -m apollia new mon-agent
+$ python -m apollia new mon-agent --output-dir ./agents/
+
+# Via Desktop app
+# → Menu "Create from Template" (valide nom, détecte SDK, crée fichier + test)
 ```
 
-**Champs AIP v2 (Sprint 40) :**
-
-| Champ | Type | Description |
-|---|---|---|
-| `agent_type` | `str \| None` | `"worker"`, `"assistant"`, `"system"` |
-| `examples` | `list[str]` | Exemples d'utilisation (UI + doc) |
-| `limitations` | `list[str]` | Contraintes connues (UI + doc) |
-| `setup_notes` | `str \| None` | Notes de configuration |
+Génère : `<snake_name>_agent.py` + `test_<snake_name>_agent.py`
 
 ---
 
 ## Voir aussi
 
-- [Agents Quickstart](./Agents-Quickstart) — premier agent en 5 minutes
-- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence complète `ctx.*`
-- [Briques AIP Specification](./Briques-AIP-Specification) — contrat AIP complet
-- [Worker Agent Pattern](./Worker-Agent-Pattern) — guide complet pour créer un Worker Agent de A à Z
-- [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide) — guide complet du protocole de bootstrapping
-- [ADR-037](../adr/ADR-037-python-sdk-packaging) — décision packaging SDK
+- [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide.md) — table complète des services injectés
+- [Briques AIP Specification](./Briques-AIP-Specification.md) — contrat AIP complet
+- [Worker Agent Pattern](./Worker-Agent-Pattern.md) — spécialisation agents
+- [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide.md) — bootstrapping cross-session
+- [book ch03–ch04](../../book/src/ch03-intro-aip-et-manifest.md) — apprendre le SDK par l'exemple
+- [ADR-037](../adr/ADR-037-python-sdk-packaging.md) — décision packaging SDK
 - [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention
+
+---
+
+## Notes de validation (Axe 1 — inventaire)
+
+**Signatures cross-check** vs `/docs/internal/audit/01-inventaire-code-livre.md` — Sprint 40 :
+
+1. ✅ `BaseReActAgent.react()` — async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
+2. ✅ `ConversationalAgent.converse()` — async, 3 params (ctx, user_message, history)
+3. ✅ `WorkerAgent.run_python()` — async, 3 params (ctx, code, timeout_secs)
+4. ✅ `AIPResult.completed()` — static factory (text, data)
+5. ✅ `AIPResult.failed()` — static factory (code, message, details)
+6. ✅ `extract_json()` — 4 stratégies parsing (full JSON, fence, outermost, repair)
+7. ✅ `ContextBootstrap.is_stale()` — abstract, async (ctx)
+8. ✅ `AgentManifestDict` — TypedDict avec champs AIP v2 (agent_type, examples, limitations, setup_notes)
+9. ✅ `ToolProxy.call()` — async (tool_name, input) → dict
+
+**Mises à jour par rapport aux versions antérieures** :
+
+- **Sprint 40** : Ajout `AgentManifestDict` TypedDict (remplace usage raw dict pour manifest)
+- **Sprint 40** : Ajout `ContextBootstrap` classe abstraite pour convention cross-session
+- **Sprint 40** : Champs AIP v2 (agent_type, examples, limitations, setup_notes) dans manifest
+- **Sprint 32** : Ajout `WorkerAgent` avec helpers (run_python, read_file, delegate_skill, domain_error)
+
+---
+
+*Dernière mise à jour : 2026-04-24 (Sprint 40)*
+

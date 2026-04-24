@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Plug,
   ShieldCheck,
+  Timer,
 } from "lucide-svelte";
 
 export interface NavEntry {
@@ -38,6 +39,7 @@ export const operatorGroups: NavGroup[] = [
       { route: "agents", labelKey: "nav.my_assistants", icon: Bot },
       { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
       { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
+      { route: "triggers", labelKey: "nav.my_triggers", icon: Timer },
     ],
   },
   {

@@ -36,6 +36,7 @@
   let editName = $state("");
   let editDescription = $state("");
   let editInstructions = $state("");
+  let editWorkdir = $state("");
   let saving = $state(false);
 
   // Snapshot preview
@@ -67,6 +68,7 @@
       editName = project.name;
       editDescription = project.description ?? "";
       editInstructions = project.instructions ?? "";
+      editWorkdir = project.workspace_path ?? "";
       void loadLinkedChats(project.id);
       void loadAllAgents();
     }
@@ -195,6 +197,7 @@
           name: editName.trim(),
           description: editDescription.trim() || null,
           instructions: editInstructions.trim() || null,
+          workspace_path: editWorkdir.trim() ? editWorkdir.trim() : null,
         },
       });
       addToast($t("projects.updated_toast", { values: { name: editName.trim() } }), "success");
@@ -294,16 +297,37 @@
       </section>
 
       <!-- Workspace Path -->
-      {#if project.workspace_path}
-        <section class="space-y-1.5">
-          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-            {$t("projects.workspace_label")}
-          </p>
+      <section class="space-y-1.5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+          {$t("projects.workspace_label")}
+        </p>
+        {#if editing}
+          <div class="flex items-center gap-1.5">
+            <Input
+              bind:value={editWorkdir}
+              placeholder="/chemin/vers/le/projet"
+              class="flex-1 font-mono text-sm"
+              aria-label={$t("projects.workspace_label")}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={async () => {
+                const dir = await openFilePicker({ directory: true, multiple: false });
+                if (dir) editWorkdir = typeof dir === "string" ? dir : (dir as { path: string }).path;
+              }}
+            >
+              <FolderOpen size={13} />
+            </Button>
+          </div>
+        {:else if project.workspace_path}
           <p class="text-sm font-mono text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-md truncate">
             {project.workspace_path}
           </p>
-        </section>
-      {/if}
+        {:else}
+          <p class="text-sm text-muted-foreground italic">{$t("projects.no_workspace")}</p>
+        {/if}
+      </section>
 
       <!-- Instructions -->
       <section class="space-y-1.5">
@@ -361,6 +385,25 @@
               <div class="flex items-center gap-2.5 rounded-md bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
                 <Bot size={14} strokeWidth={1.75} class="shrink-0 text-secondary" />
                 <span class="flex-1 truncate">{agentName}</span>
+                <button
+                  class="h-5 inline-flex items-center gap-1 rounded px-1.5 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                  onclick={async () => {
+                    if (!project) return;
+                    try {
+                      const session = await invoke("create_chat_session", {
+                        request: { mode: "agent", agent_name: agentName, project_id: project.id },
+                      });
+                      pendingChatSessionId.set((session as { id: string }).id);
+                      navigateTo("chat");
+                    } catch {
+                      navigateTo("chat");
+                    }
+                  }}
+                  title={$t("projects.start_chat_with_agent")}
+                >
+                  <MessageSquare size={11} />
+                  Chat
+                </button>
                 <button
                   class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors"
                   onclick={() => removeAgent(agentName)}

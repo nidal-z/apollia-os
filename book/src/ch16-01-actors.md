@@ -174,6 +174,50 @@ Tous deux suivent le même pattern Handle — ils ne sont qu'acteurs parmi les a
 
 ---
 
+## Flux de messages — exemple concret
+
+Pour ancrer le pattern Handle dans un cas réel, voici ce qui se passe entre l'instant où un client soumet une tâche et celui où la réponse remonte :
+
+```
+   Client HTTP
+       │  POST /tasks {"agent": "summarize", "input": "..."}
+       ▼
+  ┌─────────────┐
+  │  APIServer  │──► valide la requête, émet TaskSubmitted sur EventBus
+  └──────┬──────┘
+         │  ExecutionCoordinatorHandle.submit(task)
+         ▼
+  ┌──────────────────────┐
+  │ ExecutionCoordinator │──► acquiert un permit du sémaphore (max_concurrent_tasks)
+  └──────────┬───────────┘
+             │  AgentSupervisorHandle.dispatch(task)
+             ▼
+  ┌──────────────────┐
+  │ AgentSupervisor  │──► sélectionne le worker AgentRuntime libre
+  └────────┬─────────┘
+           │  AgentRuntime.execute(task)
+           ▼
+  ┌───────────────┐         ToolRegistryHandle.call(tool, args)
+  │ AgentRuntime  │ ───────────────────────────────────────────► outils sandbox
+  │  (Python)     │ ◄─────────────────────────────────────────── résultat JSON
+  └───────┬───────┘
+          │  AIPResult { status: "completed", output: [...] }
+          ▼
+   réponse remontée → ExecutionCoordinator → APIServer → Client HTTP
+```
+
+**Lecture de chaque flèche :**
+
+- **APIServer → ExecutionCoordinator** : appel via `ExecutionCoordinatorHandle.submit()` — un `mpsc::Sender` clonable, jamais d'accès direct à l'état.
+- **ExecutionCoordinator → AgentSupervisor** : passage du `task` après validation du sémaphore (refus immédiat si `max_concurrent_tasks` est atteint).
+- **AgentSupervisor → AgentRuntime** : dispatch vers un worker Python dédié, ouverture du `RuntimeContext`.
+- **AgentRuntime → outils** : chaque `ctx.tools.call()` traverse le `ToolRegistryHandle` qui applique manifest check, step_budget, sandbox, audit trail.
+- **Réponse remontée** : `AIPResult` Python sérialisé, oneshot vers le coordinator, libération du permit, réponse HTTP au client.
+
+Aucun acteur ne partage de mémoire mutable avec un autre — tout transite par les canaux. C'est ce qui garantit qu'on peut redémarrer un acteur sans corrompre les autres (principe #5).
+
+---
+
 ## Séquence de démarrage
 
 ```

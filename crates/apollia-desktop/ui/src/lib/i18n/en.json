@@ -148,6 +148,7 @@
     "dashboard": "Dashboard",
     "home": "Home",
     "my_assistants": "My Assistants",
+    "my_triggers": "My Triggers",
     "activity": "My work",
     "activity_subtitle": "Recent and in-progress tasks",
     "running_tasks_count_tooltip": "Number of running tasks",
@@ -646,6 +647,9 @@
     "loading_tasks": "Loading tasks...",
     "no_tasks": "No tasks found for this agent.",
     "tasks_label": "tasks",
+    "task_no_description": "No description",
+    "task_error_label": "Error",
+    "task_output_label": "Result",
     "section_active": "Active agents",
     "section_inactive": "Inactive agents",
     "section_assistants": "Assistants",
@@ -779,13 +783,18 @@
     "status_label": "Status",
     "agent_label": "Agent",
     "agent_all": "All agents",
-    "status": { "pending": "Pending", "resolved": "Resolved", "all": "All" },
+    "status": {
+      "pending": "Pending",
+      "resolved": "Resolved",
+      "all": "All"
+    },
     "kind": {
       "task": "Task approval",
       "tool": "Tool call",
       "bash": "Shell command",
       "filesystem": "Filesystem",
-      "always_accept": "Always allow"
+      "always_accept": "Always allow",
+      "ask_user": "Question"
     },
     "preview": {
       "tool": "Tool",
@@ -825,113 +834,83 @@
       "always_accepted": "Rule saved — future calls auto-approved",
       "bulk_approved": "{count} actions approved",
       "bulk_rejected": "{count} actions rejected"
+    },
+    "ask_user_gate": {
+      "title": "The agent wants to ask you something",
+      "body": "Approve to let the agent proceed. It will then ask you questions directly in the conversation."
     }
   },
   "permissions": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "always_allow": "Always allow",
+    "approving": "Approving...",
+    "rejecting": "Rejecting...",
+    "reject_reason_placeholder": "Reason for rejection...",
+    "reject_reason_min": "{min} characters minimum",
+    "always_allow_success": "Rule saved — will auto-approve in future",
+    "always_allow_error": "Failed to save rule",
+    "type_bash": "Command",
+    "type_file_edit": "Edit file",
+    "type_file_write": "Write file",
+    "type_filesystem": "Filesystem",
+    "type_mcp": "MCP tool",
+    "type_generic": "Tool action",
+    "mode_create": "Create",
+    "mode_overwrite": "Overwrite",
+    "op_delete": "Delete",
+    "op_move": "Move",
+    "op_mkdir": "Create directory",
+    "working_dir": "Working directory",
+    "file_label": "File",
+    "target_label": "Destination",
+    "server_label": "Server",
+    "tool_label": "Tool",
+    "arguments_label": "Arguments",
+    "input_label": "Input",
     "preview": {
       "lazy_hint": "Preview not calculated yet — click to load",
       "load": "Load preview",
-      "loading": "Loading preview…",
-      "fs": {
-        "action": {
-          "create": "Create",
-          "update": "Update",
-          "delete": "Delete",
-          "chmod": "Chmod"
-        },
-        "show_more": "Show {count} more lines"
-      },
-      "bash": {
-        "command": "Command",
-        "dry_run_output": "Dry-run output",
-        "detected": "Detected commands",
-        "warnings": "Warnings",
-        "no_dry_run_title": "This command can't be simulated",
-        "no_dry_run_body": "Real execution is required — review static analysis below."
-      },
-      "mcp": {
-        "parameters": "Parameters",
-        "col_name": "Name",
-        "col_type": "Type",
-        "col_required": "Required",
-        "col_description": "Description",
-        "required": "Required",
-        "output": "Output schema",
-        "example": "Example call"
-      },
-      "network": {
-        "headers": "Headers",
-        "body_size": "Estimated body size",
-        "body_excerpt": "Body excerpt"
-      }
+      "loading": "Loading preview…"
     },
-    "impact": {
-      "label": "Estimated impact",
-      "if_approved": "If you approve",
-      "if_refused": "If you refuse"
-    },
-    "error": {
-      "unknown_title": "Unexpected error",
-      "unknown_body": "No details available.",
-      "unknown_action": "Check the logs, or retry the action.",
-      "suggested_action": "Try:",
-      "learn_more": "Learn more"
-    },
-    "actions": {
-      "accept": "Approve",
-      "refuse": "Refuse"
+    "rules": {
+      "manage_link": "Manage my rules"
     },
     "always": {
       "button": "Always allow",
-      "tooltip": "Skip confirmation for this exact action in the future",
+      "tooltip": "Auto-approve future calls matching the selected scope",
       "scope": {
-        "label": "Scope of the rule",
-        "example_label": "Example —",
+        "label": "Scope",
+        "example_label": "Example:",
         "session_only": {
-          "label": "In this session only",
-          "help": "The rule expires when the current session ends.",
-          "example": "Accept future calls for this tool until the session closes."
+          "label": "This session only",
+          "help": "Auto-approves matching calls for the duration of this session only.",
+          "example": "Useful for temporary workflows you control."
         },
         "agent_tool_pair": {
-          "label": "For this assistant and this tool, going forward",
-          "help": "The rule applies when this specific agent calls this specific tool.",
-          "example": "Only the Dev assistant may call `bash:git` without asking."
+          "label": "This agent + tool",
+          "help": "Always allow this agent to use this specific tool.",
+          "example": "Useful when you trust a specific agent with a specific capability."
         },
         "tool_global": {
-          "label": "For this tool, across every assistant",
-          "help": "Every assistant that calls this tool will skip the prompt.",
-          "example": "Any assistant can call `mcp:linear.search` without asking."
+          "label": "This tool (all agents)",
+          "help": "Always allow any agent to use this tool without asking.",
+          "example": "Useful for safe read-only tools."
         },
         "all_always": {
-          "label": "Accept everything automatically (not recommended)",
-          "help": "All future permission prompts will be auto-approved.",
-          "example": "Apollia will never ask you for approval again.",
-          "danger": "This is the most dangerous setting. You will lose every safety gate.",
-          "confirm_title": "Auto-approve everything?",
-          "confirm_body": "This disables every permission prompt across all assistants and tools. You can still revoke it later from Settings → Permission rules.",
-          "confirm_action": "I understand, enable"
+          "label": "Everything (all agents, all tools)",
+          "help": "Disables all approval prompts. Only for fully trusted environments.",
+          "example": "Use with extreme caution — agents will run without any approval gate.",
+          "danger": "This disables all approval prompts system-wide.",
+          "confirm_title": "Disable all approvals?",
+          "confirm_body": "This will auto-approve every action from every agent. You can re-enable individual rules in Settings → Permission rules.",
+          "confirm_action": "Confirm — disable all prompts"
         }
       }
     },
-    "rules": {
-      "title": "Permission rules",
-      "subtitle": "Rules that auto-approve future actions. Revoke any you no longer trust.",
-      "empty_title": "No auto-approval rules",
-      "empty_subtitle": "Rules appear here when you choose “Always allow”.",
-      "col_tool": "Tool",
-      "col_scope": "Scope",
-      "col_agent": "Agent",
-      "col_created": "Created",
-      "revoke": "Revoke",
-      "revoke_all": "Revoke all rules",
-      "revoke_all_confirm_title": "Revoke every auto-approval rule?",
-      "revoke_all_confirm_body": "Future actions will ask for approval again. This cannot be undone.",
-      "revoke_all_type_prompt": "Type your name to confirm",
-      "manage_link": "Manage my rules",
-      "toast": {
-        "revoked": "Rule revoked",
-        "revoked_all": "All rules revoked"
-      }
+    "actions": {
+      "refuse": "Refuse",
+      "accept": "Approve"
     }
   },
   "approvals": {
@@ -954,7 +933,11 @@
     "rejected_toast": "Approval rejected",
     "approving": "Approving...",
     "approve": "Approve",
-    "reject": "Reject",
+    "reject": {
+      "reason_required": "Reason required (min {min} characters)",
+      "reason_optional": "Reason (optional)",
+      "placeholder": "Explain why you are rejecting this…"
+    },
     "rejecting": "Rejecting...",
     "reject_reason": "Reason for rejection (min {min} characters)",
     "reject_placeholder": "Describe why you are rejecting this action...",
@@ -997,11 +980,6 @@
       "confirm_always": "Confirm always",
       "stop_agent": "Stop the agent",
       "stop": "Stop"
-    },
-    "reject": {
-      "reason_required": "Reason required (min {min} characters)",
-      "reason_optional": "Reason (optional)",
-      "placeholder": "Explain why you are rejecting this…"
     },
     "scope": {
       "open_disclosure": "Change scope for always-accept",
@@ -1209,7 +1187,35 @@
     "field_on_busy_drop": "Drop",
     "field_enabled": "Enabled",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "enabled_toast": "Trigger \"{id}\" enabled",
+    "disabled_toast": "Trigger \"{id}\" disabled",
+    "type_cron_label": "On a schedule",
+    "type_cron_desc": "Daily, weekly, at a specific time",
+    "type_interval_label": "At regular intervals",
+    "type_interval_desc": "Every 30 minutes, every hour…",
+    "type_oneshot_label": "Once at a date/time",
+    "type_oneshot_desc": "Fires once at the specified time, then stops",
+    "type_file_watch_label": "When a file changes",
+    "type_file_watch_desc": "Reacts to created, modified or deleted files in a folder",
+    "type_webhook_label": "Via an external URL",
+    "type_webhook_desc": "Triggered by any service via HTTP POST",
+    "webhook_explain": "A webhook gives you a unique URL. Send an HTTP POST to that URL from any external service (GitHub, Zapier, etc.) to launch your agent.",
+    "cron_preset_every_15m": "Every 15 min",
+    "cron_preset_every_30m": "Every 30 min",
+    "cron_preset_hourly": "Every hour",
+    "cron_preset_daily": "Every day at…",
+    "cron_preset_weekly": "Every week on…",
+    "cron_preset_custom": "Custom schedule",
+    "cron_at_time": "At",
+    "cron_on_days": "On",
+    "interval_unit_minutes": "minutes",
+    "interval_unit_hours": "hours",
+    "interval_unit_days": "days",
+    "interval_custom": "Custom interval",
+    "advanced_section": "Advanced settings",
+    "field_id_auto": "Auto-generated — customize below",
+    "empty_subtitle_operator": "Triggers let your assistants run automatically. Create your first trigger below."
   },
   "pipelines": {
     "title": "Pipelines",
@@ -1587,6 +1593,7 @@
       "profile": "Profile",
       "stt": "Speech-to-Text",
       "llm": "LLM backends",
+      "model_hub": "Model Hub",
       "configuration": "Configuration",
       "system": "System info",
       "memories": "Memories",
@@ -1757,7 +1764,43 @@
     "memories_source_chat_inference": "Inferred",
     "memories_source_user_explicit": "Explicit",
     "memories_source_agent_observation": "Agent",
-    "stt": "Speech-to-Text",
+    "stt": {
+      "section": {
+        "essential_title": "ESSENTIAL",
+        "essential_description": "Backend, language and activation mode.",
+        "advanced_title": "ADVANCED TRIGGERS",
+        "advanced_description": "Hotkey, wake word and voice-activity threshold.",
+        "performance_title": "PERFORMANCE",
+        "performance_description": "Sample rate, model size and GPU acceleration.",
+        "status_title": "STATUS",
+        "status_description": "Last transcription, average latency, recent errors."
+      },
+      "hotkey": {
+        "label": "Global hotkey",
+        "change": "Change hotkey",
+        "preview_placeholder": "No hotkey set",
+        "capture_title": "Press your hotkey combination",
+        "capture_subtitle": "Hold the modifier(s) and press a key. Enter to confirm, Escape to cancel.",
+        "waiting": "Press any key…",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "needs_modifier": "Add at least one modifier (Cmd, Ctrl or Alt).",
+        "collision_warning": "Heads-up: {combo} is already used by your OS or Apollia. It may not trigger reliably.",
+        "timeout_countdown": "Auto-cancel in {seconds}s",
+        "captured": "Captured: {combo}",
+        "updated_toast": "Hotkey updated to {combo}",
+        "cancelled_toast": "Capture cancelled",
+        "timeout_toast": "No key pressed — capture cancelled"
+      },
+      "status_refresh": "Refresh",
+      "status_updated": "Updated {relative}",
+      "status_never": "Never refreshed",
+      "status_live_updates": "Live updates",
+      "status_last_transcription": "Last transcription",
+      "status_avg_latency": "Average latency",
+      "status_recent_errors": "Recent errors",
+      "status_none": "None"
+    },
     "stt_subtitle": "Configure the embedded speech-to-text engine (whisper.cpp).",
     "stt_engine_status": "Engine status",
     "stt_engine_status_section": "ENGINE STATUS",
@@ -1806,43 +1849,6 @@
     "stt_config_hint": "To edit manually, modify the [stt] section in apollia.toml.",
     "stt_yes": "Yes",
     "stt_no": "No",
-    "stt": {
-      "section": {
-        "essential_title": "ESSENTIAL",
-        "essential_description": "Backend, language and activation mode.",
-        "advanced_title": "ADVANCED TRIGGERS",
-        "advanced_description": "Hotkey, wake word and voice-activity threshold.",
-        "performance_title": "PERFORMANCE",
-        "performance_description": "Sample rate, model size and GPU acceleration.",
-        "status_title": "STATUS",
-        "status_description": "Last transcription, average latency, recent errors."
-      },
-      "hotkey": {
-        "label": "Global hotkey",
-        "change": "Change hotkey",
-        "preview_placeholder": "No hotkey set",
-        "capture_title": "Press your hotkey combination",
-        "capture_subtitle": "Hold the modifier(s) and press a key. Enter to confirm, Escape to cancel.",
-        "waiting": "Press any key…",
-        "cancel": "Cancel",
-        "confirm": "Confirm",
-        "needs_modifier": "Add at least one modifier (Cmd, Ctrl or Alt).",
-        "collision_warning": "Heads-up: {combo} is already used by your OS or Apollia. It may not trigger reliably.",
-        "timeout_countdown": "Auto-cancel in {seconds}s",
-        "captured": "Captured: {combo}",
-        "updated_toast": "Hotkey updated to {combo}",
-        "cancelled_toast": "Capture cancelled",
-        "timeout_toast": "No key pressed — capture cancelled"
-      },
-      "status_refresh": "Refresh",
-      "status_updated": "Updated {relative}",
-      "status_never": "Never refreshed",
-      "status_live_updates": "Live updates",
-      "status_last_transcription": "Last transcription",
-      "status_avg_latency": "Average latency",
-      "status_recent_errors": "Recent errors",
-      "status_none": "None"
-    },
     "llm_backends": "LLM Backends",
     "llm_backends_subtitle": "Configure the language model backends used by Apollia and your agents.",
     "llm_add_backend": "Add backend",
@@ -1877,6 +1883,17 @@
       "field_timeout": "Timeout (seconds)",
       "field_extra_json": "Extra config (JSON object)",
       "advanced": "Advanced",
+      "section_gen_params": "Generation parameters",
+      "field_temperature": "Temperature",
+      "field_top_k": "Top-K",
+      "field_top_p": "Top-P",
+      "field_repeat_penalty": "Repeat penalty",
+      "field_context_size": "Context size (tokens)",
+      "gen_params_hint": "Leave blank to use model defaults. Auto-fill from HuggingFace below.",
+      "hf_autofill_title": "Auto-fill from HuggingFace",
+      "hf_autofill_btn": "Fetch params",
+      "hf_no_config": "No generation_config.json found for this repo.",
+      "hf_filled": "Parameters filled from HuggingFace.",
       "api_key_unchanged": "Leave empty to keep existing key",
       "test_connection": "Test connection",
       "testing": "Testing…",
@@ -1884,6 +1901,14 @@
       "test_failed": "Connection failed",
       "test_invalid": "Fix validation errors before testing.",
       "test_local_ok": "Configuration looks valid. Full connection test runs after save.",
+      "field_model_path": "Model file",
+      "browse": "Browse…",
+      "browse_title": "Select a GGUF model file",
+      "scan": "Scan",
+      "scan_empty": "No .gguf files found in ~/.apollia/models, ~/Downloads, or ~/.cache/lm-studio.",
+      "recommended": "Recommended",
+      "multipart_first": "Multi-part model ({total} files) — all parts must be in the same folder.",
+      "multipart_corrected": "Part {part}/{total} selected — path corrected to the first part automatically.",
       "err_required": "Required",
       "err_invalid_name": "Use lowercase letters, digits, _ or -",
       "err_invalid_url": "Must be a valid http(s) URL",
@@ -1900,7 +1925,8 @@
       "missing_hint": "File not found. Default values are used until you create it.",
       "show_raw": "Show raw view",
       "hide_raw": "Hide raw view",
-      "empty": "No entries in this section."
+      "empty": "No entries in this section.",
+      "path_label": "Configuration file"
     },
     "system": {
       "refresh": "Refresh",
@@ -2310,11 +2336,26 @@
     },
     "commands": {
       "menu_label": "Slash commands",
-      "clear": { "label": "Close session", "description": "End the current conversation." },
-      "export": { "label": "Export conversation", "description": "Save as Markdown with tool calls." },
-      "rename": { "label": "Rename", "description": "Set a custom title for this conversation." },
-      "memory": { "label": "Memory", "description": "Open the memory tab in the context drawer." },
-      "tools": { "label": "Tools", "description": "Open the tools panel in the context drawer." }
+      "clear": {
+        "label": "Close session",
+        "description": "End the current conversation."
+      },
+      "export": {
+        "label": "Export conversation",
+        "description": "Save as Markdown with tool calls."
+      },
+      "rename": {
+        "label": "Rename",
+        "description": "Set a custom title for this conversation."
+      },
+      "memory": {
+        "label": "Memory",
+        "description": "Open the memory tab in the context drawer."
+      },
+      "tools": {
+        "label": "Tools",
+        "description": "Open the tools panel in the context drawer."
+      }
     },
     "no_sessions": "No conversations",
     "close_confirm": "Close this session?",
@@ -2378,7 +2419,7 @@
     "delete_confirm_title": "Delete conversation",
     "delete_confirm_message": "This action cannot be undone. All messages will be lost.",
     "status_processing": "Processing",
-    "no_preview": "Empty conversation",
+    "no_preview": "No preview available",
     "a2a_workers": "Worker agents",
     "a2a_no_workers": "No worker agents available",
     "mode_auto": "Auto",
@@ -2876,35 +2917,6 @@
       "step_3_body": "Approve, deny, or enable 'always allow' for a trusted scope."
     }
   },
-  "permissions": {
-    "approve": "Approve",
-    "reject": "Reject",
-    "always_allow": "Always allow",
-    "approving": "Approving...",
-    "rejecting": "Rejecting...",
-    "reject_reason_placeholder": "Reason for rejection...",
-    "reject_reason_min": "{min} characters minimum",
-    "always_allow_success": "Rule saved — will auto-approve in future",
-    "always_allow_error": "Failed to save rule",
-    "type_bash": "Command",
-    "type_file_edit": "Edit file",
-    "type_file_write": "Write file",
-    "type_filesystem": "Filesystem",
-    "type_mcp": "MCP tool",
-    "type_generic": "Tool action",
-    "mode_create": "Create",
-    "mode_overwrite": "Overwrite",
-    "op_delete": "Delete",
-    "op_move": "Move",
-    "op_mkdir": "Create directory",
-    "working_dir": "Working directory",
-    "file_label": "File",
-    "target_label": "Destination",
-    "server_label": "Server",
-    "tool_label": "Tool",
-    "arguments_label": "Arguments",
-    "input_label": "Input"
-  },
   "projects": {
     "title": "Projects",
     "subtitle": "Organize agent context with custom instructions, documents, and providers",
@@ -2954,6 +2966,8 @@
     "add_agent": "Add Agent",
     "no_chats": "No chats linked to this project",
     "no_agents": "No agents linked to this project",
+    "no_workspace": "No directory defined",
+    "start_chat_with_agent": "Start a chat with this agent",
     "upload_document": "Upload",
     "choose_template": "Start from a template",
     "add_provider": "Add",
@@ -3051,7 +3065,7 @@
     },
     "triggers": {
       "title": "Let your agents run on their own",
-      "description": "Triggers launch tasks on a cron schedule, a file change, or a webhook. Declare them in apollia.toml or create one from the Builder view.",
+      "description": "Triggers launch tasks on a cron schedule, a file change, or a webhook. Declare them in apollia.toml or create one below.",
       "primary_cta": "Create a trigger",
       "secondary_cta": "Reload from config"
     },

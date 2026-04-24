@@ -5,9 +5,14 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_aip::package_loader::{load_package, PackageLoaderError};
 use apollia_runtime::agents::registry_remote::{self, parse_install_source, AgentInstallSource};
 use apollia_runtime::api::routes_agents::AgentLoader;
-use apollia_tools::{AgentRepository, InstalledAgent};
+use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
+use apollia_triggers::{
+    definition_repository::TriggerDefinitionRepository,
+    parse_triggers_from_toml_str, OnBusy, OnBusyPolicy, TriggerDefinitionRow, TriggerSourceConfig,
+};
 use clap::Subcommand;
 
 use crate::community::{validate_community_agent, AgentValidationError};
@@ -84,6 +89,28 @@ pub enum AgentCommand {
         #[arg(long, default_value = "react")]
         r#type: String,
     },
+    /// Manage agent packages (multi-agent bundles described by agent.toml).
+    Package {
+        #[command(subcommand)]
+        cmd: PackageCommand,
+    },
+}
+
+/// Package sub-subcommands: `apollia-os agent package <verb>`.
+#[derive(Debug, Subcommand)]
+pub enum PackageCommand {
+    /// List all installed agent packages.
+    List,
+    /// Show details for an installed package.
+    Info {
+        /// Package name.
+        name: String,
+    },
+    /// Uninstall a package and all its agents and triggers.
+    Uninstall {
+        /// Package name.
+        name: String,
+    },
 }
 
 /// Execute an `agent` subcommand.
@@ -106,6 +133,11 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Disable { name } => run_disable(name, json),
         AgentCommand::Update { name, path } => run_update(name, path, json),
         AgentCommand::New { name, r#type } => run_new(name, r#type, json),
+        AgentCommand::Package { cmd } => match cmd {
+            PackageCommand::List => run_package_list(json),
+            PackageCommand::Info { name } => run_package_info(name, json),
+            PackageCommand::Uninstall { name } => run_package_uninstall(name, json).await,
+        },
     }
 }
 
@@ -417,13 +449,27 @@ async fn run_install_git(
     exit_codes::SUCCESS
 }
 
-/// Install a community agent from a local Python file (non-regression path).
+/// Install a community agent from a local Python file or an agent package directory.
 async fn run_install_local(
     source_path: &Path,
     client: &RuntimeClient,
     json: bool,
     skip_tests: bool,
 ) -> i32 {
+    // Detect package directory (has agent.toml at root).
+    if source_path.is_dir() {
+        if source_path.join("agent.toml").exists() {
+            return run_install_package(source_path, client, json, skip_tests).await;
+        }
+        return print_error_and_exit(
+            &format!(
+                "directory '{}' has no agent.toml — not a valid agent package",
+                source_path.display()
+            ),
+            json,
+        );
+    }
+
     // Validate the agent and load its manifest.
     let manifest = match validate_community_agent(source_path, skip_tests).await {
         Ok(m) => m,
@@ -533,6 +579,391 @@ async fn run_install_local(
     }
 
     exit_codes::SUCCESS
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Package commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `apollia-os agent install <dir>` — install a multi-agent package from a folder.
+///
+/// 1. Validates `agent.toml` + duck-types every `.py`
+/// 2. Copies the folder to `~/.apollia/agents/packages/<name>/`
+/// 3. Registers each agent in `AgentRepository`
+/// 4. Registers the package in `PackageRepository`
+/// 5. Injects triggers into `TriggerDefinitionRepository`
+async fn run_install_package(
+    source_path: &Path,
+    client: &RuntimeClient,
+    json: bool,
+    skip_tests: bool,
+) -> i32 {
+    // Step 1: validate + duck-type all agents.
+    let pkg = match load_package(source_path) {
+        Ok(p) => p,
+        Err(PackageLoaderError::ManifestNotFound(_)) => {
+            return print_error_and_exit("agent.toml not found in directory", json);
+        }
+        Err(e) => return print_error_and_exit(&format!("package validation failed: {e}"), json),
+    };
+
+    let pkg_name = pkg.manifest.package.name.clone();
+    let pkg_version = pkg.manifest.package.version.clone();
+
+    let data_dir = apollia_data_dir();
+    let install_root = data_dir.join("agents").join("packages").join(&pkg_name);
+
+    // Step 2: copy directory to install location.
+    if let Err(e) = copy_dir_all(source_path, &install_root) {
+        return print_error_and_exit(
+            &format!("failed to copy package to {}: {e}", install_root.display()),
+            json,
+        );
+    }
+
+    // Open repositories.
+    let agent_repo = match open_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+    let pkg_repo = match open_package_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+
+    // Step 3: register each agent.
+    let now = now_rfc3339();
+    let mut agent_count = 0;
+    for entry in &pkg.agents {
+        let installed_entry_path = install_root.join(
+            entry.entry.strip_prefix(source_path).unwrap_or(&entry.entry),
+        );
+
+        let agent_manifest = match validate_community_agent(&installed_entry_path, skip_tests).await {
+            Ok(m) => m,
+            Err(e) => {
+                return print_error_and_exit(
+                    &format!("agent '{}' validation failed: {e}", entry.name),
+                    json,
+                );
+            }
+        };
+
+        let installed_agent = InstalledAgent {
+            name: entry.name.clone(),
+            version: pkg_version.clone(),
+            install_path: installed_entry_path.clone(),
+            source_path: installed_entry_path,
+            manifest: agent_manifest,
+            enabled: true,
+            installed_at: now.clone(),
+            updated_at: now.clone(),
+        };
+        if let Err(e) = agent_repo.save(&installed_agent) {
+            return print_error_and_exit(
+                &format!("failed to save agent '{}': {e}", entry.name),
+                json,
+            );
+        }
+        agent_count += 1;
+    }
+
+    // Step 4: register the package itself.
+    let installed_pkg = InstalledPackage {
+        name: pkg_name.clone(),
+        version: pkg_version.clone(),
+        root_path: install_root.clone(),
+        manifest_json: pkg.manifest_json.clone(),
+        installed_at: now.clone(),
+        updated_at: now.clone(),
+    };
+    if let Err(e) = pkg_repo.save(&installed_pkg) {
+        return print_error_and_exit(&format!("failed to save package: {e}"), json);
+    }
+    for entry in &pkg.agents {
+        if let Err(e) = pkg_repo.link_agent(&pkg_name, &entry.name) {
+            return print_error_and_exit(
+                &format!("failed to link agent '{}' to package: {e}", entry.name),
+                json,
+            );
+        }
+    }
+
+    // Step 5: inject triggers.
+    let toml_str = match std::fs::read_to_string(source_path.join("agent.toml")) {
+        Ok(s) => s,
+        Err(e) => return print_error_and_exit(&format!("failed to read agent.toml: {e}"), json),
+    };
+    let trigger_count = match inject_package_triggers(&data_dir, &toml_str) {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("Warning: trigger injection failed: {e}");
+            0
+        }
+    };
+
+    let runtime_running = client.list_agents().await.is_ok();
+    if !runtime_running {
+        eprintln!("Info: Runtime not running — agents will auto-start on next boot");
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": pkg_name,
+                "version": pkg_version,
+                "agent_count": agent_count,
+                "trigger_count": trigger_count,
+                "install_path": install_root.to_string_lossy(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "Package '{}' v{} installed: {} agents, {} triggers",
+            pkg_name, pkg_version, agent_count, trigger_count,
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os agent package list` — list installed packages.
+fn run_package_list(json: bool) -> i32 {
+    let data_dir = apollia_data_dir();
+    let pkg_repo = match open_package_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+    let pkgs = match pkg_repo.list() {
+        Ok(p) => p,
+        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
+    };
+    if json {
+        let items: Vec<_> = pkgs
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "name": p.name,
+                    "version": p.version,
+                    "installed_at": p.installed_at,
+                    "root_path": p.root_path.to_string_lossy(),
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({ "packages": items }))
+                .unwrap_or_default()
+        );
+    } else if pkgs.is_empty() {
+        println!("No agent packages installed.");
+    } else {
+        println!("{:<24} {:<12} {}", "NAME", "VERSION", "INSTALLED");
+        for p in &pkgs {
+            println!("{:<24} {:<12} {}", p.name, p.version, p.installed_at);
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os agent package info <name>` — show package details.
+fn run_package_info(name: &str, json: bool) -> i32 {
+    let data_dir = apollia_data_dir();
+    let pkg_repo = match open_package_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+    let pkg = match pkg_repo.get(name) {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return print_error_and_exit(&format!("Package '{name}' not found"), json);
+        }
+        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
+    };
+    let agents = pkg_repo.list_agents_for_package(name).unwrap_or_default();
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": pkg.name,
+                "version": pkg.version,
+                "installed_at": pkg.installed_at,
+                "root_path": pkg.root_path.to_string_lossy(),
+                "agents": agents,
+                "manifest": serde_json::from_str::<serde_json::Value>(&pkg.manifest_json).unwrap_or_default(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("Package: {} v{}", pkg.name, pkg.version);
+        println!("  Installed: {}", pkg.installed_at);
+        println!("  Path:      {}", pkg.root_path.display());
+        println!("  Agents ({}):", agents.len());
+        for a in &agents {
+            println!("    - {a}");
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os agent package uninstall <name>` — remove package, all its agents and triggers.
+async fn run_package_uninstall(name: &str, json: bool) -> i32 {
+    let data_dir = apollia_data_dir();
+    let pkg_repo = match open_package_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+
+    let pkg = match pkg_repo.get(name) {
+        Ok(Some(p)) => p,
+        Ok(None) => return print_error_and_exit(&format!("Package '{name}' not found"), json),
+        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
+    };
+    let agent_names = pkg_repo.list_agents_for_package(name).unwrap_or_default();
+
+    // Delete agents from AgentRepository.
+    let agent_repo = match open_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+    for agent_name in &agent_names {
+        let _ = agent_repo.delete(agent_name);
+    }
+
+    // Delete package from PackageRepository (cascades package_agents).
+    if let Err(e) = pkg_repo.delete(name) {
+        return print_error_and_exit(&format!("failed to delete package: {e}"), json);
+    }
+
+    // Remove install directory (best-effort).
+    let _ = std::fs::remove_dir_all(&pkg.root_path);
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": name,
+                "status": "uninstalled",
+                "agents_removed": agent_names.len(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "Package '{name}' uninstalled ({} agents removed)",
+            agent_names.len()
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+// ─── Trigger injection ───────────────────────────────────────────────────────
+
+/// Parse triggers from `agent.toml` content and upsert into `triggers.db`.
+///
+/// Returns the number of triggers successfully injected.
+fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, String> {
+    let trigger_defs = parse_triggers_from_toml_str(toml_str)
+        .map_err(|e| format!("trigger parse error: {e}"))?;
+
+    if trigger_defs.is_empty() {
+        return Ok(0);
+    }
+
+    let triggers_db = data_dir.join("triggers.db");
+    let repo = TriggerDefinitionRepository::open(&triggers_db)
+        .map_err(|e| format!("cannot open triggers.db: {e}"))?;
+
+    let mut count = 0;
+    for def in &trigger_defs {
+        let row = trigger_def_to_row(def);
+        // Upsert: delete if exists, then insert.
+        let _ = repo.delete(&def.id);
+        repo.insert(&row)
+            .map_err(|e| format!("failed to insert trigger '{}': {e}", def.id))?;
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// Convert a [`TriggerDefinition`] to a [`TriggerDefinitionRow`] for persistence.
+fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefinitionRow {
+    let (source_type, source_config) = match &def.source {
+        TriggerSourceConfig::Cron { schedule } => (
+            "cron".to_string(),
+            serde_json::json!({"schedule": schedule}),
+        ),
+        TriggerSourceConfig::Interval { every } => (
+            "interval".to_string(),
+            serde_json::json!({"every": every}),
+        ),
+        TriggerSourceConfig::Oneshot { fire_at } => (
+            "oneshot".to_string(),
+            serde_json::json!({"fire_at": fire_at.to_rfc3339()}),
+        ),
+        TriggerSourceConfig::FileWatch {
+            path,
+            events,
+            follow_symlinks,
+            exclude_patterns,
+        } => (
+            "file_watch".to_string(),
+            serde_json::json!({
+                "path": path.to_string_lossy(),
+                "events": events,
+                "follow_symlinks": follow_symlinks,
+                "exclude_patterns": exclude_patterns,
+            }),
+        ),
+        TriggerSourceConfig::Webhook { secret } => (
+            "webhook".to_string(),
+            serde_json::json!({"secret": secret}),
+        ),
+    };
+
+    let on_busy = match &def.on_busy {
+        OnBusyPolicy::Skip => OnBusy::Drop,
+        OnBusyPolicy::Queue { .. } | OnBusyPolicy::Block => OnBusy::Queue,
+    };
+
+    TriggerDefinitionRow {
+        id: def.id.clone(),
+        agent: if def.agent.is_empty() {
+            None
+        } else {
+            Some(def.agent.clone())
+        },
+        pipeline: def.pipeline.clone(),
+        enabled: def.enabled,
+        on_busy,
+        source_type,
+        source_config,
+        input_template: if def.input_template.0.is_empty() {
+            None
+        } else {
+            Some(def.input_template.0.clone())
+        },
+        created_at: now_rfc3339(),
+        updated_at: now_rfc3339(),
+    }
+}
+
+/// Recursively copy a directory tree from `src` to `dst`.
+fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let target = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
 }
 
 /// `apollia-os agent uninstall <name>` — remove an installed agent.
@@ -865,6 +1296,18 @@ fn collect_files_recursive(base: &Path, current: &Path, out: &mut Vec<String>) {
 fn apollia_data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia")
+}
+
+/// Open the package repository at `<data_dir>/agents.db`, creating it if needed.
+fn open_package_repository_or_create(data_dir: &Path) -> Result<PackageRepository, String> {
+    if let Err(e) = std::fs::create_dir_all(data_dir) {
+        return Err(format!(
+            "cannot create data directory {}: {e}",
+            data_dir.display()
+        ));
+    }
+    let db_path = data_dir.join("agents.db");
+    PackageRepository::open(&db_path).map_err(|e| format!("cannot open agents.db: {e}"))
 }
 
 /// Open the agent repository at `<data_dir>/agents.db`, creating it if needed.

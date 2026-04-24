@@ -13,15 +13,18 @@
   import { tourOpenAgentDetail } from "$lib/stores/tour";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { Bot, Download, Sparkles, Zap } from "lucide-svelte";
+  import { Bot, Download, Zap, Package } from "lucide-svelte";
   import AgentCard from "../components/agents/AgentCard.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
-  import CreateFromTemplateDialog from "../components/agents/CreateFromTemplateDialog.svelte";
+  import AgentPackageCard from "../components/agents/AgentPackageCard.svelte";
+  import AgentPackageDetail from "../components/agents/AgentPackageDetail.svelte";
+  import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import { EmptyState } from "$lib/components/layout";
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
-  import type { ChatSessionSummary, CreateSessionRequest } from "$lib/types";
+  import type { AgentPackageListItem, AgentPackageDetailView, ChatSessionSummary, CreateSessionRequest, InstallPackageResponse } from "$lib/types";
+  import { agentPackages, refreshPackages, uninstallPackage, getPackageDetail } from "$lib/stores/agentPackages";
 
   const SKELETON_COUNT = 4;
 
@@ -31,7 +34,13 @@
   let logsOpen = $state(false);
   let detailAgent = $state<AgentListItem | null>(null);
   let detailOpen = $state(false);
-  let showCreateDialog = $state(false);
+
+  // Package state
+  let installPackageOpen = $state(false);
+  let pkgDetail = $state<AgentPackageDetailView | null>(null);
+  let pkgDetailOpen = $state(false);
+
+  $effect(() => { refreshPackages(); });
 
   // Split workers from assistants using agent_type (canonical field).
   // supports_a2a is true for both populations — it is not a valid discriminant.
@@ -77,6 +86,19 @@
     }
   }
 
+  async function openPkgDetail(pkg: AgentPackageListItem) {
+    try { pkgDetail = await getPackageDetail(pkg.name); pkgDetailOpen = true; }
+    catch { pkgDetailOpen = false; }
+  }
+
+  async function handleUninstallPkg(pkg: AgentPackageListItem) {
+    await uninstallPackage(pkg.name);
+  }
+
+  async function handlePkgInstalled(_result: InstallPackageResponse) {
+    await refreshPackages();
+  }
+
   // Open the agent detail panel when the tour requests it programmatically.
   $effect(() => {
     return tourOpenAgentDetail.subscribe((agentName) => {
@@ -97,9 +119,9 @@
       <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">
-      <Button size="sm" variant="outline" onclick={() => showCreateDialog = true} data-testid="btn-new-agent" class="gap-1.5">
-        <Sparkles size={13} />
-        {$t('agents.new_agent')}
+      <Button size="sm" variant="outline" onclick={() => (installPackageOpen = true)} class="gap-1.5">
+        <Package size={13} />
+        Installer un package
       </Button>
       <Button size="sm" onclick={pickAndInstallAgent} disabled={installingAgent} data-testid="install-agent-button" class="gap-1.5">
         <Download size={13} />
@@ -204,6 +226,29 @@
       </div>
     {/if}
 
+    <!-- ── Packages ──────────────────────────────────────────────────────── -->
+    {#if $agentPackages.length > 0}
+      <div class="mt-6">
+        <div class="flex items-baseline justify-between mb-3">
+          <h2 class="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <Package size={13} class="text-primary/70" />Packages
+          </h2>
+          <span class="text-xs text-muted-foreground/50">{$agentPackages.length}</span>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {#each $agentPackages as pkg (pkg.name)}
+            <div class="h-full" in:fly={{ y: 8, duration: 200 }}>
+              <AgentPackageCard
+                {pkg}
+                ondetail={openPkgDetail}
+                onuninstall={handleUninstallPkg}
+              />
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
     {#if allAssistants.length === 0 && allWorkers.length === 0}
       <div class="mt-6">
         <EmptyState
@@ -212,8 +257,6 @@
           description={$t(EMPTY_STATES.agents.descriptionKey)}
           primaryLabel={$t(EMPTY_STATES.agents.primaryCtaKey ?? '')}
           primaryAction={pickAndInstallAgent}
-          secondaryLabel={$t(EMPTY_STATES.agents.secondaryCtaKey ?? '')}
-          secondaryAction={() => (showCreateDialog = true)}
           page="agents"
         />
       </div>
@@ -228,8 +271,16 @@
   <AgentDetail agent={detailAgent} open={detailOpen} onclose={closeDetail} onlogs={openLogsFromDetail} />
 {/if}
 
-<CreateFromTemplateDialog
-  open={showCreateDialog}
-  onclose={() => showCreateDialog = false}
-  oncreated={() => showCreateDialog = false}
+<InstallPackageDialog
+  open={installPackageOpen}
+  onclose={() => (installPackageOpen = false)}
+  oninstalled={handlePkgInstalled}
 />
+
+<AgentPackageDetail
+  pkg={pkgDetail}
+  open={pkgDetailOpen}
+  onclose={() => (pkgDetailOpen = false)}
+  onuninstall={async (name) => { await uninstallPackage(name); }}
+/>
+

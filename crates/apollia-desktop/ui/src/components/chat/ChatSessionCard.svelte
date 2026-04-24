@@ -78,7 +78,7 @@
     if (session.last_message_preview) return session.last_message_preview;
     const count = session.message_count ?? 0;
     if (count > 0) return `${count} ${$t("chat.messages_suffix")}`;
-    return $t("chat.no_preview");
+    return null;
   });
 
   // Density configuration.
@@ -287,14 +287,13 @@
         <!-- Kebab menu (always rendered, B.21) -->
         <div data-action class="shrink-0">
           <Popover bind:open={menuOpen} side="bottom" align="end">
-            {#snippet trigger()}
+            {#snippet trigger(triggerProps: Record<string, unknown>)}
               <button
-                type="button"
-                class="rounded-md p-0.5 text-muted-foreground/50 hover:text-foreground hover:bg-muted/50 transition-colors
+                {...triggerProps}
+                class="rounded-md p-1.5 text-muted-foreground/50 hover:text-foreground hover:bg-muted/50 transition-colors
                   {menuOpen ? 'bg-muted/50 text-foreground' : ''}"
                 aria-label={$t("chat.session_actions")}
                 data-testid="chat-session-menu-{session.id}"
-                onclick={(e) => stopEvent(e)}
               >
                 <MoreVertical size={12} />
               </button>

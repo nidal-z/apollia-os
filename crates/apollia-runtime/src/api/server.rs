@@ -365,6 +365,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         stream_session,
     };
     use super::routes_llm::llm_routes;
+    use super::routes_model_hub::model_hub_routes;
     use super::routes_mcp::mcp_router;
     use super::routes_messages::list_agent_messages;
     use super::routes_notifications::{
@@ -482,6 +483,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
+        .merge(model_hub_routes::<B>())
         // Pipeline routes (CRUD + run management)
         .route(
             "/api/v1/pipelines",

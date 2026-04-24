@@ -1,11 +1,12 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Bot, MessageSquare } from "lucide-svelte";
+  import { Bot, HelpCircle, MessageSquare } from "lucide-svelte";
   import InboxUrgencyBadge from "./InboxUrgencyBadge.svelte";
   import RiskBadge from "../hitl/RiskBadge.svelte";
   import PermissionPreview from "./preview/PermissionPreview.svelte";
   import PermissionImpact from "./preview/PermissionImpact.svelte";
   import ApprovalButtons from "../permissions/shared/ApprovalButtons.svelte";
+  import AskUserCard from "../chat/AskUserCard.svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { emitAlwaysAcceptScope, type AlwaysAcceptScope } from "$lib/permissions/telemetry";
   import type { InboxItem } from "./types";
@@ -28,6 +29,11 @@
     onreject,
     onalwaysAccept,
   }: Props = $props();
+
+  /** True when this is a tool-gate approval for ask_user (not a real permission risk). */
+  function isAskUserGate(it: InboxItem): boolean {
+    return (it.kind === "tool" || it.kind === "always_accept") && it.toolName === "ask_user";
+  }
 
   function previewKindFor(it: InboxItem): PreviewKind {
     if (it.kind === "filesystem") return "filesystem";
@@ -80,6 +86,8 @@
         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
           {#if item.kind === "task"}
             <Bot size={16} />
+          {:else if item.kind === "ask_user" || isAskUserGate(item)}
+            <HelpCircle size={16} class="text-info" />
           {:else}
             <MessageSquare size={16} />
           {/if}
@@ -99,71 +107,115 @@
       </div>
     </header>
 
-    <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px]">
-      {#if item.toolName}
-        <section>
-          <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.tool")}</h3>
-          <code class="block rounded bg-muted px-2 py-1 text-[12px]">{item.toolName}</code>
-        </section>
-      {/if}
-
-      <PermissionImpact payload={impactFrom(item)} />
-
-      <section data-testid="inbox-preview-permission-preview">
-        <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.impact")}</h3>
-        <PermissionPreview
-          toolCallId={item.id}
-          kind={previewKindFor(item)}
-          toolName={item.toolName ?? "unknown"}
+    {#if item.kind === "ask_user"}
+      <!-- AskUserInboxItem: embed the card so the user can answer directly from the inbox -->
+      <div class="flex-1 overflow-y-auto px-5 py-4">
+        <AskUserCard
+          requestId={item.source.request_id}
+          questions={item.questions as any[]}
+          context={item.source.context}
+          startedAtMs={new Date(item.source.created_at).getTime()}
         />
-      </section>
+      </div>
 
-      {#if item.risk?.thinking}
-        <section>
-          <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.thinking")}</h3>
-          <p class="whitespace-pre-wrap text-muted-foreground">{item.risk.thinking}</p>
+    {:else if isAskUserGate(item)}
+      <!-- Tool-gate approval for ask_user: simplified view, no dry-run preview -->
+      <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px]">
+        <section class="rounded-lg border border-info/30 bg-info/5 px-4 py-3">
+          <div class="flex items-start gap-2">
+            <HelpCircle size={16} class="mt-0.5 shrink-0 text-info" />
+            <div>
+              <p class="text-[13px] font-medium text-foreground">{$t("inbox.ask_user_gate.title")}</p>
+              <p class="mt-1 text-[12px] text-muted-foreground">{$t("inbox.ask_user_gate.body")}</p>
+            </div>
+          </div>
         </section>
-      {/if}
 
-      {#if item.risk?.rationale}
-        <section>
-          <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.rationale")}</h3>
-          <p class="whitespace-pre-wrap">{item.risk.rationale}</p>
-        </section>
-      {/if}
-
-      <section>
-        <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.context")}</h3>
-        {#if item.kind === "task"}
-          <p class="whitespace-pre-wrap rounded glass-border glass-inset p-2">{item.source.prompt || $t("inbox.preview.no_context")}</p>
-          {#if item.source.context}
-            <details class="mt-2 text-[12px]">
-              <summary class="cursor-pointer text-muted-foreground">{$t("inbox.preview.show_raw_context")}</summary>
-              <pre class="mt-1 overflow-x-auto rounded bg-muted p-2 text-[11px]">{JSON.stringify(item.source.context, null, 2)}</pre>
-            </details>
-          {/if}
-        {:else}
-          <pre class="overflow-x-auto rounded bg-muted p-2 text-[11px]">{item.source.inputPreview}</pre>
+        {#if item.risk?.thinking}
+          <section>
+            <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.thinking")}</h3>
+            <p class="whitespace-pre-wrap text-muted-foreground">{item.risk.thinking}</p>
+          </section>
         {/if}
-      </section>
+      </div>
 
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-        onclick={() => navigateTo("settings-permission-rules")}
-        data-testid="inbox-preview-manage-rules"
-      >
-        {$t("permissions.rules.manage_link")} →
-      </button>
-    </div>
+      <footer class="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-card/95 px-5 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] backdrop-blur">
+        <ApprovalButtons
+          {submitting}
+          showAlways={false}
+          onaccept={() => onaccept(item)}
+          onrefuse={() => onreject(item)}
+          onalways={(scope) => handleAlways(item, scope)}
+        />
+      </footer>
 
-    <footer class="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-card/95 px-5 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] backdrop-blur">
-      <ApprovalButtons
-        {submitting}
-        onaccept={() => onaccept(item)}
-        onrefuse={() => onreject(item)}
-        onalways={(scope) => handleAlways(item, scope)}
-      />
-    </footer>
+    {:else}
+      <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px]">
+        {#if item.toolName}
+          <section>
+            <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.tool")}</h3>
+            <code class="block rounded bg-muted px-2 py-1 text-[12px]">{item.toolName}</code>
+          </section>
+        {/if}
+
+        <PermissionImpact payload={impactFrom(item)} />
+
+        <section data-testid="inbox-preview-permission-preview">
+          <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.impact")}</h3>
+          <PermissionPreview
+            toolCallId={item.id}
+            kind={previewKindFor(item)}
+            toolName={item.toolName ?? "unknown"}
+          />
+        </section>
+
+        {#if item.risk?.thinking}
+          <section>
+            <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.thinking")}</h3>
+            <p class="whitespace-pre-wrap text-muted-foreground">{item.risk.thinking}</p>
+          </section>
+        {/if}
+
+        {#if item.risk?.rationale}
+          <section>
+            <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.rationale")}</h3>
+            <p class="whitespace-pre-wrap">{item.risk.rationale}</p>
+          </section>
+        {/if}
+
+        <section>
+          <h3 class="mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">{$t("inbox.preview.context")}</h3>
+          {#if item.kind === "task"}
+            <p class="whitespace-pre-wrap rounded glass-border glass-inset p-2">{item.source.prompt || $t("inbox.preview.no_context")}</p>
+            {#if item.source.context}
+              <details class="mt-2 text-[12px]">
+                <summary class="cursor-pointer text-muted-foreground">{$t("inbox.preview.show_raw_context")}</summary>
+                <pre class="mt-1 overflow-x-auto rounded bg-muted p-2 text-[11px]">{JSON.stringify(item.source.context, null, 2)}</pre>
+              </details>
+            {/if}
+          {:else}
+            <pre class="overflow-x-auto rounded bg-muted p-2 text-[11px]">{item.source.inputPreview}</pre>
+          {/if}
+        </section>
+
+        <button
+          type="button"
+          class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+          onclick={() => navigateTo("settings-permission-rules")}
+          data-testid="inbox-preview-manage-rules"
+        >
+          {$t("permissions.rules.manage_link")} →
+        </button>
+      </div>
+
+      <footer class="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-card/95 px-5 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] backdrop-blur">
+        <ApprovalButtons
+          {submitting}
+          onaccept={() => onaccept(item)}
+          onrefuse={() => onreject(item)}
+          onalways={(scope) => handleAlways(item, scope)}
+        />
+      </footer>
+    {/if}
   </article>
 {/if}

@@ -136,15 +136,13 @@
       <p class="text-xs text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">
-      {#if $uiMode === "builder"}
-        <Button
-          size="sm"
-          onclick={() => (showCreateDialog = true)}
-          data-testid="create-trigger-btn"
-        >
-          {$t('triggers.new_trigger')}
-        </Button>
-      {/if}
+      <Button
+        size="sm"
+        onclick={() => (showCreateDialog = true)}
+        data-testid="create-trigger-btn"
+      >
+        {$t('triggers.new_trigger')}
+      </Button>
       <Button
         size="sm"
         variant="outline"
@@ -172,8 +170,8 @@
       icon={EMPTY_STATES.triggers.icon}
       title={$t(EMPTY_STATES.triggers.titleKey)}
       description={$t(EMPTY_STATES.triggers.descriptionKey)}
-      primaryLabel={$uiMode === "builder" ? $t(EMPTY_STATES.triggers.primaryCtaKey ?? '') : undefined}
-      primaryAction={$uiMode === "builder" ? () => (showCreateDialog = true) : undefined}
+      primaryLabel={$t(EMPTY_STATES.triggers.primaryCtaKey ?? '')}
+      primaryAction={() => (showCreateDialog = true)}
       secondaryLabel={$t(EMPTY_STATES.triggers.secondaryCtaKey ?? '')}
       secondaryAction={handleReload}
       page="triggers"

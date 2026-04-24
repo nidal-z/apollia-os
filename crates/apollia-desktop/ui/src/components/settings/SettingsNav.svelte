@@ -10,6 +10,7 @@
     Brain,
     Keyboard,
     AlertTriangle,
+    Download,
   } from "lucide-svelte";
   import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -45,6 +46,7 @@
       entries: [
         { key: "stt", labelKey: "settings.nav.stt", icon: Mic },
         { key: "llm", labelKey: "settings.nav.llm", icon: Cpu },
+        { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
       ],
     },
     {

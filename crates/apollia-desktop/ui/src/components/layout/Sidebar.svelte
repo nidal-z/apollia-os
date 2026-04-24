@@ -28,7 +28,6 @@
     Settings,
     PanelLeftClose,
     PanelLeftOpen,
-    Sparkles,
     Plus,
     X,
   } from "lucide-svelte";
@@ -38,6 +37,7 @@
   import SidebarBadge from "./SidebarBadge.svelte";
   import SidebarGroup from "./SidebarGroup.svelte";
   import ModeChip from "./ModeChip.svelte";
+  import CompanionToggle from "../companion/CompanionToggle.svelte";
 
   // ── Nav data — memoised per mode so an unrelated store change does not
   //    rebuild the groups array. ────────────────────────────────────────────
@@ -50,15 +50,6 @@
   function navigate(route: Route) {
     navigateTo(route);
     layoutActions.closeDrawer();
-  }
-
-  function openApolliaGuide() {
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.search = "?agent=apollia-guide&mode=guide";
-      window.history.replaceState({}, "", url.toString());
-    }
-    navigate("chat");
   }
 
   function startNewChat() {
@@ -348,22 +339,6 @@
       {/if}
     {/each}
 
-    <!-- Apollia Guide — pinned meta-chat entry (US-SP42-057). -->
-    <button
-      class="list-item-spring relative mt-2 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary/10 hover:text-foreground"
-      class:justify-center={collapsed}
-      class:px-2={collapsed}
-      data-nav-item="true"
-      data-testid="nav-apollia-guide"
-      onclick={openApolliaGuide}
-      title={collapsed ? $t("nav.apollia_guide_tooltip") : undefined}
-      aria-label={collapsed ? $t("nav.apollia_guide_tooltip") : undefined}
-    >
-      <Sparkles size={18} strokeWidth={1.75} class="shrink-0 text-secondary" />
-      {#if showLabels}
-        <span>{$t("nav.apollia_guide")}</span>
-      {/if}
-    </button>
   </nav>
 
   <!-- Fixed bottom actions -->
@@ -372,6 +347,7 @@
     class:p-3={showLabels}
     data-testid="sidebar-bottom-actions"
   >
+    <CompanionToggle {collapsed} />
     <SidebarLink
       icon={Settings}
       label={$t("nav.settings")}
@@ -454,7 +430,7 @@
   {/if}
 {:else}
   <aside
-    class="flex h-screen flex-col glass-panel border-r glass-border transition-[width] duration-200 ease-apple"
+    class="flex h-full flex-col glass-panel border-r glass-border transition-[width] duration-200 ease-apple"
     class:w-48={isExpanded}
     class:lg:w-60={isExpanded}
     class:w-14={isIcon}

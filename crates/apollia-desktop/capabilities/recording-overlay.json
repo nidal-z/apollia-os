@@ -1,0 +1,9 @@
+{
+  "identifier": "recording-overlay",
+  "description": "Capabilities for the STT recording overlay window",
+  "windows": ["recording-overlay"],
+  "permissions": [
+    "core:default",
+    "notification:default"
+  ]
+}

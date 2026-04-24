@@ -1,0 +1,61 @@
+# agent.toml — Apollia OS agent package descriptor
+#
+# Ce fichier déclare tous les agents du package, leurs dépendances outillage,
+# et leurs triggers. Il est chargé par le runtime au démarrage pour enregistrer
+# les agents et planifier les triggers — sans toucher à la config globale.
+#
+# Convention : un dossier agent = un agent.toml = un package autonome et distribuable.
+
+# ---------------------------------------------------------------------------
+# Package
+# ---------------------------------------------------------------------------
+
+[package]
+name    = "veille-ia"
+version = "1.0.0"
+description = "Veille quotidienne IA/LLM — technologique et concurrentielle."
+author  = "Apollia OS"
+
+# ---------------------------------------------------------------------------
+# Agents déclarés dans ce package
+# ---------------------------------------------------------------------------
+
+[[agents]]
+name  = "veille-ia-agent"
+entry = "veille-ia-agent.py"
+role  = "director"
+
+[[agents]]
+name  = "web-search-worker"
+entry = "workers/web-search-worker.py"
+role  = "worker"
+
+[[agents]]
+name  = "synthesis-worker"
+entry = "workers/synthesis-worker.py"
+role  = "worker"
+
+# ---------------------------------------------------------------------------
+# Outils requis par ce package
+# Le runtime active ces features lors du chargement du package.
+# ---------------------------------------------------------------------------
+
+[tools]
+web = { enabled = true, ssrf_guard = true }
+
+# ---------------------------------------------------------------------------
+# Triggers
+# Planification déclarée ici — injectée en DB par le runtime au chargement.
+# Modifier ici, recharger le package → DB mise à jour.
+# ---------------------------------------------------------------------------
+
+[[triggers]]
+id             = "daily-veille-ia"
+agent          = "veille-ia-agent"
+enabled        = true
+on_busy        = "skip"                           # skip | queue | block
+input_template = "Génère la veille IA/LLM du jour"
+
+[triggers.source]
+type     = "cron"
+schedule = "0 7 * * 1-5"   # Lundi–Vendredi à 7h00

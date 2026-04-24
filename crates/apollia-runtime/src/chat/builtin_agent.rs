@@ -120,6 +120,11 @@ impl NativeChatToolInvoker {
         }
     }
 
+    /// Returns the workspace path associated with this invoker, if any.
+    pub fn workspace_path(&self) -> Option<&std::path::Path> {
+        self.workspace_path.as_deref()
+    }
+
     /// Attach `ask_user` tool support to this invoker.
     ///
     /// When enabled, the agent can call the `ask_user` tool to pose structured
@@ -259,7 +264,7 @@ impl NativeChatToolInvoker {
             .run(BashInput {
                 command,
                 timeout_secs,
-                working_dir: None,
+                working_dir: self.workspace_path.clone(),
             })
             .await
             .map_err(|e| e.to_string())?;
@@ -522,7 +527,7 @@ impl NativeChatToolInvoker {
             .as_ref()
             .ok_or("ask_user: tool not available in this session (no pending registry)")?;
 
-        let executor = AskUserExecutor::new(pending);
+        let executor = AskUserExecutor::new_with_session(pending, self.session_id.clone());
 
         use apollia_tools::executor::ToolExecutor;
         let result = executor
@@ -676,6 +681,9 @@ pub struct BuiltInChatAgent {
     /// Absent par défaut pour compatibilité descendante ; injecté par le manager
     /// lorsque le master-toggle "Explain tool calls" est actif.
     meta_handle: Option<MetaOrchestratorHandle>,
+    /// Workspace directory injected into the system prompt so the LLM knows its
+    /// effective working directory (project workspace or ~/.apollia/ for free chat).
+    workspace_path: Option<std::path::PathBuf>,
 }
 
 impl BuiltInChatAgent {
@@ -697,7 +705,14 @@ impl BuiltInChatAgent {
             a2a_invoker,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
+            workspace_path: None,
         }
+    }
+
+    /// Set the workspace path for this agent (used in system prompt and bash CWD).
+    pub fn with_workspace_path(mut self, path: Option<std::path::PathBuf>) -> Self {
+        self.workspace_path = path;
+        self
     }
 
     /// Attache un `MetaOrchestratorHandle` pour générer les `ToolCallRationale`
@@ -724,7 +739,11 @@ impl BuiltInChatAgent {
             os = std::env::consts::OS,
             arch = std::env::consts::ARCH,
             home = home,
-            cwd = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_else(|_| "unknown".into()),
+            cwd = self.workspace_path
+                .as_deref()
+                .map(|p| p.display().to_string())
+                .or_else(|| std::env::current_dir().map(|p| p.display().to_string()).ok())
+                .unwrap_or_else(|| "unknown".into()),
         ));
 
         if let Some(ref repo_mutex) = self.user_memory {

@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id         TEXT PRIMARY KEY,
-    mode       TEXT NOT NULL CHECK (mode IN ('libre', 'agent')),
+    mode       TEXT NOT NULL CHECK (mode IN ('libre', 'agent', 'companion')),
     agent_name TEXT,
     system_prompt TEXT NOT NULL DEFAULT '',
     status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),

@@ -89,17 +89,15 @@
     }
   }
 
-  function handleToggle(): void {
-    open = !open;
+  $effect(() => {
     if (open) void refresh();
-  }
+  });
 </script>
 
 <Popover bind:open side="bottom" align="end" class="p-0 min-w-[18rem]">
-  {#snippet trigger()}
+  {#snippet trigger(triggerProps: Record<string, unknown>)}
     <button
-      type="button"
-      onclick={handleToggle}
+      {...triggerProps}
       class="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-[10px] font-medium text-secondary hover:bg-secondary/20 transition-colors"
       aria-label={$t("chat.a2a_workers")}
       data-testid="a2a-worker-badge"

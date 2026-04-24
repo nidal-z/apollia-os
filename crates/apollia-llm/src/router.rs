@@ -793,6 +793,57 @@ impl LlmRouter {
         }
     }
 
+    /// Construit le router depuis une liste de [`LlmBackendConfig`] déjà chargée.
+    ///
+    /// Variante de [`from_repository`](Self::from_repository) qui prend les configs
+    /// directement (utile quand le repository SQLite a déjà été lu dans un thread
+    /// bloquant, par ex. via `spawn_blocking`).
+    ///
+    /// Seuls les backends `enabled = true` sont instanciés.
+    /// Les backends qui échouent sont loggués et ignorés (dégradation non fatale).
+    ///
+    /// # Errors
+    ///
+    /// - [`LlmError::BackendUnavailable`] si `default_name` n'est pas instancié avec succès.
+    pub async fn from_backend_configs(
+        all: Vec<LlmBackendConfig>,
+        default_name: String,
+    ) -> Result<Self, LlmError> {
+        let cancellation_token = CancellationToken::new();
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+
+        for cfg in all.into_iter().filter(|c| c.enabled) {
+            let name = cfg.name.clone();
+            match instantiate_from_config(&cfg, cancellation_token.clone()).await {
+                Ok(backend) => {
+                    backends.insert(name, backend);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        backend = %name,
+                        error = %e,
+                        "LLM backend skipped during config load"
+                    );
+                }
+            }
+        }
+
+        if !backends.contains_key(&default_name) {
+            return Err(LlmError::BackendUnavailable {
+                backend: default_name,
+                reason: "default backend failed to instantiate".to_string(),
+            });
+        }
+
+        Ok(Self {
+            backends,
+            default: default_name,
+            routing: None,
+            cancellation_token,
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
+        })
+    }
+
     /// Construit le router depuis un [`LlmBackendRepository`] SQLite.
     ///
     /// Charge tous les backends `enabled = true`. Le backend `is_default = true`

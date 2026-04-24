@@ -4,7 +4,7 @@
   import { t } from "svelte-i18n";
   import { uiMode } from "$lib/stores/mode";
   import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
-  import { pendingChatApprovals, pendingChatApprovalCount } from "$lib/stores/chat";
+  import { pendingChatApprovals, pendingChatApprovalCount, pendingUserInputs, pendingUserInputCount } from "$lib/stores/chat";
   import {
     selectedIds,
     selectionCount,
@@ -24,7 +24,7 @@
   import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import type { InboxItem, InboxItemKind, InboxRisk } from "../components/inbox/types";
-  import type { PendingApproval, PendingChatApproval } from "$lib/types";
+  import type { PendingApproval, PendingChatApproval, PendingUserInputView } from "$lib/types";
 
   // ── State ──────────────────────────────────────────────────────────────────
 
@@ -93,12 +93,29 @@
     };
   }
 
+  function askUserToInbox(u: PendingUserInputView): InboxItem {
+    let questions: unknown[] = [];
+    try { questions = JSON.parse(u.questions_json); } catch { /* ignore */ }
+    const firstQ = (questions[0] as { question?: string } | undefined)?.question ?? "Question";
+    return {
+      id: `ask_user:${u.request_id}`,
+      kind: "ask_user" as const,
+      agentName: u.session_id ? u.session_id.slice(0, 8) : "agent",
+      sessionId: u.session_id || undefined,
+      summary: firstQ.slice(0, 140),
+      suspendedAt: u.created_at,
+      source: u,
+      questions,
+    };
+  }
+
   // ── Derived inbox stream ───────────────────────────────────────────────────
 
   const allItems = $derived.by<InboxItem[]>(() => {
     const task = $pendingApprovals.map(taskToInbox);
     const chat = $pendingChatApprovals.map(chatToInbox);
-    return [...task, ...chat].sort(
+    const askUser = $pendingUserInputs.map(askUserToInbox);
+    return [...task, ...chat, ...askUser].sort(
       (a, b) => new Date(a.suspendedAt).getTime() - new Date(b.suspendedAt).getTime(),
     );
   });
@@ -129,7 +146,7 @@
     return n;
   });
 
-  const totalPending = $derived($pendingCount + $pendingChatApprovalCount);
+  const totalPending = $derived($pendingCount + $pendingChatApprovalCount + $pendingUserInputCount);
 
   // Reconcile active id when items change.
   $effect(() => {
@@ -201,8 +218,17 @@
     loading = true;
     error = null;
     try {
-      const pending = await invoke<PendingApproval[]>("list_pending_approvals");
+      const [pending, userInputs] = await Promise.all([
+        invoke<PendingApproval[]>("list_pending_approvals"),
+        invoke<PendingUserInputView[]>("list_pending_user_inputs").catch(() => []),
+      ]);
       pendingApprovals.set(pending);
+      // Seed global store with backend state (idempotent — SSE events may have
+      // already populated some entries, but addPendingUserInput deduplicates).
+      for (const u of userInputs) {
+        const { addPendingUserInput: add } = await import("$lib/stores/chat");
+        add(u);
+      }
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
@@ -231,6 +257,19 @@
         approved,
         reason: reason ?? null,
       });
+    } else if (item.kind === "ask_user") {
+      if (!approved && reason) {
+        await invoke("respond_user_input_rejected", {
+          requestId: item.source.request_id,
+          reason,
+        });
+      } else {
+        // Skip all questions (no answers from inbox approve flow)
+        await invoke("respond_user_input", {
+          requestId: item.source.request_id,
+          answers: [],
+        });
+      }
     } else {
       await invoke("authorize_chat_tool", {
         sessionId: item.source.sessionId,
@@ -340,7 +379,7 @@
   }
 </script>
 
-<div class="mx-auto flex h-full w-full max-w-[1400px] flex-col gap-4" data-testid="inbox-page">
+<div class="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col gap-4 overflow-hidden" data-testid="inbox-page">
   <!-- Header -->
   <header class="flex items-center justify-between">
     <div>
@@ -385,11 +424,11 @@
   {:else}
     <!-- Desktop: 2-pane. Mobile: list only, preview in bottom sheet. -->
     <div
-      class="relative flex min-h-0 flex-1 flex-col gap-4 lg:flex-row"
+      class="relative flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row"
       data-testid="inbox-layout"
     >
       <aside
-        class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:w-[380px] lg:shrink-0"
+        class="flex h-full min-h-[300px] min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:min-h-0 lg:w-[380px] lg:shrink-0"
         aria-label={$t("inbox.list_aria")}
       >
         <InboxList
@@ -404,7 +443,7 @@
       </aside>
 
       <section
-        class="hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card lg:flex shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+        class="hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card/80 shadow-[0_8px_24px_rgba(0,0,0,0.08)] lg:flex"
         aria-label={$t("inbox.preview_aria")}
       >
         <InboxPreview
