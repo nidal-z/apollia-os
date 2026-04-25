@@ -25,8 +25,8 @@ use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{
-    build_native_dispatcher, AuditTrailHandle, NativeDispatcherConfig, TaskRepository,
-    ToolRegistryHandle,
+    build_native_dispatcher, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
+    TaskRepository, ToolRegistryHandle,
 };
 use futures::stream;
 use pyo3::prelude::*;
@@ -206,6 +206,14 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
+            let governance_base = memory_base_dir
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| memory_base_dir.clone());
+            let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
+                Default::default()
+            });
             let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
                 sandbox_root: sandbox_root_for_agent(),
                 agent_id: agent_id.clone(),
@@ -218,6 +226,8 @@ impl AgentRunner for BridgeRunner {
                 memory_base_dir: memory_base_dir.clone(),
                 http_allowlist: None,
                 pending_user_inputs,
+                disabled_tools: snapshot.disabled_tools,
+                brave_api_key: snapshot.brave_api_key,
             }));
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {

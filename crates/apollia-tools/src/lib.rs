@@ -33,6 +33,7 @@ pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
 pub mod task_repository;
+pub mod tool_registry;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
@@ -66,6 +67,10 @@ pub use sandbox_path::{SandboxPathError, SandboxRoot};
 pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,
+};
+pub use tool_registry::{
+    load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,
+    ToolGovernanceError, ToolRegistry as NativeToolRegistry, ToolStatus, NATIVE_TOOL_NAMES,
 };
 pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
 pub use tools::bash_validator::BashValidator;

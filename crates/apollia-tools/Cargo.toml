@@ -22,6 +22,8 @@ async-trait  = { workspace = true }
 futures      = { workspace = true }
 glob         = "0.3"
 regex        = "1"
+aes-gcm      = { workspace = true }
+rand         = { workspace = true }
 
 # Optional — feature-gated to keep the default build lean
 reqwest        = { workspace = true, optional = true }

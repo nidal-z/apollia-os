@@ -71,10 +71,12 @@ pub enum ToolConfigError {
 
 /// Build the default backend priority list (DuckDuckGo first, Brave optional).
 ///
-/// Centralised here so both [`WebSearch::with_default_backends`] and
+/// Centralised here so both [`WebSearch::with_default_backends_and_key`] and
 /// [`WebSearch::try_with_default_backends`] share one source of truth for the
-/// ordering decision.
-fn build_default_backends() -> Vec<Box<dyn SearchBackend>> {
+/// ordering decision. When `brave_api_key` is `Some`, that key takes
+/// precedence over `BRAVE_SEARCH_API_KEY`; when `None`, the environment
+/// variable is consulted as before.
+fn build_default_backends(brave_api_key: Option<&str>) -> Vec<Box<dyn SearchBackend>> {
     let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
 
     backends.push(Box::new(
@@ -82,8 +84,19 @@ fn build_default_backends() -> Vec<Box<dyn SearchBackend>> {
     ));
 
     #[cfg(feature = "brave-search")]
-    if let Ok(b) = crate::tools::web_search::brave::BraveBackend::from_env() {
-        backends.push(Box::new(b));
+    {
+        if let Some(key) = brave_api_key.map(str::trim).filter(|s| !s.is_empty()) {
+            backends.push(Box::new(
+                crate::tools::web_search::brave::BraveBackend::new(key),
+            ));
+        } else if let Ok(b) = crate::tools::web_search::brave::BraveBackend::from_env() {
+            backends.push(Box::new(b));
+        }
+    }
+
+    #[cfg(not(feature = "brave-search"))]
+    {
+        let _ = brave_api_key;
     }
 
     backends
@@ -200,10 +213,19 @@ impl WebSearch {
     /// always has DDG to fall back to, so the agent receives real results
     /// instead of being forced to simulate them.
     pub fn with_default_backends() -> Self {
-        let backends = build_default_backends();
+        Self::with_default_backends_and_key(None)
+    }
 
-        // SAFETY: `build_default_backends` always pushes DuckDuckGo, so the
-        // list is never empty — `WebSearch::new` cannot return `NoBackends`.
+    /// Same as [`Self::with_default_backends`] but accepts an explicit Brave
+    /// API key, typically resolved from the credential store
+    /// (`web_search/brave.api_key`). When `Some`, the key takes precedence
+    /// over `BRAVE_SEARCH_API_KEY` from the environment; when `None`, the
+    /// environment lookup is used as before.
+    pub fn with_default_backends_and_key(brave_api_key: Option<String>) -> Self {
+        let backends = build_default_backends(brave_api_key.as_deref());
+
+        // `build_default_backends` always pushes DuckDuckGo, so the list is
+        // never empty — `WebSearch::new` cannot return `NoBackends`.
         Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
     }
 

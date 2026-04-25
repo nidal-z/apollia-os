@@ -64,6 +64,14 @@ pub struct NativeDispatcherConfig {
     /// Pending user-input registry for `ask_user`. `None` omits the tool
     /// (task-mode agents rely on AIP `input_required` instead).
     pub pending_user_inputs: Option<PendingUserInputs>,
+    /// Tool names disabled at runtime via [`crate::tool_registry::ToolRegistry`]
+    /// or by static config — these are excluded from the dispatcher entirely
+    /// so any agent invocation surfaces `UnknownTool`.
+    pub disabled_tools: Vec<String>,
+    /// Brave Search API key resolved from the credential store, used to
+    /// initialise the Brave backend. When `None`, the runtime falls back to
+    /// the `BRAVE_SEARCH_API_KEY` environment variable.
+    pub brave_api_key: Option<String>,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -75,86 +83,120 @@ pub struct NativeDispatcherConfig {
 /// attempts to invoke them, which surfaces as a clear error to the caller.
 pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
     let mut executors: Vec<Box<dyn ToolExecutor>> = Vec::with_capacity(16);
+    let is_active = |name: &str| !cfg.disabled_tools.iter().any(|n| n == name);
 
-    executors.push(Box::new(BashExecutor::new()));
-
-    match PythonExecutor::new(&cfg.agent_id, &cfg.venv_base_dir) {
-        Ok(exec) => executors.push(Box::new(exec)),
-        Err(e) => tracing::warn!(error = %e, "python_executor unavailable — skipped"),
+    if is_active("bash_executor") {
+        executors.push(Box::new(BashExecutor::new()));
     }
 
-    push_sandbox_tool(
-        &mut executors,
-        "file_read",
-        FileRead::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "file_write",
-        FileWrite::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "file_list",
-        FileList::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "file_edit",
-        FileEdit::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "file_glob",
-        FileGlob::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "file_grep",
-        FileGrep::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "notebook_read",
-        NotebookRead::new(cfg.sandbox_root.clone()),
-    );
-    push_sandbox_tool(
-        &mut executors,
-        "notebook_edit",
-        NotebookEdit::new(cfg.sandbox_root.clone()),
-    );
+    if is_active("python_executor") {
+        match PythonExecutor::new(&cfg.agent_id, &cfg.venv_base_dir) {
+            Ok(exec) => executors.push(Box::new(exec)),
+            Err(e) => tracing::warn!(error = %e, "python_executor unavailable — skipped"),
+        }
+    }
+
+    if is_active("file_read") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_read",
+            FileRead::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_write") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_write",
+            FileWrite::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_list") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_list",
+            FileList::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_edit") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_edit",
+            FileEdit::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_glob") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_glob",
+            FileGlob::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("file_grep") {
+        push_sandbox_tool(
+            &mut executors,
+            "file_grep",
+            FileGrep::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("notebook_read") {
+        push_sandbox_tool(
+            &mut executors,
+            "notebook_read",
+            NotebookRead::new(cfg.sandbox_root.clone()),
+        );
+    }
+    if is_active("notebook_edit") {
+        push_sandbox_tool(
+            &mut executors,
+            "notebook_edit",
+            NotebookEdit::new(cfg.sandbox_root.clone()),
+        );
+    }
 
     #[cfg(feature = "http")]
     {
-        executors.push(Box::new(HttpFetch::new(cfg.http_allowlist.clone())));
+        if is_active("http_fetch") {
+            executors.push(Box::new(HttpFetch::new(cfg.http_allowlist.clone())));
+        }
     }
 
-    // Web tools are always registered in the dispatcher. Per-session opt-in is
-    // handled by the session tool filter (`allowed_tools`), which is the single
-    // source of truth for "can this chat call web_search / web_read?". Compile
-    // out the whole block with `--no-default-features` if network egress must
-    // be impossible at the binary level.
+    // Web tools are always registered in the dispatcher unless explicitly
+    // disabled via the runtime registry. Per-session opt-in is handled by the
+    // session tool filter (`allowed_tools`), which is the single source of
+    // truth for "can this chat call web_search / web_read?". Compile out the
+    // whole block with `--no-default-features` if network egress must be
+    // impossible at the binary level.
     #[cfg(feature = "web-search")]
     {
-        executors.push(Box::new(WebSearch::with_default_backends()));
+        if is_active("web_search") {
+            executors.push(Box::new(WebSearch::with_default_backends_and_key(
+                cfg.brave_api_key.clone(),
+            )));
+        }
     }
 
     #[cfg(feature = "web-read")]
     {
-        executors.push(Box::new(WebRead::new()));
+        if is_active("web_read") {
+            executors.push(Box::new(WebRead::new()));
+        }
     }
 
     #[cfg(feature = "memory-search")]
-    if let Some(ns) = cfg.memory_namespace.as_ref() {
-        executors.push(Box::new(MemorySearchTool::new(
-            ns.clone(),
-            cfg.memory_shared_namespaces.clone(),
-            cfg.memory_base_dir.clone(),
-        )));
+    if is_active("memory_search") {
+        if let Some(ns) = cfg.memory_namespace.as_ref() {
+            executors.push(Box::new(MemorySearchTool::new(
+                ns.clone(),
+                cfg.memory_shared_namespaces.clone(),
+                cfg.memory_base_dir.clone(),
+            )));
+        }
     }
 
-    if let Some(pending) = cfg.pending_user_inputs.as_ref() {
-        executors.push(Box::new(AskUserExecutor::new(pending)));
+    if is_active("ask_user") {
+        if let Some(pending) = cfg.pending_user_inputs.as_ref() {
+            executors.push(Box::new(AskUserExecutor::new(pending)));
+        }
     }
 
     ToolDispatcher::new(executors)
