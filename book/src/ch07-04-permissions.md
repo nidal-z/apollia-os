@@ -67,7 +67,13 @@ safe_commands = [
 
 C'est l'application stricte du **principe de moindre privilège** (OWASP ASVS V1.4, CWE-272). Si vous distribuez un agent à un opérateur, vous ne pouvez pas pré-supposer ce qu'il considère comme sûr — vous le laissez décider.
 
-Pour des règles plus dynamiques, vous laissez l'opérateur cliquer **"Toujours autoriser ce type d'opération"** dans l'UI desktop. Cela crée une `PrefixRule` en SQLite, mutable, supprimable, auditée.
+Pour des règles plus dynamiques, vous laissez l'opérateur cliquer **"Toujours autoriser ce type d'opération"** dans l'UI desktop. L'opérateur choisit la portée de la règle créée :
+
+- **Session** — règle en mémoire uniquement, disparaît à l'arrêt de l'application.
+- **Project** — règle persistée en SQLite, active uniquement pour le projet courant (chemin canonique).
+- **Global** — règle persistée, active pour tous les projets.
+
+Les règles project et global sont mutables, supprimables, et intégralement auditées.
 
 ## Ce que vous voyez dans les logs de votre agent
 

@@ -61,6 +61,7 @@ crates/apollia-desktop/
 │       ├── memory.rs          ← list_memory_namespaces, list_memory_entries, search_memory, delete_memory_entry
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
 │       ├── tools.rs           ← list_tools, describe_tool
+│       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
@@ -142,7 +143,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-114 commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérité : `invoke_handler` dans `src/main.rs`) :
+126 commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérité : `invoke_handler` dans `src/main.rs`) :
 
 ### Agents (6)
 
@@ -236,6 +237,27 @@ pub enum EmbeddedError {
 | `get_global_timeline` | `window_minutes: Option<u32>` | `Vec<GlobalTimelineEvent>` |
 | `get_tool_audit_trail` | `limit: Option<usize>` | `Vec<AuditTrailEntry>` |
 | `get_llm_daily_costs` | `days: Option<u32>` | `Vec<LlmDailyCostEntry>` |
+
+### Tool Governance (12)
+
+Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` via `governance.db`. Les règles de portée `session` vivent uniquement en mémoire — elles disparaissent à l'arrêt du processus.
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `governance_list_tools` | — | `Vec<ToolStatusDto>` |
+| `governance_set_tool_enabled` | `tool_name: String, enabled: bool` | `` |
+| `governance_get_tool_config` | `tool_name: String` | `Option<Value>` |
+| `governance_set_tool_config` | `tool_name: String, config: Value` | `` |
+| `governance_list_credentials` | `tool_name: Option<String>` | `Vec<CredentialEntryDto>` |
+| `governance_set_credential` | `tool_name: String, key_name: String, value: String` | `` |
+| `governance_delete_credential` | `tool_name: String, key_name: String` | `` |
+| `governance_test_credential` | `tool_name: String, key_name: String` | `CredentialTestResultDto` |
+| `governance_list_permission_rules` | `filter: PermissionRuleFilter` | `Vec<PermissionRuleDto>` |
+| `governance_revoke_permission_rule` | `id: i64` | `` |
+| `governance_revoke_all_rules` | `scope: String, project_path: Option<String>` | `u32` |
+| `governance_list_audit` | `tool_name: Option<String>, limit: Option<u32>, offset: Option<u32>` | `Vec<AuditEntryDto>` |
+
+DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialEntryDto`, `CredentialTestResultDto`, `PermissionRuleFilter`, `PermissionRuleDto`, `AuditEntryDto`.
 
 ### Configuration (2)
 
@@ -607,11 +629,13 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 **Bouton "Toujours autoriser"** — crée une `PrefixRule` via `add_permission_prefix_rule` Tauri IPC (intégration avec `apollia-permissions`).
 
 ```typescript
-async function alwaysAllow() {
+async function alwaysAllow(scope: 'session' | 'project' | 'global', projectPath?: string) {
   await invoke('add_permission_prefix_rule', {
     toolName: permission.tool_name,
     argPrefix: extractArgPrefix(permission),
     action: 'allow',
+    scope,
+    projectPath: scope === 'project' ? projectPath : undefined,
   });
   await approve();
 }

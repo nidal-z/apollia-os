@@ -119,6 +119,11 @@ impl PrefixRuleEngine {
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> { ... }
     /// Filtre par scope et chemin projet (Session retourne toujours vide — règles mémoire-uniquement).
     pub fn list_rules_filtered(&self, scope: Option<PermissionScope>, project_path: Option<&Path>) -> Result<Vec<PrefixRule>, PermissionError> { ... }
+    /// Supprime toutes les règles persistées correspondant à *scope*.
+    /// Pour `Project`, `project_path = None` supprime toutes les règles projet.
+    /// Erreur si `scope == Session` (règles session non persistées).
+    /// Retourne le nombre de lignes supprimées.
+    pub fn remove_rules_by_scope(&mut self, scope: PermissionScope, project_path: Option<&Path>) -> Result<u32, PermissionError> { ... }
 }
 ```
 
