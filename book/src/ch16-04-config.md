@@ -57,6 +57,7 @@ Les triggers, pipelines et canaux de notification ne sont **pas** dans `apollia.
 | Sessions chat | `~/.apollia/chat.db` | API REST |
 | Tâches | `~/.apollia/tasks.db` | Interne |
 | Mémoire | `~/.apollia/memory/*.db` | Interne + CLI |
+| Permissions & outils | `~/.apollia/governance.db` | Desktop + CLI |
 
 La raison de cette séparation (ADR-033) : `apollia.toml` est lu au démarrage et ne change pas. Les triggers et pipelines doivent être modifiables à chaud via l'UI sans redémarrer le runtime. SQLite avec hot reload est la seule solution compatible.
 

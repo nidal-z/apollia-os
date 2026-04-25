@@ -98,6 +98,9 @@ pub struct PrefixRule {
     pub action: RuleAction,        // Allow | Deny
     pub created_at: i64,
     pub created_by_agent: Option<String>,
+    pub scope: String,             // "global" | "project" | "session"
+    pub project_path: Option<String>,
+    pub expires_at: Option<i64>,   // Unix timestamp, None = pas d'expiration
 }
 
 pub struct PrefixRuleEngine {
@@ -163,6 +166,9 @@ pub struct PermissionAuditEntry {
     pub first_arg: Option<String>,
     pub decision: String,
     pub decided_at: i64,
+    pub scope: Option<String>,     // scope de la règle qui a décidé
+    pub rule_id: Option<i64>,      // id de la PrefixRule déclenchée (si couche 2)
+    pub agent: Option<String>,     // agent_id de l'appelant
 }
 
 impl PermissionAuditLog {
@@ -171,30 +177,41 @@ impl PermissionAuditLog {
 }
 ```
 
+La table `permission_audit` est **append-only** : des triggers SQLite (`no_update_audit`, `no_delete_audit`) bloquent toute tentative de modification ou suppression d'entrées existantes.
+
 ---
 
 ## 5. Schéma SQLite
 
+Ces tables résident dans `~/.apollia/governance.db` (base consolidée gérée par `GovernanceDb` dans `apollia-tools`). Au premier démarrage, une éventuelle ancienne `permissions.db` est migrée automatiquement et renommée `permissions.db.bak`.
+
 ```sql
--- Règles préfixe (couche 2)
+-- Règles préfixe (couche 2) — scope-aware
 CREATE TABLE IF NOT EXISTS permission_rules (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    tool_name   TEXT NOT NULL,
-    arg_prefix  TEXT,
-    action      TEXT NOT NULL,  -- 'allow' | 'deny'
-    created_at  INTEGER NOT NULL,
-    created_by  TEXT
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tool_name    TEXT NOT NULL,
+    arg_prefix   TEXT,
+    action       TEXT NOT NULL,                     -- 'allow' | 'deny'
+    created_at   INTEGER NOT NULL,
+    created_by   TEXT,
+    scope        TEXT NOT NULL DEFAULT 'global',    -- 'global' | 'project' | 'session'
+    project_path TEXT,                              -- chemin projet si scope='project'
+    expires_at   INTEGER                            -- Unix ts, NULL = permanent
 );
 CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);
 
--- Audit log (immuable)
+-- Audit log (immuable — triggers no_update_audit / no_delete_audit)
 CREATE TABLE IF NOT EXISTS permission_audit (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     tool_name   TEXT NOT NULL,
     first_arg   TEXT,
     decision    TEXT NOT NULL,
-    decided_at  INTEGER NOT NULL
+    decided_at  INTEGER NOT NULL,
+    scope       TEXT,       -- scope de la règle déclenchée
+    rule_id     INTEGER,    -- id de la PrefixRule (couche 2), NULL sinon
+    agent       TEXT        -- agent_id de l'appelant
 );
+CREATE INDEX IF NOT EXISTS idx_audit_tool ON permission_audit(tool_name, decided_at);
 ```
 
 ---
@@ -212,8 +229,9 @@ prefix_rule_ttl_hours = 168  # 7 jours
 # Détection d'injection structurelle (désactiver uniquement en dev)
 injection_detection = true
 
-# Chemin du fichier SQLite des règles et de l'audit log
-db_path = "~/.apollia/permissions.db"
+# Chemin de la base SQLite consolidée (governance.db)
+# Migration automatique depuis permissions.db au premier démarrage.
+db_path = "~/.apollia/governance.db"
 ```
 
 ---
@@ -246,6 +264,7 @@ crates/apollia-permissions/src/
 ├── prefix_rule_engine.rs   ← Couche 2 : PrefixRuleEngine
 ├── injection_detector.rs   ← Couche 3 : StructuralInjectionDetector
 ├── audit_log.rs            ← PermissionAuditLog SQLite
+├── migrations.rs           ← add_column_if_missing / column_exists (helpers idempotents)
 └── error.rs                ← PermissionError
 ```
 
