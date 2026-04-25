@@ -36,5 +36,7 @@ pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
 pub use engine::{PermissionDecision, PermissionEngine};
 pub use error::PermissionError;
 pub use injection_detector::{InjectionDetector, StructuralInjectionDetector};
-pub use prefix_rule_engine::{PrefixRule, PrefixRuleEngine, RuleAction};
+pub use prefix_rule_engine::{
+    PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
+};
 pub use safe_list::SafeList;

@@ -26,7 +26,7 @@ use serde_json::Value;
 use crate::audit_log::PermissionAuditLog;
 use crate::error::PermissionError;
 use crate::injection_detector::InjectionDetector;
-use crate::prefix_rule_engine::PrefixRuleEngine;
+use crate::prefix_rule_engine::{PermissionScope, PrefixRule, PrefixRuleEngine, ScopeContext};
 use crate::safe_list::SafeList;
 
 // ─────────────────────────────────────────────
@@ -75,6 +75,8 @@ pub struct PermissionEngine {
     injection_detector: InjectionDetector,
     audit_log: PermissionAuditLog,
     injection_detection_enabled: bool,
+    session_rules: Vec<PrefixRule>,
+    scope_context: Option<ScopeContext>,
 }
 
 impl PermissionEngine {
@@ -92,7 +94,43 @@ impl PermissionEngine {
             injection_detector: InjectionDetector::new(),
             audit_log: PermissionAuditLog::new(db_path)?,
             injection_detection_enabled: config.injection_detection,
+            session_rules: Vec::new(),
+            scope_context: None,
         })
+    }
+
+    /// Ajoute une règle de session (mémoire uniquement, jamais persistée).
+    ///
+    /// Utilisé par le bouton "Toujours autoriser pour cette session" du dialog HITL.
+    /// La règle disparaît à l'arrêt du process.
+    ///
+    /// La règle est forcée à `scope = Session` quel que soit le scope du `PrefixRule` reçu,
+    /// pour éviter qu'une règle session entre par mégarde dans le chemin DB.
+    pub fn add_session_rule(&mut self, mut rule: PrefixRule) {
+        rule.scope = PermissionScope::Session;
+        rule.project_path = None;
+        self.session_rules.push(rule);
+    }
+
+    /// Vide la liste des règles de session (à appeler en fin de process si besoin).
+    pub fn clear_session_rules(&mut self) {
+        self.session_rules.clear();
+    }
+
+    /// Définit le contexte de scope courant utilisé par `decide()` lorsqu'une règle
+    /// `Project` doit être filtrée par chemin.
+    pub fn set_scope_context(&mut self, ctx: ScopeContext) {
+        self.scope_context = Some(ctx);
+    }
+
+    /// Retourne une vue immuable du contexte de scope courant.
+    pub fn scope_context(&self) -> Option<&ScopeContext> {
+        self.scope_context.as_ref()
+    }
+
+    /// Retourne une vue immuable des règles de session en mémoire.
+    pub fn session_rules(&self) -> &[PrefixRule] {
+        &self.session_rules
     }
 
     /// Évalue les 3 couches de permission pour une invocation d'outil.
@@ -144,10 +182,18 @@ impl PermissionEngine {
         }
 
         // ── Couche 2 : PrefixRuleEngine ──────────────────────────────────────
-        if let Some((rule_id, action)) = self
-            .prefix_rules
-            .check_with_id(tool_name, first_arg.as_deref())?
-        {
+        let prefix_hit = match &self.scope_context {
+            Some(ctx) => self.prefix_rules.check_with_scope(
+                tool_name,
+                first_arg.as_deref(),
+                ctx,
+                &self.session_rules,
+            )?,
+            None => self
+                .prefix_rules
+                .check_with_id(tool_name, first_arg.as_deref())?,
+        };
+        if let Some((rule_id, action)) = prefix_hit {
             use crate::prefix_rule_engine::RuleAction;
             let decision = match action {
                 RuleAction::Allow => PermissionDecision::AutoAllowedPrefixRule { rule_id },
@@ -367,12 +413,10 @@ mod tests {
         let (mut engine, _tmp) = engine_with_config(empty_config());
         use crate::prefix_rule_engine::{PrefixRule, RuleAction};
         let rule = PrefixRule {
-            id: 0,
             tool_name: "bash_executor".into(),
             arg_prefix: Some("git".into()),
             action: RuleAction::Allow,
-            created_at: 0,
-            created_by_agent: None,
+            ..PrefixRule::default()
         };
         engine.prefix_rules_mut().add_rule(&rule).expect("add rule");
         let manifest = dummy_manifest();

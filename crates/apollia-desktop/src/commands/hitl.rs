@@ -321,12 +321,11 @@ pub async fn add_permission_prefix_rule(
         .map_err(|e| format!("failed to open permissions database: {e}"))?;
 
     let rule = PrefixRule {
-        id: 0,
         tool_name,
         arg_prefix,
         action: rule_action,
         created_at,
-        created_by_agent: None,
+        ..PrefixRule::default()
     };
 
     engine
