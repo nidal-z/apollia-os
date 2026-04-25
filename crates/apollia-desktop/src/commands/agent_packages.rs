@@ -10,9 +10,11 @@ use std::sync::{Arc, Mutex};
 use apollia_aip::package_loader::{load_package, validate_manifest};
 use apollia_core::events::RuntimeEvent;
 use apollia_runtime::embedded::RuntimeHandle;
-use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
-use apollia_triggers::{definition_repository::TriggerDefinitionRepository, OnBusy, TriggerDefinitionRow};
 use apollia_runtime::eventbus::EventBusSender;
+use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
+use apollia_triggers::{
+    definition_repository::TriggerDefinitionRepository, OnBusy, TriggerDefinitionRow,
+};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -137,7 +139,9 @@ struct RawPreviewSource {
     secret: Option<String>,
 }
 
-fn bool_true() -> bool { true }
+fn bool_true() -> bool {
+    true
+}
 
 fn parse_trigger_previews(toml_str: &str) -> Vec<TriggerPreview> {
     let Ok(raw) = toml::from_str::<RawPreviewRoot>(toml_str) else {
@@ -146,8 +150,8 @@ fn parse_trigger_previews(toml_str: &str) -> Vec<TriggerPreview> {
     raw.triggers
         .into_iter()
         .map(|t| {
-            let needs_config = t.source.kind == "webhook"
-                && t.source.secret.as_deref().unwrap_or("").is_empty();
+            let needs_config =
+                t.source.kind == "webhook" && t.source.secret.as_deref().unwrap_or("").is_empty();
             TriggerPreview {
                 id: t.id,
                 source_type: if t.source.kind.is_empty() {
@@ -176,8 +180,8 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
     let root = PathBuf::from(&path);
     let toml_path = root.join("agent.toml");
 
-    let toml_str = std::fs::read_to_string(&toml_path)
-        .map_err(|e| format!("cannot read agent.toml: {e}"))?;
+    let toml_str =
+        std::fs::read_to_string(&toml_path).map_err(|e| format!("cannot read agent.toml: {e}"))?;
 
     let manifest: apollia_aip::package_loader::PackageManifest =
         toml::from_str(&toml_str).map_err(|e| format!("invalid TOML: {e}"))?;
@@ -254,8 +258,7 @@ pub async fn install_agent_package(
     let install_root = data_dir.join("agents").join("packages").join(&pkg_name);
 
     // Copy directory.
-    copy_dir_all(&root, &install_root)
-        .map_err(|e| format!("failed to copy package: {e}"))?;
+    copy_dir_all(&root, &install_root).map_err(|e| format!("failed to copy package: {e}"))?;
 
     let now = chrono::Utc::now().to_rfc3339();
     let mut agent_count = 0;
@@ -263,9 +266,8 @@ pub async fn install_agent_package(
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
         for entry in &pkg.agents {
-            let installed_entry = install_root.join(
-                entry.entry.strip_prefix(&root).unwrap_or(&entry.entry),
-            );
+            let installed_entry =
+                install_root.join(entry.entry.strip_prefix(&root).unwrap_or(&entry.entry));
             let agent = InstalledAgent {
                 name: entry.name.clone(),
                 version: pkg_version.clone(),
@@ -310,7 +312,9 @@ pub async fn install_agent_package(
     }
 
     {
-        let pkg_repo = pkg_repo_state.lock().map_err(|_| "pkg repo lock poisoned")?;
+        let pkg_repo = pkg_repo_state
+            .lock()
+            .map_err(|_| "pkg repo lock poisoned")?;
         let installed_pkg = InstalledPackage {
             name: pkg_name.clone(),
             version: pkg_version.clone(),
@@ -361,7 +365,9 @@ pub async fn list_agent_packages(
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
 ) -> Result<Vec<AgentPackageListItem>, String> {
     let pkg_repo = pkg_repo_state.lock().map_err(|_| "repo lock poisoned")?;
-    let packages = pkg_repo.list().map_err(|e| format!("database error: {e}"))?;
+    let packages = pkg_repo
+        .list()
+        .map_err(|e| format!("database error: {e}"))?;
 
     let mut items = Vec::with_capacity(packages.len());
     for pkg in &packages {
@@ -429,8 +435,7 @@ pub async fn get_agent_package_detail(
         .map_err(|e| format!("database error: {e}"))?
         .ok_or_else(|| format!("Package '{name}' not found"))?;
 
-    let manifest: serde_json::Value =
-        serde_json::from_str(&pkg.manifest_json).unwrap_or_default();
+    let manifest: serde_json::Value = serde_json::from_str(&pkg.manifest_json).unwrap_or_default();
 
     let agents = manifest
         .get("agents")
@@ -518,7 +523,9 @@ pub async fn uninstall_agent_package(
 
     // Remove package record (cascades to package_agents).
     {
-        let pkg_repo = pkg_repo_state.lock().map_err(|_| "pkg repo lock poisoned")?;
+        let pkg_repo = pkg_repo_state
+            .lock()
+            .map_err(|_| "pkg repo lock poisoned")?;
         pkg_repo
             .delete(&name)
             .map_err(|e| format!("failed to delete package: {e}"))?;
@@ -626,7 +633,10 @@ fn inject_package_triggers(
     (count, errors)
 }
 
-fn build_trigger_row(t: &RawPreviewTrigger, webhook_secret_override: Option<String>) -> TriggerDefinitionRow {
+fn build_trigger_row(
+    t: &RawPreviewTrigger,
+    webhook_secret_override: Option<String>,
+) -> TriggerDefinitionRow {
     let (source_type, source_config) = match t.source.kind.as_str() {
         "interval" => (
             "interval".to_string(),
@@ -657,7 +667,11 @@ fn build_trigger_row(t: &RawPreviewTrigger, webhook_secret_override: Option<Stri
 
     TriggerDefinitionRow {
         id: t.id.clone(),
-        agent: if t.agent.is_empty() { None } else { Some(t.agent.clone()) },
+        agent: if t.agent.is_empty() {
+            None
+        } else {
+            Some(t.agent.clone())
+        },
         pipeline: None,
         enabled: t.enabled,
         on_busy: OnBusy::Queue,

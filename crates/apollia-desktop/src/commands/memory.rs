@@ -475,7 +475,9 @@ mod tests {
         // AND the JSON payload matches the frontend contract
         let json = serde_json::to_value(&entries).expect("serialize");
         assert_eq!(json[0]["content_preview"], "client dupont budget 15000");
-        let score = json[0]["relevance_score"].as_f64().expect("score is number");
+        let score = json[0]["relevance_score"]
+            .as_f64()
+            .expect("score is number");
         assert!((score - 0.92).abs() < 1e-4);
     }
 

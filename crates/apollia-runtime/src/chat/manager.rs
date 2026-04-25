@@ -376,7 +376,10 @@ struct ChatSessionManager {
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
     pending_user_replies: HashMap<
         String,
-        (PendingUserInputMeta, tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>),
+        (
+            PendingUserInputMeta,
+            tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
+        ),
     >,
     /// Per-session aggregated metrics (US-SP42-030).
     ///
@@ -631,16 +634,17 @@ impl ChatSessionManager {
                         context: context.clone(),
                         created_at,
                     };
-                    self.pending_user_replies.insert(request_id.clone(), (meta, reply_tx));
-                    let _ = self.event_bus.send(
-                        apollia_core::RuntimeEvent::ChatUserInputRequired {
-                            request_id,
-                            session_id,
-                            message_id: String::new(),
-                            questions_json,
-                            context,
-                        },
-                    );
+                    self.pending_user_replies
+                        .insert(request_id.clone(), (meta, reply_tx));
+                    let _ =
+                        self.event_bus
+                            .send(apollia_core::RuntimeEvent::ChatUserInputRequired {
+                                request_id,
+                                session_id,
+                                message_id: String::new(),
+                                questions_json,
+                                context,
+                            });
                 }
                 ChatCommand::ResolveUserInput {
                     request_id,
@@ -747,9 +751,10 @@ impl ChatSessionManager {
         // When no tools are explicitly specified, default to all tools in the registry.
         // Users can override by passing an explicit tools list when creating the session.
         let resolved_tools = if tools.is_empty() {
-            let all = self.tool_registry.list().await.map_err(|e| {
-                ChatError::InternalError(format!("tool registry list failed: {e}"))
-            })?;
+            let all =
+                self.tool_registry.list().await.map_err(|e| {
+                    ChatError::InternalError(format!("tool registry list failed: {e}"))
+                })?;
             all.into_iter().map(|d| d.name).collect()
         } else {
             tools
@@ -1276,15 +1281,16 @@ impl ChatSessionManager {
         };
         entry.budget_max_steps = self.runtime_budget.max_steps as u32;
         entry.steps_used = entry.steps_used.saturating_add(1);
-        entry.context_window_size =
-            super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
+        entry.context_window_size = super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
         entry.messages_in_history = session.history.len() as u32;
         entry.exchanges_count = entry.exchanges_count.saturating_add(1);
-        entry.record_tool_calls(&session
-            .history
-            .last()
-            .and_then(|m| m.tool_calls.clone())
-            .unwrap_or_default());
+        entry.record_tool_calls(
+            &session
+                .history
+                .last()
+                .and_then(|m| m.tool_calls.clone())
+                .unwrap_or_default(),
+        );
         if entry.llm_backend.is_none() {
             entry.llm_backend = session.llm_backend.clone();
         }
@@ -1788,10 +1794,12 @@ impl ChatSessionManager {
                 ))
             })?;
 
-        let _ = self.event_bus.send(apollia_core::RuntimeEvent::ChatUserInputResolved {
-            request_id: request_id.to_string(),
-            session_id: meta.session_id,
-        });
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::ChatUserInputResolved {
+                request_id: request_id.to_string(),
+                session_id: meta.session_id,
+            });
 
         let output = apollia_tools::tools::ask_user::AskUserOutput { answers };
         reply_tx.send(output).map_err(|_| {
@@ -1816,10 +1824,12 @@ impl ChatSessionManager {
                 ))
             })?;
 
-        let _ = self.event_bus.send(apollia_core::RuntimeEvent::ChatUserInputResolved {
-            request_id: request_id.to_string(),
-            session_id: meta.session_id,
-        });
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::ChatUserInputResolved {
+                request_id: request_id.to_string(),
+                session_id: meta.session_id,
+            });
 
         // Deliver all-skipped answers to unblock the agent loop.
         let output = apollia_tools::tools::ask_user::AskUserOutput { answers: vec![] };

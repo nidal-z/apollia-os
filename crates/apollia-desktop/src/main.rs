@@ -108,7 +108,10 @@ fn setup_bundled_python() {
         exe_dir.join("../../resources/python"),
     ];
 
-    let python_root = match candidates.iter().find(|p| p.join("bin/python3.13").exists()) {
+    let python_root = match candidates
+        .iter()
+        .find(|p| p.join("bin/python3.13").exists())
+    {
         Some(p) => match p.canonicalize() {
             Ok(abs) => abs,
             Err(e) => {

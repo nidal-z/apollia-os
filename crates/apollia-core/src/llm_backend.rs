@@ -515,7 +515,9 @@ impl LlmBackendRepository {
         let mut output = base;
 
         if !backends.is_empty() {
-            output.push_str("\n# ⚠️  Section gérée automatiquement par Apollia — éditer via Settings\n");
+            output.push_str(
+                "\n# ⚠️  Section gérée automatiquement par Apollia — éditer via Settings\n",
+            );
             for cfg in &backends {
                 output.push('\n');
                 output.push_str(&backend_to_toml_block(cfg));

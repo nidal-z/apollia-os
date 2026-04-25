@@ -340,10 +340,10 @@ impl AgentRegistryHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::{AgentManifest, AgentSkill, ProcessState};
-    use tokio::sync::broadcast;
     #[allow(unused_imports)]
     use apollia_core::AgentId;
+    use apollia_core::{AgentManifest, AgentSkill, ProcessState};
+    use tokio::sync::broadcast;
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
@@ -655,7 +655,10 @@ mod tests {
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
         let id1 = handle
-            .register(a2a_manifest("spec-assistant", &["create-spec", "refine-spec"]))
+            .register(a2a_manifest(
+                "spec-assistant",
+                &["create-spec", "refine-spec"],
+            ))
             .await
             .unwrap();
         handle
@@ -673,7 +676,10 @@ mod tests {
             .await
             .unwrap();
         let id2 = handle
-            .register(a2a_manifest("spec-assistant", &["create-spec", "refine-spec"]))
+            .register(a2a_manifest(
+                "spec-assistant",
+                &["create-spec", "refine-spec"],
+            ))
             .await
             .expect("re-registration should succeed");
 

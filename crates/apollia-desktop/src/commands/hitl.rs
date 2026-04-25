@@ -269,8 +269,10 @@ pub async fn list_resolved_approvals(
 /// Ajoute une règle de préfixe dans le `PrefixRuleEngine` SQLite.
 ///
 /// Appelé par le bouton "Toujours autoriser" des composants HITL desktop.
-/// Ouvre directement la base de données `~/.apollia/permissions.db` pour
-/// persister la règle sans passer par le runtime.
+/// Ouvre directement la base de données consolidée `~/.apollia/governance.db`
+/// pour persister la règle sans passer par le runtime. Si une ancienne
+/// `permissions.db` est présente, elle est migrée automatiquement vers
+/// `governance.db` au premier appel.
 ///
 /// # Errors
 ///
@@ -285,6 +287,7 @@ pub async fn add_permission_prefix_rule(
     action: String,
 ) -> Result<(), String> {
     use apollia_permissions::prefix_rule_engine::{PrefixRule, PrefixRuleEngine, RuleAction};
+    use apollia_tools::GovernanceDb;
 
     if tool_name.trim().is_empty() {
         return Err("tool_name must not be empty".to_string());
@@ -301,9 +304,13 @@ pub async fn add_permission_prefix_rule(
     };
 
     let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
-    let db_path = std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("permissions.db");
+    let base_dir = std::path::PathBuf::from(home).join(".apollia");
+
+    let db_path = {
+        let governance = GovernanceDb::open(&base_dir)
+            .map_err(|e| format!("failed to open governance database: {e}"))?;
+        governance.path().to_path_buf()
+    };
 
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

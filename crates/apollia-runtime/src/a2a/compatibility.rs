@@ -30,10 +30,7 @@ impl SemVer {
     /// Retourne `None` si le format n'est pas exploitable.
     pub fn parse(raw: &str) -> Option<Self> {
         let trimmed = raw.trim().trim_start_matches('v');
-        let core = trimmed
-            .split(['-', '+'])
-            .next()
-            .unwrap_or(trimmed);
+        let core = trimmed.split(['-', '+']).next().unwrap_or(trimmed);
         let mut parts = core.split('.');
         let major = parts.next()?.parse().ok()?;
         let minor = parts.next()?.parse().ok()?;
@@ -139,7 +136,9 @@ pub fn with_alternative(
         if name == &warning.agent_name {
             continue;
         }
-        let Some(v) = SemVer::parse(ver) else { continue };
+        let Some(v) = SemVer::parse(ver) else {
+            continue;
+        };
         if v.major == req.major && v.minor >= req.minor {
             warning.alternative_agent = Some(name.clone());
             break;

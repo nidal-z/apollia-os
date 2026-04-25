@@ -602,7 +602,7 @@ impl FsHitlDecision {
 ///   `tool_name` predicate.
 /// - `ThisSession` stays in-memory for the current `ChatManager` session.
 /// - `ThisProject` is persisted in `apollia.toml` (or equivalent).
-/// - `Global` is persisted in the user-wide `permissions.db`.
+/// - `Global` is persisted in the user-wide `governance.db`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AlwaysAcceptScope {
@@ -933,7 +933,8 @@ mod tests {
 
         // WHEN register puis resolve(AlwaysAccept)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
-        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());
+        let resolved =
+            approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());
 
         // THEN receiver gets AlwaysAccept
         assert!(resolved);

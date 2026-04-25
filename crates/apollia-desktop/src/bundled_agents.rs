@@ -16,8 +16,7 @@ use apollia_tools::agent_repository::InstalledAgent;
 use apollia_tools::AgentRepository;
 
 /// Source code of the onboarding agent, embedded at compile time.
-const ONBOARDING_AGENT_PY: &str =
-    include_str!("../../../agents/system/onboarding-agent/agent.py");
+const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/system/onboarding-agent/agent.py");
 
 /// Static metadata (ADR-074 `manifest.toml`), embedded at compile time.
 const ONBOARDING_AGENT_TOML: &str =
@@ -31,8 +30,7 @@ const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
 
 /// Manifest metadata for the Apollia Guide agent.
-const APOLLIA_GUIDE_TOML: &str =
-    include_str!("../../../agents/system/apollia-guide/manifest.toml");
+const APOLLIA_GUIDE_TOML: &str = include_str!("../../../agents/system/apollia-guide/manifest.toml");
 
 /// Knowledge base — capabilities sheet. Bundled so the agent works offline
 /// on the very first launch without any post-install download step.
@@ -377,8 +375,12 @@ mod tests {
         ensure_bundled_agents(&repo, tmp.path());
 
         let agent_py = tmp.path().join("agents/apollia-guide/agent.py");
-        let caps = tmp.path().join("agents/apollia-guide/knowledge/capabilities.md");
-        let tuts = tmp.path().join("agents/apollia-guide/knowledge/tutorials.md");
+        let caps = tmp
+            .path()
+            .join("agents/apollia-guide/knowledge/capabilities.md");
+        let tuts = tmp
+            .path()
+            .join("agents/apollia-guide/knowledge/tutorials.md");
         assert!(agent_py.exists());
         assert!(caps.exists(), "capabilities.md must be extracted");
         assert!(tuts.exists(), "tutorials.md must be extracted");

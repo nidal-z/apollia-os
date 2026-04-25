@@ -808,9 +808,15 @@ pub struct PermissionsConfig {
     #[serde(default = "default_prefix_rule_ttl_hours")]
     pub prefix_rule_ttl_hours: u64,
 
-    /// Chemin de la base SQLite pour les règles préfixe et l'audit log.
+    /// Chemin de la base SQLite consolidée (governance.db).
     ///
-    /// Défaut : `~/.apollia/permissions.db`.
+    /// Cette base unique contient les tables `permission_rules`, `permission_audit`,
+    /// `tools` et `tool_credentials`. Elle remplace l'ancienne `permissions.db` :
+    /// au premier démarrage avec une `permissions.db` existante, le runtime la
+    /// migre automatiquement vers `governance.db` et conserve une sauvegarde
+    /// `permissions.db.bak`.
+    ///
+    /// Défaut : `~/.apollia/governance.db`.
     #[serde(default = "default_permissions_db_path")]
     pub db_path: std::path::PathBuf,
 }
@@ -835,7 +841,7 @@ fn default_prefix_rule_ttl_hours() -> u64 {
 }
 
 fn default_permissions_db_path() -> std::path::PathBuf {
-    std::path::PathBuf::from("~/.apollia/permissions.db")
+    std::path::PathBuf::from("~/.apollia/governance.db")
 }
 
 // ─────────────────────────────────────────────

@@ -70,10 +70,7 @@ impl HeuristicReport {
 /// heuristic (null / empty / empty container) runs.
 ///
 /// Returns a [`HeuristicReport`] so callers can both decide and explain.
-pub fn detect_hallucination(
-    output: &str,
-    schema: Option<&dyn SchemaValidator>,
-) -> HeuristicReport {
+pub fn detect_hallucination(output: &str, schema: Option<&dyn SchemaValidator>) -> HeuristicReport {
     let trimmed = output.trim();
 
     if trimmed.is_empty() {
@@ -215,21 +212,33 @@ pub fn compute_session_hallucination_risk(
         factors.push(format!(
             "{} suspect tool output{}",
             inputs.heuristic_flag_count,
-            if inputs.heuristic_flag_count > 1 { "s" } else { "" }
+            if inputs.heuristic_flag_count > 1 {
+                "s"
+            } else {
+                ""
+            }
         ));
     }
     if inputs.assertion_citation_gaps > 0 {
         factors.push(format!(
             "{} unsupported assertion{}",
             inputs.assertion_citation_gaps,
-            if inputs.assertion_citation_gaps > 1 { "s" } else { "" }
+            if inputs.assertion_citation_gaps > 1 {
+                "s"
+            } else {
+                ""
+            }
         ));
     }
     if inputs.thinking_contradictions > 0 {
         factors.push(format!(
             "{} thinking contradiction{}",
             inputs.thinking_contradictions,
-            if inputs.thinking_contradictions > 1 { "s" } else { "" }
+            if inputs.thinking_contradictions > 1 {
+                "s"
+            } else {
+                ""
+            }
         ));
     }
 
@@ -256,7 +265,10 @@ mod tests {
     #[test]
     fn detects_empty_output() {
         assert_eq!(detect_hallucination("", None), HeuristicReport::Empty);
-        assert_eq!(detect_hallucination("   \n\t", None), HeuristicReport::Empty);
+        assert_eq!(
+            detect_hallucination("   \n\t", None),
+            HeuristicReport::Empty
+        );
     }
 
     /// GIVEN the tool output is malformed JSON paired with a schema validator

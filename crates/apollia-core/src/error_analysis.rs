@@ -86,7 +86,11 @@ pub struct ErrorAnalysis {
 
 impl ErrorAnalysis {
     /// Convenience constructor for the always-on (non-LLM) static path.
-    pub fn new(category: ErrorCategory, human_message: impl Into<String>, technical: impl Into<String>) -> Self {
+    pub fn new(
+        category: ErrorCategory,
+        human_message: impl Into<String>,
+        technical: impl Into<String>,
+    ) -> Self {
         Self {
             category,
             human_message: human_message.into(),

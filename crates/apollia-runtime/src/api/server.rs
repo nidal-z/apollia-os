@@ -365,9 +365,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         stream_session,
     };
     use super::routes_llm::llm_routes;
-    use super::routes_model_hub::model_hub_routes;
     use super::routes_mcp::mcp_router;
     use super::routes_messages::list_agent_messages;
+    use super::routes_model_hub::model_hub_routes;
     use super::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
         test_channels, update_channel,

@@ -155,15 +155,9 @@ impl SessionMetrics {
         if is_meta {
             self.tokens_meta = self.tokens_meta.saturating_add(total);
         } else {
-            self.tokens_in = self
-                .tokens_in
-                .saturating_add(u64::from(prompt_tokens));
-            self.tokens_out = self
-                .tokens_out
-                .saturating_add(u64::from(completion_tokens));
-            self.tokens_cached = self
-                .tokens_cached
-                .saturating_add(u64::from(cached_tokens));
+            self.tokens_in = self.tokens_in.saturating_add(u64::from(prompt_tokens));
+            self.tokens_out = self.tokens_out.saturating_add(u64::from(completion_tokens));
+            self.tokens_cached = self.tokens_cached.saturating_add(u64::from(cached_tokens));
         }
         // Estimation rapide : context_window_used ≈ tokens_in + tokens_out
         // non-meta. Le ContextManager peut corriger via `set_context_window_used`.

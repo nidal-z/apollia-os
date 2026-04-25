@@ -12,9 +12,7 @@ use tracing::info;
 
 use apollia_core::{A2AConfig, AIPResult, ProcessState, RuntimeEvent};
 
-use crate::a2a::telemetry::{
-    make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle,
-};
+use crate::a2a::telemetry::{make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle};
 use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn};
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
@@ -734,17 +732,15 @@ impl A2AInvoker {
             crate::a2a::CompatSeverity::Warning => "warning",
             crate::a2a::CompatSeverity::Incompatible => "incompatible",
         };
-        let _ = self
-            .event_bus
-            .send(RuntimeEvent::A2ACompatibilityWarning {
-                skill_id: enriched.skill_id.clone(),
-                agent_name: enriched.agent_name.clone(),
-                required_version: enriched.required_version.clone(),
-                advertised_version: enriched.advertised_version.clone(),
-                severity: severity_str.to_string(),
-                message: enriched.message.clone(),
-                alternative_agent: enriched.alternative_agent.clone(),
-            });
+        let _ = self.event_bus.send(RuntimeEvent::A2ACompatibilityWarning {
+            skill_id: enriched.skill_id.clone(),
+            agent_name: enriched.agent_name.clone(),
+            required_version: enriched.required_version.clone(),
+            advertised_version: enriched.advertised_version.clone(),
+            severity: severity_str.to_string(),
+            message: enriched.message.clone(),
+            alternative_agent: enriched.alternative_agent.clone(),
+        });
 
         Ok(Some(enriched))
     }

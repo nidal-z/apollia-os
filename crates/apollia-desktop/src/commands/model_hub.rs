@@ -104,9 +104,7 @@ pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
 ///
 /// Retourne une liste de [`HfModelCard`] avec badges de compatibilité hardware.
 #[tauri::command]
-pub async fn search_hf_models(
-    params: HfSearchParams,
-) -> Result<serde_json::Value, String> {
+pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Value, String> {
     use apollia_llm::{HfRegistryClient, HfSearchFilter};
 
     let hardware = tokio::task::spawn_blocking(detect_hardware).await.ok();
@@ -172,7 +170,7 @@ pub async fn start_model_download(
     manager: State<'_, SharedDownloadManager>,
     request: DownloadModelRequest,
 ) -> Result<String, String> {
-    use apollia_llm::{DownloadRequest};
+    use apollia_llm::DownloadRequest;
 
     let dest_dir = request
         .dest_dir

@@ -22,6 +22,7 @@ use rusqlite::{params, Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 
 use crate::error::PermissionError;
+use crate::migrations::add_column_if_missing;
 
 // ─────────────────────────────────────────────
 // Types publics
@@ -281,15 +282,28 @@ impl PrefixRuleEngine {
     fn migrate(&self) -> Result<(), PermissionError> {
         self.db.execute_batch(
             "CREATE TABLE IF NOT EXISTS permission_rules (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                tool_name   TEXT NOT NULL,
-                arg_prefix  TEXT,
-                action      TEXT NOT NULL,
-                created_at  INTEGER NOT NULL,
-                created_by  TEXT
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                tool_name    TEXT NOT NULL,
+                arg_prefix   TEXT,
+                action       TEXT NOT NULL,
+                created_at   INTEGER NOT NULL,
+                created_by   TEXT,
+                scope        TEXT NOT NULL DEFAULT 'global',
+                project_path TEXT,
+                expires_at   INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);",
         )?;
+
+        add_column_if_missing(
+            &self.db,
+            "permission_rules",
+            "scope",
+            "TEXT NOT NULL DEFAULT 'global'",
+        )?;
+        add_column_if_missing(&self.db, "permission_rules", "project_path", "TEXT")?;
+        add_column_if_missing(&self.db, "permission_rules", "expires_at", "INTEGER")?;
+
         Ok(())
     }
 }

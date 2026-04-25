@@ -99,7 +99,10 @@ pub struct AssertionRange {
 
 impl From<Range<usize>> for AssertionRange {
     fn from(r: Range<usize>) -> Self {
-        Self { start: r.start, end: r.end }
+        Self {
+            start: r.start,
+            end: r.end,
+        }
     }
 }
 

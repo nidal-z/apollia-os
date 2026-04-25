@@ -77,9 +77,7 @@ fn locate_templates_root() -> PathBuf {
 /// List all templates declared in the registry. Cheap — only metadata,
 /// no body loading.
 #[tauri::command]
-pub async fn templates_list(
-    _state: State<'_, RuntimeHandle>,
-) -> Result<Vec<TemplateMeta>, String> {
+pub async fn templates_list(_state: State<'_, RuntimeHandle>) -> Result<Vec<TemplateMeta>, String> {
     Ok(registry().list().to_vec())
 }
 

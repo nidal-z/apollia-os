@@ -98,10 +98,7 @@ impl SessionEventLog {
     /// Ajoute un événement. Re-trie si `ts` précède le dernier.
     pub fn push(&self, event: SessionEvent) {
         let mut guard = self.inner.lock().expect("SessionEventLog poisoned");
-        let needs_sort = guard
-            .last()
-            .map(|last| event.ts < last.ts)
-            .unwrap_or(false);
+        let needs_sort = guard.last().map(|last| event.ts < last.ts).unwrap_or(false);
         guard.push(event);
         if needs_sort {
             guard.sort_by(|a, b| a.ts.cmp(&b.ts));
@@ -110,18 +107,12 @@ impl SessionEventLog {
 
     /// Retourne une copie triée des événements.
     pub fn snapshot(&self) -> Vec<SessionEvent> {
-        self.inner
-            .lock()
-            .expect("SessionEventLog poisoned")
-            .clone()
+        self.inner.lock().expect("SessionEventLog poisoned").clone()
     }
 
     /// Nombre d'événements actuellement stockés.
     pub fn len(&self) -> usize {
-        self.inner
-            .lock()
-            .expect("SessionEventLog poisoned")
-            .len()
+        self.inner.lock().expect("SessionEventLog poisoned").len()
     }
 
     /// `true` si aucun événement n'est stocké.
@@ -158,8 +149,16 @@ mod tests {
     #[test]
     fn pushes_events_in_order() {
         let log = SessionEventLog::new();
-        log.push(event("2026-04-20T10:00:00Z", SessionEventKind::Tool, "bash"));
-        log.push(event("2026-04-20T10:00:01Z", SessionEventKind::Memory, "read"));
+        log.push(event(
+            "2026-04-20T10:00:00Z",
+            SessionEventKind::Tool,
+            "bash",
+        ));
+        log.push(event(
+            "2026-04-20T10:00:01Z",
+            SessionEventKind::Memory,
+            "read",
+        ));
         let events = log.snapshot();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].label, "bash");

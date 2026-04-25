@@ -28,8 +28,8 @@ pub mod observability;
 pub mod pending_approvals;
 pub mod plan_alternatives;
 pub mod process;
-pub mod retry_attempt;
 pub mod result;
+pub mod retry_attempt;
 pub mod review;
 pub mod sandbox;
 pub mod session_metrics;
@@ -50,7 +50,9 @@ pub use config::{
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
-pub use events::{AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId, ToolCallRationale};
+pub use events::{
+    AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId, ToolCallRationale,
+};
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
@@ -59,10 +61,10 @@ pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
 pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};
 pub use process::ProcessState;
-pub use retry_attempt::{AttemptOutcome, LlmFallback, RetryAttempt};
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,
 };
+pub use retry_attempt::{AttemptOutcome, LlmFallback, RetryAttempt};
 pub use review::{ReviewIssue, ReviewReport};
 pub use sandbox::SandboxProfile;
 pub use session_metrics::{

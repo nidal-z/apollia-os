@@ -154,7 +154,8 @@ fn read_cache(user_date: &str, window_hours: u32) -> Result<Option<DailyDigest>,
             Ok((narration, facts_json, from_llm, generated_at)) => {
                 let parsed = chrono::DateTime::parse_from_rfc3339(&generated_at)
                     .map_err(|e| format!("stored generated_at invalid: {e}"))?;
-                let age = chrono::Utc::now().signed_duration_since(parsed.with_timezone(&chrono::Utc));
+                let age =
+                    chrono::Utc::now().signed_duration_since(parsed.with_timezone(&chrono::Utc));
                 if age.num_seconds() > CACHE_TTL_SECONDS {
                     return Ok(None);
                 }
@@ -228,14 +229,16 @@ fn render_narration(facts: &DigestFacts) -> String {
 
     if facts.automations_failed > 0 {
         if let Some(label) = &facts.first_failure_label {
-            sentences.push(format!(
-                "Une automatisation a échoué : « {label} »."
-            ));
+            sentences.push(format!("Une automatisation a échoué : « {label} »."));
         } else {
             sentences.push(format!(
                 "{n} automatisation{s} ont échoué — à vérifier.",
                 n = facts.automations_failed,
-                s = if facts.automations_failed > 1 { "s" } else { "" }
+                s = if facts.automations_failed > 1 {
+                    "s"
+                } else {
+                    ""
+                }
             ));
         }
     }

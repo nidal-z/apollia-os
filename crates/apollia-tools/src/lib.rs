@@ -24,6 +24,7 @@ pub mod audit;
 pub mod descriptor;
 pub mod executor;
 pub mod file_path_extractor;
+pub mod governance_db;
 pub mod journal;
 pub mod native_dispatcher;
 pub mod package_repository;
@@ -46,6 +47,10 @@ pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
 pub use file_path_extractor::FilePathExtractor;
+pub use governance_db::{
+    GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
+    LEGACY_PERMISSIONS_FILENAME,
+};
 pub use journal::{
     list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
 };

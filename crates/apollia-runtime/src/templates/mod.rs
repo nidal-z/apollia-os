@@ -169,11 +169,10 @@ impl TemplateRegistry {
             path: registry_path.clone(),
             source: e,
         })?;
-        let parsed: RegistryFile =
-            toml::from_str(&content).map_err(|e| TemplateError::Toml {
-                path: registry_path,
-                source: e,
-            })?;
+        let parsed: RegistryFile = toml::from_str(&content).map_err(|e| TemplateError::Toml {
+            path: registry_path,
+            source: e,
+        })?;
         Ok(Self {
             root,
             entries: parsed.templates,

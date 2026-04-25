@@ -115,9 +115,11 @@ fn store_cached(url: String, preview: LinkPreview) {
 fn link_preview_enabled() -> bool {
     let home = std::env::var("HOME").map(PathBuf::from).ok();
     let candidates: Vec<PathBuf> = [
-        home.as_ref().map(|h| h.join(".apollia").join("apollia.toml")),
+        home.as_ref()
+            .map(|h| h.join(".apollia").join("apollia.toml")),
         std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-        home.as_ref().map(|h| h.join(".config").join("apollia").join("apollia.toml")),
+        home.as_ref()
+            .map(|h| h.join(".config").join("apollia").join("apollia.toml")),
     ]
     .into_iter()
     .flatten()
@@ -178,7 +180,10 @@ pub async fn link_preview(url: String) -> Result<LinkPreview, String> {
         .map_err(|e| format!("fetch failed: {e}"))?;
 
     if !response.status().is_success() {
-        return Err(format!("remote responded with status {}", response.status()));
+        return Err(format!(
+            "remote responded with status {}",
+            response.status()
+        ));
     }
 
     let final_url = response.url().clone();
@@ -215,7 +220,10 @@ fn extract_og_tags(base_url: &url::Url, html: &str) -> LinkPreview {
     let mut site_name: Option<String> = None;
 
     for meta in doc.select(&meta_sel) {
-        let property = meta.value().attr("property").or_else(|| meta.value().attr("name"));
+        let property = meta
+            .value()
+            .attr("property")
+            .or_else(|| meta.value().attr("name"));
         let content = match meta.value().attr("content") {
             Some(c) => c.trim().to_string(),
             None => continue,
@@ -297,9 +305,15 @@ mod tests {
         let preview = extract_og_tags(&base, html);
         assert_eq!(preview.title.as_deref(), Some("OG title"));
         assert_eq!(preview.description.as_deref(), Some("short desc"));
-        assert_eq!(preview.image.as_deref(), Some("https://example.com/hero.png"));
+        assert_eq!(
+            preview.image.as_deref(),
+            Some("https://example.com/hero.png")
+        );
         assert_eq!(preview.site_name.as_deref(), Some("Example"));
-        assert_eq!(preview.favicon.as_deref(), Some("https://example.com/favicon.ico"));
+        assert_eq!(
+            preview.favicon.as_deref(),
+            Some("https://example.com/favicon.ico")
+        );
     }
 
     #[test]

@@ -1966,7 +1966,9 @@ mod tool_call_rationale_tests {
         let json = serde_json::to_string(&evt).expect("serialize");
         let back: RuntimeEvent = serde_json::from_str(&json).expect("deserialize");
         match back {
-            RuntimeEvent::ChatToolCallStarted { rationale: Some(r), .. } => {
+            RuntimeEvent::ChatToolCallStarted {
+                rationale: Some(r), ..
+            } => {
                 assert_eq!(r, rationale);
             }
             _ => panic!("wrong variant"),

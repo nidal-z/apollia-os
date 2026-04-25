@@ -101,7 +101,9 @@ pub async fn search_registry<B: ExecutionBackend + Clone>(
         .map_err(|e| {
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse { error: e.to_string() }),
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
             )
         })?;
 
@@ -133,7 +135,12 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
                 apollia_llm::HfError::Gated(_) => StatusCode::FORBIDDEN,
                 _ => StatusCode::BAD_GATEWAY,
             };
-            (status, Json(ErrorResponse { error: e.to_string() }))
+            (
+                status,
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
+            )
         })?;
 
     // Fetch generation_config.json for recommended params (best-effort).
@@ -150,15 +157,11 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
 
 /// Build the axum sub-router for Model Hub endpoints.
 pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
-    let router = Router::new()
-        .route("/api/v1/llm/hardware", get(get_hardware::<B>));
+    let router = Router::new().route("/api/v1/llm/hardware", get(get_hardware::<B>));
 
     #[cfg(feature = "cloud")]
     let router = router
-        .route(
-            "/api/v1/llm/registry/search",
-            get(search_registry::<B>),
-        )
+        .route("/api/v1/llm/registry/search", get(search_registry::<B>))
         .route(
             "/api/v1/llm/registry/model/:org/:repo",
             get(get_registry_model::<B>),

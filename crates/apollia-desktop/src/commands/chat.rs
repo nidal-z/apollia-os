@@ -775,12 +775,8 @@ mod tests {
         );
 
         // GIVEN operator picks a project-wide always-accept
-        let d = parse_tool_decision(
-            "always_accept",
-            None,
-            Some(AlwaysAcceptScope::ThisProject),
-        )
-        .unwrap();
+        let d = parse_tool_decision("always_accept", None, Some(AlwaysAcceptScope::ThisProject))
+            .unwrap();
         assert_eq!(
             d,
             ToolDecision::AlwaysAccept {

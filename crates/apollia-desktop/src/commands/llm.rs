@@ -379,9 +379,7 @@ pub async fn reload_llm_from_db(shared: State<'_, SharedLlmRouter>) -> Result<()
 
     // Drop the old router before writing the new one so the GGUF is freed from RAM
     // as soon as no other Arc references remain (e.g. in-flight agent requests).
-    let mut guard = shared
-        .write()
-        .map_err(|e| format!("lock poisoned: {e}"))?;
+    let mut guard = shared.write().map_err(|e| format!("lock poisoned: {e}"))?;
     let old = guard.take();
     drop(old);
     *guard = Some(new_router);

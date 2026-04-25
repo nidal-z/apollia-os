@@ -224,10 +224,7 @@ mod tests {
         let ra = RiskAnalysis::new(["destructive", "network"], 9, ["double-check target"]);
         let req = HitlRequest::new("t-1", "Delete prod DB?", ra)
             .with_thinking("User asked to clean up …")
-            .with_consequences(
-                Some("DB dropped.".into()),
-                Some("Agent blocked.".into()),
-            );
+            .with_consequences(Some("DB dropped.".into()), Some("Agent blocked.".into()));
         assert_eq!(req.estimated_impact, ImpactLevel::Critical);
 
         let json = serde_json::to_string(&req).expect("serialize");

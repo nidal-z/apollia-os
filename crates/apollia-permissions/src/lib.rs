@@ -28,6 +28,7 @@ pub mod audit_log;
 pub mod engine;
 pub mod error;
 pub mod injection_detector;
+pub(crate) mod migrations;
 pub mod prefix_rule_engine;
 pub mod safe_list;
 

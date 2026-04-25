@@ -117,7 +117,11 @@ fn now_rfc3339() -> String {
 ///
 /// Skips *exclude* (the main agent file already copied as `agent.py`).
 /// A directory is considered a Python package if it contains `__init__.py`.
-fn copy_python_tree(src_dir: &std::path::Path, dst_dir: &std::path::Path, exclude: &std::path::Path) {
+fn copy_python_tree(
+    src_dir: &std::path::Path,
+    dst_dir: &std::path::Path,
+    exclude: &std::path::Path,
+) {
     let Ok(entries) = std::fs::read_dir(src_dir) else {
         return;
     };

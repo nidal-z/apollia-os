@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::engine::PermissionDecision;
 use crate::error::PermissionError;
+use crate::migrations::add_column_if_missing;
 
 // ─────────────────────────────────────────────
 // Types publics
@@ -147,10 +148,29 @@ impl PermissionAuditLog {
                 tool_name   TEXT NOT NULL,
                 first_arg   TEXT,
                 decision    TEXT NOT NULL,
-                decided_at  INTEGER NOT NULL
+                decided_at  INTEGER NOT NULL,
+                scope       TEXT,
+                rule_id     INTEGER,
+                agent       TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_audit_tool ON permission_audit(tool_name, decided_at);",
         )?;
+
+        add_column_if_missing(&self.db, "permission_audit", "scope", "TEXT")?;
+        add_column_if_missing(&self.db, "permission_audit", "rule_id", "INTEGER")?;
+        add_column_if_missing(&self.db, "permission_audit", "agent", "TEXT")?;
+
+        self.db.execute_batch(
+            "CREATE TRIGGER IF NOT EXISTS no_update_audit
+             BEFORE UPDATE ON permission_audit BEGIN
+                 SELECT RAISE(ABORT, 'permission_audit is append-only');
+             END;
+             CREATE TRIGGER IF NOT EXISTS no_delete_audit
+             BEFORE DELETE ON permission_audit BEGIN
+                 SELECT RAISE(ABORT, 'permission_audit is append-only');
+             END;",
+        )?;
+
         Ok(())
     }
 }

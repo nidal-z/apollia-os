@@ -33,8 +33,8 @@ pub use summarizer::{summarize, SummarizerError};
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
 pub use types::{
-    AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession,
-    ChatSessionConfig, ExchangeState, FsHitlDecision, MessageId, PendingChatApprovals,
-    ProjectContextProvider, SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus,
-    ToolCallRecord, ToolCallStatus, ToolDecision, ToolStatEntry,
+    AlwaysAcceptScope, ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig,
+    ExchangeState, FsHitlDecision, MessageId, PendingChatApprovals, ProjectContextProvider,
+    SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord,
+    ToolCallStatus, ToolDecision, ToolStatEntry,
 };

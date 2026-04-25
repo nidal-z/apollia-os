@@ -225,9 +225,9 @@ impl NativeChatToolInvoker {
 
         match decision {
             super::types::FsHitlDecision::Approve => Ok(()),
-            super::types::FsHitlDecision::Deny { reason } => Err(reason.unwrap_or_else(
-                || "User denied filesystem operation".to_string(),
-            )),
+            super::types::FsHitlDecision::Deny { reason } => {
+                Err(reason.unwrap_or_else(|| "User denied filesystem operation".to_string()))
+            }
             super::types::FsHitlDecision::AlwaysAllow {
                 scope: _,
                 op: rule_op,
@@ -1278,8 +1278,8 @@ impl BuiltInChatAgent {
         output: &str,
         success: bool,
     ) -> Option<apollia_core::ErrorAnalysis> {
-        use crate::analyzers::{classify_tool_error, detect_hallucination, enrich_with_llm};
         use crate::analyzers::hallucination_detector::analysis_from_report;
+        use crate::analyzers::{classify_tool_error, detect_hallucination, enrich_with_llm};
 
         if !success {
             let analysis = classify_tool_error(output);

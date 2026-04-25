@@ -146,7 +146,10 @@ mod tests {
     #[test]
     fn filesystem_delete_is_critical() {
         let ra = analyze("filesystem:delete");
-        assert_eq!(ImpactLevel::from_severity(ra.severity), ImpactLevel::Critical);
+        assert_eq!(
+            ImpactLevel::from_severity(ra.severity),
+            ImpactLevel::Critical
+        );
     }
 
     /// GIVEN a bulk memory-write action

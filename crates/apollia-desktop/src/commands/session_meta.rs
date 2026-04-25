@@ -81,9 +81,7 @@ pub async fn compute_session_meta(
 /// Retourne la liste chronologique des événements d'une session pour le scrubber
 /// et le replay.
 #[tauri::command]
-pub async fn get_session_replay_events(
-    session_id: String,
-) -> Result<Vec<SessionEvent>, String> {
+pub async fn get_session_replay_events(session_id: String) -> Result<Vec<SessionEvent>, String> {
     Ok(get_or_create_log(&session_id).snapshot())
 }
 
@@ -117,12 +115,9 @@ mod tests {
     /// THEN a zero-score response is returned.
     #[tokio::test]
     async fn compute_meta_zero_when_no_signals() {
-        let resp = compute_session_meta(
-            "s-empty".into(),
-            SessionHallucinationInputs::default(),
-        )
-        .await
-        .expect("ok");
+        let resp = compute_session_meta("s-empty".into(), SessionHallucinationInputs::default())
+            .await
+            .expect("ok");
         assert_eq!(resp.hallucination_risk.score, 0);
         assert_eq!(resp.event_count, 0);
         assert!(resp.summary.is_none());

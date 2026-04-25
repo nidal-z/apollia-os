@@ -138,10 +138,7 @@ impl TimeoutWatcher {
             None => return Ok(0),
         };
 
-        let expired_ids = self
-            .db
-            .find_input_required_older_than(timeout)
-            .await?;
+        let expired_ids = self.db.find_input_required_older_than(timeout).await?;
 
         let mut cancelled = 0usize;
 

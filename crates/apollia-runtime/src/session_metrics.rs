@@ -84,10 +84,7 @@ impl SessionMetricsActor {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!(
-                            skipped = n,
-                            "SessionMetricsActor lagged, events dropped"
-                        );
+                        tracing::warn!(skipped = n, "SessionMetricsActor lagged, events dropped");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         tracing::info!("EventBus closed, stopping SessionMetricsActor");
@@ -191,9 +188,8 @@ fn process_event(
                 return vec![];
             };
             let actual_ms = call.started_at.elapsed().as_millis() as u64;
-            let expected_ms =
-                apollia_llm::tool_performance_hints::lookup(&call.tool_name)
-                    .map(|h| h.expected_duration_ms);
+            let expected_ms = apollia_llm::tool_performance_hints::lookup(&call.tool_name)
+                .map(|h| h.expected_duration_ms);
             let timing = ToolTiming::new(&call.tool_name, expected_ms, actual_ms);
 
             let mut guard = store.lock().expect("SessionMetrics store poisoned");
@@ -481,13 +477,8 @@ mod tests {
         // GIVEN un acteur spawné avec un budget bas pour déclencher warning
         let (tx, rx) = EventBus::new();
         let mut consumer = tx.subscribe();
-        let actor = SessionMetricsActor::spawn(
-            rx,
-            tx.clone(),
-            SessionThresholds::default(),
-            10_000,
-            1_000,
-        );
+        let actor =
+            SessionMetricsActor::spawn(rx, tx.clone(), SessionThresholds::default(), 10_000, 1_000);
 
         // WHEN — on envoie un scénario multi-tools + LLM
         tx.send(RuntimeEvent::ChatToolCallStarted {

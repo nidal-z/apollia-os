@@ -40,7 +40,9 @@ pub fn meta_generate_capabilities_coaching(
     request: CoachingRequest,
 ) -> Result<Vec<CoachingExample>, String> {
     let name = request.server_name.to_ascii_lowercase();
-    let title = request.server_title.unwrap_or_else(|| request.server_name.clone());
+    let title = request
+        .server_title
+        .unwrap_or_else(|| request.server_name.clone());
 
     let examples = if name.contains("notion") {
         vec![
@@ -70,29 +72,23 @@ pub fn meta_generate_capabilities_coaching(
             },
         ]
     } else if name.contains("slack") {
-        vec![
-            CoachingExample {
-                title: "Résumer un canal".into(),
-                description: "Obtenez un résumé des derniers messages d'un canal.".into(),
-                prompt: "Résume les 30 derniers messages de mon canal Slack principal.".into(),
-            },
-        ]
+        vec![CoachingExample {
+            title: "Résumer un canal".into(),
+            description: "Obtenez un résumé des derniers messages d'un canal.".into(),
+            prompt: "Résume les 30 derniers messages de mon canal Slack principal.".into(),
+        }]
     } else if name.contains("filesystem") || name.contains("file") {
-        vec![
-            CoachingExample {
-                title: "Explorer un dossier".into(),
-                description: "Liste les fichiers d'un dossier autorisé.".into(),
-                prompt: "Liste les fichiers à la racine du workspace.".into(),
-            },
-        ]
+        vec![CoachingExample {
+            title: "Explorer un dossier".into(),
+            description: "Liste les fichiers d'un dossier autorisé.".into(),
+            prompt: "Liste les fichiers à la racine du workspace.".into(),
+        }]
     } else if name.contains("brave") || name.contains("search") {
-        vec![
-            CoachingExample {
-                title: "Lancer une recherche web".into(),
-                description: "Cherche une information à jour sur le web.".into(),
-                prompt: "Cherche sur le web les dernières nouvelles d'Apollia OS.".into(),
-            },
-        ]
+        vec![CoachingExample {
+            title: "Lancer une recherche web".into(),
+            description: "Cherche une information à jour sur le web.".into(),
+            prompt: "Cherche sur le web les dernières nouvelles d'Apollia OS.".into(),
+        }]
     } else {
         vec![CoachingExample {
             title: format!("Explorer les outils de {title}"),

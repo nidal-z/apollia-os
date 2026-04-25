@@ -397,7 +397,11 @@ fn extract_think_blocks(text: &str) -> Option<String> {
             break;
         }
     }
-    if blocks.is_empty() { None } else { Some(blocks.join("\n\n")) }
+    if blocks.is_empty() {
+        None
+    } else {
+        Some(blocks.join("\n\n"))
+    }
 }
 
 /// Strips `<think>...</think>` blocks from the content.

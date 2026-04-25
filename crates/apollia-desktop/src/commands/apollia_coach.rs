@@ -121,10 +121,7 @@ const APOLLIA_GUIDE_VERSION: &str = "0.1.0";
 pub async fn apollia_guide_bootstrap(
     shared: State<'_, SharedLlmRouter>,
 ) -> Result<ApolliaGuideStatus, String> {
-    let llm_ready = shared
-        .read()
-        .map(|g| g.is_some())
-        .unwrap_or(false);
+    let llm_ready = shared.read().map(|g| g.is_some()).unwrap_or(false);
 
     Ok(ApolliaGuideStatus {
         agent_id: "apollia-guide".to_string(),

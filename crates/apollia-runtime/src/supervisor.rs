@@ -888,8 +888,10 @@ impl Supervisor {
                 } else {
                     self.config.api_config.bind_addr.clone()
                 };
-                let api_base_url =
-                    format!("http://{}:{}", connect_addr, self.config.api_config.tcp_port);
+                let api_base_url = format!(
+                    "http://{}:{}",
+                    connect_addr, self.config.api_config.tcp_port
+                );
                 let engine = NotificationEngine::new(
                     notif_config.clone(),
                     channels,
@@ -1246,9 +1248,10 @@ impl Supervisor {
         // Lightweight check: for each installed package, verify root_path still
         // exists on disk. If missing → log warning, disable all package agents.
         // Never blocks boot. Phase 11 handles the actual loading.
-        if let (Some(ref pkg_repo), Some(ref repo)) =
-            (&self.config.package_repository, &self.config.agent_repository)
-        {
+        if let (Some(ref pkg_repo), Some(ref repo)) = (
+            &self.config.package_repository,
+            &self.config.agent_repository,
+        ) {
             validate_installed_packages(pkg_repo, repo);
         }
 
@@ -1454,7 +1457,9 @@ fn validate_installed_packages(
                 path = %pkg.root_path.display(),
                 "Phase 10.6: package root_path missing — disabling agents"
             );
-            let agent_names = pkg_repo.list_agents_for_package(&pkg.name).unwrap_or_default();
+            let agent_names = pkg_repo
+                .list_agents_for_package(&pkg.name)
+                .unwrap_or_default();
             for agent_name in &agent_names {
                 if let Err(e) = agent_repo.set_enabled(agent_name, false) {
                     warn!(agent = %agent_name, error = %e, "Phase 10.6: failed to disable agent");
@@ -1660,9 +1665,8 @@ mod tests {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
         // THEN: 13 baseline tools, plus optional web tools when their features are on.
-        let expected_count = 13
-            + cfg!(feature = "web-search") as usize
-            + cfg!(feature = "web-read") as usize;
+        let expected_count =
+            13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
         let descriptors = native_tool_descriptors();
         assert_eq!(descriptors.len(), expected_count);
     }
@@ -1883,9 +1887,8 @@ mod tests {
         // ToolRegistryHandle: can list (native tools should be registered).
         // Count mirrors native_tool_descriptors() — 13 baseline + web-search + web-read
         // when those features are compiled in (ADR-072).
-        let expected = 13
-            + cfg!(feature = "web-search") as usize
-            + cfg!(feature = "web-read") as usize;
+        let expected =
+            13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
         let tools = handles.tool_registry_handle.list().await;
         assert!(tools.is_ok());
         assert_eq!(
