@@ -30,8 +30,7 @@ const MAX_RESPONSE_BYTES: usize = 1_048_576;
 
 /// Firefox-on-Linux UA. Empty/missing UA → 403; `bot`/`curl`/`python` UAs are
 /// rate-limited faster. Rotate annually as browser versions drift.
-const USER_AGENT: &str =
-    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
 /// DuckDuckGo HTML-endpoint backend — the zero-config default.
 pub struct DuckDuckGoBackend {
@@ -85,10 +84,7 @@ impl SearchBackend for DuckDuckGoBackend {
         BACKEND_NAME
     }
 
-    async fn search(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<Vec<SearchResult>, SearchBackendError> {
+    async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>, SearchBackendError> {
         let form = build_form(query);
 
         let response = self
@@ -106,9 +102,7 @@ impl SearchBackend for DuckDuckGoBackend {
                 status: status.as_u16(),
             });
         }
-        if status == reqwest::StatusCode::FORBIDDEN
-            || status == reqwest::StatusCode::ACCEPTED
-        {
+        if status == reqwest::StatusCode::FORBIDDEN || status == reqwest::StatusCode::ACCEPTED {
             return Err(SearchBackendError::Blocked {
                 backend: BACKEND_NAME.to_string(),
             });
@@ -168,9 +162,7 @@ fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
 }
 
 /// Stream the response body, aborting once [`MAX_RESPONSE_BYTES`] is exceeded.
-async fn read_body_capped(
-    response: reqwest::Response,
-) -> Result<String, SearchBackendError> {
+async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchBackendError> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut response = response;
     loop {
@@ -340,10 +332,7 @@ fn extract_target_url(href: &str) -> Option<String> {
 /// as plain strings. We rely on `scraper` for element text (already decoded)
 /// but still call this to collapse newlines/tabs to single spaces.
 fn clean_text(input: &str) -> String {
-    input
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
@@ -390,7 +379,11 @@ mod tests {
         let results = parse_ddg_html(FIXTURE_RESULTS, 20).expect("parse ok");
         let third = &results[2];
         // THEN entities are decoded (scraper `.text()` resolves them)
-        assert!(third.title.contains("Book & Async"), "title: {}", third.title);
+        assert!(
+            third.title.contains("Book & Async"),
+            "title: {}",
+            third.title
+        );
         assert!(
             third.snippet.contains("'The Book'"),
             "snippet: {}",
@@ -445,9 +438,8 @@ mod tests {
 
     #[test]
     fn extract_target_url_handles_protocol_relative() {
-        let decoded = extract_target_url(
-            "//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpath&rut=x",
-        );
+        let decoded =
+            extract_target_url("//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpath&rut=x");
         assert_eq!(decoded.as_deref(), Some("https://example.com/path"));
     }
 

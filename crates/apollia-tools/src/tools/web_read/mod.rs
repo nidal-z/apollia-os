@@ -47,8 +47,7 @@ const MIN_MAX_CHARS: usize = 500;
 const MIN_EXTRACTED_CHARS: usize = 100;
 
 /// UA mirrors the DDG backend — browser-like, rotated annually.
-const USER_AGENT: &str =
-    "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
 
 /// Input for [`WebRead::run`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,7 +339,9 @@ fn sniff_looks_like_html(bytes: &[u8]) -> bool {
     let sample = &bytes[..bytes.len().min(512)];
     if let Ok(head) = std::str::from_utf8(sample) {
         let lowered = head.trim_start().to_ascii_lowercase();
-        lowered.starts_with("<!doctype html") || lowered.starts_with("<html") || lowered.starts_with("<")
+        lowered.starts_with("<!doctype html")
+            || lowered.starts_with("<html")
+            || lowered.starts_with("<")
     } else {
         false
     }
@@ -371,7 +372,11 @@ fn extract_article_text(
         } else {
             None
         },
-        byline: if include_metadata { article.byline } else { None },
+        byline: if include_metadata {
+            article.byline
+        } else {
+            None
+        },
         text,
     })
 }
@@ -420,12 +425,9 @@ mod tests {
     #[test]
     fn extracts_article_from_fixture() {
         // GIVEN an article with clear <article> block, nav, sidebar, footer
-        let extraction = extract_article_text(
-            ARTICLE_FIXTURE.as_bytes(),
-            "https://example.com/post",
-            true,
-        )
-        .expect("extraction ok");
+        let extraction =
+            extract_article_text(ARTICLE_FIXTURE.as_bytes(), "https://example.com/post", true)
+                .expect("extraction ok");
         // THEN the title is surfaced and the article body contains the intro
         assert!(extraction.title.is_some());
         let title = extraction.title.unwrap();
@@ -434,7 +436,9 @@ mod tests {
             "unexpected title: {title}"
         );
         assert!(
-            extraction.text.contains("Apollia OS is an open-source Rust runtime"),
+            extraction
+                .text
+                .contains("Apollia OS is an open-source Rust runtime"),
             "article body missing: {}",
             extraction.text
         );
@@ -460,11 +464,8 @@ mod tests {
     #[test]
     fn landing_page_body_is_too_short() {
         // GIVEN a page with no article content, only buttons and nav
-        let extraction = extract_article_text(
-            LANDING_FIXTURE.as_bytes(),
-            "https://example.com/",
-            true,
-        );
+        let extraction =
+            extract_article_text(LANDING_FIXTURE.as_bytes(), "https://example.com/", true);
         // THEN either extraction fails, or the extracted text is under the minimum threshold
         match extraction {
             Err(WebReadError::ExtractionFailed(_)) => {}
@@ -491,8 +492,7 @@ mod tests {
 
     #[test]
     fn classify_content_type_refuses_json() {
-        let err =
-            classify_content_type("application/json; charset=utf-8").expect_err("json");
+        let err = classify_content_type("application/json; charset=utf-8").expect_err("json");
         assert!(matches!(
             err,
             WebReadError::UnsupportedContentType { ref kind } if kind == "json"
@@ -607,14 +607,11 @@ mod tests {
     // server lives on 127.0.0.1. Expose an internal helper to do so.
     impl WebRead {
         #[cfg(test)]
-        async fn fetch_raw_for_test(
-            &self,
-            url: &str,
-        ) -> Result<WebReadOutput, WebReadError> {
+        async fn fetch_raw_for_test(&self, url: &str) -> Result<WebReadOutput, WebReadError> {
             // Same logic as run() but without ssrf::assert_public.
             let started = Instant::now();
-            let parsed = url::Url::parse(url)
-                .map_err(|e| WebReadError::InvalidUrl(e.to_string()))?;
+            let parsed =
+                url::Url::parse(url).map_err(|e| WebReadError::InvalidUrl(e.to_string()))?;
             let response = self
                 .client
                 .get(parsed.as_str())
@@ -684,7 +681,9 @@ mod tests {
             .expect("happy path");
 
         assert!(out.title.is_some());
-        assert!(out.content.contains("Apollia OS is an open-source Rust runtime"));
+        assert!(out
+            .content
+            .contains("Apollia OS is an open-source Rust runtime"));
         assert!(!out.truncated);
     }
 

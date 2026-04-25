@@ -20,13 +20,13 @@
 //! - `notebook_edit` — apply atomic cell operations to Jupyter `.ipynb` notebooks
 
 pub mod agent_repository;
-pub mod package_repository;
 pub mod audit;
 pub mod descriptor;
 pub mod executor;
 pub mod file_path_extractor;
 pub mod journal;
 pub mod native_dispatcher;
+pub mod package_repository;
 pub mod project_repository;
 pub mod registry;
 pub mod resolver;
@@ -35,7 +35,6 @@ pub mod task_repository;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
-pub use package_repository::{InstalledPackage, PackageRepository, PackageRepositoryError};
 pub use apollia_permissions::{PermissionDecision, PermissionEngine, PermissionError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
@@ -46,11 +45,12 @@ pub use descriptor::{
 pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
-pub use native_dispatcher::{build_native_dispatcher, NativeDispatcherConfig};
 pub use file_path_extractor::FilePathExtractor;
 pub use journal::{
     list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
 };
+pub use native_dispatcher::{build_native_dispatcher, NativeDispatcherConfig};
+pub use package_repository::{InstalledPackage, PackageRepository, PackageRepositoryError};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
     ProjectRepositoryError, ProjectSummary, ProjectTemplate,
@@ -76,3 +76,5 @@ pub use tools::persistent_bash::{
     PersistentBashExecutor,
 };
 pub use tools::risk_classifier::{FilesystemOp, RiskCategory, RiskClassifier, RiskLevel};
+#[cfg(feature = "web-search")]
+pub use tools::web_search::{ToolConfigError, WebSearch, WebSearchError};

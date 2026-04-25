@@ -88,10 +88,7 @@ impl SearchBackend for BraveBackend {
         BACKEND_NAME
     }
 
-    async fn search(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<Vec<SearchResult>, SearchBackendError> {
+    async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>, SearchBackendError> {
         let params = build_params(query);
 
         let response = self
@@ -190,9 +187,7 @@ fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
     }
 }
 
-async fn read_body_capped(
-    response: reqwest::Response,
-) -> Result<String, SearchBackendError> {
+async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchBackendError> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut response = response;
     loop {
@@ -283,10 +278,17 @@ fn tag_regex() -> Regex {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    use std::sync::Mutex;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
+
+    /// Serialises env-var mutations across all tests in this crate that touch
+    /// `BRAVE_SEARCH_API_KEY`. `std::env::{set_var, remove_var}` are unsafe
+    /// for a reason: parallel tests reading or writing the env race with each
+    /// other. Take this lock before any unsafe env access.
+    pub(crate) static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     const FIXTURE: &str = include_str!("tests/fixtures/brave_response.json");
 
@@ -373,18 +375,16 @@ mod tests {
 
     #[test]
     fn from_env_fails_when_unset() {
-        // Temporarily unset in this test thread.
-        // SAFETY: we restore the previous value before returning; parallel tests
-        // that read this var would already be racing anyway.
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let prev = std::env::var(ENV_API_KEY).ok();
+        // SAFETY: the file-wide ENV_LOCK serialises mutation across tests.
         unsafe {
             std::env::remove_var(ENV_API_KEY);
         }
 
         let result = BraveBackend::from_env();
         match result {
-            Err(SearchBackendError::MissingCredential { ref what, .. })
-                if what == ENV_API_KEY => {}
+            Err(SearchBackendError::MissingCredential { ref what, .. }) if what == ENV_API_KEY => {}
             Err(other) => panic!("expected MissingCredential, got: {other}"),
             Ok(_) => panic!("expected MissingCredential when env var unset"),
         }
@@ -400,13 +400,9 @@ mod tests {
     fn build_params_translates_region_and_freshness() {
         let params = build_params(&sample_query());
         // region "fr-fr" → country "FR"
-        assert!(params
-            .iter()
-            .any(|(k, v)| *k == "country" && v == "FR"));
+        assert!(params.iter().any(|(k, v)| *k == "country" && v == "FR"));
         // time_range Week → freshness pw
-        assert!(params
-            .iter()
-            .any(|(k, v)| *k == "freshness" && v == "pw"));
+        assert!(params.iter().any(|(k, v)| *k == "freshness" && v == "pw"));
         // result_filter=web is always set
         assert!(params
             .iter()
@@ -438,16 +434,11 @@ mod tests {
         let response = b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n".to_vec();
         tokio::spawn(respond_once(listener, response));
 
-        let backend = BraveBackend::with_endpoint(
-            "bad-key",
-            format!("http://127.0.0.1:{port}/search"),
-        );
+        let backend =
+            BraveBackend::with_endpoint("bad-key", format!("http://127.0.0.1:{port}/search"));
 
         let err = backend.search(&sample_query()).await.expect_err("401");
-        assert!(matches!(
-            err,
-            SearchBackendError::MissingCredential { .. }
-        ));
+        assert!(matches!(err, SearchBackendError::MissingCredential { .. }));
     }
 
     #[tokio::test]
@@ -456,10 +447,8 @@ mod tests {
         let response = b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n".to_vec();
         tokio::spawn(respond_once(listener, response));
 
-        let backend = BraveBackend::with_endpoint(
-            "test-key",
-            format!("http://127.0.0.1:{port}/search"),
-        );
+        let backend =
+            BraveBackend::with_endpoint("test-key", format!("http://127.0.0.1:{port}/search"));
 
         let err = backend.search(&sample_query()).await.expect_err("429");
         assert!(matches!(

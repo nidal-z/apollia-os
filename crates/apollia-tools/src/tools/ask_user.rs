@@ -121,11 +121,7 @@ impl PendingUserInputs {
     /// Register a pending request and return the receiver for the answer.
     ///
     /// Called by the `ask_user` tool executor.
-    pub async fn register(
-        &self,
-        request_id: String,
-        request: PendingUserInput,
-    ) {
+    pub async fn register(&self, request_id: String, request: PendingUserInput) {
         let _ = self.tx.send((request_id, request)).await;
     }
 
@@ -166,7 +162,8 @@ impl AskUser {
                           Supports open-ended questions (free text), single-choice \
                           (pick one from options), and multi-choice (pick several). \
                           Batch multiple questions in a single call to minimise \
-                          back-and-forth.".to_string(),
+                          back-and-forth."
+                .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
                 "type": "object",
@@ -333,10 +330,12 @@ impl crate::executor::ToolExecutor for AskUserExecutor {
                 message: "pending user input channel is closed".to_string(),
             })?;
 
-        let output = reply_rx.await.map_err(|_| ToolExecutionError::ExecutionFailed {
-            code: "response_dropped".to_string(),
-            message: "user input response was dropped (timeout or session closed)".to_string(),
-        })?;
+        let output = reply_rx
+            .await
+            .map_err(|_| ToolExecutionError::ExecutionFailed {
+                code: "response_dropped".to_string(),
+                message: "user input response was dropped (timeout or session closed)".to_string(),
+            })?;
 
         serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialization_error".to_string(),
@@ -423,7 +422,10 @@ mod tests {
         let result = exec_handle.await.unwrap().unwrap();
         let output: AskUserOutput = serde_json::from_value(result).unwrap();
         assert_eq!(output.answers.len(), 2);
-        assert_eq!(output.answers[0].value.as_deref(), Some("Next.js 15 + Tailwind"));
+        assert_eq!(
+            output.answers[0].value.as_deref(),
+            Some("Next.js 15 + Tailwind")
+        );
         assert_eq!(output.answers[1].value.as_deref(), Some("Cloudflare"));
     }
 

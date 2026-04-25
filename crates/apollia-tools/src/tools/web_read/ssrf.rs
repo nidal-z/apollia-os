@@ -138,29 +138,26 @@ mod tests {
 
     #[test]
     fn rejects_ipv6_v4_mapped_private() {
-        let err = assert_public(&parse("http://[::ffff:127.0.0.1]/"))
-            .expect_err("v4-mapped loopback");
+        let err =
+            assert_public(&parse("http://[::ffff:127.0.0.1]/")).expect_err("v4-mapped loopback");
         assert!(matches!(err, WebReadError::PrivateAddress(_)));
     }
 
     #[test]
     fn rejects_localhost_domain() {
-        let err = assert_public(&parse("http://localhost/admin"))
-            .expect_err("localhost");
+        let err = assert_public(&parse("http://localhost/admin")).expect_err("localhost");
         assert!(matches!(err, WebReadError::PrivateAddress(_)));
     }
 
     #[test]
     fn rejects_dot_local_domain() {
-        let err = assert_public(&parse("http://router.local/"))
-            .expect_err(".local mDNS");
+        let err = assert_public(&parse("http://router.local/")).expect_err(".local mDNS");
         assert!(matches!(err, WebReadError::PrivateAddress(_)));
     }
 
     #[test]
     fn rejects_dot_internal_domain() {
-        let err = assert_public(&parse("http://wiki.internal/"))
-            .expect_err(".internal");
+        let err = assert_public(&parse("http://wiki.internal/")).expect_err(".internal");
         assert!(matches!(err, WebReadError::PrivateAddress(_)));
     }
 

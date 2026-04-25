@@ -162,10 +162,7 @@ pub(crate) trait SearchBackend: Send + Sync {
     fn name(&self) -> &str;
 
     /// Perform one search.
-    async fn search(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<Vec<SearchResult>, SearchBackendError>;
+    async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>, SearchBackendError>;
 }
 
 #[cfg(test)]

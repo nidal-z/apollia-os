@@ -7,8 +7,11 @@
 //! the user may pin a specific backend via the `backend` input field;
 //! otherwise the first available backend in the list is used. Backends are
 //! registered in priority order by [`crate::native_dispatcher::build_native_dispatcher`]
-//! — Brave first (if its API key is set), DuckDuckGo always as the zero-config
-//! fallback.
+//! — DuckDuckGo first as the zero-config, always-on fallback; Brave appended
+//! after it only when `BRAVE_SEARCH_API_KEY` is set to a non-empty value (and
+//! the `brave-search` feature is compiled in). This ordering guarantees that
+//! an invalid Brave key (HTTP 401) cannot silently break the chain — the
+//! orchestrator transparently falls back to DuckDuckGo.
 //!
 //! # Security posture
 //!
@@ -32,8 +35,8 @@ use thiserror::Error;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
 
-pub use backend::{SafeSearch, SearchBackendError, SearchQuery, SearchResult, TimeRange};
 use backend::SearchBackend;
+pub use backend::{SafeSearch, SearchBackendError, SearchQuery, SearchResult, TimeRange};
 
 /// Absolute minimum & maximum for `max_results`. Values outside are clamped
 /// silently — we don't reject on cosmetic bounds (Principe #4 applies to real
@@ -48,6 +51,50 @@ const DEFAULT_RESULTS: u32 = 10;
 pub struct WebSearch {
     backends: Vec<Box<dyn SearchBackend>>,
     preferred: Option<String>,
+}
+
+/// Errors raised by [`WebSearch::try_with_default_backends`] when the
+/// configured backend list cannot be honoured at startup.
+#[derive(Debug, Error)]
+pub enum ToolConfigError {
+    /// A required credential is missing or empty. The dispatcher surfaces this
+    /// as a startup-time failure (Fail fast) so the operator notices before an
+    /// agent is dispatched.
+    #[error("tool '{tool}': missing required credential ({what})")]
+    MissingCredential {
+        /// Name of the tool whose configuration is incomplete.
+        tool: String,
+        /// Human-readable description of the missing credential.
+        what: String,
+    },
+}
+
+/// Build the default backend priority list (DuckDuckGo first, Brave optional).
+///
+/// Centralised here so both [`WebSearch::with_default_backends`] and
+/// [`WebSearch::try_with_default_backends`] share one source of truth for the
+/// ordering decision.
+fn build_default_backends() -> Vec<Box<dyn SearchBackend>> {
+    let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
+
+    backends.push(Box::new(
+        crate::tools::web_search::duckduckgo::DuckDuckGoBackend::new(),
+    ));
+
+    #[cfg(feature = "brave-search")]
+    if let Ok(b) = crate::tools::web_search::brave::BraveBackend::from_env() {
+        backends.push(Box::new(b));
+    }
+
+    backends
+}
+
+/// Returns `true` when `BRAVE_SEARCH_API_KEY` is set to a non-whitespace value.
+#[cfg(feature = "brave-search")]
+fn brave_key_is_configured() -> bool {
+    std::env::var(brave::ENV_API_KEY)
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false)
 }
 
 /// Errors produced at the [`WebSearch`] orchestration layer (above the
@@ -143,24 +190,55 @@ impl WebSearch {
     }
 
     /// Build a [`WebSearch`] with the default backend priority used across the
-    /// runtime: Brave first (if `BRAVE_SEARCH_API_KEY` is set and the
-    /// `brave-search` feature is compiled in), DuckDuckGo always as the
-    /// zero-config fallback. Encapsulates the `SearchBackend` trait so callers
-    /// outside `apollia-tools` (e.g. the libre-chat tool invoker) don't need
-    /// to import crate-private types.
+    /// runtime: DuckDuckGo first (zero-config, always available), Brave appended
+    /// after it only if the `brave-search` feature is compiled in *and*
+    /// `BRAVE_SEARCH_API_KEY` is set to a non-empty value.
+    ///
+    /// Putting DuckDuckGo first guarantees that a misconfigured Brave key
+    /// (e.g. revoked, expired, or copy-pasted with whitespace) cannot cause
+    /// the entire tool to fail with `AllBackendsFailed`: the orchestrator
+    /// always has DDG to fall back to, so the agent receives real results
+    /// instead of being forced to simulate them.
     pub fn with_default_backends() -> Self {
-        let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
+        let backends = build_default_backends();
 
-        #[cfg(feature = "brave-search")]
-        if let Ok(b) = crate::tools::web_search::brave::BraveBackend::from_env() {
-            backends.push(Box::new(b));
+        // SAFETY: `build_default_backends` always pushes DuckDuckGo, so the
+        // list is never empty — `WebSearch::new` cannot return `NoBackends`.
+        Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
+    }
+
+    /// Build a [`WebSearch`] with the default backend priority and validate
+    /// that any required credentials are present. Used at runtime startup
+    /// (`build_native_dispatcher`) to surface configuration mistakes early
+    /// rather than letting them manifest as runtime errors deep inside an
+    /// agent's reasoning loop (Principe #4 — Fail fast).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolConfigError::MissingCredential`] when *require_brave* is
+    /// `true` and `BRAVE_SEARCH_API_KEY` is unset or empty (or the
+    /// `brave-search` feature is not compiled in).
+    pub fn try_with_default_backends(require_brave: bool) -> Result<Self, ToolConfigError> {
+        if require_brave {
+            #[cfg(feature = "brave-search")]
+            {
+                if !brave_key_is_configured() {
+                    return Err(ToolConfigError::MissingCredential {
+                        tool: "web_search".to_string(),
+                        what: brave::ENV_API_KEY.to_string(),
+                    });
+                }
+            }
+            #[cfg(not(feature = "brave-search"))]
+            {
+                return Err(ToolConfigError::MissingCredential {
+                    tool: "web_search".to_string(),
+                    what: "brave-search feature not compiled in".to_string(),
+                });
+            }
         }
 
-        backends.push(Box::new(crate::tools::web_search::duckduckgo::DuckDuckGoBackend::new()));
-
-        // SAFETY: we always push DuckDuckGo, so the list is never empty —
-        // `WebSearch::new` cannot return `NoBackends`.
-        Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
+        Ok(Self::with_default_backends())
     }
 
     /// Dispatch to the selected backend and return results.
@@ -391,11 +469,9 @@ mod tests {
             if let Some(e) = &self.fail_with {
                 // Clone doesn't exist on thiserror-derived; construct an equivalent error.
                 return Err(match e {
-                    SearchBackendError::Blocked { backend } => {
-                        SearchBackendError::Blocked {
-                            backend: backend.clone(),
-                        }
-                    }
+                    SearchBackendError::Blocked { backend } => SearchBackendError::Blocked {
+                        backend: backend.clone(),
+                    },
                     _ => SearchBackendError::ParseError {
                         backend: self.name.to_string(),
                         reason: "mock".to_string(),
@@ -520,7 +596,9 @@ mod tests {
         input.backend = Some("tavily".to_string());
         let err = tool.run(input).await.expect_err("unknown backend");
 
-        assert!(matches!(err, WebSearchError::BackendNotAvailable { ref name } if name == "tavily"));
+        assert!(
+            matches!(err, WebSearchError::BackendNotAvailable { ref name } if name == "tavily")
+        );
     }
 
     #[tokio::test]
@@ -592,6 +670,114 @@ mod tests {
         // WHEN clamped via run()
         // Here we test the clamp indirectly via a mock that returns what it's asked for.
         // (Integration-level — exercised through ToolExecutor tests.)
+    }
+
+    #[cfg(feature = "brave-search")]
+    #[test]
+    fn default_backends_priority_respects_brave_key_presence() {
+        // Combined into a single serial test to avoid racing on
+        // BRAVE_SEARCH_API_KEY: we need to assert two opposite states (unset
+        // vs. set) without other env-touching tests trampling them.
+        let _guard = brave::tests::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var(brave::ENV_API_KEY).ok();
+
+        // GIVEN unset, THEN only DDG is registered.
+        // SAFETY: the file-wide mutex makes env mutation effectively serial.
+        unsafe {
+            std::env::remove_var(brave::ENV_API_KEY);
+        }
+        let names_unset: Vec<String> = WebSearch::with_default_backends()
+            .backends
+            .iter()
+            .map(|b| b.name().to_string())
+            .collect();
+        assert_eq!(names_unset.first().map(String::as_str), Some("duckduckgo"));
+        assert!(!names_unset.iter().any(|n| n == "brave"));
+
+        // GIVEN a non-empty key, THEN DDG is first, Brave second.
+        unsafe {
+            std::env::set_var(brave::ENV_API_KEY, "test-key-not-validated-here");
+        }
+        let names_set: Vec<String> = WebSearch::with_default_backends()
+            .backends
+            .iter()
+            .map(|b| b.name().to_string())
+            .collect();
+        assert_eq!(names_set.first().map(String::as_str), Some("duckduckgo"));
+        assert_eq!(names_set.get(1).map(String::as_str), Some("brave"));
+
+        match prev {
+            Some(v) => unsafe { std::env::set_var(brave::ENV_API_KEY, v) },
+            None => unsafe { std::env::remove_var(brave::ENV_API_KEY) },
+        }
+    }
+
+    #[cfg(feature = "brave-search")]
+    #[tokio::test]
+    async fn brave_401_falls_back_to_ddg() {
+        // GIVEN Brave returning MissingCredential (the error a real 401 maps to)
+        // and DuckDuckGo healthy, ordered as `with_default_backends` produces.
+        let backends: Vec<Box<dyn SearchBackend>> = vec![
+            Box::new(MockBackend {
+                name: "duckduckgo",
+                fixed: sample_results(4, "ddg"),
+                fail_with: None,
+            }),
+            Box::new(MockBackend {
+                name: "brave",
+                fixed: vec![],
+                fail_with: Some(SearchBackendError::Blocked {
+                    backend: "brave".to_string(),
+                }),
+            }),
+        ];
+        let tool = WebSearch::new(backends, None).expect("build tool");
+
+        // WHEN auto-mode dispatch
+        let out = tool.run(basic_input("hello")).await.expect("ddg fallback");
+
+        // THEN DDG served the request — Brave never even reached.
+        assert_eq!(out.backend, "duckduckgo");
+        assert_eq!(out.total_results, 4);
+    }
+
+    #[cfg(feature = "brave-search")]
+    #[test]
+    fn require_configured_fails_fast_when_brave_key_missing() {
+        // GIVEN BRAVE_SEARCH_API_KEY unset and require_brave = true
+        let _guard = brave::tests::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let prev = std::env::var(brave::ENV_API_KEY).ok();
+        // SAFETY: mutex serialises env writes within this crate's tests.
+        unsafe {
+            std::env::remove_var(brave::ENV_API_KEY);
+        }
+
+        let result = WebSearch::try_with_default_backends(true);
+
+        if let Some(v) = prev {
+            unsafe {
+                std::env::set_var(brave::ENV_API_KEY, v);
+            }
+        }
+
+        // THEN ToolConfigError::MissingCredential is returned.
+        match result {
+            Err(ToolConfigError::MissingCredential { ref tool, .. }) if tool == "web_search" => {}
+            Err(other) => panic!("expected MissingCredential, got: {other}"),
+            Ok(_) => panic!("expected error when require_brave=true and key unset"),
+        }
+    }
+
+    #[test]
+    fn require_configured_succeeds_when_not_required() {
+        // GIVEN require_brave = false
+        // THEN the tool builds with whatever backends are available (always DDG).
+        let tool = WebSearch::try_with_default_backends(false).expect("build ok");
+        assert!(tool.backends.iter().any(|b| b.name() == "duckduckgo"));
     }
 
     #[test]

@@ -109,7 +109,11 @@ impl PackageRepository {
     /// Enregistre le lien entre un package et un de ses agents.
     ///
     /// Idempotent : utilise `INSERT OR IGNORE`.
-    pub fn link_agent(&self, package_name: &str, agent_name: &str) -> Result<(), PackageRepositoryError> {
+    pub fn link_agent(
+        &self,
+        package_name: &str,
+        agent_name: &str,
+    ) -> Result<(), PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
             "INSERT OR IGNORE INTO package_agents (package_name, agent_name) VALUES (?1, ?2)",
@@ -143,7 +147,10 @@ impl PackageRepository {
     }
 
     /// Retourne les noms des agents appartenant à un package.
-    pub fn list_agents_for_package(&self, package_name: &str) -> Result<Vec<String>, PackageRepositoryError> {
+    pub fn list_agents_for_package(
+        &self,
+        package_name: &str,
+    ) -> Result<Vec<String>, PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let mut stmt = conn.prepare(
             "SELECT agent_name FROM package_agents WHERE package_name = ?1 ORDER BY agent_name",
@@ -180,7 +187,10 @@ impl PackageRepository {
     }
 
     /// Wrapper async pour [`get`].
-    pub async fn get_async(&self, name: String) -> Result<Option<InstalledPackage>, PackageRepositoryError> {
+    pub async fn get_async(
+        &self,
+        name: String,
+    ) -> Result<Option<InstalledPackage>, PackageRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.get(&name))
             .await
@@ -335,8 +345,10 @@ mod tests {
             let conn = repo.conn.lock().expect("lock");
             conn.execute_batch("PRAGMA foreign_keys=OFF;").unwrap();
         }
-        repo.link_agent("my-pkg", "director-agent").expect("link director");
-        repo.link_agent("my-pkg", "worker-agent").expect("link worker");
+        repo.link_agent("my-pkg", "director-agent")
+            .expect("link director");
+        repo.link_agent("my-pkg", "worker-agent")
+            .expect("link worker");
         // WHEN on liste les agents du package
         let agents = repo.list_agents_for_package("my-pkg").expect("list agents");
         // THEN on obtient les 2 agents

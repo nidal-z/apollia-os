@@ -320,8 +320,14 @@ mod tests {
     #[test]
     fn test_approval_risk_level_from_score() {
         // GIVEN / WHEN / THEN — monotonic mapping across the score domain
-        assert_eq!(ApprovalRiskLevel::from_risk_score(0), ApprovalRiskLevel::Low);
-        assert_eq!(ApprovalRiskLevel::from_risk_score(3), ApprovalRiskLevel::Low);
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(0),
+            ApprovalRiskLevel::Low
+        );
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(3),
+            ApprovalRiskLevel::Low
+        );
         assert_eq!(
             ApprovalRiskLevel::from_risk_score(4),
             ApprovalRiskLevel::Medium

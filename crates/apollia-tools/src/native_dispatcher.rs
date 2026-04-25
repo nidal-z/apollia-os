@@ -83,14 +83,46 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
         Err(e) => tracing::warn!(error = %e, "python_executor unavailable — skipped"),
     }
 
-    push_sandbox_tool(&mut executors, "file_read", FileRead::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "file_write", FileWrite::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "file_list", FileList::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "file_edit", FileEdit::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "file_glob", FileGlob::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "file_grep", FileGrep::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "notebook_read", NotebookRead::new(cfg.sandbox_root.clone()));
-    push_sandbox_tool(&mut executors, "notebook_edit", NotebookEdit::new(cfg.sandbox_root.clone()));
+    push_sandbox_tool(
+        &mut executors,
+        "file_read",
+        FileRead::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "file_write",
+        FileWrite::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "file_list",
+        FileList::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "file_edit",
+        FileEdit::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "file_glob",
+        FileGlob::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "file_grep",
+        FileGrep::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "notebook_read",
+        NotebookRead::new(cfg.sandbox_root.clone()),
+    );
+    push_sandbox_tool(
+        &mut executors,
+        "notebook_edit",
+        NotebookEdit::new(cfg.sandbox_root.clone()),
+    );
 
     #[cfg(feature = "http")]
     {
@@ -104,8 +136,6 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
     // be impossible at the binary level.
     #[cfg(feature = "web-search")]
     {
-        // `with_default_backends()` picks Brave first if BRAVE_SEARCH_API_KEY is
-        // set (and the `brave-search` feature is on), else DuckDuckGo.
         executors.push(Box::new(WebSearch::with_default_backends()));
     }
 
