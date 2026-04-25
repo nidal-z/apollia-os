@@ -92,29 +92,58 @@ Règles persistées en SQLite, mutables à chaud. Créées via le bouton **"Touj
 
 ```rust
 pub struct PrefixRule {
-    pub id: i64,
+    pub id: i64,                                     // 0 pour une règle non persistée
     pub tool_name: String,
     pub arg_prefix: Option<String>,
-    pub action: RuleAction,        // Allow | Deny
+    pub action: RuleAction,                          // Allow | Deny
     pub created_at: i64,
     pub created_by_agent: Option<String>,
-    pub scope: String,             // "global" | "project" | "session"
-    pub project_path: Option<String>,
-    pub expires_at: Option<i64>,   // Unix timestamp, None = pas d'expiration
+    pub scope: PermissionScope,                      // Global | Project | Session
+    pub project_path: Option<PathBuf>,               // renseigné si scope == Project
+    pub expires_at: Option<i64>,                     // Unix timestamp, None = permanent
 }
+// impl Default : id=0, scope=Global, action=Allow, autres champs vides
 
 pub struct PrefixRuleEngine {
     db: rusqlite::Connection,
 }
 
 impl PrefixRuleEngine {
+    /// Rétrocompatible : évalue project + global, ignore les règles expirées.
     pub fn check(&self, tool_name: &str, first_arg: Option<&str>) -> Result<Option<RuleAction>, PermissionError> { ... }
-    pub fn add_rule(&mut self, rule: PrefixRule) -> Result<i64, PermissionError> { ... }
+    /// Retourne l'id de la règle déclenchée (pour l'audit log).
+    pub fn check_with_id(&self, tool_name: &str, first_arg: Option<&str>) -> Result<Option<(i64, RuleAction)>, PermissionError> { ... }
+    /// Variante scope-aware : évalue Session → Project (filtré par chemin) → Global.
+    pub fn check_with_scope(&self, tool_name: &str, first_arg: Option<&str>, ctx: &ScopeContext, session_rules: &[PrefixRule]) -> Result<Option<(i64, RuleAction)>, PermissionError> { ... }
+    pub fn add_rule(&mut self, rule: &PrefixRule) -> Result<i64, PermissionError> { ... }
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> { ... }
+    /// Filtre par scope et chemin projet (Session retourne toujours vide — règles mémoire-uniquement).
+    pub fn list_rules_filtered(&self, scope: Option<PermissionScope>, project_path: Option<&Path>) -> Result<Vec<PrefixRule>, PermissionError> { ... }
 }
 ```
 
 Exemple : règle `bash_executor(git:*)` → auto-approuve toutes les commandes `git *`.
+
+### Types scope
+
+```rust
+/// Portée d'une règle de permission.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PermissionScope {
+    Session,    // mémoire uniquement — disparaît à l'arrêt du process
+    Project,    // persisté SQLite, filtré par chemin canonique du projet
+    #[default]
+    Global,     // persisté SQLite, s'applique à tout projet
+}
+
+/// Contexte d'évaluation passé à check_with_scope().
+pub struct ScopeContext {
+    pub scope: PermissionScope,
+    pub project_path: Option<PathBuf>,  // None = hors projet
+}
+```
+
+**Ordre d'évaluation scope-aware :** Session → Project (chemin exact) → Global. Une règle Session override toujours les règles Project ou Global pour le même outil/préfixe.
 
 ---
 
@@ -126,6 +155,8 @@ pub struct PermissionEngine {
     prefix_rules: PrefixRuleEngine,
     injection_detector: StructuralInjectionDetector,
     audit_log: PermissionAuditLog,
+    session_rules: Vec<PrefixRule>,        // règles mémoire-uniquement (scope Session)
+    scope_context: Option<ScopeContext>,   // contexte pour check_with_scope
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -145,6 +176,13 @@ impl PermissionEngine {
         input: &serde_json::Value,
         agent_manifest: &AgentManifest,
     ) -> Result<PermissionDecision, PermissionError> { ... }
+    /// Ajoute une règle Session en mémoire (jamais persistée en SQLite).
+    /// Force scope = Session quel que soit le scope du PrefixRule reçu.
+    pub fn add_session_rule(&mut self, rule: PrefixRule) { ... }
+    pub fn clear_session_rules(&mut self) { ... }
+    pub fn set_scope_context(&mut self, ctx: ScopeContext) { ... }
+    pub fn scope_context(&self) -> Option<&ScopeContext> { ... }
+    pub fn session_rules(&self) -> &[PrefixRule] { ... }
 }
 ```
 
