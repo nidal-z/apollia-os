@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 use apollia_core::{
     A2AConfig, ApiConfig, HitlConfig, ORIAConfig, PipelinesConfig, RegistryConfig, RuntimeConfig,
+    ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -101,6 +102,12 @@ pub struct ApolliaCConfig {
     /// Vaut `None` si absente ; la valeur par défaut de [`RegistryConfig`] s'applique
     /// (`https://github.com/apollia-os/pipelines`).
     pub registry: Option<RegistryConfig>,
+
+    /// Section `[tools]` — outils natifs : limites, désactivations statiques,
+    /// configuration `web_search` / `web_read`.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`ToolsConfig`] s'appliquent.
+    pub tools: Option<ToolsConfig>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.
@@ -621,6 +628,7 @@ input = "x"
             oria: None,
             pipelines: None,
             registry: None,
+            tools: None,
         };
         assert!(config.llm.is_none());
         assert!(config.runtime.is_none());

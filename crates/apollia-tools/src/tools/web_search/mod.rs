@@ -28,7 +28,7 @@ pub mod duckduckgo;
 
 use std::time::Instant;
 
-use apollia_core::SandboxProfile;
+use apollia_core::{SandboxProfile, WebSearchBackend, WebSearchConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -227,6 +227,93 @@ impl WebSearch {
         // `build_default_backends` always pushes DuckDuckGo, so the list is
         // never empty — `WebSearch::new` cannot return `NoBackends`.
         Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
+    }
+
+    /// Build a [`WebSearch`] from an operator-supplied [`WebSearchConfig`] and
+    /// optional Brave API key (resolved upstream from the credential store or
+    /// environment).
+    ///
+    /// The backend priority is derived from `cfg.backend`:
+    /// - [`WebSearchBackend::Auto`] : DuckDuckGo first, Brave appended when the
+    ///   key is available (mirrors the env-driven behaviour).
+    /// - [`WebSearchBackend::DuckDuckGo`] : DuckDuckGo only.
+    /// - [`WebSearchBackend::Brave`] : Brave only when keyed; falls back to
+    ///   DuckDuckGo unless `cfg.require_configured` is `true`.
+    ///
+    /// `cfg.brave.api_key_env_var` is consulted when *brave_api_key* is
+    /// `None` — the credential store always wins when it has a value.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolConfigError::MissingCredential`] when `cfg.backend` is
+    /// [`WebSearchBackend::Brave`] and the API key cannot be resolved while
+    /// `cfg.require_configured` is `true`.
+    pub fn from_config(
+        cfg: &WebSearchConfig,
+        brave_api_key: Option<String>,
+    ) -> Result<Self, ToolConfigError> {
+        let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
+
+        let want_ddg = matches!(
+            cfg.backend,
+            WebSearchBackend::Auto | WebSearchBackend::DuckDuckGo
+        );
+        let want_brave = matches!(
+            cfg.backend,
+            WebSearchBackend::Auto | WebSearchBackend::Brave
+        );
+
+        if want_ddg {
+            backends.push(Box::new(duckduckgo::DuckDuckGoBackend::with_config(
+                &cfg.duckduckgo,
+            )));
+        }
+
+        let resolved_brave_key = brave_api_key
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                std::env::var(&cfg.brave.api_key_env_var)
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            });
+
+        #[cfg(feature = "brave-search")]
+        {
+            if want_brave {
+                if let Some(key) = resolved_brave_key.clone() {
+                    backends.push(Box::new(brave::BraveBackend::with_config(&cfg.brave, key)));
+                } else if cfg.require_configured && cfg.backend == WebSearchBackend::Brave {
+                    return Err(ToolConfigError::MissingCredential {
+                        tool: "web_search".to_string(),
+                        what: cfg.brave.api_key_env_var.clone(),
+                    });
+                }
+            }
+        }
+
+        #[cfg(not(feature = "brave-search"))]
+        {
+            let _ = resolved_brave_key;
+            if want_brave && cfg.require_configured && cfg.backend == WebSearchBackend::Brave {
+                return Err(ToolConfigError::MissingCredential {
+                    tool: "web_search".to_string(),
+                    what: "brave-search feature not compiled in".to_string(),
+                });
+            }
+        }
+
+        if backends.is_empty() {
+            backends.push(Box::new(duckduckgo::DuckDuckGoBackend::with_config(
+                &cfg.duckduckgo,
+            )));
+        }
+
+        Self::new(backends, None).map_err(|_| ToolConfigError::MissingCredential {
+            tool: "web_search".to_string(),
+            what: "no backend could be constructed".to_string(),
+        })
     }
 
     /// Build a [`WebSearch`] with the default backend priority and validate

@@ -42,10 +42,11 @@ pub mod workspace;
 
 pub use budget::StepBudgetConfig;
 pub use config::{
-    validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, FilesystemConfig,
-    FilesystemRiskConfig, HitlConfig, JournalConfig, LlmRoutingConfig, ORIAConfig,
-    PermissionsConfig, PipelinesConfig, RegistryConfig, RuntimeConfig, ToolsConfig, TriggersConfig,
-    VertexConfig,
+    validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, BraveBackendConfig, ConfigError,
+    DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, HitlConfig, JournalConfig,
+    LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig, RegistryConfig,
+    RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend,
+    WebSearchConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};

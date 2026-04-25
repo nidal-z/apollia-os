@@ -16,6 +16,8 @@
 
 use std::path::PathBuf;
 
+use apollia_core::{WebReadConfig, WebSearchConfig};
+
 use crate::executor::{ToolDispatcher, ToolExecutor};
 use crate::tools::ask_user::{AskUserExecutor, PendingUserInputs};
 use crate::tools::bash_executor::BashExecutor;
@@ -72,6 +74,13 @@ pub struct NativeDispatcherConfig {
     /// initialise the Brave backend. When `None`, the runtime falls back to
     /// the `BRAVE_SEARCH_API_KEY` environment variable.
     pub brave_api_key: Option<String>,
+    /// Operator-supplied configuration for the `web_search` tool. Drives
+    /// backend selection, timeouts, and per-backend caps. Defaults to
+    /// [`WebSearchConfig::default`] when no `apollia.toml` is loaded.
+    pub web_search_config: WebSearchConfig,
+    /// Operator-supplied configuration for the `web_read` tool. Drives the
+    /// HTTP timeout, the maximum response size, and the SSRF guard toggle.
+    pub web_read_config: WebReadConfig,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -169,16 +178,19 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
     #[cfg(feature = "web-search")]
     {
         if is_active("web_search") {
-            executors.push(Box::new(WebSearch::with_default_backends_and_key(
-                cfg.brave_api_key.clone(),
-            )));
+            match WebSearch::from_config(&cfg.web_search_config, cfg.brave_api_key.clone()) {
+                Ok(tool) => executors.push(Box::new(tool)),
+                Err(e) => {
+                    tracing::warn!(error = %e, "web_search disabled — configuration invalid");
+                }
+            }
         }
     }
 
     #[cfg(feature = "web-read")]
     {
         if is_active("web_read") {
-            executors.push(Box::new(WebRead::new()));
+            executors.push(Box::new(WebRead::from_config(&cfg.web_read_config)));
         }
     }
 

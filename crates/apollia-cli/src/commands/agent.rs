@@ -10,8 +10,8 @@ use apollia_runtime::agents::registry_remote::{self, parse_install_source, Agent
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
 use apollia_triggers::{
-    definition_repository::TriggerDefinitionRepository,
-    parse_triggers_from_toml_str, OnBusy, OnBusyPolicy, TriggerDefinitionRow, TriggerSourceConfig,
+    definition_repository::TriggerDefinitionRepository, parse_triggers_from_toml_str, OnBusy,
+    OnBusyPolicy, TriggerDefinitionRow, TriggerSourceConfig,
 };
 use clap::Subcommand;
 
@@ -636,10 +636,14 @@ async fn run_install_package(
     let mut agent_count = 0;
     for entry in &pkg.agents {
         let installed_entry_path = install_root.join(
-            entry.entry.strip_prefix(source_path).unwrap_or(&entry.entry),
+            entry
+                .entry
+                .strip_prefix(source_path)
+                .unwrap_or(&entry.entry),
         );
 
-        let agent_manifest = match validate_community_agent(&installed_entry_path, skip_tests).await {
+        let agent_manifest = match validate_community_agent(&installed_entry_path, skip_tests).await
+        {
             Ok(m) => m,
             Err(e) => {
                 return print_error_and_exit(
@@ -865,8 +869,8 @@ async fn run_package_uninstall(name: &str, json: bool) -> i32 {
 ///
 /// Returns the number of triggers successfully injected.
 fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, String> {
-    let trigger_defs = parse_triggers_from_toml_str(toml_str)
-        .map_err(|e| format!("trigger parse error: {e}"))?;
+    let trigger_defs =
+        parse_triggers_from_toml_str(toml_str).map_err(|e| format!("trigger parse error: {e}"))?;
 
     if trigger_defs.is_empty() {
         return Ok(0);
@@ -895,10 +899,9 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
             "cron".to_string(),
             serde_json::json!({"schedule": schedule}),
         ),
-        TriggerSourceConfig::Interval { every } => (
-            "interval".to_string(),
-            serde_json::json!({"every": every}),
-        ),
+        TriggerSourceConfig::Interval { every } => {
+            ("interval".to_string(), serde_json::json!({"every": every}))
+        }
         TriggerSourceConfig::Oneshot { fire_at } => (
             "oneshot".to_string(),
             serde_json::json!({"fire_at": fire_at.to_rfc3339()}),
@@ -917,10 +920,9 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
                 "exclude_patterns": exclude_patterns,
             }),
         ),
-        TriggerSourceConfig::Webhook { secret } => (
-            "webhook".to_string(),
-            serde_json::json!({"secret": secret}),
-        ),
+        TriggerSourceConfig::Webhook { secret } => {
+            ("webhook".to_string(), serde_json::json!({"secret": secret}))
+        }
     };
 
     let on_busy = match &def.on_busy {

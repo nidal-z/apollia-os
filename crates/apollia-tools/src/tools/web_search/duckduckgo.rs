@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use apollia_core::DuckDuckGoBackendConfig;
 use async_trait::async_trait;
 use scraper::{Html, Selector};
 
@@ -21,11 +22,12 @@ pub(crate) const BACKEND_NAME: &str = "duckduckgo";
 /// Default DDG HTML endpoint. Overridable via [`DuckDuckGoBackend::with_endpoint`] for tests.
 const DEFAULT_ENDPOINT: &str = "https://html.duckduckgo.com/html/";
 
-/// Per-request timeout in seconds. Hardcoded on purpose — not an LLM knob.
+/// Default per-request timeout in seconds when no [`DuckDuckGoBackendConfig`] is provided.
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
-/// Maximum response body size. DDG pages are ~50 KB; 1 MB is ample head-room
-/// and guards against memory exhaustion if the endpoint misbehaves.
+/// Default maximum response body size when no [`DuckDuckGoBackendConfig`] is provided.
+/// DDG pages are ~50 KB; 1 MB is ample head-room and guards against memory exhaustion
+/// if the endpoint misbehaves.
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
 
 /// Firefox-on-Linux UA. Empty/missing UA → 403; `bot`/`curl`/`python` UAs are
@@ -36,38 +38,44 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/201001
 pub struct DuckDuckGoBackend {
     endpoint: String,
     client: reqwest::Client,
+    timeout_secs: u64,
+    max_response_bytes: usize,
 }
 
 impl DuckDuckGoBackend {
-    /// Create a backend hitting the public DDG HTML endpoint.
+    /// Create a backend hitting the public DDG HTML endpoint with built-in defaults.
     ///
     /// # Panics
     ///
     /// Panics only if the platform TLS backend refuses to initialise, which
     /// does not occur on supported targets.
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-            .build()
-            .expect("reqwest::Client initialization is infallible");
-        Self {
-            endpoint: DEFAULT_ENDPOINT.to_string(),
-            client,
-        }
+        Self::build(DEFAULT_ENDPOINT, REQUEST_TIMEOUT_SECS, MAX_RESPONSE_BYTES)
+    }
+
+    /// Build a backend honouring the operator-supplied [`DuckDuckGoBackendConfig`].
+    pub fn with_config(cfg: &DuckDuckGoBackendConfig) -> Self {
+        let max_response_bytes = (cfg.max_response_kb as usize).saturating_mul(1024);
+        Self::build(DEFAULT_ENDPOINT, cfg.timeout_secs, max_response_bytes)
     }
 
     /// Build a backend that targets an arbitrary URL — intended for integration
     /// tests hitting an in-process mock server.
     pub fn with_endpoint(endpoint: impl Into<String>) -> Self {
+        Self::build(endpoint, REQUEST_TIMEOUT_SECS, MAX_RESPONSE_BYTES)
+    }
+
+    fn build(endpoint: impl Into<String>, timeout_secs: u64, max_response_bytes: usize) -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(timeout_secs))
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
             endpoint: endpoint.into(),
             client,
+            timeout_secs,
+            max_response_bytes,
         }
     }
 }
@@ -93,7 +101,7 @@ impl SearchBackend for DuckDuckGoBackend {
             .form(&form)
             .send()
             .await
-            .map_err(classify_transport_error)?;
+            .map_err(|e| classify_transport_error(e, self.timeout_secs))?;
 
         let status = response.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
@@ -114,7 +122,7 @@ impl SearchBackend for DuckDuckGoBackend {
             });
         }
 
-        let body = read_body_capped(response).await?;
+        let body = read_body_capped(response, self.max_response_bytes, self.timeout_secs).await?;
         parse_ddg_html(&body, query.max_results)
     }
 }
@@ -147,11 +155,11 @@ fn build_form(query: &SearchQuery) -> Vec<(&'static str, String)> {
 }
 
 /// Map a reqwest transport error to the appropriate [`SearchBackendError`].
-fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
+fn classify_transport_error(e: reqwest::Error, timeout_secs: u64) -> SearchBackendError {
     if e.is_timeout() {
         SearchBackendError::Timeout {
             backend: BACKEND_NAME.to_string(),
-            timeout_secs: REQUEST_TIMEOUT_SECS,
+            timeout_secs,
         }
     } else {
         SearchBackendError::RequestFailed {
@@ -161,15 +169,19 @@ fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
     }
 }
 
-/// Stream the response body, aborting once [`MAX_RESPONSE_BYTES`] is exceeded.
-async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchBackendError> {
+/// Stream the response body, aborting once *max_bytes* is exceeded.
+async fn read_body_capped(
+    response: reqwest::Response,
+    max_bytes: usize,
+    timeout_secs: u64,
+) -> Result<String, SearchBackendError> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut response = response;
     loop {
         match response.chunk().await {
             Ok(Some(chunk)) => {
                 bytes.extend_from_slice(&chunk);
-                if bytes.len() > MAX_RESPONSE_BYTES {
+                if bytes.len() > max_bytes {
                     return Err(SearchBackendError::BadStatus {
                         backend: BACKEND_NAME.to_string(),
                         status: 0,
@@ -177,7 +189,7 @@ async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchB
                 }
             }
             Ok(None) => break,
-            Err(e) => return Err(classify_transport_error(e)),
+            Err(e) => return Err(classify_transport_error(e, timeout_secs)),
         }
     }
     Ok(String::from_utf8_lossy(&bytes).into_owned())

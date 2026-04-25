@@ -109,6 +109,9 @@ struct AIPChatAgentRunner {
     pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
     /// Base data directory (e.g. `~/.apollia/`).
     data_dir: PathBuf,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`.
+    /// Drives `disabled` tools and `web_search` / `web_read` parameters.
+    tools_config: apollia_core::ToolsConfig,
 }
 
 #[async_trait::async_trait]
@@ -155,6 +158,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
             Default::default()
         });
+        let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
         let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
             sandbox_root: sandbox_root_for_agent(),
             agent_id: agent_name.to_string(),
@@ -164,8 +168,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             memory_base_dir: memory_base_dir.clone(),
             http_allowlist: None,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
-            disabled_tools: snapshot.disabled_tools,
+            disabled_tools,
             brave_api_key: snapshot.brave_api_key,
+            web_search_config: self.tools_config.web_search.clone(),
+            web_read_config: self.tools_config.web_read.clone(),
         }));
 
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
@@ -359,6 +365,18 @@ fn sandbox_root_for_agent() -> PathBuf {
         .unwrap_or_else(|_| std::env::temp_dir())
 }
 
+/// Union of statically-disabled tools (from `apollia.toml`) with the runtime
+/// disabled set (from `governance.db`). Either source disables a tool — the
+/// dispatcher only registers tools absent from both lists.
+fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>) -> Vec<String> {
+    for name in static_disabled {
+        if !runtime_disabled.iter().any(|n| n == name) {
+            runtime_disabled.push(name.clone());
+        }
+    }
+    runtime_disabled
+}
+
 // Real per-agent execution backend (AIPBridge + RuntimeContext)
 // ─────────────────────────────────────────────────────────────
 
@@ -386,6 +404,8 @@ struct AIPProductionBackend {
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
     /// Orchestrateur A2A de haut niveau — `None` si registry ou router non initialisés.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`.
+    tools_config: apollia_core::ToolsConfig,
 }
 
 impl Clone for AIPProductionBackend {
@@ -405,6 +425,7 @@ impl Clone for AIPProductionBackend {
             task_repository: self.task_repository.clone(),
             a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
+            tools_config: self.tools_config.clone(),
         }
     }
 }
@@ -434,6 +455,8 @@ struct BridgeRunner {
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
     /// High-level A2A invoker — `None` if not available.
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`.
+    tools_config: apollia_core::ToolsConfig,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -453,6 +476,7 @@ impl AgentRunner for BridgeRunner {
         let supports_a2a = self.supports_a2a;
         let a2a_delegate = self.a2a_delegate.clone();
         let a2a_invoker = self.a2a_invoker.clone();
+        let tools_config = self.tools_config.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -482,6 +506,7 @@ impl AgentRunner for BridgeRunner {
                 tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
                 Default::default()
             });
+            let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
             let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
                 sandbox_root: sandbox_root_for_agent(),
                 agent_id: agent_id.clone(),
@@ -493,11 +518,11 @@ impl AgentRunner for BridgeRunner {
                 memory_shared_namespaces: Vec::new(),
                 memory_base_dir: memory_base_dir.clone(),
                 http_allowlist: None,
-                // Task mode has no UI for HITL prompts — agents must use
-                // AIP `input_required` instead of `ask_user`.
                 pending_user_inputs: None,
-                disabled_tools: snapshot.disabled_tools,
+                disabled_tools,
                 brave_api_key: snapshot.brave_api_key,
+                web_search_config: tools_config.web_search.clone(),
+                web_read_config: tools_config.web_read.clone(),
             }));
 
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
@@ -582,6 +607,7 @@ impl ExecutionBackend for AIPProductionBackend {
             supports_a2a: self.supports_a2a,
             a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
+            tools_config: self.tools_config.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -627,6 +653,8 @@ struct ProductionBackendFactory {
     registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
     /// Task router handle — populated after supervisor.start().
     router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
+    /// Operator-supplied tools configuration loaded from `apollia.toml`.
+    tools_config: apollia_core::ToolsConfig,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -699,6 +727,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 supports_a2a,
                 a2a_delegate,
                 a2a_invoker,
+                tools_config: self.tools_config.clone(),
             })
         })();
 
@@ -800,6 +829,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         runtime_file_config,
         hitl_file_config,
         pipelines_file_config,
+        tools_file_config,
         config_path,
     ) = match find_config_file() {
         Some(path) => {
@@ -808,18 +838,25 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
                 path: path.clone(),
                 reason: e.to_string(),
             })?;
+            if let Some(tools) = cfg.tools.as_ref() {
+                tools.validate().map_err(|e| StartError::Config {
+                    path: path.clone(),
+                    reason: e.to_string(),
+                })?;
+            }
             (
                 cfg.llm,
                 cfg.api,
                 cfg.runtime,
                 cfg.hitl,
                 cfg.pipelines,
+                cfg.tools,
                 Some(path),
             )
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None, None, None, None, None)
+            (None, None, None, None, None, None, None)
         }
     };
 
@@ -941,6 +978,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
 
+    let tools_config = tools_file_config.unwrap_or_default();
+
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
         llm_router: llm_router_lock.clone(),
@@ -950,6 +989,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         task_repository: task_repository_lock.clone(),
         registry: registry_lock.clone(),
         router: router_lock.clone(),
+        tools_config: tools_config.clone(),
     });
 
     // Concrete ChatAgentRunner for Chat Agent mode.
@@ -962,6 +1002,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
             user_memory: user_memory_lock.clone(),
             pending_user_inputs: pending_user_inputs_lock.clone(),
             data_dir: data_dir_for_chat,
+            tools_config,
         }));
 
     let handles = supervisor

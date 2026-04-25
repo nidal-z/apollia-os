@@ -41,25 +41,68 @@ pub struct BraveBackend {
     endpoint: String,
     api_key: String,
     client: reqwest::Client,
+    timeout_secs: u64,
+    max_response_bytes: usize,
+    /// Operator-supplied cap on `count`. The per-request `max_results` from the
+    /// caller is clamped down to this value before reaching Brave.
+    backend_max_results: u32,
 }
 
 impl BraveBackend {
-    /// Build a backend from a known API key, using the default Brave endpoint.
+    /// Build a backend from a known API key, using the default Brave endpoint
+    /// and built-in defaults.
     pub fn new(api_key: impl Into<String>) -> Self {
-        Self::with_endpoint(api_key, DEFAULT_ENDPOINT)
+        Self::build(
+            api_key,
+            DEFAULT_ENDPOINT,
+            REQUEST_TIMEOUT_SECS,
+            MAX_RESPONSE_BYTES,
+            u32::MAX,
+        )
+    }
+
+    /// Build a backend from an [`apollia_core::BraveBackendConfig`] and an
+    /// already-resolved API key.
+    pub fn with_config(cfg: &apollia_core::BraveBackendConfig, api_key: impl Into<String>) -> Self {
+        Self::build(
+            api_key,
+            DEFAULT_ENDPOINT,
+            cfg.timeout_secs,
+            MAX_RESPONSE_BYTES,
+            cfg.max_results as u32,
+        )
     }
 
     /// Build a backend with an arbitrary endpoint — intended for tests hitting
     /// an in-process mock server.
     pub fn with_endpoint(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
+        Self::build(
+            api_key,
+            endpoint,
+            REQUEST_TIMEOUT_SECS,
+            MAX_RESPONSE_BYTES,
+            u32::MAX,
+        )
+    }
+
+    fn build(
+        api_key: impl Into<String>,
+        endpoint: impl Into<String>,
+        timeout_secs: u64,
+        max_response_bytes: usize,
+        backend_max_results: u32,
+    ) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(timeout_secs))
             .build()
             .expect("reqwest::Client initialization is infallible");
         Self {
             endpoint: endpoint.into(),
             api_key: api_key.into(),
             client,
+            timeout_secs,
+            max_response_bytes,
+            backend_max_results,
         }
     }
 
@@ -89,7 +132,8 @@ impl SearchBackend for BraveBackend {
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>, SearchBackendError> {
-        let params = build_params(query);
+        let effective_max = query.max_results.min(self.backend_max_results).max(1);
+        let params = build_params(query, effective_max);
 
         let response = self
             .client
@@ -99,7 +143,7 @@ impl SearchBackend for BraveBackend {
             .header("Accept", "application/json")
             .send()
             .await
-            .map_err(classify_transport_error)?;
+            .map_err(|e| classify_transport_error(e, self.timeout_secs))?;
 
         let status = response.status();
         if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -126,16 +170,16 @@ impl SearchBackend for BraveBackend {
             });
         }
 
-        let body = read_body_capped(response).await?;
-        parse_brave_json(&body, query.max_results)
+        let body = read_body_capped(response, self.max_response_bytes, self.timeout_secs).await?;
+        parse_brave_json(&body, effective_max)
     }
 }
 
 /// Build the query parameters sent to Brave.
-fn build_params(query: &SearchQuery) -> Vec<(&'static str, String)> {
+fn build_params(query: &SearchQuery, count: u32) -> Vec<(&'static str, String)> {
     let mut params: Vec<(&'static str, String)> = vec![
         ("q", query.query.clone()),
-        ("count", query.max_results.to_string()),
+        ("count", count.to_string()),
         ("result_filter", "web".to_string()),
     ];
 
@@ -173,11 +217,11 @@ fn build_params(query: &SearchQuery) -> Vec<(&'static str, String)> {
     params
 }
 
-fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
+fn classify_transport_error(e: reqwest::Error, timeout_secs: u64) -> SearchBackendError {
     if e.is_timeout() {
         SearchBackendError::Timeout {
             backend: BACKEND_NAME.to_string(),
-            timeout_secs: REQUEST_TIMEOUT_SECS,
+            timeout_secs,
         }
     } else {
         SearchBackendError::RequestFailed {
@@ -187,14 +231,18 @@ fn classify_transport_error(e: reqwest::Error) -> SearchBackendError {
     }
 }
 
-async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchBackendError> {
+async fn read_body_capped(
+    response: reqwest::Response,
+    max_bytes: usize,
+    timeout_secs: u64,
+) -> Result<String, SearchBackendError> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut response = response;
     loop {
         match response.chunk().await {
             Ok(Some(chunk)) => {
                 bytes.extend_from_slice(&chunk);
-                if bytes.len() > MAX_RESPONSE_BYTES {
+                if bytes.len() > max_bytes {
                     return Err(SearchBackendError::BadStatus {
                         backend: BACKEND_NAME.to_string(),
                         status: 0,
@@ -202,7 +250,7 @@ async fn read_body_capped(response: reqwest::Response) -> Result<String, SearchB
                 }
             }
             Ok(None) => break,
-            Err(e) => return Err(classify_transport_error(e)),
+            Err(e) => return Err(classify_transport_error(e, timeout_secs)),
         }
     }
     Ok(String::from_utf8_lossy(&bytes).into_owned())
@@ -398,7 +446,7 @@ pub(crate) mod tests {
 
     #[test]
     fn build_params_translates_region_and_freshness() {
-        let params = build_params(&sample_query());
+        let params = build_params(&sample_query(), sample_query().max_results);
         // region "fr-fr" → country "FR"
         assert!(params.iter().any(|(k, v)| *k == "country" && v == "FR"));
         // time_range Week → freshness pw

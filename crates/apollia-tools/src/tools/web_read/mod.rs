@@ -19,7 +19,7 @@ pub(crate) mod ssrf;
 
 use std::time::{Duration, Instant};
 
-use apollia_core::SandboxProfile;
+use apollia_core::{SandboxProfile, WebReadConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -88,18 +88,37 @@ pub struct WebReadOutput {
 /// The `web_read` tool.
 pub struct WebRead {
     client: reqwest::Client,
+    timeout_secs: u64,
+    max_body_bytes: usize,
+    ssrf_guard: bool,
 }
 
 impl WebRead {
-    /// Construct a fresh client. Call sites build one per dispatcher instance.
+    /// Construct a fresh client with built-in defaults. Call sites build one
+    /// per dispatcher instance.
     pub fn new() -> Self {
+        Self::build(REQUEST_TIMEOUT_SECS, MAX_BODY_BYTES, true)
+    }
+
+    /// Build a [`WebRead`] from an operator-supplied [`WebReadConfig`].
+    pub fn from_config(cfg: &WebReadConfig) -> Self {
+        let max_body_bytes = (cfg.max_response_kb as usize).saturating_mul(1024);
+        Self::build(cfg.timeout_secs, max_body_bytes, cfg.ssrf_guard)
+    }
+
+    fn build(timeout_secs: u64, max_body_bytes: usize, ssrf_guard: bool) -> Self {
         let client = reqwest::Client::builder()
             .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(timeout_secs))
             .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
             .build()
             .expect("reqwest::Client initialization is infallible");
-        Self { client }
+        Self {
+            client,
+            timeout_secs,
+            max_body_bytes,
+            ssrf_guard,
+        }
     }
 
     /// Fetch *url* and return the extracted article text.
@@ -114,7 +133,9 @@ impl WebRead {
                 parsed.scheme()
             )));
         }
-        ssrf::assert_public(&parsed)?;
+        if self.ssrf_guard {
+            ssrf::assert_public(&parsed)?;
+        }
 
         let max_chars = input
             .max_chars
@@ -127,7 +148,7 @@ impl WebRead {
             .get(parsed.as_str())
             .send()
             .await
-            .map_err(classify_transport_error)?;
+            .map_err(|e| classify_transport_error(e, self.timeout_secs))?;
 
         let final_url = response.url().to_string();
         let status = response.status();
@@ -145,7 +166,7 @@ impl WebRead {
 
         classify_content_type(&content_type)?;
 
-        let bytes = read_body_capped(response).await?;
+        let bytes = read_body_capped(response, self.max_body_bytes, self.timeout_secs).await?;
 
         let is_html = content_type.contains("text/html")
             || content_type.contains("application/xhtml+xml")
@@ -263,30 +284,34 @@ struct Extraction {
     text: String,
 }
 
-fn classify_transport_error(e: reqwest::Error) -> WebReadError {
+fn classify_transport_error(e: reqwest::Error, timeout_secs: u64) -> WebReadError {
     if e.is_timeout() {
-        WebReadError::Timeout(REQUEST_TIMEOUT_SECS)
+        WebReadError::Timeout(timeout_secs)
     } else {
         WebReadError::RequestFailed(e.to_string())
     }
 }
 
-async fn read_body_capped(response: reqwest::Response) -> Result<Vec<u8>, WebReadError> {
+async fn read_body_capped(
+    response: reqwest::Response,
+    max_bytes: usize,
+    timeout_secs: u64,
+) -> Result<Vec<u8>, WebReadError> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut response = response;
     loop {
         match response.chunk().await {
             Ok(Some(chunk)) => {
                 bytes.extend_from_slice(&chunk);
-                if bytes.len() > MAX_BODY_BYTES {
+                if bytes.len() > max_bytes {
                     return Err(WebReadError::ResponseTooLarge {
                         size: bytes.len(),
-                        limit: MAX_BODY_BYTES,
+                        limit: max_bytes,
                     });
                 }
             }
             Ok(None) => break,
-            Err(e) => return Err(classify_transport_error(e)),
+            Err(e) => return Err(classify_transport_error(e, timeout_secs)),
         }
     }
     Ok(bytes)
@@ -617,7 +642,7 @@ mod tests {
                 .get(parsed.as_str())
                 .send()
                 .await
-                .map_err(classify_transport_error)?;
+                .map_err(|e| classify_transport_error(e, self.timeout_secs))?;
             let final_url = response.url().to_string();
             let status = response.status();
             if !status.is_success() {
@@ -630,7 +655,7 @@ mod tests {
                 .map(|s| s.to_ascii_lowercase())
                 .unwrap_or_default();
             classify_content_type(&content_type)?;
-            let bytes = read_body_capped(response).await?;
+            let bytes = read_body_capped(response, self.max_body_bytes, self.timeout_secs).await?;
             let is_html = content_type.contains("text/html")
                 || content_type.contains("application/xhtml+xml")
                 || (content_type.is_empty() && sniff_looks_like_html(&bytes));

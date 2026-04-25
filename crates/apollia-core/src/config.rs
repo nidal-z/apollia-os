@@ -695,6 +695,23 @@ pub struct ToolsConfig {
     /// ```
     #[serde(default)]
     pub file_path_extraction_pattern: Option<String>,
+
+    /// Outils natifs désactivés statiquement par l'opérateur dans `apollia.toml`.
+    ///
+    /// Les noms listés ici sont retirés du dispatcher au boot — toute invocation
+    /// se solde par `UnknownTool`. Cette liste est complémentaire de la table
+    /// `tools` de `governance.db` : un outil désactivé dans l'un ou l'autre est
+    /// inactif. Défaut : `[]`.
+    #[serde(default)]
+    pub disabled: Vec<String>,
+
+    /// Configuration de l'outil natif `web_search`.
+    #[serde(default)]
+    pub web_search: WebSearchConfig,
+
+    /// Configuration de l'outil natif `web_read`.
+    #[serde(default)]
+    pub web_read: WebReadConfig,
 }
 
 impl Default for ToolsConfig {
@@ -702,6 +719,9 @@ impl Default for ToolsConfig {
         Self {
             max_output_chars: default_max_output_chars(),
             file_path_extraction_pattern: None,
+            disabled: Vec::new(),
+            web_search: WebSearchConfig::default(),
+            web_read: WebReadConfig::default(),
         }
     }
 }
@@ -710,6 +730,10 @@ impl ToolsConfig {
     /// Valide les bornes de la configuration tools au démarrage (Principe #4 — Fail fast).
     ///
     /// - `max_output_chars` : doit être dans [10, 1 000 000].
+    /// - `web_search.brave.max_results` : doit être dans [1, 20].
+    /// - `web_search.brave.timeout_secs` et `web_search.duckduckgo.timeout_secs` : `[1, 120]`.
+    /// - `web_search.duckduckgo.max_response_kb` : `[16, 16 384]`.
+    /// - `web_read.timeout_secs` : `[1, 120]`. `web_read.max_response_kb` : `[64, 32 768]`.
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_bounds(
             "tools.max_output_chars",
@@ -717,12 +741,223 @@ impl ToolsConfig {
             10_usize,
             1_000_000_usize,
         )?;
+        self.web_search.validate()?;
+        self.web_read.validate()?;
         Ok(())
     }
 }
 
 fn default_max_output_chars() -> usize {
     30_000
+}
+
+// ─────────────────────────────────────────────
+// WebSearchConfig
+// ─────────────────────────────────────────────
+
+/// Configuration de l'outil `web_search` (section `[tools.web_search]`).
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct WebSearchConfig {
+    /// Backend préféré : `auto`, `duckduckgo`, ou `brave`. Défaut : `auto`.
+    #[serde(default)]
+    pub backend: WebSearchBackend,
+
+    /// Si `true`, le boot échoue lorsque le backend sélectionné n'est pas
+    /// opérationnel (ex. : `backend = "brave"` sans clé d'API). Défaut : `false`.
+    #[serde(default)]
+    pub require_configured: bool,
+
+    /// Configuration spécifique au backend Brave Search.
+    #[serde(default)]
+    pub brave: BraveBackendConfig,
+
+    /// Configuration spécifique au backend DuckDuckGo.
+    #[serde(default)]
+    pub duckduckgo: DuckDuckGoBackendConfig,
+}
+
+impl WebSearchConfig {
+    /// Valide les bornes des sous-configurations de backend.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        self.brave.validate()?;
+        self.duckduckgo.validate()?;
+        Ok(())
+    }
+}
+
+/// Choix du backend `web_search` exposé par `apollia.toml`.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum WebSearchBackend {
+    /// Sélection automatique : DuckDuckGo en premier, Brave si configuré.
+    #[default]
+    Auto,
+    /// Forcer DuckDuckGo (zero-config, toujours disponible).
+    DuckDuckGo,
+    /// Forcer Brave Search — requiert une clé API valide.
+    Brave,
+}
+
+/// Configuration du backend Brave (section `[tools.web_search.brave]`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct BraveBackendConfig {
+    /// Variable d'environnement contenant la clé API Brave.
+    /// Défaut : `"BRAVE_SEARCH_API_KEY"`.
+    #[serde(default = "default_brave_env_var")]
+    pub api_key_env_var: String,
+
+    /// Timeout de requête HTTP en secondes. Défaut : 15. Bornes : [1, 120].
+    #[serde(default = "default_web_timeout_secs")]
+    pub timeout_secs: u64,
+
+    /// Nombre maximum de résultats demandés à Brave par requête.
+    /// Défaut : 10. Bornes : [1, 20].
+    #[serde(default = "default_brave_max_results")]
+    pub max_results: u8,
+}
+
+impl Default for BraveBackendConfig {
+    fn default() -> Self {
+        Self {
+            api_key_env_var: default_brave_env_var(),
+            timeout_secs: default_web_timeout_secs(),
+            max_results: default_brave_max_results(),
+        }
+    }
+}
+
+impl BraveBackendConfig {
+    /// Valide les bornes des champs numériques.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "tools.web_search.brave.timeout_secs",
+            self.timeout_secs,
+            1_u64,
+            120_u64,
+        )?;
+        validate_bounds(
+            "tools.web_search.brave.max_results",
+            self.max_results,
+            1_u8,
+            20_u8,
+        )?;
+        Ok(())
+    }
+}
+
+/// Configuration du backend DuckDuckGo (section `[tools.web_search.duckduckgo]`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct DuckDuckGoBackendConfig {
+    /// Timeout de requête HTTP en secondes. Défaut : 15. Bornes : [1, 120].
+    #[serde(default = "default_web_timeout_secs")]
+    pub timeout_secs: u64,
+
+    /// Taille maximale de la réponse HTTP en kilo-octets avant abandon.
+    /// Défaut : 1024. Bornes : [16, 16 384].
+    #[serde(default = "default_ddg_max_response_kb")]
+    pub max_response_kb: u32,
+}
+
+impl Default for DuckDuckGoBackendConfig {
+    fn default() -> Self {
+        Self {
+            timeout_secs: default_web_timeout_secs(),
+            max_response_kb: default_ddg_max_response_kb(),
+        }
+    }
+}
+
+impl DuckDuckGoBackendConfig {
+    /// Valide les bornes des champs numériques.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "tools.web_search.duckduckgo.timeout_secs",
+            self.timeout_secs,
+            1_u64,
+            120_u64,
+        )?;
+        validate_bounds(
+            "tools.web_search.duckduckgo.max_response_kb",
+            self.max_response_kb,
+            16_u32,
+            16_384_u32,
+        )?;
+        Ok(())
+    }
+}
+
+/// Configuration de l'outil `web_read` (section `[tools.web_read]`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebReadConfig {
+    /// Timeout de requête HTTP en secondes. Défaut : 20. Bornes : [1, 120].
+    #[serde(default = "default_webread_timeout_secs")]
+    pub timeout_secs: u64,
+
+    /// Taille maximale de la réponse HTTP en kilo-octets avant abandon.
+    /// Défaut : 2048 (2 Mo). Bornes : [64, 32 768].
+    #[serde(default = "default_webread_max_response_kb")]
+    pub max_response_kb: u32,
+
+    /// Active le garde anti-SSRF (rejet des hôtes privés/loopback). Défaut : `true`.
+    #[serde(default = "default_true")]
+    pub ssrf_guard: bool,
+}
+
+impl Default for WebReadConfig {
+    fn default() -> Self {
+        Self {
+            timeout_secs: default_webread_timeout_secs(),
+            max_response_kb: default_webread_max_response_kb(),
+            ssrf_guard: true,
+        }
+    }
+}
+
+impl WebReadConfig {
+    /// Valide les bornes des champs numériques.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "tools.web_read.timeout_secs",
+            self.timeout_secs,
+            1_u64,
+            120_u64,
+        )?;
+        validate_bounds(
+            "tools.web_read.max_response_kb",
+            self.max_response_kb,
+            64_u32,
+            32_768_u32,
+        )?;
+        Ok(())
+    }
+}
+
+fn default_brave_env_var() -> String {
+    "BRAVE_SEARCH_API_KEY".to_string()
+}
+
+fn default_web_timeout_secs() -> u64 {
+    15
+}
+
+fn default_brave_max_results() -> u8 {
+    10
+}
+
+fn default_ddg_max_response_kb() -> u32 {
+    1024
+}
+
+fn default_webread_timeout_secs() -> u64 {
+    20
+}
+
+fn default_webread_max_response_kb() -> u32 {
+    2048
+}
+
+fn default_true() -> bool {
+    true
 }
 
 // ─────────────────────────────────────────────
@@ -1735,6 +1970,9 @@ mod tests {
         let cfg = ToolsConfig {
             max_output_chars: 5,
             file_path_extraction_pattern: None,
+            disabled: Vec::new(),
+            web_search: WebSearchConfig::default(),
+            web_read: WebReadConfig::default(),
         };
         // WHEN
         let result = cfg.validate();
@@ -1751,6 +1989,9 @@ mod tests {
         let cfg = ToolsConfig {
             max_output_chars: 2_000_000,
             file_path_extraction_pattern: None,
+            disabled: Vec::new(),
+            web_search: WebSearchConfig::default(),
+            web_read: WebReadConfig::default(),
         };
         // WHEN
         let result = cfg.validate();
@@ -1758,6 +1999,71 @@ mod tests {
         assert!(
             matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "tools.max_output_chars"),
             "expected OutOfBounds for tools.max_output_chars, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_default_config_deserialization() {
+        // GIVEN apollia.toml without [tools.web_search] / [tools.web_read]
+        let toml = "";
+        let cfg: ToolsConfig = toml::from_str(toml).expect("empty toml parses");
+
+        assert_eq!(cfg.web_search.backend, WebSearchBackend::Auto);
+        assert!(!cfg.web_search.require_configured);
+        assert_eq!(cfg.web_search.brave.timeout_secs, 15);
+        assert_eq!(cfg.web_search.brave.max_results, 10);
+        assert_eq!(cfg.web_search.brave.api_key_env_var, "BRAVE_SEARCH_API_KEY");
+        assert_eq!(cfg.web_search.duckduckgo.timeout_secs, 15);
+        assert_eq!(cfg.web_search.duckduckgo.max_response_kb, 1024);
+        assert_eq!(cfg.web_read.timeout_secs, 20);
+        assert_eq!(cfg.web_read.max_response_kb, 2048);
+        assert!(cfg.web_read.ssrf_guard);
+        assert!(cfg.disabled.is_empty());
+        cfg.validate().expect("default tools config valid");
+    }
+
+    #[test]
+    fn test_disabled_tools_from_toml() {
+        // GIVEN [tools] disabled = ["bash_executor"]
+        let toml = r#"
+            disabled = ["bash_executor", "python_executor"]
+        "#;
+        let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");
+        assert_eq!(cfg.disabled, vec!["bash_executor", "python_executor"]);
+    }
+
+    #[test]
+    fn test_backend_brave_only_config() {
+        // GIVEN [tools.web_search] backend = "brave"
+        let toml = r#"
+            [web_search]
+            backend = "brave"
+            require_configured = true
+
+            [web_search.brave]
+            timeout_secs = 30
+            max_results = 5
+        "#;
+        let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");
+        assert_eq!(cfg.web_search.backend, WebSearchBackend::Brave);
+        assert!(cfg.web_search.require_configured);
+        assert_eq!(cfg.web_search.brave.timeout_secs, 30);
+        assert_eq!(cfg.web_search.brave.max_results, 5);
+        cfg.validate().expect("config valid");
+    }
+
+    #[test]
+    fn test_brave_max_results_out_of_bounds_fails() {
+        let toml = r#"
+            [web_search.brave]
+            max_results = 50
+        "#;
+        let cfg: ToolsConfig = toml::from_str(toml).expect("toml parses");
+        let err = cfg.validate().expect_err("max_results=50 must fail");
+        assert!(
+            matches!(err, ConfigError::OutOfBounds { ref key, .. }
+                if key == "tools.web_search.brave.max_results"),
+            "got: {err:?}"
         );
     }
 }
