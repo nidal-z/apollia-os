@@ -119,6 +119,25 @@ Le chapitre 5 explique quand utiliser l'un ou l'autre.
 
 ---
 
+## Gouvernance des outils
+
+L'opérateur peut activer ou désactiver chaque outil natif sans recompiler. La liste effective est lue au démarrage depuis `governance.db` et injectée dans le dispatcher. Un outil désactivé n'est pas enregistré dans le `ToolDispatcher` — tout appel à son nom retourne une erreur `UnknownTool`, que l'outil soit déclaré ou non dans le manifest de l'agent.
+
+```bash
+# Désactiver bash_executor pour tous les agents
+apollia-os tools disable bash_executor
+
+# Réactiver
+apollia-os tools enable bash_executor
+
+# Voir l'état de gouvernance de chaque outil
+apollia-os tools list
+```
+
+> **Référence technique :** [Briques-Tool-Registry — §16 Gouvernance](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry#16-gouvernance-des-outils-natifs) — `ToolRegistry`, `ToolCredentialStore`, AES-256-GCM, `GovernanceSnapshot`, `NativeDispatcherConfig`.
+
+---
+
 ## Récapitulatif des appels
 
 ```python

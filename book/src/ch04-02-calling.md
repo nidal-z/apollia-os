@@ -25,6 +25,14 @@ await ctx.tools.call("bash_executor", {"command": "ls"})
 
 Cette contrainte est appliquée par le runtime **avant** d'invoquer l'outil — aucun code sandbox n'est exécuté pour un appel non autorisé.
 
+Un outil peut aussi être **désactivé par l'opérateur** via la gouvernance (`apollia-os tools disable <nom>`). Dans ce cas, l'outil n'est pas enregistré dans le dispatcher et l'appel retourne :
+
+```python
+# → {"error": "unknown_tool: bash_executor"}
+```
+
+Le code d'erreur est identique à celui d'un outil inexistant — la désactivation est transparente du point de vue du code Python.
+
 ---
 
 ## Ce qui se passe à chaque appel

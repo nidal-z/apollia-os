@@ -1037,6 +1037,190 @@ result = await ctx.tools.notebook_edit.run(
 | Semaphore(10) sur les batches read-only | Évite la saturation des fd système et les pics CPU sur les machines contraintes |
 | Marqueur UUID dans `persistent_bash` | Détection fiable de fin de commande même si l'output contient des chaînes arbitraires |
 | `ShellSessionRegistry` par agent_id | Isolation stricte — deux agents ne partagent jamais une session shell |
+| Absent de `tools` = actif par défaut | La table `tools` de `governance.db` est une liste d'exception — tout outil inconnu reste activé, seul `enabled = FALSE` désactive |
+| AES-256-GCM pour les credentials | Chiffrement symétrique authentifié — le ciphertext intègre le MAC, toute altération échoue au déchiffrement |
+
+---
+
+## 16. Gouvernance des outils natifs
+
+### 16.1 Rôle
+
+`apollia_tools::tool_registry` expose deux composants persistés dans `governance.db` :
+
+- **`ToolRegistry`** — état `enabled` / `disabled` par outil natif.
+- **`ToolCredentialStore`** — secrets chiffrés par outil (ex. clé Brave Search).
+
+Au démarrage du runtime, `load_governance_snapshot` lit ces deux composants et produit un `GovernanceSnapshot` injecté dans `NativeDispatcherConfig`. Les outils désactivés sont exclus du `ToolDispatcher` — tout appel à un tel outil retourne `UnknownTool`.
+
+### 16.2 `ToolRegistry` — activation / désactivation
+
+```rust
+/// Registre persisté des outils activés/désactivés et de leur config JSON.
+pub struct ToolRegistry {
+    conn: Connection,  // connexion SQLite vers governance.db
+}
+
+impl ToolRegistry {
+    pub fn new(db_path: &Path) -> Result<Self, ToolGovernanceError>;
+
+    /// Absent de la table → actif (défaut). Seulement `enabled = FALSE` désactive.
+    pub fn is_enabled(&self, tool_name: &str) -> Result<bool, ToolGovernanceError>;
+
+    /// Upsert atomique : insère ou met à jour + `updated_at = unixepoch()`.
+    pub fn set_enabled(&mut self, tool_name: &str, enabled: bool) -> Result<(), ToolGovernanceError>;
+
+    /// Lit la config JSON spécifique à l'outil (`None` si absente).
+    pub fn get_config(&self, tool_name: &str) -> Result<Option<serde_json::Value>, ToolGovernanceError>;
+
+    /// Upsert de la config JSON.
+    pub fn set_config(&mut self, tool_name: &str, config: &serde_json::Value) -> Result<(), ToolGovernanceError>;
+
+    /// Retourne le statut de tous les outils natifs connus (`NATIVE_TOOL_NAMES`)
+    /// union les entrées de la table `tools`.
+    pub fn list(&self) -> Result<Vec<ToolStatus>, ToolGovernanceError>;
+}
+```
+
+**`NATIVE_TOOL_NAMES`** — liste canonique des 13 outils natifs du runtime :
+
+```rust
+pub const NATIVE_TOOL_NAMES: &[&str] = &[
+    "bash_executor", "python_executor",
+    "file_read", "file_write", "file_list", "file_edit", "file_glob", "file_grep",
+    "http_fetch",
+    "web_search", "web_read",
+    "memory_search",
+    "ask_user",
+];
+```
+
+**`ToolStatus`** — snapshot d'un outil :
+
+```rust
+pub struct ToolStatus {
+    pub name: String,
+    pub enabled: bool,
+    pub config: Option<serde_json::Value>,
+    pub updated_at: i64,   // Unix seconds, 0 si pas d'entrée en base
+}
+```
+
+### 16.3 `ToolCredentialStore` — secrets chiffrés AES-256-GCM
+
+```rust
+pub struct ToolCredentialStore {
+    conn: Connection,     // connexion SQLite vers governance.db
+    key: [u8; 32],        // clé AES-256 chargée depuis ~/.apollia/.keyfile
+}
+
+impl ToolCredentialStore {
+    /// Ouvre le store. Crée le `.keyfile` (32 octets aléatoires, chmod 600)
+    /// s'il n'existe pas encore.
+    pub fn new(db_path: &Path, keyfile: &Path) -> Result<Self, ToolGovernanceError>;
+
+    /// Chiffre `value` en AES-256-GCM et l'insère ou met à jour.
+    /// Le nonce 12 octets est regénéré aléatoirement à chaque écriture
+    /// et préfixé au ciphertext dans la colonne `value_encrypted`.
+    pub fn set(&mut self, tool_name: &str, key_name: &str, value: &str)
+        -> Result<(), ToolGovernanceError>;
+
+    /// Lit et déchiffre la valeur. Retourne `None` si absente.
+    pub fn get(&self, tool_name: &str, key_name: &str)
+        -> Result<Option<String>, ToolGovernanceError>;
+
+    /// Supprime la credential. Retourne `true` si une ligne a été effacée.
+    pub fn delete(&mut self, tool_name: &str, key_name: &str)
+        -> Result<bool, ToolGovernanceError>;
+
+    /// Liste les credentials (métadonnées uniquement — valeur jamais exposée).
+    /// `tool_name_filter = None` retourne toutes les credentials.
+    pub fn list(&self, tool_name_filter: Option<&str>)
+        -> Result<Vec<CredentialEntry>, ToolGovernanceError>;
+}
+
+pub struct CredentialEntry {
+    pub tool_name: String,
+    pub key_name: String,
+    pub created_at: i64,
+    pub last_used_at: Option<i64>,
+}
+```
+
+**Protocole de chiffrement :**
+
+```
+stocké = nonce(12 octets) || AES-256-GCM(key, nonce, plaintext)
+```
+
+La clé maître est stockée dans `<data_dir>/.keyfile` (32 octets bruts, `chmod 600` à la création). Elle n'est jamais stockée dans `governance.db`.
+
+### 16.4 `GovernanceSnapshot` et `load_governance_snapshot`
+
+```rust
+/// Snapshot léger chargé une fois au démarrage, injecté dans NativeDispatcherConfig.
+#[derive(Default)]
+pub struct GovernanceSnapshot {
+    /// Noms des outils dont `enabled = FALSE` dans governance.db.
+    pub disabled_tools: Vec<String>,
+    /// Clé Brave Search déchiffrée depuis le credential store (`web_search/brave.api_key`).
+    pub brave_api_key: Option<String>,
+}
+
+/// Charge le snapshot depuis `<base_dir>/governance.db` et `<base_dir>/.keyfile`.
+/// Retourne `GovernanceSnapshot::default()` (tous outils actifs, pas de clé Brave)
+/// si `governance.db` n'existe pas encore — le runtime fonctionne avant la première écriture.
+pub fn load_governance_snapshot(base_dir: &Path)
+    -> Result<GovernanceSnapshot, ToolGovernanceError>;
+```
+
+**Chemin de données :** `<data_dir>/governance.db` et `<data_dir>/.keyfile`.
+
+`data_dir` est le répertoire de données du runtime (typiquement `~/.apollia/`). La table `tools` de `governance.db` doit être initialisée via `GovernanceDb::open` (crate interne) avant toute utilisation de `ToolRegistry`.
+
+### 16.5 Intégration dans `NativeDispatcherConfig`
+
+`build_native_dispatcher` accepte maintenant deux champs supplémentaires :
+
+```rust
+pub struct NativeDispatcherConfig {
+    // ... champs existants ...
+    /// Outils exclus du dispatcher — tout appel retourne `UnknownTool`.
+    pub disabled_tools: Vec<String>,
+    /// Clé Brave Search issue du credential store ; `None` → fallback env `BRAVE_SEARCH_API_KEY`.
+    pub brave_api_key: Option<String>,
+}
+```
+
+**Règle d'exclusion :** chaque outil est conditionné par `is_active(name) = !disabled_tools.contains(name)`. Un outil absent de `disabled_tools` est toujours inséré dans le `ToolDispatcher`.
+
+### 16.6 `ToolGovernanceError` — erreurs typées
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum ToolGovernanceError {
+    #[error("governance database error: {0}")]
+    Database(#[from] rusqlite::Error),
+
+    #[error("keyfile I/O error at {path}: {source}")]
+    Keyfile { path: PathBuf, #[source] source: std::io::Error },
+
+    #[error("keyfile is corrupted: expected 32 bytes, found {found}")]
+    KeyfileCorrupted { found: usize },
+
+    #[error("encrypted value is corrupted (too short)")]
+    CiphertextCorrupted,
+
+    #[error("invalid tool config JSON: {0}")]
+    InvalidJson(#[from] serde_json::Error),
+
+    #[error("decryption failed (wrong key or tampered ciphertext)")]
+    DecryptFailed,
+
+    #[error("encryption failed")]
+    EncryptFailed,
+}
+```
 
 ---
 
