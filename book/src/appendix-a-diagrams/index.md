@@ -67,7 +67,7 @@
 ## Séquence — ORIA Mode Orchestré (ActorLoop)
 ![ORIA Orchestrated](seq-oria-orchestrated.svg)
 
-## Séquence — Boucle ReAct run_tools()
+## Séquence — Boucle ReAct run_tools
 ![ReAct run_tools](seq-run-tools-react.svg)
 
 ## Séquence — Bridge AIP (Rust ↔ Python via PyO3)
@@ -139,7 +139,7 @@
 
 ---
 
-## Pipelines multi-agents *(Sprint 12)*
+## Pipelines multi-agents
 
 ## Topologie — Pipeline (fan-out / fan-in / fallback / condition)
 ![Pipeline Topology](component-pipeline-topology.svg)
@@ -152,7 +152,7 @@
 
 ---
 
-## A2A Routing *(Sprint 30 + 32)*
+## A2A Routing
 
 ## Séquence — Discovery + Invocation A2A (happy path)
 ![A2A Discovery Invoke](seq-a2a-discovery-invoke.svg)
@@ -162,7 +162,7 @@
 
 ---
 
-## Worker Agents *(Sprint 29-32)*
+## Worker Agents *(32)*
 
 ## Séquence — Cycle de vie Worker Agent (manifest → SYSTEM_PROMPT → ReAct)
 ![Worker Agent Lifecycle](seq-worker-agent-lifecycle.svg)

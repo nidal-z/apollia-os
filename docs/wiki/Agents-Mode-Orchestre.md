@@ -6,7 +6,7 @@
 
 ## Intro
 
-Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Actor) pilote entièrement la tâche : le LLM génère un plan `ExecutionPlan`, l'`ActorLoop` l'exécute step par step, avec replanification automatique en cas d'erreur. Contrairement au Mode Direct, `agent.run()` n'est **pas** appelé pendant l'exécution des steps.
+Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Actor) pilote entièrement la tâche : le LLM génère un plan `ExecutionPlan`, l'`ActorLoop` l'exécute step par step, avec replanification automatique en cas d'erreur. Contrairement au Mode Direct, `agent.run` n'est **pas** appelé pendant l'exécution des steps.
 
 ---
 
@@ -22,9 +22,9 @@ Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Acto
 
 **Classification automatique (scoring pondéré) :**
 - `step_budget.max_steps > 15` : +0.30
-- `input.parts.len() > 3` : +0.20
+- `input.parts.len > 3` : +0.20
 - tags contient `"multi-step"` : +0.40
-- `tools_required.len() > 4` : +0.20
+- `tools_required.len > 4` : +0.20
 - input texte > 500 chars : +0.10
 - mémoire épisodique > 5 entrées : +0.10
 - input contient mots-clés planning : +0.10
@@ -34,7 +34,7 @@ Le **Mode Orchestré** est le mode d'exécution où ORIA (Observer-Reasoner-Acto
 
 ## 2. Table — Primitives du Plan d'Exécution
 
-L'`ExecutionPlan` est généré par le Reasoner et validé par `Reasoner::parse_and_validate()`.
+L'`ExecutionPlan` est généré par le Reasoner et validé par `Reasoner::parse_and_validate`.
 
 | Primitive | Champ | Type | Description |
 |---|---|---|---|
@@ -83,11 +83,11 @@ Chaque primitive de l'ORIAEngine exécute une séquence Observer → Reason → 
 |---|---|---|
 | **Trier topologiquement** | Ordre garantissant dépendances satisfaites | Avant exécution |
 | **Exécuter step** | Appelle outil via `ToolProxyTrait` ou LLM via `LlmRouter` | Par étape |
-| **Budget check** | Vérifie `is_exhausted()` avant chaque step | Par étape |
+| **Budget check** | Vérifie `is_exhausted` avant chaque step | Par étape |
 | **Enregistrer mémoire** | Episodique fire-and-forget (importance 0.6, max 200 chars) | Après step complété |
-| **Persister SQLite** | `start_step()` / `complete_step()` / `fail_step()` / `complete_plan()` | Temps réel |
+| **Persister SQLite** | `start_step` / `complete_step` / `fail_step` / `complete_plan` | Temps réel |
 | **Émettre événements** | `StepStarted`, `StepCompleted`, `StepFailed`, `PlanReplanning`, `PlanCompleted` | Temps réel |
-| **Replanifier si retryable** | Déclenche `Reasoner::replan()` si erreur retryable + count < max | Si step échoue |
+| **Replanifier si retryable** | Déclenche `Reasoner::replan` si erreur retryable + count < max | Si step échoue |
 
 ---
 
@@ -101,7 +101,7 @@ La replanification est **automatique** et bornée à **max 2 replans** (au-delà
 | **LlmCallFailed** | ✅ Oui | Déclenche replan (backend indisponible) |
 | **ToolNotFound** | ❌ Non | Échec immédiat (erreur permanente) |
 | **NoLlmBackend** | ❌ Non | Échec immédiat (config manquante) |
-| **RejectedByUser** | ❌ Non | Arrêt immédiat (HITL Mode Orchestré, Sprint 11) |
+| **RejectedByUser** | ❌ Non | Arrêt immédiat (HITL Mode Orchestré) |
 | **ApprovalChannelClosed** | ❌ Non | Arrêt immédiat (runtime shutdown) |
 | **replan_count ≥ max_replans** | — | `MAX_REPLAN_EXCEEDED` : tâche échoue |
 
@@ -127,7 +127,7 @@ Step échoue
 
 | Variante | Condition | Message |
 |---|---|---|
-| `BudgetExceeded { reason }` | `StepBudget::is_exhausted() = true` | `"step budget exceeded: {reason}"` |
+| `BudgetExceeded { reason }` | `StepBudget::is_exhausted = true` | `"step budget exceeded: {reason}"` |
 | `ExecutionFailed(String)` | Défaillance agent | `"agent execution failed: {reason}"` |
 | `ObserverError(ObserverError)` | Échec contexte/mémoire | Via `ObserverError` |
 | `BridgeError(String)` | Problème bridge AIP Python ↔ Rust | `"bridge error: {msg}"` |
@@ -160,7 +160,7 @@ Step échoue
 | `LlmCallFailed(String)` | ✅ | Appel LLM échoué |
 | `NoLlmBackend` | ❌ | Aucun backend LLM configuré |
 | `ToolNotFound(String)` | ❌ | Outil non enregistré dans le registre |
-| `RejectedByUser { reason }` | ❌ | Utilisateur a refusé le step (HITL, Sprint 11) |
+| `RejectedByUser { reason }` | ❌ | Utilisateur a refusé le step (HITL) |
 | `ApprovalChannelClosed` | ❌ | Oneshot fermé avant réponse |
 
 ---
@@ -211,4 +211,4 @@ Step échoue
 
 ---
 
-**Dernière mise à jour** : Sprint 40, 2026-04-24
+**Dernière mise à jour** : 2026-04-24

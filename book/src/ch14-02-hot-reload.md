@@ -20,7 +20,7 @@ curl -X PUT http://localhost:7771/api/v1/triggers/rapport-hebdomadaire \
 # → TriggersReloaded { count: 3 } émis sur EventBus
 ```
 
-Le pattern est **écriture SQLite → engine.reload()** : la nouvelle définition est d'abord persistée, puis le reload s'applique. En cas de panne entre les deux étapes, la définition en SQLite sera appliquée au prochain démarrage du runtime.
+Le pattern est **écriture SQLite → engine.reload** : la nouvelle définition est d'abord persistée, puis le reload s'applique. En cas de panne entre les deux étapes, la définition en SQLite sera appliquée au prochain démarrage du runtime.
 
 ---
 

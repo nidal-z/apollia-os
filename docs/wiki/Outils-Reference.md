@@ -1,6 +1,6 @@
 # Outils natifs — Référence rapide
 
-> Référence des 10 outils natifs Apollia OS. Version Sprint 25.
+> Référence des 10 outils natifs Apollia OS. Version.
 
 ---
 

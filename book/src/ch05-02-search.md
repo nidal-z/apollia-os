@@ -4,7 +4,7 @@ La recherche est le cœur du Memory Engine. Savoir mémoriser c'est bien — pou
 
 ---
 
-## ctx.memory.search() — la recherche hybride
+## ctx.memory.search — la recherche hybride
 
 `search()` effectue une recherche plein texte sur la mémoire épisodique et sémantique simultanément, classée par score BM25 :
 
@@ -98,7 +98,7 @@ Niveau 3 (opt-in avancé — Ollama installé)
     → Meilleure qualité sémantique, 768 dimensions
 ```
 
-L'agent n'a rien à changer dans son code — `ctx.memory.search()` utilise automatiquement le niveau le plus élevé disponible. Configuration dans `apollia.toml` :
+L'agent n'a rien à changer dans son code — `ctx.memory.search` utilise automatiquement le niveau le plus élevé disponible. Configuration dans `apollia.toml` :
 
 ```toml
 [memory]
@@ -111,13 +111,13 @@ En mode `auto`, le runtime détecte ce qui est disponible au démarrage.
 
 ---
 
-## ctx.memory.search() vs l'outil memory_search
+## ctx.memory.search vs l'outil memory_search
 
 Deux façons d'accéder à la recherche mémoire depuis un agent :
 
-**`ctx.memory.search()`** — l'interface haute niveau de `MemoryInterface`. Disponible si `memory_namespace` est défini. Recommandée pour la grande majorité des cas.
+**`ctx.memory.search`** — l'interface haute niveau de `MemoryInterface`. Disponible si `memory_namespace` est défini. Recommandée pour la grande majorité des cas.
 
-**L'outil `memory_search`** — invocable via `ctx.tools.call("memory_search", {...})`. Disponible depuis la boucle ReAct `ctx.llm.run_tools()`, où le LLM décide lui-même quand chercher. Utile quand vous déléguez la décision de recherche au modèle.
+**L'outil `memory_search`** — invocable via `ctx.tools.call("memory_search", {...})`. Disponible depuis la boucle ReAct `ctx.llm.run_tools`, où le LLM décide lui-même quand chercher. Utile quand vous déléguez la décision de recherche au modèle.
 
 ```python
 # Scénario : laisser le LLM décider quand chercher en mémoire

@@ -1,7 +1,7 @@
 # Chat — Sous-systeme conversationnel
 
-> Page source de verite pour le sous-systeme Chat introduit au Sprint 18.
-> Derniere mise a jour : Sprint 31.
+> Page source de verite pour le sous-systeme Chat introduit.
+> Derniere mise a jour :.
 
 ---
 
@@ -62,7 +62,7 @@ Flux d'execution par echange :
 
 1. Le message utilisateur est ajoute a l'historique de la session
 2. L'historique complet est converti en `CompletionRequest`
-3. `LlmRouter.stream()` produit un flux de tokens
+3. `LlmRouter.stream` produit un flux de tokens
 4. Chaque token est emis comme `ChatToken` RuntimeEvent
 5. La reponse complete est analysee :
    - Si `tool_call` detecte : verifier l'autorisation → executer ou HITL → reinjecter le resultat → retour a l'etape 2
@@ -71,11 +71,11 @@ Flux d'execution par echange :
 
 Le prompt systeme est configurable par session. La valeur par defaut fournit les instructions ReAct standard avec la liste des outils disponibles.
 
-### CompositeToolInvoker — routing A2A depuis le chat libre *(Sprint 31)*
+### CompositeToolInvoker — routing A2A depuis le chat libre
 
-Le `CompositeToolInvoker` est introduit par STORY-403 pour permettre au Chat Libre d'invoquer des Worker Agents via A2A sans que l'utilisateur ne sache que la délégation a eu lieu.
+Le `CompositeToolInvoker` est introduit par pour permettre au Chat Libre d'invoquer des Worker Agents via A2A sans que l'utilisateur ne sache que la délégation a eu lieu.
 
-**Principe** : chaque skill des agents actifs avec `supports_a2a: true` est exposé comme un outil virtuel préfixé `a2a:` dans la liste des outils disponibles du `BuiltInChatAgent`. Le LLM voit `[file_read, bash_executor, ..., a2a:read-pdf, a2a:extract-tables, ...]` et choisit naturellement l'outil A2A quand le domaine correspond.
+**Principe** : chaque skill des agents actifs avec `supports_a2a: true` est exposé comme un outil virtuel préfixé `a2a:` dans la liste des outils disponibles du `BuiltInChatAgent`. Le LLM voit `[file_read, bash_executor,..., a2a:read-pdf, a2a:extract-tables,...]` et choisit naturellement l'outil A2A quand le domaine correspond.
 
 **Architecture** :
 
@@ -83,7 +83,7 @@ Le `CompositeToolInvoker` est introduit par STORY-403 pour permettre au Chat Lib
 BuiltInChatAgent
   └── tool_invoker: Arc<dyn ToolInvoker>
         ├── NativeChatToolInvoker  (outils natifs — comportement inchangé)
-        └── CompositeToolInvoker   (si agents A2A actifs, Sprint 31)
+        └── CompositeToolInvoker   (si agents A2A actifs)
               ├── native: NativeChatToolInvoker
               └── a2a: Arc<A2AInvoker>
 ```
@@ -94,7 +94,7 @@ Le `ChatSessionManager` instancie un `CompositeToolInvoker` si `a2a_invoker` est
 
 1. `tool_name.strip_prefix("a2a:")` → extrait le `skill_id`
 2. `arguments["text"]` → extrait la requête textuelle
-3. `A2AInvoker.invoke(skill_id, ...)` → délègue à l'agent Worker
+3. `A2AInvoker.invoke(skill_id,...)` → délègue à l'agent Worker
 4. Si `status == "completed"` → `Ok("[{skill_id} via {agent_name}]\n{output_text}")`
 5. Si `status == "failed"` → `Err("Agent {name} a échoué : {message}")` propagé au chat
 6. Si pas de préfixe `a2a:` → `NativeChatToolInvoker.invoke(...)` (fallback)
@@ -116,12 +116,12 @@ Le mode Agent delegue l'execution a un agent Python existant via le bridge PyO3.
 
 Flux d'execution :
 
-1. L'historique de la session est converti en `AIPTask` via `session_to_task()`
+1. L'historique de la session est converti en `AIPTask` via `session_to_task`
 2. L'agent est charge via `AgentLoader` et valide
 3. Un `RuntimeContext` est cree avec les composants necessaires (tools, memory, llm, budget)
-4. `AIPBridge.call_run()` est appele directement — le `TaskRouter` n'est pas implique
+4. `AIPBridge.call_run` est appele directement — le `TaskRouter` n'est pas implique
 5. Le resultat est ajoute comme message assistant
-6. Si `AIPResult.input_required()` retourne `true`, le flux bascule vers `ChatApprovalRequired`
+6. Si `AIPResult.input_required` retourne `true`, le flux bascule vers `ChatApprovalRequired`
 
 Le mode Agent ne supporte pas le streaming token-by-token : la reponse est retournee en bloc.
 
@@ -212,7 +212,7 @@ Le composant `PendingChatApprovals` gere les approbations en attente :
 2. `ChatApprovalRequired` RuntimeEvent est emis, declenche une notification desktop via `NotificationEngine` (canal `chat.approval_required`)
 3. L'operateur repond via l'API REST ou l'IPC Tauri
 4. `resolve(session_id, tool_name, decision)` envoie la decision via le `oneshot::Sender`
-5. Si aucune reponse apres 5 minutes, `start_timeout()` envoie automatiquement `Refuse`
+5. Si aucune reponse apres 5 minutes, `start_timeout` envoie automatiquement `Refuse`
 
 Le timeout de 5 minutes est configurable.
 
@@ -321,9 +321,9 @@ Le flux SSE (`/stream`) emet les `RuntimeEvent` chat filtres par `session_id`. L
 | `create_chat_session` | `mode`, `agent_name?`, `tools?`, `system_prompt?` | `ChatSessionResponse` | Cree une session |
 | `list_chat_sessions` | `status?` | `Vec<ChatSessionSummary>` | Liste les sessions |
 | `get_chat_session` | `session_id` | `ChatSessionDetail` | Detail complet (messages, autorisations) |
-| `close_chat_session` | `session_id` | `()` | Ferme une session |
+| `close_chat_session` | `session_id` | `` | Ferme une session |
 | `send_chat_message` | `session_id`, `content` | `{ message_id }` | Envoie un message |
-| `authorize_chat_tool` | `session_id`, `tool_name`, `decision` | `()` | Resout une approbation |
+| `authorize_chat_tool` | `session_id`, `tool_name`, `decision` | `` | Resout une approbation |
 
 ### Event bridge Tauri
 
@@ -362,9 +362,9 @@ Le store `chatTokenBuffer` est consomme par `StreamingText.svelte` pour l'affich
 
 ---
 
-## Mode-aware tool card rendering *(Sprint 25)*
+## Mode-aware tool card rendering
 
-Le Sprint 25 introduit un rendu conditionnel des appels d'outils dans le frontend Svelte, pilote par le store `uiMode`. Selon la valeur de ce store, chaque appel d'outil est affiche sous une forme adaptee a l'audience : phrase lisible pour l'operateur final, details techniques pour le developpeur.
+Le introduit un rendu conditionnel des appels d'outils dans le frontend Svelte, pilote par le store `uiMode`. Selon la valeur de ce store, chaque appel d'outil est affiche sous une forme adaptee a l'audience : phrase lisible pour l'operateur final, details techniques pour le developpeur.
 
 ### Deux modes de rendu
 
@@ -382,7 +382,7 @@ Le store `uiMode` accepte deux valeurs :
 Composant cible quand `$uiMode === "operator"`.
 
 - Affiche une phrase humaine construite a partir des cles i18n : par exemple "Lecture de rapport.pdf" pour un appel `read_file`.
-- Integre une icone Lucide fournie par `resolveToolDisplay()`.
+- Integre une icone Lucide fournie par `resolveToolDisplay`.
 - Affiche un indicateur de statut anime :
   - Spinner (roue) pendant `Pending` / `Authorized`
   - Icone check verte pour `Executed`
@@ -449,7 +449,7 @@ Les 10 outils natifs documentes : `read_file`, `write_file`, `list_dir`, `bash`,
 
 ## Injection memoire utilisateur
 
-Le mode Chat Libre enrichit automatiquement le prompt systeme avec le profil memorise de l'utilisateur a chaque nouvelle session. Ce mecanisme est implementé dans `build_system_prompt()` (`chat/builtin_agent.rs`).
+Le mode Chat Libre enrichit automatiquement le prompt systeme avec le profil memorise de l'utilisateur a chaque nouvelle session. Ce mecanisme est implementé dans `build_system_prompt` (`chat/builtin_agent.rs`).
 
 ### Fonctionnement
 
@@ -477,8 +477,8 @@ Conformement au Principe #6 (Mémoire à initiative de l'agent), les entrées `_
 
 ### Source de verite
 
-- Injection : `crates/apollia-runtime/src/chat/builtin_agent.rs` — `BuiltInChatAgent::build_system_prompt()`
-- Stockage et format : `crates/apollia-memory/src/user_memory.rs` — `UserMemoryRepository::recall_persona_brief()`
+- Injection : `crates/apollia-runtime/src/chat/builtin_agent.rs` — `BuiltInChatAgent::build_system_prompt`
+- Stockage et format : `crates/apollia-memory/src/user_memory.rs` — `UserMemoryRepository::recall_persona_brief`
 - Namespace reserve : `const USER_NAMESPACE: &str = "__user__"`
 
 ---
@@ -495,7 +495,7 @@ Le seuil est defini par `DEFAULT_CONTEXT_WINDOW_SIZE = 20` (messages). Apres cha
 history.len() > DEFAULT_CONTEXT_WINDOW_SIZE && stored_summary.is_none()
 ```
 
-Si vraie, les `history.len() - 20` messages les plus anciens (ceux hors de la fenetre glissante) sont soumis a la summarisation. La summarisation n'est declenchee qu'une seule fois par session : si un resume est deja stocke (`stored_summary.is_some()`), il est reutilise tel quel.
+Si vraie, les `history.len - 20` messages les plus anciens (ceux hors de la fenetre glissante) sont soumis a la summarisation. La summarisation n'est declenchee qu'une seule fois par session : si un resume est deja stocke (`stored_summary.is_some`), il est reutilise tel quel.
 
 ### ConversationSummarizer
 
@@ -537,7 +537,7 @@ Lors de la **premiere** requete d'une nouvelle session Chat Libre, le `ChatSessi
 
 ### Declenchement
 
-La logique de recall est activee uniquement quand `history.len() == 1` (premiere reponse de la session). Elle est ignoree si le premier message est trop court :
+La logique de recall est activee uniquement quand `history.len == 1` (premiere reponse de la session). Elle est ignoree si le premier message est trop court :
 
 ```rust
 const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
@@ -557,7 +557,7 @@ ORDER BY rank
 LIMIT ?2
 ```
 
-Le classement `ORDER BY rank` utilise le scoring **BM25** natif de FTS5. La requete est sanitisee avant envoi (`sanitize_fts_query()`) pour echapper les caracteres speciaux FTS.
+Le classement `ORDER BY rank` utilise le scoring **BM25** natif de FTS5. La requete est sanitisee avant envoi (`sanitize_fts_query`) pour echapper les caracteres speciaux FTS.
 
 Le nombre maximum de sessions retournees est defini par :
 
@@ -591,8 +591,8 @@ pub struct PastSessionSummary {
 
 ### Source de verite
 
-- Constantes et logique : `crates/apollia-runtime/src/chat/manager.rs` — `build_cross_session_context()` et constantes `MAX_PAST_SESSIONS`, `MIN_MESSAGE_LENGTH_FOR_RECALL`
-- Requete FTS5 : `crates/apollia-runtime/src/chat/repository.rs` — `find_relevant_sessions()`
+- Constantes et logique : `crates/apollia-runtime/src/chat/manager.rs` — `build_cross_session_context` et constantes `MAX_PAST_SESSIONS`, `MIN_MESSAGE_LENGTH_FOR_RECALL`
+- Requete FTS5 : `crates/apollia-runtime/src/chat/repository.rs` — `find_relevant_sessions`
 - Type : `crates/apollia-runtime/src/chat/types.rs` — `PastSessionSummary`
 
 ---

@@ -1,6 +1,6 @@
 # A2A Guards
 
-Dans une architecture multi-agents, un Director Agent peut déléguer une tâche à un Worker via `ctx.delegate()`. Ce mécanisme est puissant — mais il ouvre un vecteur de risque nouveau : **la récursivité entre agents**.
+Dans une architecture multi-agents, un Director Agent peut déléguer une tâche à un Worker via `ctx.delegate`. Ce mécanisme est puissant — mais il ouvre un vecteur de risque nouveau : **la récursivité entre agents**.
 
 Agent A invoque Agent B. Agent B invoque Agent C. Agent C invoque Agent A. La chaîne tourne indéfiniment, consommant des ressources jusqu'à épuisement. Ou pire : Agent A s'invoque lui-même, créant une boucle infinie d'auto-délégation.
 
@@ -12,11 +12,11 @@ Les **A2A Guards** sont les trois garde-fous non contournables qui protègent le
 
 | Garde-fou | Défaut | Protection contre |
 |---|---|---|
-| `max_depth` | 3 | Récursivité infinie (`A → B → C → A → ...`) |
+| `max_depth` | 3 | Récursivité infinie (`A → B → C → A →...`) |
 | `chain_timeout_secs` | 300 (5 min) | Chaîne monopolisant les ressources indéfiniment |
 | Self-invocation | Bloqué | Agent qui s'invoque lui-même via A2A |
 
-Ces protections s'appliquent automatiquement à chaque `ctx.delegate()`. L'agent Python ne peut pas les désactiver.
+Ces protections s'appliquent automatiquement à chaque `ctx.delegate`. L'agent Python ne peut pas les désactiver.
 
 ---
 
@@ -35,7 +35,7 @@ Le `chain_timeout_secs` est le budget total de la chaîne entière — pas par i
 
 ## Ordre d'application des garde-fous
 
-À chaque `ctx.delegate()`, le runtime vérifie dans cet ordre :
+À chaque `ctx.delegate`, le runtime vérifie dans cet ordre :
 
 ```
 1. max_depth atteint ?      → MaxDepthExceeded
@@ -125,7 +125,7 @@ Director (budget: 10 steps, 20 tool_calls)
 
 Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A (`invocation_timeout_secs`).
 
-**Règle pratique** : pour chaque `ctx.delegate()` dans votre agent, comptez au minimum 2 steps (avant et après la délégation) et ajustez `max_steps` dans votre manifest en conséquence.
+**Règle pratique** : pour chaque `ctx.delegate` dans votre agent, comptez au minimum 2 steps (avant et après la délégation) et ajustez `max_steps` dans votre manifest en conséquence.
 
 ---
 

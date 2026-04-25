@@ -1,6 +1,6 @@
 # Les garde-fous
 
-Dans le chapitre précédent, `ctx.llm.run_tools()` a rendu votre agent autonome : le modèle décide lui-même quels outils appeler, combien de fois, et dans quel ordre. C'est précisément ce qui le rend puissant — et c'est précisément ce qui le rend dangereux sans limites.
+Dans le chapitre précédent, `ctx.llm.run_tools` a rendu votre agent autonome : le modèle décide lui-même quels outils appeler, combien de fois, et dans quel ordre. C'est précisément ce qui le rend puissant — et c'est précisément ce qui le rend dangereux sans limites.
 
 Un agent autonome sans contraintes peut boucler indéfiniment sur une tâche mal formée, accumuler des centaines d'appels LLM en quelques minutes, ou, dans une architecture multi-agents, déclencher une cascade d'invocations récursives qui monopolise toutes les ressources du runtime.
 
@@ -26,7 +26,7 @@ Le circuit se referme automatiquement après la période de cooldown.
 
 ### A2A Guards — les garde-fous inter-agents
 
-Quand un Director Agent invoque un Worker via `ctx.delegate()`, trois garde-fous supplémentaires s'appliquent : profondeur maximale de chaîne (`max_depth`), timeout cumulé de toute la chaîne A2A, et blocage de l'auto-invocation. Ces protections empêchent les récursions infinies entre agents.
+Quand un Director Agent invoque un Worker via `ctx.delegate`, trois garde-fous supplémentaires s'appliquent : profondeur maximale de chaîne (`max_depth`), timeout cumulé de toute la chaîne A2A, et blocage de l'auto-invocation. Ces protections empêchent les récursions infinies entre agents.
 
 ---
 

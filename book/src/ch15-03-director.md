@@ -66,7 +66,7 @@ if val_data["statut"] == "VALIDE" and not val_data["alerte_montant"]:
     enregistrement = await ctx.delegate(
         "record-invoice",
         {"input": {"text": validation.output}}
-    )
+)
 ```
 
 ## RÉPONSES STRUCTURÉES
@@ -175,7 +175,7 @@ apollia-os agent run facture-director \
 
 Le Director est déclaré en `execution_mode: "orchestrated"`. Il ne doit **pas** implémenter lui-même la boucle d'appel des Workers — ORIA le fait via la boucle ReAct. Le SYSTEM_PROMPT guide le LLM dans l'ordre d'appel des outils A2A.
 
-Si vous avez besoin d'un contrôle plus précis sur l'ordre des délégations (par exemple, forcer la séquence extract → validate → record sans que le LLM puisse dévier), préférez le **mode direct** avec `ctx.delegate()` explicite :
+Si vous avez besoin d'un contrôle plus précis sur l'ordre des délégations (par exemple, forcer la séquence extract → validate → record sans que le LLM puisse dévier), préférez le **mode direct** avec `ctx.delegate` explicite :
 
 ```python
 # Mode direct — séquence forcée, non orchestrée

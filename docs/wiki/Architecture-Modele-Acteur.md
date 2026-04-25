@@ -81,7 +81,7 @@ STOPPING → STOPPED
 **État interne :** `Semaphore` (capacité = `max_concurrent_tasks`).
 
 **Comportement :**
-- `submit_task()` : `try_acquire_owned()` non-bloquant — retourne `CapacityExceeded` si plein
+- `submit_task` : `try_acquire_owned` non-bloquant — retourne `CapacityExceeded` si plein
 - `tokio::spawn` : la permit est movée dans la closure, droppée à la fin de la tâche
 - Émet `TaskCompleted` ou `TaskFailed` via EventBus (fire-and-forget)
 
@@ -92,10 +92,10 @@ STOPPING → STOPPED
 **État interne :** `AppState<B>` partagé entre handlers via `Arc` (read-only après init).
 
 **Double écoute :**
-- TCP `0.0.0.0:7771` via `axum::serve()`
+- TCP `0.0.0.0:7771` via `axum::serve`
 - Unix socket `/tmp/apollia.sock` via `hyper-util` boucle accept manuelle (ADR-017)
 
-**Shutdown :** via `watch::channel` — `graceful_shutdown()` signal propre.
+**Shutdown :** via `watch::channel` — `graceful_shutdown` signal propre.
 
 ### 6. Supervisor
 
@@ -117,7 +117,7 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 **Rollback :** si l'APIServer échoue au démarrage, tous les acteurs précédemment démarrés sont arrêtés en ordre inverse.
 
-### 7. ChatSessionManager *(Sprint 18)*
+### 7. ChatSessionManager
 
 **Rôle :** gérer les sessions de chat interactif (Chat Libre et Chat Agent).
 
@@ -127,12 +127,12 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 **Comportement :**
 - Chat Libre : boucle ReAct Rust native via `BuiltInChatAgent` avec streaming token-by-token
-- Chat Agent : délègue à `AIPBridge.call_run()` (agent Python installé)
+- Chat Agent : délègue à `AIPBridge.call_run` (agent Python installé)
 - HITL inline : tous les outils requièrent approbation (Accept/Refuse/AlwaysAccept)
 - Persistance `chat.db` SQLite (sessions, messages, autorisations)
 - Chemin d'exécution séparé du `TaskRouter` (ADR-034)
 
-### 8. AgentMailbox *(Sprint 20)*
+### 8. AgentMailbox
 
 **Rôle :** gérer la messagerie inter-agents (agent-to-agent communication).
 
@@ -141,8 +141,8 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 **Messages entrants :** `Send(from, to, payload)`, `Receive(agent_name, timeout)`, `PendingCount(agent_name)`, `ListMessages(agent_name, limit)`, `Shutdown`.
 
 **Comportement :**
-- `send()` : ajoute un message à la file de l'agent destinataire — erreur `MailboxError::QueueFull` si la file atteint 100 messages
-- `receive()` : retourne le plus ancien message non-lu pour un agent (FIFO), avec timeout optionnel
+- `send` : ajoute un message à la file de l'agent destinataire — erreur `MailboxError::QueueFull` si la file atteint 100 messages
+- `receive` : retourne le plus ancien message non-lu pour un agent (FIFO), avec timeout optionnel
 - Émet `RuntimeEvent::AgentMessageSent` sur EventBus après chaque envoi
 
 ```rust

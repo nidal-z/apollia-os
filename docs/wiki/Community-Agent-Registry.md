@@ -3,7 +3,7 @@
 Le registre communautaire permet aux développeurs tiers de distribuer des Worker Agents qui étendent Apollia OS au-delà des quatre agents bundled.
 
 **V1** : installation depuis un chemin local (`agents/community/`).  
-**V2** (Sprint 34 — ADR-055) : installation directe depuis une URL Git — **disponible**.
+**V2** (ADR-055) : installation directe depuis une URL Git — **disponible**.
 
 > **Référence technique :** [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./Decisions-Log#adr-055)
 
@@ -39,10 +39,10 @@ Le fichier Python doit exposer une variable module-level `agent` dont la classe 
 
 | Méthode | Signature | Requis |
 |---|---|---|
-| `manifest()` | `() → dict` (synchrone) | Oui |
+| `manifest()` | ` → dict` (synchrone) | Oui |
 | `run()` | `async (task, ctx) → dict` | Oui |
-| `on_start()` | `async () → None` | Non |
-| `on_stop()` | `async () → None` | Non |
+| `on_start()` | `async → None` | Non |
+| `on_stop()` | `async → None` | Non |
 
 ### Champs manifest
 
@@ -70,7 +70,7 @@ apollia-os agent install agents/community/sql-worker.py
 apollia-os agent install ./path/to/my-agent.py
 ```
 
-### Depuis une URL Git (V2 — Sprint 34)
+### Depuis une URL Git (V2)
 
 ```bash
 # Installation directe par URL Git
@@ -209,7 +209,7 @@ apollia-os agent install agents/community/sql-worker.py
 | `dangerous_tools_allowed` | `False` |
 
 Garde-fous codés dans l'agent :
-- Commandes destructives refusées : `git push --force`, `git reset --hard`, `git clean -fd`, `git branch -D`, `git checkout -- .`
+- Commandes destructives refusées : `git push --force`, `git reset --hard`, `git clean -fd`, `git branch -D`, `git checkout --.`
 - Messages de commit au format conventionnel Apollia : `type(scope): description`.
 - `git status` toujours exécuté avant tout `git add` ou `git commit`.
 - Opérations distantes (`push`, `pull`, `fetch`) requièrent une approbation explicite.
@@ -218,7 +218,7 @@ Garde-fous codés dans l'agent :
 apollia-os agent install agents/community/git-worker.py
 ```
 
-### browser-worker *(Sprint 34)*
+### browser-worker
 
 | Champ | Valeur |
 |---|---|
@@ -237,7 +237,7 @@ Garde-fous codés dans l'agent :
 apollia-os agent install https://github.com/apollia-os/browser-worker.git
 ```
 
-### email-worker *(Sprint 34)*
+### email-worker
 
 | Champ | Valeur |
 |---|---|
@@ -256,7 +256,7 @@ Garde-fous codés dans l'agent :
 apollia-os agent install https://github.com/apollia-os/email-worker.git
 ```
 
-### slack-worker *(Sprint 34)*
+### slack-worker
 
 | Champ | Valeur |
 |---|---|

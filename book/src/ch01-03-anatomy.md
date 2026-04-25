@@ -52,7 +52,7 @@ C'est une décision de conception délibérée : votre code Python ne dépend d'
 
 ---
 
-## (2) manifest() est synchrone
+## (2) manifest est synchrone
 
 ```python
 def manifest(self):
@@ -125,7 +125,7 @@ Pour un agent simple comme `hello-agent`, 1 est correct. Pour un agent qui fait 
 
 ---
 
-## (8) run() est async
+## (8) run est async
 
 ```python
 async def run(self, task, ctx):

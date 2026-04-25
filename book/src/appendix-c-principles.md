@@ -68,7 +68,7 @@ Concrètement : `EventBus` diffuse uniquement, `AgentRegistry` inventorie unique
 
 **Formulation :** Le runtime n'injecte jamais automatiquement de mémoire dans le contexte d'un agent. C'est toujours l'agent qui décide ce qu'il récupère et comment il l'utilise.
 
-Concrètement : `ctx.memory.search()` est appelé explicitement, le runtime ne pré-charge pas de contexte mémoriel dans le prompt.
+Concrètement : `ctx.memory.search` est appelé explicitement, le runtime ne pré-charge pas de contexte mémoriel dans le prompt.
 
 **Pourquoi :** La "mémoire automatique" génère des appels LLM non contrôlés, des coûts imprévisibles, et des comportements difficiles à debugger. Chaque injection automatique ajoute un appel LLM et 1-3 secondes de latence.
 
@@ -92,7 +92,7 @@ Concrètement : `max_steps`, `max_tool_calls`, et `wall_clock_timeout` sont appl
 
 **Formulation :** La CLI doit être utilisable par un administrateur PME non-développeur. L'API REST doit être exploitable par n'importe quel script bash.
 
-Concrètement : commandes de niveau 1 lisibles sans documentation (`start`, `stop`, `status`, `run`), `--json` disponible sur toutes les commandes, TTY auto-détecté, exit codes standards Unix.
+Concrètement : commandes de niveau 1 lisibles sans documentation (`start()`, `stop()`, `status`, `run()`), `--json` disponible sur toutes les commandes, TTY auto-détecté, exit codes standards Unix.
 
 **Pourquoi :** La CLI est la première impression d'Apollia OS. Une CLI cryptique qui suppose une connaissance de l'architecture interne est un obstacle à l'adoption. Les meilleures CLIs techniques (docker, kubectl, git) ont en commun un onboarding progressif et des messages d'erreur actionnables.
 

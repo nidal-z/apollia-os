@@ -8,7 +8,7 @@
 
 ## 1. Rôle dans l'architecture
 
-`apollia-permissions` est la crate de contrôle d'accès d'Apollia OS. Elle s'interpose entre l'invocation d'un outil et son exécution réelle dans `ToolRegistry::invoke()`.
+`apollia-permissions` est la crate de contrôle d'accès d'Apollia OS. Elle s'interpose entre l'invocation d'un outil et son exécution réelle dans `ToolRegistry::invoke`.
 
 **Problème résolu :** sans moteur de permissions, chaque invocation d'outil déclenche une demande HITL ou est auto-approuvée sans discernement. 50 `git status` par session = 50 popups pour l'opérateur.
 
@@ -55,7 +55,7 @@ Patterns détectés :
 - `| bash`, `| sh`, `| zsh`, `| python`, `| python3`, `| ruby`, `| perl`
 - `eval $VAR` — eval avec variable non-quotée (ShellCheck SC2046)
 
-Depuis STORY-490 (Sprint 36), l'analyse est **structurelle** : elle tient compte du contexte de quoting et des cas multi-lignes que les regex naïfs ratent.
+Depuis l'analyse est **structurelle** : elle tient compte du contexte de quoting et des cas multi-lignes que les regex naïfs ratent.
 
 ### Couche 1 — SafeList
 
@@ -145,7 +145,7 @@ impl PermissionEngine {
 }
 ```
 
-**Intégration dans `ToolRegistry::invoke()` :**
+**Intégration dans `ToolRegistry::invoke` :**
 - `NeedsApproval` → émet `RuntimeEvent::PermissionRequired { tool_name, input, request_id }`
 - `AutoDenied*` → retourne `ToolError::PermissionDenied { reason }`
 - `AutoAllowed*` → exécution directe, zéro HITL

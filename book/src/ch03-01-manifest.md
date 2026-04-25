@@ -1,4 +1,4 @@
-# manifest() — déclarer ses capacités
+# manifest — déclarer ses capacités
 
 `manifest()` est une méthode **synchrone** appelée une seule fois par le runtime au moment du déploiement (`apollia-os agent start`). Elle retourne un dictionnaire Python qui décrit ce que votre agent est et ce dont il a besoin.
 
@@ -235,7 +235,7 @@ Avant d'activer l'agent, le runtime effectue ces vérifications dans l'ordre :
 2. `agent` a une méthode `manifest()`
 3. `manifest()` retourne un dict JSON-sérialisable avec les 4 champs obligatoires
 4. `agent` a une méthode `run()`
-5. `run` est une coroutine async (`asyncio.iscoroutinefunction`)
+5. `run()` est une coroutine async (`asyncio.iscoroutinefunction`)
 6. Résolution des outils listés dans `tools_required`
 
 Si une étape échoue, l'agent s'arrête en `STOPPED` avec un message précis pointant la cause.

@@ -32,5 +32,5 @@ La règle absolue : **Apollia OS ne télécharge jamais automatiquement un modè
 ## Ce que vous allez apprendre
 
 - **Section 1 — Les types** : quand utiliser chaque type, avec des exemples qui étendent `file-assistant`
-- **Section 2 — La recherche FTS5** : comment `ctx.memory.search()` fonctionne, les opérateurs disponibles, et la dégradation vers l'embedding vectoriel
+- **Section 2 — La recherche FTS5** : comment `ctx.memory.search` fonctionne, les opérateurs disponibles, et la dégradation vers l'embedding vectoriel
 - **Section 3 — Namespaces et isolation** : namespace privé, namespaces partagés, mémoire utilisateur globale, TTL, et la CLI de gestion

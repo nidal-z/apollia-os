@@ -81,7 +81,7 @@ SYSTEM_PROMPT: str = """Tu es csv-data-worker, un agent expert en analyse et tra
 
 ## Section 2 — IMPORTS STANDARDS
 
-Sur les modèles légers, les noms de fonctions pandas sont hallucinés : `pd.read_excel()` au lieu de `pd.read_csv()`, `df.groupby_agg()` au lieu de `df.groupby().agg()`. Donner les imports exacts dans le SYSTEM_PROMPT élimine ce problème.
+Sur les modèles légers, les noms de fonctions pandas sont hallucinés : `pd.read_excel` au lieu de `pd.read_csv`, `df.groupby_agg` au lieu de `df.groupby.agg`. Donner les imports exacts dans le SYSTEM_PROMPT élimine ce problème.
 
 ```python
 ## IMPORTS STANDARDS
@@ -121,7 +121,7 @@ df = read_csv_safe(path)
 numeric_as_object = [
     col for col in df.columns
     if df[col].dtype == object
-    and pd.to_numeric(df[col], errors="coerce").notna().any()
+    and pd.to_numeric(df[col], errors="coerce").notna.any
 ]
 if numeric_as_object:
     print(f"Colonnes numériques détectées comme object : {numeric_as_object}")

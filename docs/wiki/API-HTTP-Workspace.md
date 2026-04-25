@@ -14,11 +14,11 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (Sprint 34 — ADR-051)
+- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
-### Authentification TCP (Sprint 34)
+### Authentification TCP
 
 Toutes les requêtes TCP doivent porter le header `Authorization: Bearer <token>` :
 
@@ -36,9 +36,9 @@ Le token est généré au premier démarrage et stocké dans `~/.apollia/api-tok
 
 ---
 
-## Triggers *(Sprint 9, CRUD Sprint 17)*
+## Triggers *(CRUD)*
 
-### POST /api/v1/triggers *(Sprint 17)*
+### POST /api/v1/triggers
 
 Créer un nouveau trigger.
 
@@ -58,7 +58,7 @@ Créer un nouveau trigger.
 
 **Erreurs :** `409` DuplicateId, `422` ValidationError.
 
-### PUT /api/v1/triggers/:id *(Sprint 17)*
+### PUT /api/v1/triggers/:id
 
 Modifier un trigger existant. Tous les champs sont modifiables.
 
@@ -66,7 +66,7 @@ Modifier un trigger existant. Tous les champs sont modifiables.
 
 **Erreurs :** `404` NotFound, `422` ValidationError.
 
-### DELETE /api/v1/triggers/:id *(Sprint 17)*
+### DELETE /api/v1/triggers/:id
 
 Supprimer un trigger.
 
@@ -74,7 +74,7 @@ Supprimer un trigger.
 
 **Erreurs :** `404` NotFound.
 
-### GET /api/v1/triggers/:id *(Sprint 17)*
+### GET /api/v1/triggers/:id
 
 Lire la définition complète d'un trigger.
 
@@ -156,7 +156,7 @@ Hot reload : relit `apollia.toml`, redémarre les sources modifiées sans arrêt
 
 ---
 
-## Webhook *(Sprint 9)*
+## Webhook
 
 ### POST /webhooks/:trigger_id
 
@@ -193,9 +193,9 @@ curl -X POST http://localhost:7771/webhooks/github-push \
 
 ---
 
-## Notifications *(Sprint 11, CRUD Sprint 17)*
+## Notifications *(CRUD)*
 
-### POST /api/v1/notifications/channels *(Sprint 17)*
+### POST /api/v1/notifications/channels
 
 Créer un canal de notification.
 
@@ -214,7 +214,7 @@ Créer un canal de notification.
 
 **Erreurs :** `409` DuplicateId, `422` ValidationError (type inconnu, webhook sans URL).
 
-### PUT /api/v1/notifications/channels/:id *(Sprint 17)*
+### PUT /api/v1/notifications/channels/:id
 
 Modifier un canal existant. Champs optionnels.
 
@@ -222,7 +222,7 @@ Modifier un canal existant. Champs optionnels.
 
 **Erreurs :** `404` NotFound, `422` ValidationError.
 
-### DELETE /api/v1/notifications/channels/:id *(Sprint 17)*
+### DELETE /api/v1/notifications/channels/:id
 
 Supprimer un canal.
 
@@ -230,7 +230,7 @@ Supprimer un canal.
 
 **Erreurs :** `404` NotFound.
 
-### GET /api/v1/notifications/events *(Sprint 17)*
+### GET /api/v1/notifications/events
 
 Lire les événements globaux configurés.
 
@@ -239,7 +239,7 @@ Lire les événements globaux configurés.
 { "events": ["task.input_required", "task.failed", "agent.degraded"] }
 ```
 
-### PUT /api/v1/notifications/events *(Sprint 17)*
+### PUT /api/v1/notifications/events
 
 Définir les événements globaux (remplacement atomique via transaction SQLite).
 
@@ -365,9 +365,9 @@ La table `notification_logs` est créée de manière idempotente si elle n'exist
 
 ---
 
-## Pipelines *(Sprint 12, CRUD Sprint 17)*
+## Pipelines *(CRUD)*
 
-### POST /api/v1/pipelines *(Sprint 17)*
+### POST /api/v1/pipelines
 
 Créer un pipeline.
 
@@ -390,7 +390,7 @@ Créer un pipeline.
 
 **Erreurs :** `409` DuplicateId, `422` ValidationError (cycle DAG, step ID dupliqué, depends_on invalide).
 
-### PUT /api/v1/pipelines/:id *(Sprint 17)*
+### PUT /api/v1/pipelines/:id
 
 Modifier un pipeline existant (re-valide le DAG avant écriture).
 
@@ -398,7 +398,7 @@ Modifier un pipeline existant (re-valide le DAG avant écriture).
 
 **Erreurs :** `404` NotFound, `422` ValidationError.
 
-### DELETE /api/v1/pipelines/:id *(Sprint 17)*
+### DELETE /api/v1/pipelines/:id
 
 Supprimer un pipeline.
 
@@ -406,7 +406,7 @@ Supprimer un pipeline.
 
 **Erreurs :** `404` NotFound.
 
-### GET /api/v1/pipelines/:id *(Sprint 17)*
+### GET /api/v1/pipelines/:id
 
 Lire la définition complète d'un pipeline (steps inclus en JSON).
 

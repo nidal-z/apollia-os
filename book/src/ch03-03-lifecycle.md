@@ -47,7 +47,7 @@ Un agent passe par ces états depuis son déploiement jusqu'à son arrêt :
 
 L'état transitoire de démarrage. Le runtime :
 1. Charge le module Python via PyO3
-2. Appelle `agent.manifest()` et valide le dictionnaire
+2. Appelle `agent.manifest` et valide le dictionnaire
 3. Résout les outils `tools_required` et `tools_optional`
 4. Ouvre le namespace mémoire si `memory_namespace` est défini
 5. Crée le sémaphore de concurrence
@@ -68,7 +68,7 @@ $ apollia-os agent list
 
 ### DEGRADED
 
-L'agent fonctionne mais avec des capacités réduites. Un outil `tools_optional` était absent au démarrage. L'agent doit gérer ce cas dans `run()` en vérifiant `ctx.tools.list_tools()` avant d'appeler l'outil manquant.
+L'agent fonctionne mais avec des capacités réduites. Un outil `tools_optional` était absent au démarrage. L'agent doit gérer ce cas dans `run()` en vérifiant `ctx.tools.list_tools` avant d'appeler l'outil manquant.
 
 ```bash
 $ apollia-os agent list

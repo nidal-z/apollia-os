@@ -146,9 +146,9 @@ Distributions qui activent les user namespaces par défaut : Ubuntu 22.04+, Debi
 
 ---
 
-## Authentification API TCP (Sprint 34 — ADR-051)
+## Authentification API TCP (ADR-051)
 
-L'API REST TCP `:7771` est protégée par un token statique depuis le Sprint 34.
+L'API REST TCP `:7771` est protégée par un token statique.
 
 ```
 ~/.apollia/api-token   # 64 hex chars + newline, chmod 0600
@@ -181,7 +181,7 @@ apollia-os config rotate-token  # régénérer un nouveau token (redémarre le r
 
 ## Sandbox Windows — modèle Chromium 3 couches *(ADR-052 — déploiement différé)*
 
-L'ADR-052 définit la stratégie de sandbox pour Windows natif (STORY-451, implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
+L'ADR-052 définit la stratégie de sandbox pour Windows natif (implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
 
 **Architecture 3 couches :**
 
@@ -199,9 +199,9 @@ L'ADR-052 définit la stratégie de sandbox pour Windows natif (STORY-451, impl�
 
 ---
 
-## Autonomie filesystem — Sprint 38 (ADR-069)
+## Autonomie filesystem
 
-Depuis le Sprint 38, les agents Apollia OS sont véritablement autonomes sur le filesystem, régulés par une friction graduée HITL et protégés par un journal réversible. Ce modèle remplace le "tout bloquer" par "approuver intelligemment".
+Les agents Apollia OS sont véritablement autonomes sur le filesystem, régulés par une friction graduée HITL et protégés par un journal réversible. Ce modèle remplace le "tout bloquer" par "approuver intelligemment".
 
 ### Architecture 4 couches
 
@@ -214,7 +214,7 @@ Depuis le Sprint 38, les agents Apollia OS sont véritablement autonomes sur le 
 
 ### RiskClassifier — niveaux de risque filesystem
 
-Le `RiskClassifier` (étendu depuis `apollia-permissions`, Sprint 36) évalue chaque opération fichier avant exécution :
+Le `RiskClassifier` (étendu depuis `apollia-permissions`) évalue chaque opération fichier avant exécution :
 
 | Niveau | Opérations | Comportement |
 |---|---|---|
@@ -225,7 +225,7 @@ Le `RiskClassifier` (étendu depuis `apollia-permissions`, Sprint 36) évalue ch
 
 ### Workspace par session
 
-Chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` (refactoré Sprint 38) injecte ce chemin dans chaque outil natif — l'agent travaille dans le bon répertoire sans configuration manuelle.
+Chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` (refactoré) injecte ce chemin dans chaque outil natif — l'agent travaille dans le bon répertoire sans configuration manuelle.
 
 ### Journal réversible et `apollia rollback`
 
@@ -264,7 +264,7 @@ Pour les opérations classées Medium ou High, un modal desktop affiche :
 
 **Noyaux anciens (< 4.18) :** Les user namespaces avec réseau isolé peuvent ne pas fonctionner. Mettre à jour le kernel ou désactiver le sandbox réseau.
 
-**Windows : sandbox différée :** STORY-451 (implémentation Windows) est déférée. Sur Windows, `bash_executor` s'exécute sans isolation jusqu'à livraison de STORY-451.
+**Windows : sandbox différée :** (implémentation Windows) est déférée. Sur Windows, `bash_executor` s'exécute sans isolation jusqu'à livraison de.
 
 ---
 

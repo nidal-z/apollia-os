@@ -6,7 +6,7 @@
 
 ## 1. Architecture — Processus unique (ADR-027)
 
-L'application desktop est une crate Tauri v2 (`apollia-desktop`) qui demarre le runtime Apollia en interne via `init_embedded()`. Un seul binaire distribue a la fois le runtime Rust et le frontend Svelte.
+L'application desktop est une crate Tauri v2 (`apollia-desktop`) qui demarre le runtime Apollia en interne via `init_embedded`. Un seul binaire distribue a la fois le runtime Rust et le frontend Svelte.
 
 ```
 main() Tauri
@@ -60,12 +60,12 @@ crates/apollia-desktop/
 │       ├── pipelines.rs       ← list_pipelines, list_pipeline_runs, list_all_pipeline_runs, run_pipeline, get_pipeline_run_detail
 │       ├── memory.rs          ← list_memory_namespaces, list_memory_entries, search_memory, delete_memory_entry
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
-│       ├── tools.rs           ← list_tools, describe_tool [Sprint 20]
-│       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache [Sprint 20]
+│       ├── tools.rs           ← list_tools, describe_tool
+│       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
-│       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models [Sprint 24]
-│   ├── stt/                   ← module STT desktop [Sprint 24]
+│       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models
+│   ├── stt/                   ← module STT desktop
 │   │   ├── flow.rs            ← SttFlow (hotkey → capture → transcribe → clipboard)
 │   │   ├── hotkey.rs          ← HotkeyListener (tauri-plugin-global-shortcut)
 │   │   ├── clipboard.rs       ← ClipboardManager (arboard + enigo)
@@ -76,23 +76,23 @@ crates/apollia-desktop/
     └── src/
         ├── App.svelte
         ├── lib/
-        │   ├── types.ts       ← 45+ interfaces TypeScript (dont SttStatus, TranscriptRow, SttModelInfo — Sprint 24)
+        │   ├── types.ts       ← 45+ interfaces TypeScript (dont SttStatus, TranscriptRow, SttModelInfo)
         │   ├── stores/
         │   │   ├── sse.ts         ← SSE connection + 7 stores reactifs + 4 derives
         │   │   └── navigation.ts  ← currentRoute + showOnboarding
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
-        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte [Sprint 20], CreateFromTemplateDialog.svelte [Sprint 21]
+        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte, CreateFromTemplateDialog.svelte
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
         │   ├── pipelines/     ← PipelineRunCard, PipelineRunDetail, PipelineDefinitionCard, CreatePipelineDialog, EditPipelineDialog
-        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte [Sprint 20]
+        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
-        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte [Sprint 20]
-        │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte [Sprint 24]
+        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte
+        │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
         └── routes/            ← 15 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Pipelines, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
 ```
@@ -150,10 +150,10 @@ pub enum EmbeddedError {
 |---|---|---|
 | `list_agents` | — | `Vec<AgentInfo>` |
 | `start_agent` | `path: String` | `Result<String, String>` (agent_id) |
-| `stop_agent` | `agent_id: String` | `Result<(), String>` |
-| `create_agent_from_template` | `name: String, template_type: String` | `Result<CreateAgentResult, String>` *(Sprint 21)* |
-| `check_sdk_available` | — | `Result<bool, String>` *(Sprint 21)* |
-| `check_agent_name_available` | `name: String` | `Result<bool, String>` *(Sprint 21)* |
+| `stop_agent` | `agent_id: String` | `Result<, String>` |
+| `create_agent_from_template` | `name: String, template_type: String` | `Result<CreateAgentResult, String>` |
+| `check_sdk_available` | — | `Result<bool, String>` |
+| `check_agent_name_available` | `name: String` | `Result<bool, String>` |
 
 ### Tasks (3)
 
@@ -169,7 +169,7 @@ pub enum EmbeddedError {
 |---|---|---|
 | `list_pending_approvals` | — | `Result<Vec<PendingApproval>, String>` |
 | `list_resolved_approvals` | `limit: Option<usize>, days: Option<u64>` | `Result<Vec<ResolvedApproval>, String>` |
-| `resume_task` | `task_id, approved, reason` | `Result<(), String>` |
+| `resume_task` | `task_id, approved, reason` | `Result<, String>` |
 
 ### LLM (3)
 
@@ -179,30 +179,30 @@ pub enum EmbeddedError {
 | `ping_llm_backend` | `name: String` | `u64` (latency_ms) |
 | `get_llm_cost_stats` | `days: Option<u32>` | `LlmCostStats` |
 
-### Triggers (9 — 5 Sprint 15 + 3 Sprint 17 + 1 Sprint 20)
+### Triggers (9 — 5 + 3 + 1)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_triggers` | — | `Vec<TriggerStatus>` |
 | `list_trigger_definitions` | — | `Vec<TriggerDefinitionView>` |
 | `get_trigger_definition` | `id: String` | `TriggerDefinitionView` |
-| `create_trigger` | `definition: CreateTriggerRequest` | `TriggerDefinitionView` *(Sprint 17)* |
-| `update_trigger` | `id: String, definition: UpdateTriggerRequest` | `TriggerDefinitionView` *(Sprint 17)* |
-| `delete_trigger` | `id: String` | `()` *(Sprint 17)* |
-| `set_trigger_enabled` | `id: String, enabled: bool` | `()` |
+| `create_trigger` | `definition: CreateTriggerRequest` | `TriggerDefinitionView` |
+| `update_trigger` | `id: String, definition: UpdateTriggerRequest` | `TriggerDefinitionView` |
+| `delete_trigger` | `id: String` | `` |
+| `set_trigger_enabled` | `id: String, enabled: bool` | `` |
 | `fire_trigger` | `id: String` | `String` (task_id) |
 | `get_trigger_logs` | `id: String` | `Vec<TriggerLogEntry>` |
 
-### Pipelines (9 — 5 Sprint 15 + 3 Sprint 17 + 1 Sprint 20)
+### Pipelines (9 — 5 + 3 + 1)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_pipelines` | — | `Vec<PipelineInfo>` |
 | `list_pipeline_definitions` | — | `Vec<PipelineDefinitionView>` |
 | `get_pipeline_definition` | `id: String` | `PipelineDefinitionView` |
-| `create_pipeline` | `definition: CreatePipelineRequest` | `PipelineDefinitionView` *(Sprint 17)* |
-| `update_pipeline` | `id: String, definition: UpdatePipelineRequest` | `PipelineDefinitionView` *(Sprint 17)* |
-| `delete_pipeline` | `id: String` | `()` *(Sprint 17)* |
+| `create_pipeline` | `definition: CreatePipelineRequest` | `PipelineDefinitionView` |
+| `update_pipeline` | `id: String, definition: UpdatePipelineRequest` | `PipelineDefinitionView` |
+| `delete_pipeline` | `id: String` | `` |
 | `list_pipeline_runs` | `pipeline_id: String, limit: Option<usize>` | `Vec<PipelineRunSummary>` |
 | `run_pipeline` | `pipeline_id: String, inputs: Option<Value>` | `RunPipelineResult` |
 | `get_pipeline_run_detail` | `run_id: String` | `PipelineRunDetail` |
@@ -214,18 +214,18 @@ pub enum EmbeddedError {
 | `list_memory_namespaces` | — | `Vec<String>` |
 | `list_memory_entries` | `namespace, type?, limit?` | `Vec<MemoryEntry>` |
 | `search_memory` | `namespace: String, query: String, limit?` | `Vec<MemorySearchResult>` |
-| `delete_memory_entry` | `namespace: String, id: String` | `()` |
+| `delete_memory_entry` | `namespace: String, id: String` | `` |
 
-### Notifications (8 — 3 Sprint 15 + 5 Sprint 17)
+### Notifications (8 — 3 + 5)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_notification_channels` | — | `Vec<NotificationChannelView>` |
-| `create_notification_channel` | `channel: CreateChannelRequest` | `NotificationChannelView` *(Sprint 17)* |
-| `update_notification_channel` | `id: String, channel: UpdateChannelRequest` | `NotificationChannelView` *(Sprint 17)* |
-| `delete_notification_channel` | `id: String` | `()` *(Sprint 17)* |
-| `get_notification_events` | — | `Vec<String>` *(Sprint 17)* |
-| `set_notification_events` | `events: Vec<String>` | `()` *(Sprint 17)* |
+| `create_notification_channel` | `channel: CreateChannelRequest` | `NotificationChannelView` |
+| `update_notification_channel` | `id: String, channel: UpdateChannelRequest` | `NotificationChannelView` |
+| `delete_notification_channel` | `id: String` | `` |
+| `get_notification_events` | — | `Vec<String>` |
+| `set_notification_events` | `events: Vec<String>` | `` |
 | `test_notification_channel` | `channel_id: String` | `ChannelTestResult` |
 | `get_notification_logs` | `limit: Option<usize>` | `Vec<NotificationLogEntry>` |
 
@@ -242,26 +242,26 @@ pub enum EmbeddedError {
 | Commande | Parametres | Retour |
 |---|---|---|
 | `get_config` | — | `ApollaConfigView` |
-| `open_config_in_editor` | — | `()` |
+| `open_config_in_editor` | — | `` |
 
-### Chat (6 — Sprint 18)
+### Chat (6)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `create_chat_session` | `request: CreateSessionRequest` | `Result<ChatSessionSummary, String>` |
 | `list_chat_sessions` | `status: Option<String>` | `Result<Vec<ChatSessionSummary>, String>` |
 | `get_chat_session` | `session_id: String` | `Result<ChatSessionDetail, String>` |
-| `close_chat_session` | `session_id: String` | `Result<(), String>` |
+| `close_chat_session` | `session_id: String` | `Result<, String>` |
 | `send_chat_message` | `session_id: String, content: String` | `Result<String, String>` (message_id) |
-| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<(), String>` |
+| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<, String>` |
 
-### STT (5 — Sprint 24)
+### STT (5)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `get_stt_status` | — | `Result<SttStatus, String>` |
 | `list_transcriptions` | `limit: Option<u32>` | `Result<Vec<TranscriptRow>, String>` |
-| `delete_transcription` | `id: String` | `Result<(), String>` |
+| `delete_transcription` | `id: String` | `Result<, String>` |
 | `transcribe_file` | `file_path: String` | `Result<TranscriptRow, String>` |
 | `list_stt_models` | — | `Result<Vec<SttModelInfo>, String>` |
 
@@ -270,8 +270,8 @@ pub enum EmbeddedError {
 | Commande | Parametres | Retour |
 |---|---|---|
 | `check_onboarded` | — | `bool` |
-| `mark_onboarded` | — | `()` |
-| `reset_onboarding` | — | `()` |
+| `mark_onboarded` | — | `` |
+| `reset_onboarding` | — | `` |
 | `check_python` | — | `bool` |
 | `check_llm_configured` | — | `bool` |
 | `check_hello_agent_exists` | — | `Option<String>` (path) |
@@ -296,12 +296,12 @@ Store Svelte `currentRoute` avec 15 routes (source de vérité : `ui/src/lib/sto
 ```typescript
 type Route =
   | "dashboard"      // Vue d'accueil (route par defaut au demarrage)
-  | "agents"         // Gestion agents (Sprint 14)
-  | "tasks"          // Liste et detail taches (Sprint 14)
-  | "approvals"      // Approbations HITL (Sprint 14)
-  | "chat"           // Sessions de chat interactif (Sprint 18)
-  | "transcriptions" // Historique STT + transcription fichier (Sprint 24)
-  | "integrations"   // Page Integrations MCP : operator (Connexions) / builder (MCP Servers) (Sprint 27)
+  | "agents"         // Gestion agents
+  | "tasks"          // Liste et detail taches
+  | "approvals"      // Approbations HITL
+  | "chat"           // Sessions de chat interactif
+  | "transcriptions" // Historique STT + transcription fichier
+  | "integrations"   // Page Integrations MCP : operator (Connexions) / builder (MCP Servers)
   | "llm"            // Backends LLM, ping, statistiques
   | "triggers"       // Triggers TOML, enable/disable, fire
   | "pipelines"      // Runs multi-agent, steps temps reel
@@ -368,7 +368,7 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 35+ interfaces definies dans `lib/types.ts` :
 
-**Agents/Tasks/HITL (Sprint 14) :**
+**Agents/Tasks/HITL :**
 `AgentStatus`, `TaskSummary`, `PendingApproval`, `ResolvedApproval`, `TimelineEvent` (union discriminee par type)
 
 **LLM :**
@@ -389,10 +389,10 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 **Observability :**
 `GlobalTimelineEvent`, `AuditTrailEntry`, `LlmDailyCostEntry`
 
-**Chat (Sprint 18) :**
+**Chat :**
 `ChatSessionSummary`, `ChatSessionDetail`, `ChatMessageView`, `ToolCallView`, `CreateSessionRequest`, `SendMessageRequest`, `ToolAuthorizationRequest`
 
-**STT (Sprint 24) :**
+**STT :**
 `SttStatus`, `SttModelInfo`, `TranscriptRow`
 
 **Config :**
@@ -408,30 +408,30 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 **LLM** — Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
 
-**Triggers** — Vue editeur CRUD (Sprint 17). Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
+**Triggers** — Vue editeur CRUD. Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
 
-**Pipelines** — Vue editeur CRUD (Sprint 17). Onglet Definitions (liste des pipelines, creation/edition/suppression) + Onglet Runs. `CreatePipelineDialog` et `EditPipelineDialog` avec gestion dynamique des steps, validation DAG live, sections conditions depliables. `PipelineDefinitionCard` affiche la topologie. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
+**Pipelines** — Vue editeur CRUD. Onglet Definitions (liste des pipelines, creation/edition/suppression) + Onglet Runs. `CreatePipelineDialog` et `EditPipelineDialog` avec gestion dynamique des steps, validation DAG live, sections conditions depliables. `PipelineDefinitionCard` affiche la topologie. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
 
 **Memory** — Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
 
-**Notifications** — Vue editeur CRUD (Sprint 17). Onglet Canaux : creation/edition/suppression canaux (`CreateChannelDialog`, `EditChannelDialog`), type webhook config URL/headers. Onglet Evenements Globaux : checkboxes des evenements reconnus (`GlobalEventsEditor`). Bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees.
+**Notifications** — Vue editeur CRUD. Onglet Canaux : creation/edition/suppression canaux (`CreateChannelDialog`, `EditChannelDialog`), type webhook config URL/headers. Onglet Evenements Globaux : checkboxes des evenements reconnus (`GlobalEventsEditor`). Bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees.
 
 **Observability** — 3 onglets :
 - *Timeline* : evenements des N dernieres heures (slider 30min→24h), filtres par type (Task/Tool/LLM/Trigger/HITL), liste chronologique inversee avec icones + detail expandable
 - *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
 - *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
 
-**Integrations** *(Sprint 27)* — Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
+**Integrations** — Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
 
-**Transcriptions** *(Sprint 24)* — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav, .mp3, .ogg, .m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
+**Transcriptions** — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
 
-**Settings** — Vue lecture seule nettoyee (ADR-029, Sprint 17). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`.
+**Settings** — Vue lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
 
 ---
 
-## 5. Onboarding multi-phases (Sprint 33)
+## 5. Onboarding multi-phases
 
-Onboarding interactif affiche au premier lancement si `get_onboarding_state()` retourne `phase != "done"`. Ecrans fullscreen séquentiels avec machine a etats persistee.
+Onboarding interactif affiche au premier lancement si `get_onboarding_state` retourne `phase != "done"`. Ecrans fullscreen séquentiels avec machine a etats persistee.
 
 ### 5.1 Machine a etats — 7 phases
 
@@ -457,7 +457,7 @@ Chaque transition est persisted via `advance_onboarding_phase(phase)`. L'interru
 
 Le `OnboardingGuidedTour` orchestre :
 - `TourSpotlight` — overlay SVG avec decoupage de zone
-- `TourStepCard` — carte flottante positionnee via `calculateCardPosition()`
+- `TourStepCard` — carte flottante positionnee via `calculateCardPosition`
 - `TourProgressRail` — barre de progression verticale fixe a gauche
 - `VoiceIndicator` — indicateur STT push-to-talk
 
@@ -467,13 +467,13 @@ Le `OnboardingGuidedTour` orchestre :
 
 Voir [Onboarding-Tour-Steps](./Onboarding-Tour-Steps) pour les tables completes des etapes.
 
-### 5.4 IPC Onboarding (17 commandes — Sprint 33)
+### 5.4 IPC Onboarding (17 commandes)
 
 Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete, les types TypeScript, les cles UserMemory et les RuntimeEvents.
 
 ---
 
-## 6. Companion Apollia (Sprint 33)
+## 6. Companion Apollia
 
 Panneau flottant draggable/resizable disponible pendant et apres l'onboarding.
 
@@ -499,7 +499,7 @@ Le companion utilise une session de chat ordinaire (`create_chat_session` avec `
 
 ---
 
-## 7. System tray (STORY-151)
+## 7. System tray
 
 ### Menu contextuel
 
@@ -589,9 +589,9 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 
 ---
 
-## 12. Nouveaux composants Sprint 36
+## 12. Nouveaux composants
 
-### 6 composants HITL spécialisés (STORY-472)
+### 6 composants HITL spécialisés
 
 `PermissionDispatcher.svelte` route vers le bon composant selon `permission_type` :
 
@@ -629,7 +629,7 @@ crates/apollia-desktop/src/lib/components/permissions/
 └── PermissionDispatcher.svelte
 ```
 
-### `TokenBudgetWidget.svelte` (STORY-473)
+### `TokenBudgetWidget.svelte`
 
 Widget dans le header du desktop affichant le coût LLM de la session en temps réel.
 
@@ -638,7 +638,7 @@ Widget dans le header du desktop affichant le coût LLM de la session en temps r
 - Passe à **rouge** + badge `!` si `threshold_exceeded = true`
 - Alimenté par `RuntimeEvent::TokenBudgetUpdated` via SSE
 
-### `PlanAlternativesView.svelte` (STORY-471)
+### `PlanAlternativesView.svelte`
 
 Composant affichant deux plans alternatifs ORIA et permettant à l'opérateur de choisir.
 

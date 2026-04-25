@@ -1,6 +1,6 @@
 # Utiliser les outils
 
-Dans `run()`, trois services ont été utilisés : `ctx.tools.call("file_read", ...)`, `ctx.tools.call("file_write", ...)`, et `ctx.llm.chat(...)`. Cette section explique comment ils fonctionnent et quelles sont les options disponibles.
+Dans `run()`, trois services ont été utilisés : `ctx.tools.call("file_read",...)`, `ctx.tools.call("file_write",...)`, et `ctx.llm.chat(...)`. Cette section explique comment ils fonctionnent et quelles sont les options disponibles.
 
 ---
 
@@ -156,7 +156,7 @@ full_text = "".join(chunks)
 
 `stream()` retourne toujours une `list[str]`. Si le backend ne supporte pas le streaming, un seul chunk est retourné — le code de l'agent ne change pas.
 
-### La boucle ReAct automatique — run_tools()
+### La boucle ReAct automatique — run_tools
 
 Pour les agents qui laissent le LLM décider des outils à utiliser, `run_tools()` gère la boucle Thought → Action → Observe automatiquement :
 

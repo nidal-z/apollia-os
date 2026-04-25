@@ -113,4 +113,4 @@ async def run(self, task, ctx):
     return {"task_id": task["task_id"], "status": "completed", "output": [...]}
 ```
 
-Les métriques sont également émises automatiquement sur l'EventBus en fin de tâche (`RuntimeEvent::TaskCompleted`) — utilisez `ctx.session.metrics()` uniquement si vous avez besoin de la valeur pendant l'exécution.
+Les métriques sont également émises automatiquement sur l'EventBus en fin de tâche (`RuntimeEvent::TaskCompleted`) — utilisez `ctx.session.metrics` uniquement si vous avez besoin de la valeur pendant l'exécution.

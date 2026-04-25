@@ -1,10 +1,10 @@
 # Suspend-Resume en Mode Direct
 
-En Mode Direct, c'est l'agent Python qui contrôle le moment de la suspension. Il calcule, prépare les données, atteint un point de décision — puis retourne `AIPResult.input_required()` pour remettre la décision à un humain.
+En Mode Direct, c'est l'agent Python qui contrôle le moment de la suspension. Il calcule, prépare les données, atteint un point de décision — puis retourne `AIPResult.input_required` pour remettre la décision à un humain.
 
 ---
 
-## AIPResult.input_required()
+## AIPResult.input_required
 
 ```python
 return AIPResult.input_required(
@@ -51,7 +51,7 @@ Pendant le `await rx`, aucun step n'est compté, aucun timeout ne s'écoule. La 
 
 ## Le pattern is_resumed
 
-À la reprise, ORIA rappelle `agent.run()` avec un `AIPTask` enrichi de deux champs :
+À la reprise, ORIA rappelle `agent.run` avec un `AIPTask` enrichi de deux champs :
 
 ```python
 task.is_resumed      # True si c'est un rappel après décision HITL

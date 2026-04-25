@@ -24,7 +24,7 @@ Un **step** correspond à un cycle de raisonnement complet de l'agent — un app
 
 | Opération | Coût steps | Coût tool_calls |
 |---|---|---|
-| Un appel LLM (`ctx.llm.chat()` ou itération `run_tools()`) | 1 | 0 |
+| Un appel LLM (`ctx.llm.chat` ou itération `run_tools()`) | 1 | 0 |
 | Un appel outil (`ctx.tools.*`) | 0 | 1 |
 | Un retry d'outil (RetryPolicy) | 0 | 1 supplémentaire |
 

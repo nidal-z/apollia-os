@@ -167,7 +167,7 @@ impl CaptureBuffer {
 
 Formats supportes : `F32` et `I16` (normalise en f32 via division par `i16::MAX`). Le callback `cpal` pousse les echantillons dans un `Arc<Mutex<Vec<f32>>>` que le consommateur draine a son rythme.
 
-### 4.2. `to_whisper_format()` (rubato)
+### 4.2. `to_whisper_format` (rubato)
 
 Conversion vers le format attendu par Whisper : **mono 16 kHz f32**.
 
@@ -183,7 +183,7 @@ pub fn to_whisper_format(
 
 Le resampling utilise `rubato::SincFixedIn` avec interpolation lineaire (sinc_len=256, f_cutoff=0.95, fenetre Blackman-Harris). Le mix mono fait la moyenne des canaux par frame.
 
-### 4.3. `trim_silence()`
+### 4.3. `trim_silence`
 
 Detection et suppression du silence en tete et fin de l'audio.
 
@@ -323,9 +323,9 @@ Le `SttEngine` est demarre en **Phase 15** du Supervisor — conditionnellement 
 
 1. Si `stt_config` est `None` ou `stt.enabled = false` → Phase 15 skippee, `stt_engine = None`.
 2. Si le fichier modele est absent → log error, `stt_engine = None`, runtime continue.
-3. Si `SttRepository::open()` echoue → log error, `stt_engine = None`.
-4. Si `try_load_backend()` echoue (chargement du modele GGML) → log error, `stt_engine = None`.
-5. Succes → `SttEngineHandle::start()`, emission `RuntimeEvent::SttModelLoaded`.
+3. Si `SttRepository::open` echoue → log error, `stt_engine = None`.
+4. Si `try_load_backend` echoue (chargement du modele GGML) → log error, `stt_engine = None`.
+5. Succes → `SttEngineHandle::start`, emission `RuntimeEvent::SttModelLoaded`.
 
 **Degradation gracieuse :** aucun de ces cas d'erreur ne fait paniquer le runtime. Les routes API retournent 503 quand `stt_engine = None`.
 
@@ -445,11 +445,11 @@ Positionnement : centre-bas de l'ecran principal (350x80 px logiques, marge de 4
 
 | Commande | Signature | Description |
 |---|---|---|
-| `get_stt_status` | `() -> Result<Value, String>` | Status du moteur STT |
+| `get_stt_status` | ` -> Result<Value, String>` | Status du moteur STT |
 | `list_transcriptions` | `(limit: Option<u32>) -> Result<Vec<TranscriptRow>, String>` | Historique des transcriptions |
-| `delete_transcription` | `(id: String) -> Result<(), String>` | Supprimer une transcription |
+| `delete_transcription` | `(id: String) -> Result<, String>` | Supprimer une transcription |
 | `transcribe_file` | `(file_path: String) -> Result<TranscriptRow, String>` | Transcrire un fichier WAV local |
-| `list_stt_models` | `() -> Result<Vec<SttModelInfo>, String>` | Lister les modeles disponibles |
+| `list_stt_models` | ` -> Result<Vec<SttModelInfo>, String>` | Lister les modeles disponibles |
 
 ### 8.6. Evenements Tauri (event bridge)
 

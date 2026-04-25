@@ -1,1 +1,1 @@
-{{#include ../../../docs/wiki/Briques-Auth.md}}
+{{#include../../../docs/wiki/Briques-Auth.md}}

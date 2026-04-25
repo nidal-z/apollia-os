@@ -1,6 +1,6 @@
 # Déléguer à un Worker
 
-`ctx.delegate()` est l'interface principale de délégation A2A en Mode Direct. Le Director appelle un Worker par son `skill_id`, attend son résultat, et continue.
+`ctx.delegate` est l'interface principale de délégation A2A en Mode Direct. Le Director appelle un Worker par son `skill_id`, attend son résultat, et continue.
 
 ---
 
@@ -96,7 +96,7 @@ En composition A2A, les règles d'accès à la mémoire sont asymétriques :
 | Opération | Portée |
 |---|---|
 | **Lecture** mémoire par le Worker | Globale — le Worker peut lire les entrées de n'importe quel namespace |
-| **Écriture** mémoire par le Worker | Namespace propre uniquement — confiné à `manifest()["memory_namespace"]` |
+| **Écriture** mémoire par le Worker | Namespace propre uniquement — confiné à `manifest["memory_namespace"]` |
 
 Ce modèle permet au Director de partager du contexte en mémoire avec le Worker (le Worker lit le namespace du Director), sans que le Worker puisse polluer l'espace mémoire d'autres agents.
 
@@ -172,9 +172,9 @@ Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` su
 
 ---
 
-## ctx.a2a_invoke() — variante bas niveau
+## ctx.a2a_invoke — variante bas niveau
 
-`ctx.delegate()` est un alias de haut niveau. La variante bas niveau `ctx.a2a_invoke()` offre le même comportement avec un contrôle plus explicite :
+`ctx.delegate` est un alias de haut niveau. La variante bas niveau `ctx.a2a_invoke` offre le même comportement avec un contrôle plus explicite :
 
 ```python
 result = await ctx.a2a_invoke(
@@ -184,4 +184,4 @@ result = await ctx.a2a_invoke(
 )
 ```
 
-Dans la pratique, `ctx.delegate()` est recommandé — plus lisible, même sémantique.
+Dans la pratique, `ctx.delegate` est recommandé — plus lisible, même sémantique.

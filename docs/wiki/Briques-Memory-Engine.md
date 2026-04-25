@@ -98,14 +98,14 @@ await ctx.memory.remember(
 # Récupérer la valeur seule
 budget = await ctx.memory.recall("client.dupont_sa.budget_max")
 
-# Récupérer avec métadonnées complètes (Sprint 40)
+# Récupérer avec métadonnées complètes
 entry = await ctx.memory.recall_entry("client.dupont_sa.budget_max")
 if entry:
     print(entry["confidence"])   # 1.0
     print(entry["source"])       # "agent:crm-qualifier"
     print(entry["updated_at"])   # "2026-03-05T14:30:00Z"
 
-# Lister toutes les entrées du namespace (Sprint 40)
+# Lister toutes les entrées du namespace
 all_entries = await ctx.memory.recall_all(limit=50)
 for e in all_entries:
     print(f"{e['key']} = {e['value']} (confidence={e['confidence']})")
@@ -272,7 +272,7 @@ Les fichiers `.gguf` doivent être téléchargés manuellement et placés dans u
 
 ### 4.4 Exemple d'utilisation depuis un agent Python
 
-La recherche sémantique est transparente pour l'agent : `ctx.memory.search()` utilise automatiquement les embeddings si disponibles, FTS5 sinon.
+La recherche sémantique est transparente pour l'agent : `ctx.memory.search` utilise automatiquement les embeddings si disponibles, FTS5 sinon.
 
 ```python
 async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
@@ -369,7 +369,7 @@ class MemoryInterface(Protocol):
     async def purge_expired(self) -> int: ...
 ```
 
-### `MemoryStats` — champs retournés par `stats()`
+### `MemoryStats` — champs retournés par `stats`
 
 ```python
 # Obtenir les statistiques d'un namespace
@@ -435,8 +435,8 @@ pub enum MemoryAccess {
 
 | Niveau | Qui peut l'avoir | Opérations autorisées |
 |---|---|---|
-| `ReadWrite` | L'agent propriétaire du namespace (`memory_namespace`) | `record`, `remember`, `recall`, `search`, `forget`, `learn_procedure`, `stats`, `purge_expired` |
-| `ReadOnly` | Tout agent ayant le namespace dans `shared_memory_namespaces` | `recall`, `search`, `history` uniquement |
+| `ReadWrite` | L'agent propriétaire du namespace (`memory_namespace`) | `record()`, `remember`, `recall()`, `search()`, `forget`, `learn_procedure`, `stats`, `purge_expired` |
+| `ReadOnly` | Tout agent ayant le namespace dans `shared_memory_namespaces` | `recall()`, `search()`, `history` uniquement |
 
 La méthode `MemoryManager::access_level(namespace)` retourne `Some(ReadWrite)`, `Some(ReadOnly)`, ou `None` (namespace non autorisé).
 
@@ -473,9 +473,9 @@ Agent C (lecture seule, pas de mémoire privée)
 
 La concurrence SQLite est gérée par WAL (Write-Ahead Logging) : plusieurs lecteurs simultanés, un seul writer, sans blocage.
 
-### Namespace project-scoped — Sprint 40 (ADR-070)
+### Namespace project-scoped
 
-Depuis le Sprint 40, les namespaces mémoire sont automatiquement préfixés par le `project_id` du contexte de chat actif. Cela empêche la contamination mémoire entre projets lorsqu'un même agent travaille sur plusieurs workspaces.
+Les namespaces mémoire sont automatiquement préfixés par le `project_id` du contexte de chat actif. Cela empêche la contamination mémoire entre projets lorsqu'un même agent travaille sur plusieurs workspaces.
 
 ```
 effective_namespace = "{project_id}:{manifest.memory_namespace}"   # si project_id présent
@@ -488,7 +488,7 @@ effective_namespace = manifest.memory_namespace                     # sinon (ses
 | `dev-assistant` en session standalone | `"dev-assistant"` |
 | `spec-assistant` dans projet `proj_abc123` | `"proj_abc123:spec-assistant"` |
 
-Le préfixage est transparent pour le code Python de l'agent — il s'applique lors de l'initialisation du `MemoryInterface` via la fonction pure `effective_memory_namespace()` dans `crates/apollia-aip/src/context.rs`.
+Le préfixage est transparent pour le code Python de l'agent — il s'applique lors de l'initialisation du `MemoryInterface` via la fonction pure `effective_memory_namespace` dans `crates/apollia-aip/src/context.rs`.
 
 **Invariants :**
 - Backward compatible : les namespaces existants fonctionnent en session standalone
@@ -518,7 +518,7 @@ La purge est **asynchrone et non-bloquante** au démarrage. Elle ne ralentit pas
 |---|---|---|
 | `STEP_MEMORY_OUTPUT_MAX_CHARS` | `200` | Limite maximale en caractères de la sortie d'un step mémorisée dans la mémoire épisodique. Au-delà, le contenu est tronqué avec un suffixe `[truncated]`. Configurable via `memory.step_output_max_chars` dans `apollia.toml`. |
 
-La troncature est appliquée systématiquement par le runtime lors de l'appel `ctx.memory.record()` depuis ORIA. Elle borne la croissance de la base épisodique sans heuristique de consolidation (voir [ADR-054](../adr/ADR-054-memory-episodic-consolidation.md)).
+La troncature est appliquée systématiquement par le runtime lors de l'appel `ctx.memory.record` depuis ORIA. Elle borne la croissance de la base épisodique sans heuristique de consolidation (voir [ADR-054](../adr/ADR-054-memory-episodic-consolidation.md)).
 
 ---
 
@@ -538,7 +538,7 @@ La troncature est appliquée systématiquement par le runtime lors de l'appel `c
 | Méthode | Description |
 |---|---|
 | `open(path: &Path) -> Result<Self, MemoryStoreError>` | Ouvre ou crée la base, applique les migrations |
-| `schema_version() -> Result<u32, MemoryStoreError>` | Retourne la version du schéma actuel |
+| `schema_version -> Result<u32, MemoryStoreError>` | Retourne la version du schéma actuel |
 | `stats(namespace, db_path) -> Result<MemoryStats, MemoryStoreError>` | Statistiques du namespace |
 | `delete_entry_by_id(id: &str) -> Result<bool, MemoryStoreError>` | Supprime une entrée par UUID (toutes tables + FTS5) |
 | `clear_episodic(namespace) -> Result<u64, MemoryStoreError>` | Vide la mémoire épisodique du namespace |
@@ -609,9 +609,9 @@ $ apollia-os memory purge crm-dupont
 
 ---
 
-## 10. FileTimestampCache — Détection de Fichiers Modifiés — Sprint 36
+## 10. FileTimestampCache — Détection de Fichiers Modifiés
 
-Depuis le Sprint 36 (STORY-476), `apollia-memory` inclut `FileTimestampCache` : un cache SQLite qui détecte si un fichier lu par un agent a été modifié entre deux accès, permettant à ORIA d'invalider les plans stale.
+, `apollia-memory` inclut `FileTimestampCache` : un cache SQLite qui détecte si un fichier lu par un agent a été modifié entre deux accès, permettant à ORIA d'invalider les plans stale.
 
 ### Types
 
@@ -677,13 +677,13 @@ file_watch_strategy = "native"  # 'native' (inotify/kqueue) ou 'polling'
 poll_interval_ms = 1000         # uniquement si strategy = "polling"
 ```
 
-`FileTimestampCache` est également utilisé par `CommandRegistry` (STORY-493) pour le hot reload des slash commands custom.
+`FileTimestampCache` est également utilisé par `CommandRegistry` pour le hot reload des slash commands custom.
 
 ---
 
-## 11. Table `plan_choices` — Log RLHF — Sprint 36
+## 11. Table `plan_choices` — Log RLHF
 
-La table SQLite `plan_choices` dans `apollia-memory` persiste les choix de l'opérateur entre deux plans alternatifs ORIA (STORY-471). Données locales, jamais envoyées (Principe #1).
+La table SQLite `plan_choices` dans `apollia-memory` persiste les choix de l'opérateur entre deux plans alternatifs ORIA. Données locales, jamais envoyées (Principe #1).
 
 ```sql
 CREATE TABLE IF NOT EXISTS plan_choices (
@@ -700,9 +700,9 @@ CREATE TABLE IF NOT EXISTS plan_choices (
 
 ---
 
-## 7. Purge configurable par type — Sprint 37
+## 7. Purge configurable par type
 
-Depuis le Sprint 37 (STORY-485), la rétention mémoire est configurable par type (épisodique / sémantique / procédurale) via `MemoryConfig` dans le manifest de l'agent.
+, la rétention mémoire est configurable par type (épisodique / sémantique / procédurale) via `MemoryConfig` dans le manifest de l'agent.
 
 ### `MemoryConfig` — dans `AgentManifest`
 
@@ -740,7 +740,7 @@ def manifest(self):
     )
 ```
 
-### `PurgeReport` et `purge_old_entries()`
+### `PurgeReport` et `purge_old_entries`
 
 ```rust
 // crates/apollia-memory/src/manager.rs
@@ -787,9 +787,9 @@ $ apollia memory purge --agent crm-agent --type all --older-than 30
 
 ---
 
-## 8. Export / Import de mémoire — Sprint 37
+## 8. Export / Import de mémoire
 
-Depuis le Sprint 37 (STORY-484), la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-066).
+, la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-066).
 
 ### Format — JSON gzip
 

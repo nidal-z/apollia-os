@@ -10,7 +10,7 @@
 | | |
 |---|---|
 | [Installation en 5 min](./INSTALL-Quickstart) | Rust + Python + `cargo build` |
-| [Premier agent en 5 min](./Agents-Quickstart) | `manifest()` + `async run()` — c'est tout |
+| [Premier agent en 5 min](./Agents-Quickstart) | `manifest()` + `async run` — c'est tout |
 
 ---
 

@@ -119,7 +119,7 @@ Les tokens et clés API saisis dans le wizard ne sont **jamais écrits en clair*
 
 La clé utilisée dans le keychain suit le format `{server_name}:{env_var_name}` — par exemple `notion:NOTION_API_KEY`.
 
-Dans `mcp.toml`, la valeur correspondante est écrite comme `${APOLLIA_SECRET:NOTION_API_KEY}`. Au démarrage du runtime, `resolve_env()` détecte ce préfixe et lit la valeur depuis le keychain.
+Dans `mcp.toml`, la valeur correspondante est écrite comme `${APOLLIA_SECRET:NOTION_API_KEY}`. Au démarrage du runtime, `resolve_env` détecte ce préfixe et lit la valeur depuis le keychain.
 
 **Vérification sur macOS :**
 

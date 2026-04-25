@@ -1,16 +1,16 @@
 # Notifications Engine — Alertes découplées pour les agents
 
-> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. Depuis le Sprint 17 (ADR-033), les canaux et événements se gèrent via API REST CRUD et application desktop.*
+> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. (ADR-033), les canaux et événements se gèrent via API REST CRUD et application desktop.*
 
 ---
 
 ## 1. Vue d'ensemble
 
-> **Sprint 36 :** Deux nouvelles fonctionnalités — `InactivityWatcher` (STORY-474) et `TerminalChannel` pour les notifications dans le terminal, plus `handle_budget_update()` (STORY-477) pour les alertes seuil coût LLM.
+> **Note :** Deux nouvelles fonctionnalités — `InactivityWatcher` et `TerminalChannel` pour les notifications dans le terminal, plus `handle_budget_update` pour les alertes seuil coût LLM.
 
 
 
-Le `NotificationEngine` est un acteur de fond démarré en **position 9** dans la séquence du Supervisor (après le `TriggerEngine` et l'`APIServer`). Il n'a pas de handle externe : une fois lancé via `tokio::spawn(engine.run())`, il tourne de manière autonome jusqu'à la fermeture de l'EventBus.
+Le `NotificationEngine` est un acteur de fond démarré en **position 9** dans la séquence du Supervisor (après le `TriggerEngine` et l'`APIServer`). Il n'a pas de handle externe : une fois lancé via `tokio::spawn(engine.run)`, il tourne de manière autonome jusqu'à la fermeture de l'EventBus.
 
 ```
 apollia.toml [notifications]
@@ -45,9 +45,9 @@ apollia.toml [notifications]
 **Philosophie de conception :**
 
 - **Découplé** : le `NotificationEngine` consomme l'EventBus en lecture seule. Aucun autre acteur ne dépend de lui. Une notification ratée ne perturbe jamais l'exécution d'une tâche agent.
-- **Non-bloquant** : `send()` retourne `Ok(())` immédiatement. L'attente d'une action utilisateur desktop tourne dans un `spawn_blocking` indépendant.
-- **Dégradation gracieuse** : canal en erreur → `warn!` + dispatch continue. Desktop headless (Linux sans `DISPLAY` ni `DBUS_SESSION_BUS_ADDRESS`) → `Ok(())` silencieux. Webhook timeout → `Err(WebhookFailed(_))` loggé en `warn!`.
-- **Base vide = pas de démarrage** : si `notifications.db` est vide (aucun canal, aucun événement global), le Supervisor n'instancie pas d'engine (aucun coût). Les canaux se créent via l'API REST CRUD (Sprint 17).
+- **Non-bloquant** : `send` retourne `Ok()` immédiatement. L'attente d'une action utilisateur desktop tourne dans un `spawn_blocking` indépendant.
+- **Dégradation gracieuse** : canal en erreur → `warn!` + dispatch continue. Desktop headless (Linux sans `DISPLAY` ni `DBUS_SESSION_BUS_ADDRESS`) → `Ok()` silencieux. Webhook timeout → `Err(WebhookFailed(_))` loggé en `warn!`.
+- **Base vide = pas de démarrage** : si `notifications.db` est vide (aucun canal, aucun événement global), le Supervisor n'instancie pas d'engine (aucun coût). Les canaux se créent via l'API REST CRUD.
 
 ---
 
@@ -119,9 +119,9 @@ pub enum NotifError {
 }
 ```
 
-### 2.4 `Severity` — sévérité d'une notification *(Sprint 37)*
+### 2.4 `Severity` — sévérité d'une notification
 
-Depuis le Sprint 37 (STORY-487), `Severity` est étendu à **5 niveaux** avec `PartialOrd`/`Ord` pour le filtrage par seuil minimum.
+, `Severity` est étendu à **5 niveaux** avec `PartialOrd`/`Ord` pour le filtrage par seuil minimum.
 
 ```rust
 // apollia-notifications/src/config.rs
@@ -209,7 +209,7 @@ impl NotificationEngine {
 }
 ```
 
-### 2.6 `NotificationConfigRepository` *(Sprint 17)*
+### 2.6 `NotificationConfigRepository`
 
 ```rust
 // apollia-notifications/src/repository.rs
@@ -248,7 +248,7 @@ pub enum NotificationConfigError {
 - Webhook doit avoir un champ `url` dans la config
 - Noms d'événements validés contre la liste `KNOWN_EVENTS`
 
-**Conversion vers runtime** : `NotificationChannelRow::to_channel_config()` convertit une ligne SQLite en `ChannelConfig` pour reconstruire le `NotificationEngine` au boot.
+**Conversion vers runtime** : `NotificationChannelRow::to_channel_config` convertit une ligne SQLite en `ChannelConfig` pour reconstruire le `NotificationEngine` au boot.
 
 ### 2.7 Types de configuration
 
@@ -281,7 +281,7 @@ pub struct ChannelConfig {
 pub enum ChannelKind {
     Desktop,  // notify-rust v4
     Webhook,  // HTTP POST
-    Sse,      // géré par le dashboard (Sprint 9), ignoré ici
+    Sse,      // géré par le dashboard, ignoré ici
 }
 
 /// Instancie les canaux actifs à partir des ChannelConfig.
@@ -301,22 +301,22 @@ pub enum NotifConfigError {
 
 ## 3. Événements mappés
 
-La fonction `event_filter::map_event()` est pure : mêmes entrées, mêmes sorties, sans effet de bord. Elle reconnaît exactement **7 événements critiques** et retourne `None` pour tous les autres.
+La fonction `event_filter::map_event` est pure : mêmes entrées, mêmes sorties, sans effet de bord. Elle reconnaît exactement **7 événements critiques** et retourne `None` pour tous les autres.
 
 | `RuntimeEvent` | Nom de notification | Sévérité | Métadonnées clés |
 |---|---|---|---|
-| `TaskInputRequired { task_id, prompt, .. }` | `task.input_required` | `Warning` | `resume_url`, `inspect_url` |
-| `TaskCompleted { success: false, .. }` | `task.failed` | `Error` | — |
-| `TaskCompleted { success: true, .. }` | `task.completed` | `Info` | — |
+| `TaskInputRequired { task_id, prompt,.. }` | `task.input_required` | `Warning` | `resume_url`, `inspect_url` |
+| `TaskCompleted { success: false,.. }` | `task.failed` | `Error` | — |
+| `TaskCompleted { success: true,.. }` | `task.completed` | `Info` | — |
 | `AgentDegraded { agent_id, reason }` | `agent.degraded` | `Warning` | — |
 | `LlmModelFailed { backend, reason }` | `llm.backend_down` | `Error` | `backend` |
 | `TriggerError { trigger_id, error }` | `trigger.error` | `Error` | `trigger_id` |
-| `ChatApprovalRequired { session_id, tool_name, .. }` | `chat.approval_required` | `Warning` | `session_id`, `tool_name` |
+| `ChatApprovalRequired { session_id, tool_name,.. }` | `chat.approval_required` | `Warning` | `session_id`, `tool_name` |
 
 **Tous les autres `RuntimeEvent`** (`AgentRegistered`, `TaskStarted`, `AllReady`, etc.) retournent `None` — aucune notification n'est émise.
 
 Les métadonnées HITL de `task.input_required` contiennent :
-- `resume_url` : `http://<api.bind>:<api.port>/api/v1/tasks/{id}/resume` (construit dynamiquement depuis la config — plus de `localhost:7771` hardcodé, Sprint 34)
+- `resume_url` : `http://<api.bind>:<api.port>/api/v1/tasks/{id}/resume` (construit dynamiquement depuis la config — plus de `localhost:7771` hardcodé)
 - `inspect_url` : `http://<api.bind>:<api.port>/dashboard#tasks/{id}`
 
 Les métadonnées de `chat.approval_required` contiennent :
@@ -337,9 +337,9 @@ Les métadonnées de `chat.approval_required` contiennent :
 
 ---
 
-## 4. Gestion des notifications — CRUD SQLite (Sprint 17)
+## 4. Gestion des notifications — CRUD SQLite
 
-Depuis le Sprint 17 (ADR-033), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
+(ADR-033), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
 
 ### 4.1 Créer un canal via API
 
@@ -430,7 +430,7 @@ impl Default for DesktopChannel {
 |---|---|---|
 | Linux (XDG / D-Bus) | `notify-rust` + `wait_for_action` | Oui (Approuver / Rejeter / Inspecter) |
 | macOS | `notify-rust` simple | Non (API `wait_for_action` XDG uniquement) |
-| Linux CI headless | Return `Ok(())` silencieux | N/A |
+| Linux CI headless | Return `Ok()` silencieux | N/A |
 
 **Actions HITL sur Linux (`task.input_required`) :**
 
@@ -453,9 +453,9 @@ Notification OS : "Apollia OS — <agent>"
 
 Pour les autres événements sur Linux, un clic sur la notification ouvre le dashboard (`http://localhost:7771/dashboard`).
 
-**Non-blocage garanti :** `send()` retourne `Ok(())` immédiatement. L'appel bloquant `os_notif.show()` + `wait_for_action()` s'exécute dans un `tokio::task::spawn_blocking` en arrière-plan. L'échec de l'affichage OS est loggé en `warn!` sans propagation.
+**Non-blocage garanti :** `send` retourne `Ok()` immédiatement. L'appel bloquant `os_notif.show` + `wait_for_action` s'exécute dans un `tokio::task::spawn_blocking` en arrière-plan. L'échec de l'affichage OS est loggé en `warn!` sans propagation.
 
-**Dégradation CI headless (Linux) :** si `DISPLAY` et `DBUS_SESSION_BUS_ADDRESS` sont tous deux absents, la notification est ignorée silencieusement (`Ok(())`) sans même spawner le `spawn_blocking`.
+**Dégradation CI headless (Linux) :** si `DISPLAY` et `DBUS_SESSION_BUS_ADDRESS` sont tous deux absents, la notification est ignorée silencieusement (`Ok()`) sans même spawner le `spawn_blocking`.
 
 ---
 
@@ -502,12 +502,12 @@ impl WebhookChannel {
 
 | Header | Valeur |
 |---|---|
-| `Content-Type` | `application/json` (positionné par reqwest `.json()`) |
+| `Content-Type` | `application/json` (positionné par reqwest `.json`) |
 | `X-Apollia-Event` | nom de l'événement (ex: `task.failed`) |
 | `User-Agent` | `apollia-os/<version>` |
 | `X-Apollia-Signature` | `sha256=<hmac-hex>` — présent uniquement si `hmac_secret` configuré (voir §6.1) |
 
-### 6.1 Signature HMAC-SHA256 des webhooks sortants *(Sprint 34)*
+### 6.1 Signature HMAC-SHA256 des webhooks sortants
 
 Si le canal webhook déclare un `hmac_secret`, Apollia OS signe chaque payload sortant :
 
@@ -587,7 +587,7 @@ Le `NotificationEngine` est démarré en **position 9** dans la séquence du Sup
 9. NotifEngine     → alertes desktop / webhook  ← SPRINT 11
 ```
 
-Au démarrage, le Supervisor ouvre le `NotificationConfigRepository` depuis `data_dir/notifications.db` *(Sprint 17)*, reconstruit la `NotificationConfig` depuis les lignes SQLite, et instancie le `NotificationEngine` si des canaux sont configurés. Le repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
+Au démarrage, le Supervisor ouvre le `NotificationConfigRepository` depuis `data_dir/notifications.db`, reconstruit la `NotificationConfig` depuis les lignes SQLite, et instancie le `NotificationEngine` si des canaux sont configurés. Le repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
 Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal webhook n'a pas d'URL, la validation rejette l'écriture au moment du CRUD (pas au boot).
 
@@ -599,10 +599,10 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 |---|---|
 | Canal desktop renvoie `Err(_)` | `warn!` loggé, dispatch continue vers les canaux suivants |
 | Canal webhook renvoie `Err(_)` | `warn!` loggé, dispatch continue vers les canaux suivants |
-| Linux headless (CI) sans `DISPLAY` | `Ok(())` immédiat, aucune tentative d'affichage |
+| Linux headless (CI) sans `DISPLAY` | `Ok()` immédiat, aucune tentative d'affichage |
 | Webhook timeout (5s) | `Err(NotifError::WebhookFailed(_))` → `warn!` |
 | Webhook réponse non-2xx | `Err(NotifError::WebhookFailed("HTTP NNN"))` → `warn!` |
-| EventBus saturé (Lagged) | `warn!(skipped = N, ...)`, boucle continue sans interruption |
+| EventBus saturé (Lagged) | `warn!(skipped = N,...)`, boucle continue sans interruption |
 | EventBus fermé (arrêt runtime) | `break` — engine se termine proprement, aucun panic |
 | Base SQLite vide (aucun canal) | Engine non démarré — aucun coût, aucune erreur |
 | Webhook sans `url` en CRUD | `NotificationConfigError::ValidationError` → HTTP 422 |
@@ -611,7 +611,7 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 
 ---
 
-## 9. InactivityWatcher — Surveillance de l'inactivité — Sprint 36
+## 9. InactivityWatcher — Surveillance de l'inactivité
 
 `InactivityWatcher` détecte quand le runtime est inactif pendant une tâche active et envoie une notification pour rappeler l'opérateur.
 
@@ -633,7 +633,7 @@ impl InactivityWatcher {
 }
 ```
 
-**Events qui réarment le timer (`is_significant_for_inactivity()`) :**
+**Events qui réarment le timer (`is_significant_for_inactivity`) :**
 `TaskStarted`, `StepCompleted`, `ToolInvoked`, `LlmResponseReceived`, `PermissionRequired`.
 
 **Config :**
@@ -644,7 +644,7 @@ inactivity_timeout_secs = 30
 
 ---
 
-## 10. TerminalChannel — Notifications dans le terminal — Sprint 36
+## 10. TerminalChannel — Notifications dans le terminal
 
 Nouveau canal de notification qui écrit directement dans le terminal de l'opérateur via des séquences OSC standard.
 
@@ -681,9 +681,9 @@ min_severity = "info"
 
 ---
 
-## 11. Alerte seuil coût LLM — Sprint 36
+## 11. Alerte seuil coût LLM
 
-`NotificationEngine` réagit aux events `TokenBudgetUpdated` (STORY-477) pour envoyer une alerte OS quand le seuil de coût est dépassé.
+`NotificationEngine` réagit aux events `TokenBudgetUpdated` pour envoyer une alerte OS quand le seuil de coût est dépassé.
 
 ```rust
 impl NotificationEngine {

@@ -49,16 +49,16 @@
 
 ## Logging
 
-- [ ] **Utiliser `ctx.log.info/warn/error`** avec champs structurés (kwargs), jamais `print()`.
+- [ ] **Utiliser `ctx.log.info/warn/error`** avec champs structurés (kwargs), jamais `print`.
 - [ ] **Ne pas dupliquer `agent_id` ou `task_id`** dans les kwargs — le runtime les ajoute automatiquement.
 - [ ] **Convention nommage** : verbe en snake_case (`processing_step`, `tool_failed`, `model_loaded`).
 
 ---
 
-## Lifecycle (`on_start` / `on_stop`)
+## Lifecycle (`on_start()` / `on_stop()`)
 
-- [ ] **Charger les ressources coûteuses dans `on_start`**, jamais dans `__init__` (qui est appelé sans `ctx`). → [book ch03-03](../../book/src/ch03-03-lifecycle.md)
-- [ ] **Libérer les ressources dans `on_stop`** (connexions, modèles GPU, fichiers ouverts).
+- [ ] **Charger les ressources coûteuses dans `on_start()`**, jamais dans `__init__()` (qui est appelé sans `ctx`). → [book ch03-03](../../book/src/ch03-03-lifecycle.md)
+- [ ] **Libérer les ressources dans `on_stop()`** (connexions, modèles GPU, fichiers ouverts).
 - [ ] **Logger l'init et la libération** pour faciliter le diagnostic au démarrage du runtime.
 
 ---

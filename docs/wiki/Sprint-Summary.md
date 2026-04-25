@@ -131,7 +131,7 @@ Aucune directement — infrastructure acteur interne.
 ### Ce qui a été implémenté
 - `APIServer` axum dual TCP (port 7771) + Unix socket (`/tmp/apollia.sock`)
 - Routes REST : tasks (POST/GET/DELETE), agents (GET/POST/DELETE), SSE streaming
-- CLI niveau 1 : `start`, `stop`, `status`, `run`
+- CLI niveau 1 : `start()`, `stop()`, `status`, `run()`
 - CLI niveau 2 : `agent list|start|stop|info`, `task list|status|cancel`, `tools list|describe`, `audit list|stats`, `memory inspect`
 - `Supervisor` démarrage ordonné séquentiel + watchdog + rollback
 - `ShutdownController` graceful (SIGTERM/SIGINT, drain 30s, double Ctrl+C = force exit)
@@ -253,7 +253,7 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 - 7 nouveaux `RuntimeEvent` : `PlanGenerated`, `StepStarted/Completed/Failed`, `PlanReplanning`, `PlanCompleted/Failed`
 - `on_plan_complete()` hook PyO3 duck typing optionnel
 - SSE étendu pour events plan/step
-- CLI `run` enrichi (plan + steps temps réel) + `task inspect` (lecture plans.db sans runtime)
+- CLI `run()` enrichi (plan + steps temps réel) + `task inspect` (lecture plans.db sans runtime)
 
 ### Primitives agent disponibles
 - `execution_mode = "orchestrated"` dans manifest → ORIA planifie et exécute les outils directement

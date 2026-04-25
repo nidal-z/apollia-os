@@ -47,7 +47,7 @@ NotificationEngine
 
 ## Configurer les canaux
 
-Depuis le Sprint 17, les canaux se créent via l'API REST ou la CLI — plus dans `apollia.toml`.
+Les canaux se créent via l'API REST ou la CLI — plus dans `apollia.toml`.
 
 ### Canal desktop
 
@@ -63,7 +63,7 @@ curl -X POST http://localhost:7771/api/v1/notifications/channels \
   }'
 ```
 
-Les notifications desktop utilisent l'API native de l'OS (macOS, Linux avec libnotify, Windows). Sur un environnement headless (Linux sans `DISPLAY`), le canal desktop retourne `Ok(())` silencieusement — pas d'erreur fatale.
+Les notifications desktop utilisent l'API native de l'OS (macOS, Linux avec libnotify, Windows). Sur un environnement headless (Linux sans `DISPLAY`), le canal desktop retourne `Ok()` silencieusement — pas d'erreur fatale.
 
 ### Canal webhook
 

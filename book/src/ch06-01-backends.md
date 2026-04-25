@@ -6,7 +6,7 @@ Apollia OS supporte deux familles de backends LLM : les modèles locaux qui tour
 
 ## Où est stockée la configuration
 
-Depuis la version 0.2 (Sprint 28), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`), pas dans un fichier TOML. Vous la gérez via la CLI ou l'interface desktop — et elle persiste entre les redémarrages.
+Depuis la version 0.2, la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`), pas dans un fichier TOML. Vous la gérez via la CLI ou l'interface desktop — et elle persiste entre les redémarrages.
 
 ```bash
 # Lister les backends configurés

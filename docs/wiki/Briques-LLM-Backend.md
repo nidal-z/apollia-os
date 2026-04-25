@@ -14,7 +14,7 @@
 | `OpenAICompatibleClient` | `cloud` | HTTP REST (async-openai) | ❌ cloud |
 | `AnthropicClient` | `cloud` | HTTP REST (reqwest) | ❌ cloud |
 
-Depuis le Sprint 28 (ADR-047), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
+(ADR-047), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
 
 **Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire — c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
@@ -133,7 +133,7 @@ pub enum LlmError {
 
 ---
 
-## 4. LlmBackendRepository — Registre SQLite *(Sprint 28, ADR-047)*
+## 4. LlmBackendRepository — Registre SQLite *(ADR-047)*
 
 La configuration des backends LLM est désormais persistée dans `~/.apollia/system.db` (table `llm_backends`). `LlmBackendRepository` est défini dans `apollia-core` et suit le même pattern que `TriggerDefinitionRepository`.
 
@@ -240,7 +240,7 @@ impl LlmRouter {
 
 Inférence in-process via `llama.cpp` (ADR-042). Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
 
-Depuis Sprint 28, la configuration du backend est dans `system.db` (voir section 4). Exemple de `config_json` pour un backend llama-cpp :
+La configuration du backend est dans `system.db` (voir section 4). Exemple de `config_json` pour un backend llama-cpp :
 
 ```json
 {
@@ -266,7 +266,7 @@ pub enum AcceleratorDevice {
 | `local-accelerate` | `--features local-accelerate` | macOS (CPU BLAS vectorisé) | ✅ Disponible — plus rapide que CPU pur sans GPU |
 | `local-cuda` | `--features local-cuda` | GPU NVIDIA + CUDA toolkit | ⚠️ Déclaré — non testé (pas de GPU NVIDIA en CI) |
 
-> **Fail-fast (Principe #4) :** Si `device = "cuda"` ou `device = "metal"` mais que la feature correspondante n'est pas compilée, `EmbeddedBackend::load()` retourne `LlmError::DeviceNotAvailable { device, hint }` au démarrage — jamais de panic silencieux.
+> **Fail-fast (Principe #4) :** Si `device = "cuda"` ou `device = "metal"` mais que la feature correspondante n'est pas compilée, `EmbeddedBackend::load` retourne `LlmError::DeviceNotAvailable { device, hint }` au démarrage — jamais de panic silencieux.
 
 **Compiler avec Metal (Apple Silicon) :**
 
@@ -305,7 +305,7 @@ quantization = "Q5_K_M"
 device       = "metal"
 ```
 
-`EmbeddedBackend::load()` valide au démarrage que les `MMMMM` shards attendus existent dans le même dossier que le premier. llama.cpp charge ensuite automatiquement les shards suivants via `llama_load_model_from_file`.
+`EmbeddedBackend::load` valide au démarrage que les `MMMMM` shards attendus existent dans le même dossier que le premier. llama.cpp charge ensuite automatiquement les shards suivants via `llama_load_model_from_file`.
 
 #### Mode custom — liste explicite de chemins
 
@@ -423,7 +423,7 @@ Calcul du coût estimé (`cost_usd`) disponible pour les modèles haiku/sonnet/o
 
 ## 9. Observabilité — EventBus
 
-Après chaque appel `complete_with_observability()`, Apollia OS émet automatiquement sur l'EventBus :
+Après chaque appel `complete_with_observability`, Apollia OS émet automatiquement sur l'EventBus :
 
 ```rust
 RuntimeEvent::LlmCallCompleted {
@@ -446,7 +446,7 @@ Si `observability.debug_log_prompt = true` dans `apollia.toml`, le prompt comple
 
 ---
 
-## 10. Persistance des appels LLM *(Sprint 13)*
+## 10. Persistance des appels LLM
 
 Le `LlmCallRepository` persiste chaque appel LLM dans `~/.apollia/llm_calls.db` (SQLite) pour l'observabilité et le suivi des coûts.
 
@@ -478,9 +478,9 @@ impl LlmCallRepository {
 }
 ```
 
-**Intégration EventBus :** `spawn_subscriber()` souscrit à `RuntimeEvent::LlmCallCompleted` et persiste via `spawn_blocking`. Si `ObservabilityConfig.debug_log_prompt` est `false` (défaut), le champ `prompt_text` est `NULL` — conforme RGPD.
+**Intégration EventBus :** `spawn_subscriber` souscrit à `RuntimeEvent::LlmCallCompleted` et persiste via `spawn_blocking`. Si `ObservabilityConfig.debug_log_prompt` est `false` (défaut), le champ `prompt_text` est `NULL` — conforme RGPD.
 
-**Agrégation des coûts :** `costs_by_backend_model_since()` retourne les coûts agrégés par backend et modèle depuis une date donnée, utilisé par la Timeline API et le dashboard.
+**Agrégation des coûts :** `costs_by_backend_model_since` retourne les coûts agrégés par backend et modèle depuis une date donnée, utilisé par la Timeline API et le dashboard.
 
 ---
 
@@ -506,9 +506,9 @@ impl LlmCallRepository {
 | `local` (llama.cpp) | Llama 3, Mistral, Qwen, etc. | **Gratuit** | CPU/GPU local, latence dépend du hardware |
 | `ollama` | Tout modèle Ollama | **Gratuit** | Requiert Ollama installé localement |
 
-### Table de pricing compilée *(Sprint 34 — STORY-436)*
+### Table de pricing compilée **
 
-Le calcul de `cost_usd` utilise une table lookup robuste dans `crates/apollia-llm/src/pricing.rs` (`default_pricing()`) avec correspondance exacte ou par préfixe de modèle :
+Le calcul de `cost_usd` utilise une table lookup robuste dans `crates/apollia-llm/src/pricing.rs` (`default_pricing`) avec correspondance exacte ou par préfixe de modèle :
 
 ```rust
 // apollia-llm/src/pricing.rs
@@ -568,12 +568,12 @@ pub trait ToolInvoker: Send + Sync {
 ```
 
 La boucle `run_tools()` :
-1. Appelle `model.complete()` avec les outils disponibles
-2. Si `finish_reason == ToolCalls` → exécute les outils via `invoker.invoke()`
-3. **Erreurs d'outil absorbées** : `invoker.invoke()` retourne `Result<String, String>` — une erreur devient un message `Role::Tool` avec le texte d'erreur (jamais fatale pour la boucle)
+1. Appelle `model.complete` avec les outils disponibles
+2. Si `finish_reason == ToolCalls` → exécute les outils via `invoker.invoke`
+3. **Erreurs d'outil absorbées** : `invoker.invoke` retourne `Result<String, String>` — une erreur devient un message `Role::Tool` avec le texte d'erreur (jamais fatale pour la boucle)
 4. Ajoute les résultats comme messages `Role::Tool`
 5. Répète jusqu'à `finish_reason == Stop` ou `max_iterations` atteint → `LlmError::MaxIterationsReached`
-6. Si `budget_view.is_exhausted()` → `LlmError::BudgetExceeded` immédiat
+6. Si `budget_view.is_exhausted` → `LlmError::BudgetExceeded` immédiat
 7. Si `finish_reason` est ni `Stop` ni `ToolCalls` → `LlmError::InferenceError`
 
 ---
@@ -587,7 +587,7 @@ Le `LlmRouter` est démarré à la **position 5** dans le Supervisor (avant `Tas
 2. AgentRegistry
 3. ToolRegistry
 4. MemoryEngine
-5. LlmRouter ← nouveau Sprint 8
+5. LlmRouter
 6. TaskRouter
 7. APIServer
 ```
@@ -625,7 +625,7 @@ let router = LlmRouter::with_backends(
 
 ---
 
-## 14. Prompt Caching *(Sprint 35, ADR-057)*
+## 14. Prompt Caching *(ADR-057)*
 
 `AnthropicClient` envoie systématiquement l'en-tête `anthropic-beta: prompt-caching-2024-07-31` et pose trois breakpoints `cache_control: { type: "ephemeral" }` dans chaque requête :
 
@@ -655,7 +655,7 @@ Les backends `OpenAICompatibleClient` et `OllamaClient` ne supportent pas le pro
 
 ---
 
-## 15. Retry Policy *(Sprint 35, ADR-057)*
+## 15. Retry Policy *(ADR-057)*
 
 Tous les backends cloud implémentent une politique de retry exponentiel avec jitter. La `RetryPolicy` est définie dans `crates/apollia-llm/src/retry.rs` :
 
@@ -703,7 +703,7 @@ tokio::select! {
 
 ---
 
-## 16. TokenBudget *(Sprint 35)*
+## 16. TokenBudget
 
 `TokenBudget` agrège les tokens consommés sur toute la durée d'une session ou d'une tâche. Il est accumulé par `LlmRouter` et affiché en fin de tâche par la CLI.
 
@@ -738,9 +738,9 @@ impl TokenBudget {
 
 ---
 
-## Routing LLM par niveau de précision — Sprint 36
+## Routing LLM par niveau de précision
 
-Depuis le Sprint 36 (STORY-469), `LlmRouter` expose deux méthodes de routing basées sur le tradeoff coût/latence/qualité documenté dans les scaling laws (Kaplan et al., 2020).
+, `LlmRouter` expose deux méthodes de routing basées sur le tradeoff coût/latence/qualité documenté dans les scaling laws (Kaplan et al., 2020).
 
 ### `LlmRoutingLevel`
 
@@ -767,7 +767,7 @@ impl LlmRouter {
 }
 ```
 
-**Fail-fast :** si `[llm.routing]` est absent de `apollia.toml`, `LlmRouter::new()` retourne `Err(RoutingConfigMissing)` au démarrage.
+**Fail-fast :** si `[llm.routing]` est absent de `apollia.toml`, `LlmRouter::new` retourne `Err(RoutingConfigMissing)` au démarrage.
 
 ### Configuration
 
@@ -784,12 +784,12 @@ fast = "claude-haiku-4-5-20251001"
 
 | Callsite | Niveau | Justification |
 |---|---|---|
-| `apollia-oria/src/reasoner.rs` | `route_precise()` | Planification ReAct — erreur à fort impact |
-| `apollia-workspace/src/style_detector.rs` | `route_fast()` | Extraction conventions — déterministe |
-| `apollia-tools/src/executors/bash_executor.rs` | `route_fast()` | Extraction file paths — résultat vérifiable |
-| `apollia-memory/src/compactor.rs` | `route_fast()` | Résumé contexte — faible coût d'erreur |
+| `apollia-oria/src/reasoner.rs` | `route_precise` | Planification ReAct — erreur à fort impact |
+| `apollia-workspace/src/style_detector.rs` | `route_fast` | Extraction conventions — déterministe |
+| `apollia-tools/src/executors/bash_executor.rs` | `route_fast` | Extraction file paths — résultat vérifiable |
+| `apollia-memory/src/compactor.rs` | `route_fast` | Résumé contexte — faible coût d'erreur |
 
-### `TokenBudgetUpdated` — Event enrichi (STORY-473)
+### `TokenBudgetUpdated` — Event enrichi
 
 ```rust
 /// Émis après chaque appel LLM — alimente le widget coût desktop.
@@ -813,9 +813,9 @@ cost_alert_threshold_usd = 0.50
 
 ---
 
-## 9. Google Vertex AI — Sprint 37
+## 9. Google Vertex AI
 
-Depuis le Sprint 37 (STORY-495, ADR-068), Apollia supporte Google Vertex AI comme backend LLM via `aiplatform.googleapis.com`. L'authentification utilise Application Default Credentials (ADC) avec cache mémoire et refresh automatique.
+ (ADR-068), Apollia supporte Google Vertex AI comme backend LLM via `aiplatform.googleapis.com`. L'authentification utilise Application Default Credentials (ADC) avec cache mémoire et refresh automatique.
 
 ### `VertexConfig`
 
@@ -883,9 +883,9 @@ Seul le type `authorized_user` (credentials `gcloud auth application-default log
 
 ---
 
-## 10. AWS Bedrock — Sprint 37
+## 10. AWS Bedrock
 
-Depuis le Sprint 37 (STORY-494, ADR-067), Apollia supporte AWS Bedrock comme backend LLM via SigV4 natif (sans le SDK AWS complet).
+ (ADR-067), Apollia supporte AWS Bedrock comme backend LLM via SigV4 natif (sans le SDK AWS complet).
 
 ### `BedrockConfig`
 
@@ -927,8 +927,8 @@ model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
 - [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — Google Vertex AI : ADC vs clé de service
 - [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) — AWS Bedrock : aws-sigv4 natif vs SDK complet
-- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) — Prompt Caching Strategy (Sprint 35)
-- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite, Sprint 28)
+- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) — Prompt Caching Strategy
+- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite)
 - [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) — remplacement mistral-rs par llama.cpp
 - [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) — feature flags LLM
 - [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) — observabilité complète

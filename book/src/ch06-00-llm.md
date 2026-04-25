@@ -1,6 +1,6 @@
 # Le LLM
 
-Dans `file-assistant`, vous avez utilisé `ctx.llm.chat()` pour résumer un fichier. Une ligne, une réponse. Mais le LLM peut faire beaucoup plus que répondre à un prompt : il peut **raisonner**, **décider**, et **agir** — en appelant des outils lui-même, en adaptant son plan au résultat de chaque action, en boucle.
+Dans `file-assistant`, vous avez utilisé `ctx.llm.chat` pour résumer un fichier. Une ligne, une réponse. Mais le LLM peut faire beaucoup plus que répondre à un prompt : il peut **raisonner**, **décider**, et **agir** — en appelant des outils lui-même, en adaptant son plan au résultat de chaque action, en boucle.
 
 Ce chapitre explique comment `ctx.llm` fonctionne, comment le configurer, et surtout comment utiliser la boucle ReAct pour construire des agents véritablement autonomes.
 

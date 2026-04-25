@@ -62,7 +62,7 @@ curl http://localhost:7771/.well-known/agent.json
 
 L'agent n'écrit pas de code A2A — il déclare ses capacités dans le manifest, Apollia OS fait le reste.
 
-### Routing A2A V1 — livré Sprint 30
+### Routing A2A V1 — livré
 
 **A2AInvoker** — orchestrateur de haut niveau dans `apollia-runtime/src/a2a/` :
 
@@ -74,8 +74,8 @@ result = await ctx.a2a_invoke("read-excel", {"text": "Lis ventes.xlsx"})
 Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construction contexte A2A (trust model) → délégation via `TaskRouter` avec timeout 120s → résultat `A2AInvocationResult`.
 
 **SkillIndex** — index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
-- Alimenté automatiquement lors des `register()` / `unregister()` (agents avec `supports_a2a: True`)
-- Conflit de skill_id détecté au `register()` — pas au runtime (Principe #4 — fail fast)
+- Alimenté automatiquement lors des `register` / `unregister` (agents avec `supports_a2a: True`)
+- Conflit de skill_id détecté au `register` — pas au runtime (Principe #4 — fail fast)
 - `A2AError::SkillNotFound` inclut la liste des skills disponibles si résolution échoue
 
 **Trust model A2A** (ADR-049) :
@@ -99,7 +99,7 @@ $ apollia-os agent list --supports-a2a
 
 Décision architecturale : [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
 
-### Garde-fous A2A — livré Sprint 32
+### Garde-fous A2A — livré
 
 L'`A2AInvoker` applique trois garde-fous automatiques configurables via `A2AConfig` :
 
@@ -122,7 +122,7 @@ Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` su
 
 Décision architecturale : [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
 
-### A2AToolsProvider — Workers comme outils ORIA — livré Sprint 32
+### A2AToolsProvider — Workers comme outils ORIA — livré
 
 `A2AToolsProvider` injecte dynamiquement les skills A2A comme des outils virtuels préfixés `a2a:` dans la boucle ReAct des agents ORIA :
 
@@ -143,7 +143,7 @@ ctx.tools.call("a2a:read-excel", {"text": "Lis ventes.xlsx"})
 ```
 
 Le routing est transparent :
-- Nom d'outil commençant par `a2a:` → `A2AInvoker.invoke(skill_id, ...)`
+- Nom d'outil commençant par `a2a:` → `A2AInvoker.invoke(skill_id,...)`
 - Sinon → `ToolExecutor` natif (comportement inchangé)
 
 **Backward-compatible** : sans agents A2A actifs, aucun outil `a2a:` n'apparaît dans la liste.
@@ -171,7 +171,7 @@ Il existe deux enums d'erreur distincts selon la couche d'invocation :
 
 #### `A2AError` — Invocateur haut niveau (`invoker.rs`)
 
-Retourné par `A2AInvoker::invoke()` et `POST /api/v1/a2a/invoke`. Applique les garde-fous avant délégation.
+Retourné par `A2AInvoker::invoke` et `POST /api/v1/a2a/invoke`. Applique les garde-fous avant délégation.
 
 | Variant | HTTP | Déclencheur |
 |---|---|---|
@@ -227,7 +227,7 @@ Retourné par `A2AInvoker::invoke()` et `POST /api/v1/a2a/invoke`. Applique les 
 
 #### `A2aError` — Délégation bas niveau (`mod.rs`)
 
-Retourné par `delegate_inner()` et `POST /api/v1/a2a/delegate`. Couche sans garde-fous.
+Retourné par `delegate_inner` et `POST /api/v1/a2a/delegate`. Couche sans garde-fous.
 
 | Variant | HTTP | Déclencheur |
 |---|---|---|

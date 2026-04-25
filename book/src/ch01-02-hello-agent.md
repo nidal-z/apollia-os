@@ -83,7 +83,7 @@ $ apollia-os agent start ./hello_agent.py
 Que se passe-t-il en coulisse lors du déploiement ?
 
 1. Le runtime charge le module Python via PyO3 (le pont Rust ↔ Python)
-2. Il appelle `agent.manifest()` et valide le dictionnaire retourné
+2. Il appelle `agent.manifest` et valide le dictionnaire retourné
 3. Il résout chaque outil listé dans `tools_required` (zéro ici)
 4. Il crée un coordinateur d'exécution avec une capacité de 1 tâche concurrente
 5. Il fait passer l'agent en état `ACTIVE`
@@ -163,7 +163,7 @@ Le runtime attend toujours que les tâches en cours se terminent avant de s'arr�
 
 ---
 
-## Gérer les erreurs dans run()
+## Gérer les erreurs dans run
 
 Un agent bien écrit gère explicitement les cas d'erreur au lieu de laisser le runtime gérer les exceptions Python. Voici un `run()` plus robuste :
 

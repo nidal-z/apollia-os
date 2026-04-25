@@ -18,7 +18,7 @@
 | ADR-011 | [ADR-011 — AgentId et TaskId comme type aliases String dans apollia-core](./adr-011-agentid-taskid-string-aliases-dans-core.md) | Accepté |
 | ADR-012 | [ADR-012 — Mode DevSandbox sur macOS : pas de sandbox réel en développement](./adr-012-sandbox-devmode-macos.md) | Accepté |
 | ADR-013 | [ADR-013 — Configuration PyO3 Python sur macOS via PYO3_PYTHON](./adr-013-pyo3-python-config-macos.md) | Accepté |
-| ADR-014 | [ADR-014 — Bridge AIP utilise spawn_blocking + asyncio.run() au lieu de into_future](./adr-014-bridge-spawn-blocking-asyncio-run.md) | Accepté |
+| ADR-014 | [ADR-014 — Bridge AIP utilise spawn_blocking + asyncio.run au lieu de into_future](./adr-014-bridge-spawn-blocking-asyncio-run.md) | Accepté |
 | ADR-015 | [ADR-015 — Trait ToolExecutor pour abstraire l'execution des outils](./adr-015-tool-executor-trait-abstraction.md) | Accepté |
 | ADR-016 | [ADR-016 — Trait AgentRunner pour decoupler ORIAEngine de AIPBridge](./adr-016-agent-runner-trait-abstraction.md) | Accepté |
 | ADR-017 | [ADR-017 — hyper-util explicite pour Unix socket serving](./adr-017-hyper-util-unix-socket-serving.md) | Accepté |

@@ -14,7 +14,7 @@ La mémoire utilisateur globale permet à Apollia OS de conserver des informatio
 Le sous-système repose sur trois piliers :
 
 1. **Stockage** — `UserMemoryRepository` persiste les entrées dans SQLite via `SemanticMemory` sous le namespace réservé `__user__`.
-2. **Injection** — `BuiltInChatAgent.build_system_prompt()` injecte le contexte utilisateur dans le system prompt du LLM.
+2. **Injection** — `BuiltInChatAgent.build_system_prompt` injecte le contexte utilisateur dans le system prompt du LLM.
 3. **Extraction** — Un appel LLM post-session (fire-and-forget) extrait automatiquement de nouvelles informations depuis les conversations.
 
 **Décision architecturale** : [ADR-038 — Mémoire utilisateur globale](../adr/ADR-038-global-user-memory.md)
@@ -65,7 +65,7 @@ Méthodes publiques :
 | `forget(key)` | Supprime une entrée (toutes catégories) |
 | `update(key, value)` | Met à jour la valeur d'une entrée existante |
 | `update_confidence(key, confidence)` | Met à jour le score de confiance |
-| `is_empty()` | Vérifie si le repository est vide (détection premier lancement) |
+| `is_empty` | Vérifie si le repository est vide (détection premier lancement) |
 
 ---
 
@@ -106,7 +106,7 @@ Chaque entrée mémoire est associée à un score de confiance (`confidence`, fl
 | `0.9` | Déclarée explicitement pendant l'onboarding | `onboarding` |
 | `0.5` | Inférée du contexte (conversation ou observation) | `chat_inference`, `agent_observation` |
 
-**Méthodes liées** : `store_with_confidence()`, `update_confidence()` dans `UserMemoryRepository`.
+**Méthodes liées** : `store_with_confidence`, `update_confidence` dans `UserMemoryRepository`.
 
 ---
 
@@ -182,7 +182,7 @@ Supprime une entrée mémoire par clé (scan toutes catégories).
 
 ### Mécanisme
 
-La méthode `BuiltInChatAgent::build_system_prompt()` injecte le contexte utilisateur dans le system prompt du LLM :
+La méthode `BuiltInChatAgent::build_system_prompt` injecte le contexte utilisateur dans le system prompt du LLM :
 
 1. Appel à `repo.recall_all_for_injection(50)` — récupère jusqu'à 50 entrées.
 2. Si le résultat est non-vide, ajoute un bloc `## User Context (for reference, use as you see fit)`.
@@ -233,12 +233,12 @@ L'extraction est lancée automatiquement à la fermeture d'une session de chat, 
      "context": [{"key": "...", "value": "..."}]
    }
    ```
-3. Le parseur gère les réponses enveloppées dans des blocs markdown (` ```json ... ``` `).
+3. Le parseur gère les réponses enveloppées dans des blocs markdown (` ```json... ``` `).
 4. Chaque entrée extraite est stockée avec `UserMemorySource::ChatInference` (upsert).
 
 ### Fire-and-forget
 
-`spawn_extraction()` lance l'extraction dans une tâche Tokio asynchrone avec un timeout de 30 secondes. Les erreurs sont loguées en `warn!` mais **jamais propagées** — la fermeture de session n'est jamais bloquée.
+`spawn_extraction` lance l'extraction dans une tâche Tokio asynchrone avec un timeout de 30 secondes. Les erreurs sont loguées en `warn!` mais **jamais propagées** — la fermeture de session n'est jamais bloquée.
 
 ---
 
@@ -263,7 +263,7 @@ Le seuil minimal est de 6 messages pour l'enrichissement passif (vs 4 pour l'ext
 
 ### Mécanisme
 
-Au premier message d'une nouvelle session, `ChatSessionManager::build_cross_session_context()` recherche les sessions passées pertinentes :
+Au premier message d'une nouvelle session, `ChatSessionManager::build_cross_session_context` recherche les sessions passées pertinentes :
 
 1. **Filtre** : Le message doit contenir au moins 20 caractères (les salutations triviales sont ignorées).
 2. **Recherche** : FTS5 sur la table `chat_sessions_fts` (index des résumés de sessions passées), max 3 résultats.
@@ -287,7 +287,7 @@ Les résumés de sessions sont stockés dans le champ `summary` de la table `cha
 
 ### Sliding window
 
-La fonction `build_llm_messages()` applique une fenêtre glissante sur l'historique des messages. Seuls les `context_window_size` derniers messages sont envoyés au LLM (défaut : 20).
+La fonction `build_llm_messages` applique une fenêtre glissante sur l'historique des messages. Seuls les `context_window_size` derniers messages sont envoyés au LLM (défaut : 20).
 
 ### Summarization
 
@@ -315,10 +315,10 @@ L'onboarding est le principal vecteur de peuplement initial de la mémoire utili
 Pour le détail complet du fonctionnement, des clés mémoire, et de l'utilisation : voir [Guide Onboarding](Agents-Onboarding-Guide.md).
 
 **Méthodes liées** dans `UserMemoryRepository` :
-- `get_covered_topics()` — Domaines couverts par l'onboarding
+- `get_covered_topics` — Domaines couverts par l'onboarding
 - `mark_topic_covered(topic)` — Marque un domaine comme couvert
-- `get_onboarding_skipped()` / `set_onboarding_skipped(skipped)` — État "Plus tard"
-- `get_last_onboarding_session()` / `set_last_onboarding_session(timestamp)` — Dernière session
+- `get_onboarding_skipped` / `set_onboarding_skipped(skipped)` — État "Plus tard"
+- `get_last_onboarding_session` / `set_last_onboarding_session(timestamp)` — Dernière session
 
 ---
 
@@ -326,9 +326,9 @@ Pour le détail complet du fonctionnement, des clés mémoire, et de l'utilisati
 
 L'utilisateur peut gérer ses entrées mémoire depuis l'interface desktop (Settings > Mes Mémoires) :
 
-- **Valider** une entrée — augmente le score de confiance à 0.95 (`update_confidence()`)
-- **Corriger** une entrée — modifie la valeur via `update()`, source mise à `user_explicit`
-- **Supprimer** une entrée — suppression immédiate et définitive via `forget()`
+- **Valider** une entrée — augmente le score de confiance à 0.95 (`update_confidence`)
+- **Corriger** une entrée — modifie la valeur via `update`, source mise à `user_explicit`
+- **Supprimer** une entrée — suppression immédiate et définitive via `forget`
 
 Ce mécanisme ferme la boucle : les informations inférées (confiance 0.5) peuvent être validées par l'utilisateur pour devenir des données de confiance élevée (0.95).
 
@@ -359,7 +359,7 @@ if user_ctx is not None:
 
 ---
 
-## Accès A2A — user_memory_read_only (Sprint 30)
+## Accès A2A — user_memory_read_only
 
 Lorsqu'un agent est invoqué via A2A (`ctx.a2a_invoke`), le runtime lui octroie un accès en **lecture seule** à la mémoire utilisateur globale. L'agent peut contextualiser sa réponse à partir des préférences de l'utilisateur sans risquer de corrompre les données d'un autre agent.
 
@@ -381,7 +381,7 @@ hits = await ctx.memory.recall("préférence langue")
 # → peut retourner une entrée user_memory si pertinente
 ```
 
-L'agent **ne peut pas écrire** dans `__user__` — `ctx.memory.store()` écrit toujours dans son propre namespace. Ce modèle est défini dans [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md).
+L'agent **ne peut pas écrire** dans `__user__` — `ctx.memory.store` écrit toujours dans son propre namespace. Ce modèle est défini dans [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md).
 
 ---
 

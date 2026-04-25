@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|
 | 1 | `dashboard` | `dashboard` | observer | `onboarding.tour.op.dashboard.message` | Navigation detectee |
 | 2 | `agents` | `agents` | cliquer Demarrer | `onboarding.tour.op.agents.message` | Agent passe en ACTIVE |
-| 3 | `chat` | `chat` | envoyer un message | `onboarding.tour.op.chat.message` | Message envoye |
+| 3 | `chat()` | `chat()` | envoyer un message | `onboarding.tour.op.chat.message` | Message envoye |
 | 4 | `triggers` | `triggers` | creer un trigger | `onboarding.tour.op.triggers.message` | Trigger cree |
 | 5 | `approvals` | `approvals` | observer | `onboarding.tour.op.approvals.message` | Navigation detectee |
 | 6 | `notifications` | `notifications` | observer | `onboarding.tour.op.notifications.message` | Navigation detectee |
@@ -40,7 +40,7 @@
 | 2 | `agents` | `agents` | demarrer agent | `onboarding.tour.bld.agents.message` | Agent passe en ACTIVE |
 | 3 | `agent_detail` | `agents` (detail) | ouvrir detail | `onboarding.tour.bld.agent_detail.message` | Detail ouvert |
 | 4 | `memory` | `memory` | chercher namespace | `onboarding.tour.bld.memory.message` | Recherche effectuee |
-| 5 | `chat` | `chat` | envoyer un message | `onboarding.tour.bld.chat.message` | Message envoye |
+| 5 | `chat()` | `chat()` | envoyer un message | `onboarding.tour.bld.chat.message` | Message envoye |
 | 6 | `integrations` | `integrations` | observer | `onboarding.tour.bld.integrations.message` | Navigation detectee |
 | 7 | `triggers` | `triggers` | observer | `onboarding.tour.bld.triggers.message` | Navigation detectee |
 | 8 | `pipelines` | `pipelines` | observer | `onboarding.tour.bld.pipelines.message` | Navigation detectee |
@@ -51,16 +51,16 @@
 
 | Cle | Valeur FR |
 |---|---|
-| `onboarding_v2.tour.bld.step_1` | Votre espace de travail. Chaque agent est un module Python avec un contrat manifest() + run(). |
+| `onboarding_v2.tour.bld.step_1` | Votre espace de travail. Chaque agent est un module Python avec un contrat manifest + run. |
 | `onboarding_v2.tour.bld.step_2` | Demarrez csv-data-worker. Observez comment le runtime charge le module et l'enregistre. |
-| `onboarding_v2.tour.bld.step_3` | Chaque agent expose manifest() pour les metadonnees et run() pour la boucle principale. |
+| `onboarding_v2.tour.bld.step_3` | Chaque agent expose manifest pour les metadonnees et run pour la boucle principale. |
 | `onboarding_v2.tour.bld.step_4` | Les agents ecrivent en memoire a leur initiative. Cherchez ce qu'ils ont stocke. |
 | `onboarding_v2.tour.bld.step_5` | Envoyez ce message pour voir comment un agent traite une requete liee a la memoire. |
 | `onboarding_v2.tour.bld.step_6` | Connectez des outils externes via MCP. Vos agents les appellent sans dependances Python. |
-| `onboarding_v2.tour.bld.step_7` | Cron, intervalle, filewatch, webhook. Chaque trigger appelle run() automatiquement. |
+| `onboarding_v2.tour.bld.step_7` | Cron, intervalle, filewatch, webhook. Chaque trigger appelle run automatiquement. |
 | `onboarding_v2.tour.bld.step_8` | Connectez des agents en graphes DAG. Fan-out, fan-in, branches — moteur de pipeline. |
 | `onboarding_v2.tour.bld.step_9` | Chaque appel d'outil, ecriture memoire et token LLM est enregistre dans l'audit trail. |
-| `onboarding_v2.tour.bld.step_10` | Vous connaissez l'architecture. Creez votre premier agent avec manifest() + run(). |
+| `onboarding_v2.tour.bld.step_10` | Vous connaissez l'architecture. Creez votre premier agent avec manifest + run. |
 
 ---
 

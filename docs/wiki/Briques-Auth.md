@@ -1,6 +1,6 @@
 # apollia-auth — OAuth2 PKCE et Keyring Multi-Plateforme
 
-> *Authentification interactive auprès des providers LLM cloud via OAuth2 PKCE (RFC 7636) avec stockage sécurisé dans le keyring OS natif. Crate introduite au Sprint 37 (ADR-064).*
+> *Authentification interactive auprès des providers LLM cloud via OAuth2 PKCE (RFC 7636) avec stockage sécurisé dans le keyring OS natif. Crate introduite (ADR-064).*
 
 ---
 
@@ -195,7 +195,7 @@ pub enum AuthError {
 7. KeyringStorage::store(provider, token)
 ```
 
-**Protection CSRF :** le `state` généré aléatoirement dans `OAuth2PkceFlow::new()` est comparé au `state` retourné dans le callback. Toute divergence retourne `AuthError::StateMismatch`.
+**Protection CSRF :** le `state` généré aléatoirement dans `OAuth2PkceFlow::new` est comparé au `state` retourné dans le callback. Toute divergence retourne `AuthError::StateMismatch`.
 
 ---
 

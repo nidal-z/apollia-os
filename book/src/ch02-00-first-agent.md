@@ -46,7 +46,7 @@ Chaque section de ce chapitre suit la progression :
 
 1. **Conception** — que doit faire l'agent ? quels outils ? quel manifest ?
 2. **Le manifest** — déclarer les dépendances
-3. **Implémenter run()** — la logique métier pas à pas
+3. **Implémenter run** — la logique métier pas à pas
 4. **Comprendre les outils** — file_read, file_write, ctx.llm en détail
 5. **Tester et exécuter** — le code complet, copier-coller, et l'exécution
 

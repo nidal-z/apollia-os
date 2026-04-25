@@ -68,7 +68,7 @@ impl ContextProvider for GitWorkspaceProvider {
 }
 ```
 
-**Niveau 2 — Duck-typing Python :** Un agent Python peut exposer `context_providers()` retournant une liste de callables async.
+**Niveau 2 — Duck-typing Python :** Un agent Python peut exposer `context_providers` retournant une liste de callables async.
 
 ```python
 class MonAgent:
@@ -147,7 +147,7 @@ CWD/APOLLIA.md → CWD/../APOLLIA.md → ... → $HOME/APOLLIA.md
 
 Premier fichier trouvé gagne. Le contenu est lu et inclus tel quel dans le `WorkspaceContext`. Si aucun fichier n'est trouvé, le champ est `None`.
 
-**Taille maximale :** 32 KB. Au-delà, le contenu est tronqué avec `truncate_middle()`.
+**Taille maximale :** 32 KB. Au-delà, le contenu est tronqué avec `truncate_middle`.
 
 ### 4.3 `DirectoryTreeBuilder`
 
@@ -283,7 +283,7 @@ apollia-os workspace show
 | TTL 30s | Évite les I/O répétées sur les sessions longues sans staleness significative |
 | Timeout global 2s | La collecte ne bloque jamais l'exécution d'une tâche |
 | `ContextProvider` trait (rejet implémentation concrète unique) | Extensibilité Rust/Python/script — 3 niveaux d'extension (ADR-060) |
-| `is_applicable()` sur le trait | Évite les appels inutiles (ex. git hors repo) |
+| `is_applicable` sur le trait | Évite les appels inutiles (ex. git hors repo) |
 | APOLLIA.md priorité CWD > parents > $HOME | Convention identique à CLAUDE.md — comportement attendu par les développeurs |
 | Exclusions arborescence | `.git/`, `node_modules/`, `target/` exclus par défaut — tokens économisés |
 
@@ -291,9 +291,9 @@ apollia-os workspace show
 
 ---
 
-## 10. CommandLoader — Chargement des slash commands custom — Sprint 36
+## 10. CommandLoader — Chargement des slash commands custom
 
-Depuis le Sprint 36 (STORY-493), `apollia-workspace` fournit `CommandLoader` pour charger les commandes slash custom depuis le disque.
+, `apollia-workspace` fournit `CommandLoader` pour charger les commandes slash custom depuis le disque.
 
 ```rust
 // crates/apollia-workspace/src/commands.rs
@@ -329,9 +329,9 @@ Vérifie : correctness, performance, sécurité.
 
 ---
 
-## 11. Workspace par session — Sprint 38
+## 11. Workspace par session
 
-Depuis le Sprint 38 (ADR-069), chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` injecte ce chemin dans chaque outil natif.
+(ADR-069), chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` injecte ce chemin dans chaque outil natif.
 
 ### Résolution du workspace_path
 
@@ -352,7 +352,7 @@ Le `workspace_path` est immutable pendant la durée de la session — un changem
 
 ### Refactor `NativeChatToolInvoker`
 
-Le `NativeChatToolInvoker` (refactoré Sprint 38, STORY-497) reçoit le `workspace_path` à l'initialisation de chaque session, au lieu d'un CWD global hardcodé. Les 5 call sites identifiés (`a2a_tools.rs`, `routes_chat.rs`, etc.) passent désormais le chemin du projet.
+Le `NativeChatToolInvoker` (refactoré) reçoit le `workspace_path` à l'initialisation de chaque session, au lieu d'un CWD global hardcodé. Les 5 call sites identifiés (`a2a_tools.rs`, `routes_chat.rs`, etc.) passent désormais le chemin du projet.
 
 > **Voir aussi :** [Sécurité Sandbox Isolation — Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem--sprint-38-adr-069)
 

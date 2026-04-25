@@ -18,15 +18,15 @@
 - [Votre premier agent](ch02-00-first-agent.md)
   - [Concevoir l'agent](ch02-01-design.md)
   - [Le manifest](ch02-02-manifest.md)
-  - [Implémenter run()](ch02-03-run.md)
+  - [Implémenter run](ch02-03-run.md)
   - [Utiliser les outils](ch02-04-tools.md)
   - [Tester et exécuter](ch02-05-testing.md)
 
 # Concepts fondamentaux
 
 - [Le contrat AIP](ch03-00-aip-contract.md)
-  - [manifest() — déclarer ses capacités](ch03-01-manifest.md)
-  - [run() — exécuter une tâche](ch03-02-run.md)
+  - [manifest — déclarer ses capacités](ch03-01-manifest.md)
+  - [run — exécuter une tâche](ch03-02-run.md)
   - [Cycle de vie : ProcessState et TaskState](ch03-03-lifecycle.md)
 
 - [Les outils](ch04-00-tools.md)
@@ -67,7 +67,7 @@
 - [Le mode orchestré](ch09-00-orchestrated.md)
   - [ORIA : Observer → Reasoner → Actor](ch09-01-oria.md)
   - [Plans et replanification](ch09-02-plans.md)
-  - [on_plan_complete()](ch09-03-hook.md)
+  - [on_plan_complete](ch09-03-hook.md)
 
 - [L'humain dans la boucle](ch10-00-hitl.md)
   - [Suspendre et reprendre](ch10-01-suspend-resume.md)

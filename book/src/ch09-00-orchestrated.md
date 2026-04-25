@@ -80,4 +80,4 @@ Le champ `system_prompt` dans le manifest est la clé : c'est lui qui guide ORIA
 
 - **Section 1 — ORIA** : les trois composants Observer, Reasoner, Actor — comment ils collaborent, comment ORIA classe automatiquement la complexité d'une tâche
 - **Section 2 — Les plans** : la structure d'un `ExecutionPlan`, l'ordre topologique, la replanification automatique, la persistance SQLite
-- **Section 3 — Le hook** : `on_plan_complete()` — comment post-traiter les résultats de tous les steps pour produire une réponse finale structurée
+- **Section 3 — Le hook** : `on_plan_complete` — comment post-traiter les résultats de tous les steps pour produire une réponse finale structurée

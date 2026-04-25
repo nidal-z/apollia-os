@@ -217,7 +217,7 @@ La mémoire procédurale est particulièrement utile en mode orchestré (chapitr
 | Situation | Type | Méthode |
 |---|---|---|
 | Données temporaires dans `run()` | Working | Variables Python locales |
-| "J'ai traité ce fichier le 15/03" | Épisodique | `ctx.memory.record()` |
-| "Le budget d'Acme est 15 000 €" | Sémantique | `ctx.memory.remember()` |
-| "Pour ce type de tâche, voici les étapes" | Procédurale | `ctx.memory.learn_procedure()` |
-| "Qu'est-ce qui parle de Dupont SA ?" | Recherche | `ctx.memory.search()` |
+| "J'ai traité ce fichier le 15/03" | Épisodique | `ctx.memory.record` |
+| "Le budget d'Acme est 15 000 €" | Sémantique | `ctx.memory.remember` |
+| "Pour ce type de tâche, voici les étapes" | Procédurale | `ctx.memory.learn_procedure` |
+| "Qu'est-ce qui parle de Dupont SA ?" | Recherche | `ctx.memory.search` |

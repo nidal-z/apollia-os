@@ -308,9 +308,9 @@ wall_clock_timeout_secs = 300
 
 ---
 
-### [stt] — Moteur Speech-to-Text *(Sprint 24 — section TOML dépréciée en Sprint 28)*
+### [stt] — Moteur Speech-to-Text *(section TOML dépréciée en)*
 
-> **Déprécié depuis Sprint 28 :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.
+> **Déprécié :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.
 
 La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** — le runtime démarre sans STT si la table `stt_config` est absente.
 

@@ -8,7 +8,7 @@ Le tutoriel "Premier agent en 5 minutes" est désormais dans le book :
 
 → **[Book — ch01 Mise en route](../../book/src/ch01-00-getting-started.md)**
 
-Il couvre installation, manifest, run(), exécution CLI, et déploiement. Format pédagogique progressif.
+Il couvre installation, manifest, run, exécution CLI, et déploiement. Format pédagogique progressif.
 
 ## Si vous cherchiez la spec technique du contrat agent
 

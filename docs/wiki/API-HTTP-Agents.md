@@ -14,11 +14,11 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (Sprint 34 — ADR-051)
+- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
-### Authentification TCP (Sprint 34)
+### Authentification TCP
 
 Toutes les requêtes TCP doivent porter le header `Authorization: Bearer <token>` :
 
@@ -262,7 +262,7 @@ Annuler une tâche.
 - `404` — tâche introuvable
 - `409` — tâche déjà terminée (completed, failed, canceled)
 
-### POST /api/v1/tasks/:id/resume *(Sprint 11)*
+### POST /api/v1/tasks/:id/resume
 
 Reprendre une tâche suspendue en attente d'approbation humaine (HITL).
 
@@ -314,7 +314,7 @@ data: {"event":"started","task_id":"t-abc123","agent_id":"agent-def456"}
 data: {"event":"completed","task_id":"t-abc123","status":"completed","output":"..."}
 ```
 
-**Événements Mode Orchestré (Sprint 10) :**
+**Événements Mode Orchestré :**
 ```
 data: {"event":"plan_generated","task_id":"t-abc123","plan_id":"p-001","step_count":3,
        "steps":[{"step_id":"s1","description":"Lire le fichier","tool_hint":"file_io","depends_on":[]},
@@ -339,7 +339,7 @@ data: {"event":"plan_failed","task_id":"t-abc123","plan_id":"p-001",
        "reason":"MAX_REPLAN_EXCEEDED"}
 ```
 
-**Événements HITL *(Sprint 11)* :**
+**Événements HITL :**
 ```
 data: {"event":"input_required","task_id":"t-abc123","prompt":"Confirmer l'envoi ?","step_id":null}
 
@@ -540,7 +540,7 @@ Coûts LLM ventilés par jour et par backend. Utile pour générer un graphique 
 
 ---
 
-### GET /api/v1/llm/backends *(Sprint 28)*
+### GET /api/v1/llm/backends
 
 Liste tous les backends LLM enregistrés dans `system.db`.
 
@@ -568,7 +568,7 @@ Liste tous les backends LLM enregistrés dans `system.db`.
 
 ---
 
-### GET /api/v1/llm/backends/:name *(Sprint 28)*
+### GET /api/v1/llm/backends/:name
 
 Retourne un backend par nom exact.
 
@@ -577,7 +577,7 @@ Retourne un backend par nom exact.
 
 ---
 
-### POST /api/v1/llm/backends *(Sprint 28)*
+### POST /api/v1/llm/backends
 
 Crée un nouveau backend LLM.
 
@@ -598,7 +598,7 @@ Crée un nouveau backend LLM.
 
 ---
 
-### PUT /api/v1/llm/backends/:name *(Sprint 28)*
+### PUT /api/v1/llm/backends/:name
 
 Met à jour un backend existant (upsert).
 
@@ -608,7 +608,7 @@ Met à jour un backend existant (upsert).
 
 ---
 
-### DELETE /api/v1/llm/backends/:name *(Sprint 28)*
+### DELETE /api/v1/llm/backends/:name
 
 Supprime un backend.
 
@@ -618,7 +618,7 @@ Supprime un backend.
 
 ---
 
-### POST /api/v1/llm/backends/:name/set-default *(Sprint 28)*
+### POST /api/v1/llm/backends/:name/set-default
 
 Marque le backend comme défaut. L'ancien défaut est démarcé automatiquement.
 
@@ -644,7 +644,7 @@ Initier un graceful shutdown du runtime (drain 30s).
 
 ---
 
-## Tools *(Sprint 20)*
+## Tools
 
 ### GET /api/v1/tools
 
@@ -679,7 +679,7 @@ Retourne le descripteur complet d'un outil.
 
 ---
 
-## Agent Messaging *(Sprint 20)*
+## Agent Messaging
 
 ### GET /api/v1/agents/:name/messages
 
@@ -706,7 +706,7 @@ Liste les messages en file pour un agent. Max 200 messages par requête.
 
 ---
 
-## A2A — Routing Agent-to-Agent *(Sprint 32)*
+## A2A — Routing Agent-to-Agent
 
 ### GET /api/v1/a2a/agents
 
@@ -846,7 +846,7 @@ Invocation haut niveau via l'`A2AInvoker` — applique les garde-fous (profondeu
 
 ---
 
-## Plan Cache *(Sprint 20)*
+## Plan Cache
 
 ### GET /api/v1/plan-cache/stats
 
@@ -880,7 +880,7 @@ Purge toutes les entrées du cache de plans.
 
 ---
 
-## Chat *(Sprint 18)*
+## Chat
 
 7 endpoints pour la gestion des sessions de chat interactif. Chemin d'exécution séparé du TaskRouter (ADR-034).
 

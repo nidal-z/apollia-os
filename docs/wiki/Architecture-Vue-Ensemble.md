@@ -103,12 +103,12 @@ graph TB
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                   CHAT SUBSYSTEM (Sprint 18)                 │  │
+│  │                   CHAT SUBSYSTEM                 │  │
 │  │  ChatSessionManager · BuiltInChatAgent · AgentChatExecutor   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                   STT ENGINE (Sprint 24)                    │  │
+│  │                   STT ENGINE                    │  │
 │  │  SttBackend · WhisperCpp · AudioCapture · SttRepository     │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
@@ -161,13 +161,13 @@ apollia-os/                          ← workspace Cargo
 │   │       │   ├── routes/
 │   │       │   │   ├── routes_tasks.rs
 │   │       │   │   ├── routes_agents.rs
-│   │       │   │   ├── routes_triggers.rs  ← Sprint 9
-│   │       │   │   ├── routes_webhooks.rs  ← Sprint 9 (HMAC-SHA256)
-│   │       │   │   └── routes_dashboard.rs ← Sprint 9 (HTMX embarqué)
+│   │       │   │   ├── routes_triggers.rs
+│   │       │   │   ├── routes_webhooks.rs
+│   │       │   │   └── routes_dashboard.rs
 │   │       │   └── sse.rs           ← Server-Sent Events streaming
 │   │       └── eventbus.rs          ← EventBus broadcast Tokio
 │   │
-│   ├── apollia-triggers/            ← Triggers Engine (Sprint 9)
+│   ├── apollia-triggers/            ← Triggers Engine
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       ├── types.rs             ← TriggerDefinition, OnBusyPolicy, InputTemplate
@@ -251,8 +251,8 @@ apollia-os/                          ← workspace Cargo
         ├── test_devis_workflow.rs
         ├── test_memory_persistence.rs
         ├── test_graceful_shutdown.rs
-        ├── test_triggers.rs          ← Sprint 9
-        └── test_webhook.rs           ← Sprint 9
+        ├── test_triggers.rs
+        └── test_webhook.rs
 ```
 
 ### 1.3 Stack technique

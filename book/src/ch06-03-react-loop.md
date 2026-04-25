@@ -26,7 +26,7 @@ ReAct (Reasoning + Acting) est un pattern de raisonnement pour les agents LLM :
 
 ---
 
-## ctx.llm.run_tools()
+## ctx.llm.run_tools
 
 `run_tools()` implémente cette boucle automatiquement :
 
@@ -98,7 +98,7 @@ FILE_WRITE_SPEC = {
 
 > **La qualité de la description compte.** Un LLM utilise le champ `description` pour décider quand appeler l'outil. Une description vague produit des appels incorrects. Soyez précis sur ce que l'outil fait et ce qu'il retourne.
 
-Astuce : utilisez `ctx.tools.describe()` pour récupérer le schéma directement depuis le Tool Registry — vous n'avez pas à le dupliquer manuellement :
+Astuce : utilisez `ctx.tools.describe` pour récupérer le schéma directement depuis le Tool Registry — vous n'avez pas à le dupliquer manuellement :
 
 ```python
 file_read_schema = await ctx.tools.describe("file_read")
@@ -275,7 +275,7 @@ La règle pratique : commencez avec `chat()` et une orchestration manuelle. Pass
 
 ---
 
-## run_tools() et la mémoire
+## run_tools et la mémoire
 
 Pour un agent ReAct qui utilise aussi la mémoire, ajoutez `memory_search` à la liste des outils :
 

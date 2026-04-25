@@ -16,7 +16,7 @@ $ curl http://localhost:7771/dashboard
 
 Le dashboard s'affiche dans n'importe quel navigateur moderne. Toutes les ressources (HTML, CSS, JavaScript HTMX minifié) sont servies depuis le binaire `apollia-os`.
 
-L'[application desktop](./Briques-Desktop.md) (Sprint 14) offre une interface Svelte plus riche avec gestion des agents, tasks, timeline interactive et approbations HITL temps reel. Le dashboard HTMX reste disponible pour le monitoring leger via navigateur.
+L'[application desktop](./Briques-Desktop.md) offre une interface Svelte plus riche avec gestion des agents, tasks, timeline interactive et approbations HITL temps reel. Le dashboard HTMX reste disponible pour le monitoring leger via navigateur.
 
 ---
 
@@ -33,8 +33,8 @@ Le dashboard est organisé en **7 sections** mises à jour en temps réel via SS
 | **Tools** | Circuit breaker state, appels récents | `ToolCircuitBroken`, `ToolCircuitRestored` |
 | **LLM** | Backends actifs, coût estimé, latence | `LlmModelReady`, `LlmCallCompleted` |
 | **Audit** | Dernières invocations d'outils | Polling `GET /api/v1/dashboard/state` |
-| **Plan Cache** *(Sprint 20)* | Entrées cachées, taux de hit, purge | `PlanCacheHit`, API `GET /api/v1/plan-cache/stats` |
-| **Agent Messages** *(Sprint 20)* | Messages inter-agents, files | `AgentMessageSent`, API `GET /api/v1/agents/:name/messages` |
+| **Plan Cache** | Entrées cachées, taux de hit, purge | `PlanCacheHit`, API `GET /api/v1/plan-cache/stats` |
+| **Agent Messages** | Messages inter-agents, files | `AgentMessageSent`, API `GET /api/v1/agents/:name/messages` |
 
 ---
 
@@ -190,7 +190,7 @@ Si le runtime est exposé en production sur un port public, le dashboard doit ê
 
 ---
 
-## 7. Timeline API *(Sprint 13)*
+## 7. Timeline API
 
 En complément du dashboard temps réel, l'API Timeline fournit une vue chronologique structurée de chaque tâche :
 

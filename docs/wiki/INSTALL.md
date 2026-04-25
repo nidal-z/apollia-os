@@ -85,7 +85,7 @@ L'application desktop Apollia embarque le runtime complet dans une fenetre nativ
 ### macOS
 
 1. Telecharger `Apollia OS_0.1.0_aarch64.dmg` depuis la page [Releases](https://github.com/nidal-z/apollia-os/releases)
-2. Ouvrir le fichier .dmg
+2. Ouvrir le fichier.dmg
 3. Glisser **Apollia OS** dans le dossier Applications
 4. Au premier lancement, clic droit → Ouvrir (l'application n'est pas encore signee)
 

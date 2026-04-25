@@ -158,7 +158,7 @@
 - `verb-noun` : Moins naturel pour explorer les capacités d'un objet.
 - Mixte : Incohérent, source de confusion.
 
-**Conséquences :** Les commandes de niveau 1 (`start`, `stop`, `status`) sont des exceptions justifiées par leur fréquence.
+**Conséquences :** Les commandes de niveau 1 (`start()`, `stop()`, `status`) sont des exceptions justifiées par leur fréquence.
 
 ---
 
@@ -335,9 +335,9 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-037 (CLI niveau 1) depend de STORY-039 (Supervisor) non encore implementee. La commande `start` doit demarrer le runtime en foreground.
+**Contexte :** STORY-037 (CLI niveau 1) depend de STORY-039 (Supervisor) non encore implementee. La commande `start()` doit demarrer le runtime en foreground.
 
-**Decision :** Bootstrap sequentiel inline dans la commande `start` (EventBus -> AgentRegistry -> TaskRouter -> APIServer). Endpoint `POST /api/v1/shutdown` emet `RuntimeEvent::ShutdownRequested` via EventBus. Sera remplace par le Supervisor (STORY-039).
+**Decision :** Bootstrap sequentiel inline dans la commande `start()` (EventBus -> AgentRegistry -> TaskRouter -> APIServer). Endpoint `POST /api/v1/shutdown` emet `RuntimeEvent::ShutdownRequested` via EventBus. Sera remplace par le Supervisor (STORY-039).
 
 **Alternatives considerees :** Attendre STORY-039 (rejetee : bloque le Sprint Goal), implementer le Supervisor dans STORY-037 (rejetee : augmente trop la taille de la story)
 

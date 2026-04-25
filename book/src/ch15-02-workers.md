@@ -50,7 +50,7 @@ import json
 with pdfplumber.open(file_path) as pdf:
     pages_text = []
     for page in pdf.pages:
-        text = page.extract_text() or ""
+        text = page.extract_text or ""
         pages_text.append(text)
     full_text = "\n--- PAGE ---\n".join(pages_text)
 
@@ -371,11 +371,11 @@ from pathlib import Path
 ```python
 # Générer un identifiant d'écriture
 from datetime import datetime
-ecriture_id = f"ECR-{datetime.now().strftime('%Y%m%d')}-{sequence:04d}"
+ecriture_id = f"ECR-{datetime.now.strftime('%Y%m%d')}-{sequence:04d}"
 
 # Vérifier doublon avant insertion
 def already_recorded(csv_path: str, numero_facture: str) -> bool:
-    if not Path(csv_path).exists():
+    if not Path(csv_path).exists:
         return False
     with open(csv_path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):

@@ -108,11 +108,11 @@ Réservez `bash_executor` pour ce que les outils fichiers ne couvrent pas : comp
 
 ---
 
-## memory_search : outil vs `ctx.memory.search()`
+## memory_search : outil vs `ctx.memory.search`
 
 Les deux font la même recherche FTS5. La différence est le contexte d'appel :
 
-- **`ctx.memory.search()`** : appelé directement dans `run()` par le code Python de l'agent
+- **`ctx.memory.search`** : appelé directement dans `run()` par le code Python de l'agent
 - **`memory_search` comme outil** : utilisable depuis la boucle ReAct LLM (`run_tools()`), où le LLM décide lui-même quand chercher en mémoire
 
 Le chapitre 5 explique quand utiliser l'un ou l'autre.

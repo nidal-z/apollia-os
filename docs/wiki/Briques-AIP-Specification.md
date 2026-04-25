@@ -7,7 +7,7 @@
 
 ## Vue d'ensemble
 
-L'Agent Interface Protocol (AIP) est le contrat minimal entre un agent Python et le runtime Apollia OS. Sa philosophie tient en une phrase : **un agent est n'importe quel objet Python avec `manifest()` et `async run()`**.
+L'Agent Interface Protocol (AIP) est le contrat minimal entre un agent Python et le runtime Apollia OS. Sa philosophie tient en une phrase : **un agent est n'importe quel objet Python avec `manifest()` et `async run`**.
 
 Pas de classe de base obligatoire. Pas de framework à apprendre. Un agent LangGraph, CrewAI, AutoGen ou entièrement custom peut tourner dans Apollia OS avec moins de 10 lignes d'adaptation.
 
@@ -52,7 +52,7 @@ def manifest(self):
         "dangerous_tools_allowed": False,  # bool — défaut: False
         "tools_requiring_approval": [],    # list[str] — outils nécessitant approbation humaine (Mode Orchestré)
 
-        # LLM backend *(Sprint 28, ADR-047)*
+        # LLM backend *(ADR-047)*
         "llm_backend": None,           # str | None — nom d'un backend dans system.db ; None = défaut runtime
 
         # Protocoles
@@ -106,7 +106,7 @@ def manifest(self):
 | `limitations` | non | `[]` | Aucune limitation déclarée — section masquée dans l'UI |
 | `setup_notes` | non | `None` | Aucun prérequis — section masquée dans l'UI |
 
-### tools_requiring_approval (Sprint 11)
+### tools_requiring_approval
 
 Liste les outils dont l'exécution doit être approuvée par un humain avant d'être lancée par ORIA en **Mode Orchestré uniquement**. Lorsqu'un step planifié utilise un outil figurant dans cette liste, ORIA suspend la tâche avec `status = input_required` avant d'appeler l'outil, et attend une décision humaine explicite.
 
@@ -207,7 +207,7 @@ def manifest(self):
 
 ### packages — Dépendances pip (Worker Agents)
 
-Liste les paquets pip à installer dans le venv Python isolé de l'agent. Le runtime les installe une seule fois à l'état `INITIALIZING` via `PythonExecutor::setup_venv()`. Si un paquet manque ou échoue à l'installation, l'agent passe en `STOPPED`.
+Liste les paquets pip à installer dans le venv Python isolé de l'agent. Le runtime les installe une seule fois à l'état `INITIALIZING` via `PythonExecutor::setup_venv`. Si un paquet manque ou échoue à l'installation, l'agent passe en `STOPPED`.
 
 ```python
 def manifest(self):
@@ -261,12 +261,12 @@ async def run(self, task, ctx):
     history    = task.get("history", [])   # list[dict] — messages précédents
     timeout    = task.get("timeout_seconds")  # int | None
 
-    # Champs HITL — Human-in-the-Loop (Sprint 11)
+    # Champs HITL — Human-in-the-Loop
     is_resumed     = task["is_resumed"]        # bool — True si reprise après approbation
     input_response = task["input_response"]    # InputResponse | None — None au premier appel
 ```
 
-### Champs HITL — is_resumed et input_response (Sprint 11)
+### Champs HITL — is_resumed et input_response
 
 Ces deux champs permettent à un agent de distinguer un premier appel d'une reprise après décision humaine.
 
@@ -277,7 +277,7 @@ Ces deux champs permettent à un agent de distinguer un premier appel d'une repr
 
 #### Classe InputResponse
 
-Injectée automatiquement dans `run.__globals__` par le bridge Rust (STORY-092). Aucun import requis.
+Injectée automatiquement dans `run.__globals__` par le bridge Rust. Aucun import requis.
 
 ```python
 class InputResponse:
@@ -326,9 +326,9 @@ async def run(self, task, ctx):
 
 Ce que l'agent retourne. Peut être un dict Python ou l'une des classes factory injectées par le bridge.
 
-### Classe AIPResult — factory methods (Sprint 11)
+### Classe AIPResult — factory methods
 
-La classe `AIPResult` est injectée automatiquement dans `run.__globals__` par le bridge Rust (STORY-092). **Aucun import requis.** Elle expose trois factory methods :
+La classe `AIPResult` est injectée automatiquement dans `run.__globals__` par le bridge Rust. **Aucun import requis.** Elle expose trois factory methods :
 
 ```python
 # Tâche terminée avec succès
@@ -346,7 +346,7 @@ return AIPResult.input_required(
 
 #### AIPResult.input_required(prompt, context)
 
-Suspend la tâche et notifie l'utilisateur sur les canaux configurés (Sprint 11, STORY-099).
+Suspend la tâche et notifie l'utilisateur sur les canaux configurés.
 
 | Paramètre | Type | Description |
 |---|---|---|
@@ -354,9 +354,9 @@ Suspend la tâche et notifie l'utilisateur sur les canaux configurés (Sprint 11
 | `context` | `dict` | Données JSON que l'agent souhaite récupérer à la reprise |
 
 Le runtime :
-1. Persiste `prompt` et `context` dans SQLite (STORY-094)
+1. Persiste `prompt` et `context` dans SQLite
 2. Passe la tâche en `status = input_required`
-3. Notifie l'utilisateur (canaux configurés — STORY-099)
+3. Notifie l'utilisateur (canaux configurés —)
 4. À la reprise, restitue `context` dans `task["input_response"].context`
 
 ### Format dict (compatible rétrograde)
@@ -474,7 +474,7 @@ if ctx.memory:
     await ctx.memory.forget(memory_id)
 ```
 
-### ctx.tools.describe() — Introspection d'outils *(Sprint 20)*
+### ctx.tools.describe — Introspection d'outils
 
 ```python
 # Obtenir le schéma complet d'un outil
@@ -485,7 +485,7 @@ if schema:
     input_fields = schema["input_schema"]["properties"]
 ```
 
-### ctx.send() / ctx.receive() — Messagerie inter-agents *(Sprint 20)*
+### ctx.send / ctx.receive — Messagerie inter-agents
 
 ```python
 # Envoyer un message à un autre agent
@@ -504,7 +504,7 @@ if msg:
 - L'agent destinataire doit être démarré (pas de persistance hors-mémoire)
 - L'`AgentMailbox` est un acteur Tokio séparé du `TaskRouter`
 
-### ctx.delegate() — Délégation A2A *(Sprint 32)*
+### ctx.delegate — Délégation A2A
 
 Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau — expose directement la fonction `A2aDelegateFn` injectée par le runtime.
 
@@ -535,7 +535,7 @@ output     = result["output"]     # list[dict] — AIPPart[] — résultat de la
 - `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
 - `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré
 
-### ctx.user_context — Contexte utilisateur global *(Sprint 28)*
+### ctx.user_context — Contexte utilisateur global
 
 Propriété (pas une méthode) qui expose les entrées de mémoire utilisateur injectées en **mode chat uniquement**. `None` en mode task.
 
@@ -666,7 +666,7 @@ agent = FullAgent()
 
 ---
 
-## Agent avec Human-in-the-Loop (Sprint 11)
+## Agent avec Human-in-the-Loop
 
 Exemple complet d'un agent qui suspend la tâche pour demander confirmation avant d'envoyer un devis.
 
@@ -731,13 +731,13 @@ apollia-os task resume <task-id> --approve
 
 ---
 
-## Types Rust — HITL (Sprint 11)
+## Types Rust — HITL
 
 Les types Rust correspondants sont définis dans `apollia-core/src/result.rs` et `apollia-core/src/task.rs`.
 
 ```rust
 /// Données portées par AIPResult quand status == InputRequired.
-/// Persistées dans SQLite par le runtime (STORY-094).
+/// Persistées dans SQLite par le runtime.
 pub struct InputRequiredData {
     /// Prompt affiché à l'utilisateur pour prendre sa décision.
     pub prompt: String,
@@ -747,7 +747,7 @@ pub struct InputRequiredData {
 }
 
 /// Réponse humaine reçue après une suspension input_required.
-/// Injectée dans AIPTask::input_response lors de la reprise (STORY-095).
+/// Injectée dans AIPTask::input_response lors de la reprise.
 pub struct InputResponseData {
     /// true si l'utilisateur a approuvé, false si rejeté.
     pub approved: bool,
@@ -774,11 +774,11 @@ AIPResult::input_required("Confirmer l'envoi ?", serde_json::json!({"email": "du
 
 Le runtime valide via inspection Python à `INITIALIZING` :
 
-1. L'objet `agent` doit exister au niveau module (`agent = MyAgent()`)
+1. L'objet `agent` doit exister au niveau module (`agent = MyAgent`)
 2. `hasattr(agent, 'manifest')` doit être `True`
 3. `manifest()` doit retourner un dict JSON-sérialisable avec `name`, `version`, `description`, `tools_required`
 4. `hasattr(agent, 'run')` doit être `True`
-5. `run` doit être une coroutine async (`asyncio.iscoroutinefunction`)
+5. `run()` doit être une coroutine async (`asyncio.iscoroutinefunction`)
 
 Si une validation échoue, l'agent s'arrête en `STOPPED` avec un message d'erreur précis.
 
@@ -786,7 +786,7 @@ Si une validation échoue, l'agent s'arrête en `STOPPED` avec un message d'erre
 
 ## SDK Python et type stubs
 
-Le SDK Python (`pip install -e ./sdk`) fournit des type stubs PEP 561 pour toutes les classes PyO3 injectées par le runtime :
+Le SDK Python (`pip install -e./sdk`) fournit des type stubs PEP 561 pour toutes les classes PyO3 injectées par le runtime :
 
 - `RuntimeContext` — `sdk/apollia/stubs/context.pyi`
 - `ToolProxy` — `sdk/apollia/stubs/tools.pyi`

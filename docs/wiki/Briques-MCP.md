@@ -14,7 +14,7 @@ La crate `apollia-mcp` est le **client MCP d'Apollia OS**. Elle connecte le Tool
 - Enregistrer les outils découverts dans le `ToolRegistryHandle` sous la convention `mcp:{server}/{tool}`
 - Appliquer la gate HITL avant chaque exécution si `requires_approval = true`
 - Exposer un acteur Tokio (`McpClientManager`) pour les mutations à chaud (ajout, suppression, redémarrage)
-- Persister toutes les configurations via `McpServerRepository` (SQLite, Sprint 28)
+- Persister toutes les configurations via `McpServerRepository` (SQLite)
 
 ---
 
@@ -56,16 +56,16 @@ pub struct McpServerConfig {
 }
 ```
 
-Les valeurs du champ `env` supportent deux syntaxes d'interpolation résolues par `resolve_env()` au chargement :
+Les valeurs du champ `env` supportent deux syntaxes d'interpolation résolues par `resolve_env` au chargement :
 
 | Syntaxe | Source | Exemple |
 |---|---|---|
 | `${NOM_VAR}` | Variable d'environnement shell | `${NOTION_API_KEY}` |
-| `${APOLLIA_SECRET:NOM_VAR}` | OS Keychain (via crate `keyring`, Sprint 27) | `${APOLLIA_SECRET:NOTION_API_KEY}` |
+| `${APOLLIA_SECRET:NOM_VAR}` | OS Keychain (via crate `keyring`) | `${APOLLIA_SECRET:NOTION_API_KEY}` |
 
 Pour `APOLLIA_SECRET:`, la clé lue dans le keychain suit le format `{server_name}:{nom_var}`. Une variable absente (shell ou keychain) retourne une erreur de configuration explicite. Les secrets sont écrits dans le keychain par la page Intégrations du desktop — voir [Guide Intégrations](./Integrations-Guide).
 
-### `McpServerRepository` *(Sprint 28)*
+### `McpServerRepository`
 
 SQLite-backed repository pour la persistance des `McpServerConfig`. Remplace `McpConfigWriter` (supprimé).
 
@@ -98,7 +98,7 @@ impl McpServerRepository {
 
 **Schéma :** `mcp.db` (table `mcp_servers`) — colonnes `name`, `command`, `args_json`, `env_json`, `transport`, `url`, `requires_approval`, `init_timeout_secs`, `call_timeout_secs`, `tags_json`, `enabled`, `created_at`, `updated_at`.
 
-**Migration depuis mcp.toml :** `import_from_toml()` est une migration one-shot : si la table est déjà peuplée, elle retourne `Ok(0)` sans rien modifier.
+**Migration depuis mcp.toml :** `import_from_toml` est une migration one-shot : si la table est déjà peuplée, elle retourne `Ok(0)` sans rien modifier.
 
 ---
 
@@ -220,7 +220,7 @@ Chaque méthode : lit → modifie en mémoire → valide (unicité des noms, cha
 
 ## 4. Protocole MCP — flux
 
-### Handshake (STORY-330)
+### Handshake
 
 ```
 Runtime → Serveur :  {"jsonrpc":"2.0","id":"1","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"apollia-mcp","version":"0.1.0"}}}
@@ -228,14 +228,14 @@ Runtime ← Serveur :  {"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"20
 Runtime → Serveur :  {"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
 ```
 
-### Découverte des outils (STORY-331)
+### Découverte des outils
 
 ```
 Runtime → Serveur :  {"jsonrpc":"2.0","id":"2","method":"tools/list","params":{}}
 Runtime ← Serveur :  {"jsonrpc":"2.0","id":"2","result":{"tools":[{"name":"search","description":"...","inputSchema":{...}}]}}
 ```
 
-### Exécution d'un outil (STORY-332)
+### Exécution d'un outil
 
 ```
 Runtime → Serveur :  {"jsonrpc":"2.0","id":"3","method":"tools/call","params":{"name":"search","arguments":{"query":"rapport Q1"}}}
@@ -246,7 +246,7 @@ Runtime ← Serveur :  {"jsonrpc":"2.0","id":"3","result":{"content":[{"type":"t
 
 ## 5. Intégration dans le runtime
 
-### Phase 3b — Supervisor startup (STORY-335)
+### Phase 3b — Supervisor startup
 
 `McpClientManagerHandle` est démarré après `ToolRegistryHandle` (Phase 3) :
 
@@ -257,9 +257,9 @@ let mcp_manager = McpClientManagerHandle::start(mcp_config, tool_registry.clone(
 // Les outils MCP sont maintenant dans le ToolRegistry
 ```
 
-### Graceful shutdown (STORY-338)
+### Graceful shutdown
 
-Au `SIGTERM` ou `POST /api/v1/shutdown`, le Supervisor appelle `mcp_manager.shutdown()` avant d'arrêter le runtime. Chaque session envoie `SIGTERM` à son subprocess et attend 5 secondes avant `SIGKILL`. Garantit zéro processus zombie.
+Au `SIGTERM` ou `POST /api/v1/shutdown`, le Supervisor appelle `mcp_manager.shutdown` avant d'arrêter le runtime. Chaque session envoie `SIGTERM` à son subprocess et attend 5 secondes avant `SIGKILL`. Garantit zéro processus zombie.
 
 ---
 
@@ -294,7 +294,7 @@ pub enum McpConfigWriteError {
 
 ## 7. Transports HTTP/SSE *(ADR-046)*
 
-Sprint 27 (ADR-046) introduit une architecture de **transport abstrait** pour connecter des serveurs MCP distants. La crate expose le trait `McpTransport` avec trois implémentations selectionnées dynamiquement selon le champ `transport` de `McpServerConfig`.
+(ADR-046) introduit une architecture de **transport abstrait** pour connecter des serveurs MCP distants. La crate expose le trait `McpTransport` avec trois implémentations selectionnées dynamiquement selon le champ `transport` de `McpServerConfig`.
 
 ### Trait McpTransport
 
@@ -317,11 +317,11 @@ pub trait McpTransport: Send + Sync + 'static {
 
 Transport historique : spawn d'un subprocess, stdin/stdout pipes.
 
-- Spawn : `tokio::process::Command` avec `stdin(Stdio::piped())` + `stdout(Stdio::piped())`
+- Spawn : `tokio::process::Command` avec `stdin(Stdio::piped)` + `stdout(Stdio::piped)`
 - Une tâche `stdin_writer_task` consomme un channel `mpsc` et écrit vers stdin
 - Une tâche `stdout_reader_task` lit ligne par ligne et route vers les `oneshot` de corrélation
 - `shutdown()` : envoie `SIGTERM`, attend 5 secondes, puis `SIGKILL`
-- `pid()` : retourne le PID du subprocess
+- `pid` : retourne le PID du subprocess
 
 ### StreamableHttpTransport *(ADR-046)*
 
@@ -341,11 +341,11 @@ Server → 200 OK      Mcp-Session-Id: abc123          ← extrait au 1er échan
 ```
 
 **Caractéristiques :**
-- **Lazy** : aucune connexion ouverte avant le premier `send()` — construction synchrone, réseau différé
+- **Lazy** : aucune connexion ouverte avant le premier `send` — construction synchrone, réseau différé
 - **Session affinity** : le header `Mcp-Session-Id` reçu dans la première réponse est mémorisé et renvoyé sur toutes les requêtes suivantes
 - **Timeout** : `call_timeout_secs` de la config (défaut 60s), appliqué par requête
 - **Auth** : les `env` résolus sont injectés comme headers HTTP (ex. `Authorization: Bearer …`)
-- **shutdown()** : no-op — HTTP n'a pas de connexion persistante à fermer
+- **shutdown** : no-op — HTTP n'a pas de connexion persistante à fermer
 - **Erreurs** : `TransportError::Io("HTTP 401")` pour code non-2xx, `TransportError::Io("timeout")` si dépassement
 
 ### SseTransport *(ADR-046)*
@@ -369,9 +369,9 @@ Réponses :
 ```
 
 **Caractéristiques :**
-- **Background task** : une tâche Tokio ouverte au moment de la construction (`SseTransport::new()`) consomme le flux SSE et transfère les réponses via `mpsc::channel(64)`
-- **Endpoint discovery** : `send()` attend (jusqu'à `timeout`) que la tâche SSE ait reçu l'événement `endpoint` avant d'envoyer le POST
-- **Reconnection** : **non implémentée** — si la connexion SSE se coupe, `recv()` retourne `TransportError::Closed`. L'opérateur doit déclencher un `restart_server` explicite
+- **Background task** : une tâche Tokio ouverte au moment de la construction (`SseTransport::new`) consomme le flux SSE et transfère les réponses via `mpsc::channel(64)`
+- **Endpoint discovery** : `send` attend (jusqu'à `timeout`) que la tâche SSE ait reçu l'événement `endpoint` avant d'envoyer le POST
+- **Reconnection** : **non implémentée** — si la connexion SSE se coupe, `recv` retourne `TransportError::Closed`. L'opérateur doit déclencher un `restart_server` explicite
 - **Shutdown** : `shutdown_tx.send(true)` signale la tâche background de s'arrêter
 - **Auth** : headers injectés sur le GET initial ET sur chaque POST
 
@@ -420,7 +420,7 @@ La fonction factory `create_transport(config, resolved_env)` (`transport/mod.rs`
 }
 ```
 
-Pour les transports réseau (`streamable-http`, `sse`), les entrées de `resolved_env` sont transmises comme **headers HTTP** sur chaque requête. La résolution `${VAR}` et `${APOLLIA_SECRET:VAR}` est effectuée avant l'appel à `create_transport()`.
+Pour les transports réseau (`streamable-http`, `sse`), les entrées de `resolved_env` sont transmises comme **headers HTTP** sur chaque requête. La résolution `${VAR}` et `${APOLLIA_SECRET:VAR}` est effectuée avant l'appel à `create_transport`.
 
 ---
 
@@ -457,7 +457,7 @@ $ apollia-os mcp restart notion
 $ curl -X POST http://localhost:7771/api/v1/mcp/servers/notion/restart
 ```
 
-`restart_server()` dans le `McpClientManagerHandle` :
+`restart_server` dans le `McpClientManagerHandle` :
 1. Appelle `shutdown()` sur la session existante (SIGTERM + attente pour stdio, no-op pour HTTP/SSE)
 2. Spawne une nouvelle `McpSession` avec la même configuration
 3. Re-enregistre les outils découverts dans le `ToolRegistry`
@@ -512,14 +512,14 @@ pub fn parse_tool_name(name: &str) -> Option<(&str, &str)> {
 // "bash_executor"           → None  (outil natif, routage différent)
 ```
 
-`parse_tool_name()` retourne `None` si :
+`parse_tool_name` retourne `None` si :
 - pas de préfixe `mcp:`
 - pas de séparateur `/`
 - segment serveur ou outil vide
 
 ### Enregistrement en conflit
 
-Si deux outils produisent le même `full_name` (impossible par construction, mais possible si deux serveurs ont le même `name`), le second `tool_registry.register()` logue un avertissement et l'enregistrement échoue silencieusement. La contrainte d'unicité du nom de serveur est portée par `McpServerRepository` (UNIQUE sur `name` en SQLite).
+Si deux outils produisent le même `full_name` (impossible par construction, mais possible si deux serveurs ont le même `name`), le second `tool_registry.register` logue un avertissement et l'enregistrement échoue silencieusement. La contrainte d'unicité du nom de serveur est portée par `McpServerRepository` (UNIQUE sur `name` en SQLite).
 
 ---
 
@@ -530,7 +530,7 @@ Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifec
 | Décision | Raison |
 |---|---|
 | Crate `apollia-mcp` dédiée (pas dans `apollia-tools`) | Responsabilité unique — subprocess lifecycle + protocole réseau orthogonal aux outils Rust purs |
-| Transport stdio uniquement en V1, HTTP/SSE en Sprint 27 | Local-first ; HTTP/SSE ajoutés quand ~70% du MCP Registry a migré vers les remotes (ADR-046) |
+| Transport stdio uniquement en V1, HTTP/SSE en | Local-first ; HTTP/SSE ajoutés quand ~70% du MCP Registry a migré vers les remotes (ADR-046) |
 | Implémentation native JSON-RPC 2.0 | Principe #2 — zéro SDK MCP tiers dans le binaire |
 | `McpClientManager` comme acteur Tokio | Principe #5 — zéro état partagé, toutes les mutations via channel `mpsc` |
 | Trait `McpTransport` au lieu de type enum | Architecture extensible, facilite le testing (mock transport), aligne avec l'enum dans `apollia-tools` |
@@ -539,9 +539,9 @@ Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifec
 
 ---
 
-## 12. Mode Serveur MCP — Sprint 36
+## 12. Mode Serveur MCP
 
-Depuis le Sprint 36 (STORY-468, ADR-062), Apollia OS peut fonctionner en **mode serveur MCP** : en plus d'être client MCP, il expose ses outils natifs à des clients externes (Claude Desktop, VS Code Copilot Chat, Cursor).
+ (ADR-062), Apollia OS peut fonctionner en **mode serveur MCP** : en plus d'être client MCP, il expose ses outils natifs à des clients externes (Claude Desktop, VS Code Copilot Chat, Cursor).
 
 ### McpStdioServer
 
@@ -601,9 +601,9 @@ crates/apollia-cli/src/commands/
 
 ---
 
-## 13. Découverte mDNS — Sprint 37
+## 13. Découverte mDNS
 
-Depuis le Sprint 37 (STORY-481), Apollia peut découvrir et annoncer des serveurs MCP sur le réseau local via mDNS (type de service `_apollia-mcp._tcp.local.`). La découverte est **désactivée par défaut** (`mdns_discovery = false`).
+, Apollia peut découvrir et annoncer des serveurs MCP sur le réseau local via mDNS (type de service `_apollia-mcp._tcp.local.`). La découverte est **désactivée par défaut** (`mdns_discovery = false`).
 
 ### Types publics
 
@@ -664,9 +664,9 @@ $ apollia mcp list --discover
 
 ---
 
-## 14. Hot Reload des serveurs MCP — Sprint 37
+## 14. Hot Reload des serveurs MCP
 
-Depuis le Sprint 37 (STORY-482), les serveurs MCP peuvent être rechargés à chaud sans redémarrer le runtime. Le `FileWatchTrigger` surveille `apollia.toml` ; quand la section `[[mcp.servers]]` change, les serveurs modifiés sont rechargés automatiquement.
+, les serveurs MCP peuvent être rechargés à chaud sans redémarrer le runtime. Le `FileWatchTrigger` surveille `apollia.toml` ; quand la section `[[mcp.servers]]` change, les serveurs modifiés sont rechargés automatiquement.
 
 ### API
 
@@ -696,9 +696,9 @@ McpServerReloaded {
 
 ---
 
-## 15. HITL MCP — Approbations SQLite — Sprint 37
+## 15. HITL MCP — Approbations SQLite
 
-Depuis le Sprint 37 (STORY-483), les approbations HITL pour les serveurs MCP avec `requires_approval = true` sont **persistées en SQLite** avec TTL configurable et vérifiées avant chaque `tools/call`.
+, les approbations HITL pour les serveurs MCP avec `requires_approval = true` sont **persistées en SQLite** avec TTL configurable et vérifiées avant chaque `tools/call`.
 
 ### Schéma SQLite
 

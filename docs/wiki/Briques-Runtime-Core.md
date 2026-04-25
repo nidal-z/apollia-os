@@ -48,37 +48,37 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 2.  AgentRegistry       → registre d'état
 3.  Tool Registry       → catalogue outils + résolution MCP
 4.  Memory Engine       → ouverture connexions SQLite
-5.  LlmRouter           → backends LLM (embedded + cloud) [Sprint 8]
-6.  TriggerEngine       → moteur de déclenchement automatique [Sprint 9]
-    └── ouvre TriggerDefinitionRepository (triggers_def.db) [Sprint 17]
-7.  PipelineEngine      → orchestration multi-agent [Sprint 12]
-    └── ouvre PipelineDefinitionRepository (pipelines_def.db) [Sprint 17]
+5.  LlmRouter           → backends LLM (embedded + cloud)
+6.  TriggerEngine       → moteur de déclenchement automatique
+    └── ouvre TriggerDefinitionRepository (triggers_def.db)
+7.  PipelineEngine      → orchestration multi-agent
+    └── ouvre PipelineDefinitionRepository (pipelines_def.db)
 8.  APIServer           → accepte les connexions externes
-9.  NotificationEngine  → alertes desktop / webhook [Sprint 11]
-    └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
-10. AgentMailbox        → messagerie inter-agents [Sprint 20]
+9.  NotificationEngine  → alertes desktop / webhook
+    └── ouvre NotificationConfigRepository (notifications.db)
+10. AgentMailbox        → messagerie inter-agents
     └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
-11. ChatSessionManager  → sessions de chat interactif [Sprint 18]
+11. ChatSessionManager  → sessions de chat interactif
     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
-12. SttEngine           → moteur Speech-to-Text embarqué [Sprint 24]
+12. SttEngine           → moteur Speech-to-Text embarqué
     └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
-13. BundledAgents        → auto-installation des agents bundled [Sprint 32]
+13. BundledAgents        → auto-installation des agents bundled
     └── lit agents/bundled/manifest.json, installe les 4 agents si absents de la DB
 ```
 
-Depuis le Sprint 17 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
+(ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
 
 ### 2.2 Mode embarqué (Desktop — ADR-027)
 
-L'application desktop Tauri utilise `init_embedded()` pour démarrer le runtime dans un thread dédié :
+L'application desktop Tauri utilise `init_embedded` pour démarrer le runtime dans un thread dédié :
 
 ```rust
 pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError>
 ```
 
-`init_embedded()` spawn un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor`, et attend `AllReady` (timeout configurable, défaut 30s). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — réutilisables directement par les commandes Tauri `#[tauri::command]` sans sérialisation HTTP.
+`init_embedded` spawn un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor`, et attend `AllReady` (timeout configurable, défaut 30s). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — réutilisables directement par les commandes Tauri `#[tauri::command]` sans sérialisation HTTP.
 
 Le socket Unix et l'API TCP restent actifs : la CLI fonctionne en parallèle du desktop.
 
@@ -116,13 +116,13 @@ Source de vérité pour l'état de tous les agents actifs.
 | `UpdateState(agent_id, state)` | Transition de `ProcessState` |
 | `GetAgent(agent_id)` | Retourne `AgentEntry` ou `None` |
 | `ListAgents(filter)` | Liste tous les agents (filtrable par `ProcessState`) |
-| `ResolveSkill(skill_id)` | Résout un `skill_id` → `AgentEntry` via `SkillIndex` (Sprint 30) |
+| `ResolveSkill(skill_id)` | Résout un `skill_id` → `AgentEntry` via `SkillIndex` |
 
-### 3.1 SkillIndex — Résolution A2A par skill_id (Sprint 30)
+### 3.1 SkillIndex — Résolution A2A par skill_id
 
 **Fichier** : `crates/apollia-runtime/src/registry.rs`
 
-L'`AgentRegistry` intègre un `SkillIndex` — index inversé `skill_id → agent_name` alimenté automatiquement lors des `register()` / `unregister()` pour les agents avec `supports_a2a: true`.
+L'`AgentRegistry` intègre un `SkillIndex` — index inversé `skill_id → agent_name` alimenté automatiquement lors des `register` / `unregister` pour les agents avec `supports_a2a: true`.
 
 ```rust
 pub enum SkillIndexError {
@@ -131,8 +131,8 @@ pub enum SkillIndexError {
 }
 ```
 
-- **Fail-fast** : conflit de `skill_id` détecté au `Register()`, pas au runtime (Principe #4)
-- **Unregister propre** : le `SkillIndex` est dépilé lors du `Unregister()`
+- **Fail-fast** : conflit de `skill_id` détecté au `Register`, pas au runtime (Principe #4)
+- **Unregister propre** : le `SkillIndex` est dépilé lors du `Unregister`
 - **Pas un acteur séparé** : le `SkillIndex` est un composant interne de l'`AgentRegistry` (Principe #5)
 
 **Cycle de vie d'enregistrement :**
@@ -215,7 +215,7 @@ Deux surfaces exposées :
 ### 6.1 Endpoints REST
 
 ```
-# STT [Sprint 24]
+# STT
 GET    /api/v1/stt/status                   → Statut moteur STT
 POST   /api/v1/stt/transcribe               → Transcrire audio (multipart WAV/MP3)
 GET    /api/v1/stt/transcriptions?limit=N   → Historique transcriptions
@@ -231,9 +231,9 @@ GET    /api/v1/agents                       → Lister les agents
 POST   /api/v1/agents                       → Démarrer un agent
 GET    /api/v1/agents/{id}                  → Détail d'un agent
 DELETE /api/v1/agents/{id}                  → Arrêter un agent
-GET    /api/v1/agents?supports_a2a=true     → Filtrer agents A2A [Sprint 30]
+GET    /api/v1/agents?supports_a2a=true     → Filtrer agents A2A
 
-# A2A [Sprint 30]
+# A2A
 GET    /api/v1/a2a/agents                   → Lister les AgentCards avec skills
 GET    /api/v1/a2a/agents/{name}            → AgentCard d'un agent par nom
 GET    /api/v1/a2a/skills                   → Lister tous les skills disponibles
@@ -244,15 +244,15 @@ GET    /api/v1/tools                        → Lister les outils
 GET    /api/v1/health                       → Santé du runtime
 GET    /api/v1/audit                        → Log d'audit (filtrable)
 
-# LLM [Sprint 8]
+# LLM
 GET    /api/v1/llm/status                   → Statut backends LLM
 POST   /api/v1/llm/ping                     → Test de connectivité
 POST   /api/v1/llm/chat                     → Appel LLM direct
 
-# Triggers [Sprint 9, CRUD Sprint 17]
-POST   /api/v1/triggers                     → Créer un trigger [Sprint 17]
-PUT    /api/v1/triggers/{id}                → Modifier un trigger [Sprint 17]
-DELETE /api/v1/triggers/{id}                → Supprimer un trigger [Sprint 17]
+# Triggers
+POST   /api/v1/triggers                     → Créer un trigger
+PUT    /api/v1/triggers/{id}                → Modifier un trigger
+DELETE /api/v1/triggers/{id}                → Supprimer un trigger
 GET    /api/v1/triggers                     → Lister les triggers
 GET    /api/v1/triggers/{id}                → Définition/statut d'un trigger
 POST   /api/v1/triggers/{id}/fire           → Déclencher immédiatement
@@ -261,29 +261,29 @@ POST   /api/v1/triggers/{id}/disable        → Désactiver
 GET    /api/v1/triggers/{id}/logs           → Historique SQLite
 POST   /api/v1/triggers/reload              → Hot reload depuis SQLite
 
-# Webhook [Sprint 9]
+# Webhook
 POST   /webhooks/:trigger_id                → Endpoint webhook HMAC-SHA256
 
-# Dashboard [Sprint 9]
+# Dashboard
 GET    /dashboard                           → Dashboard HTML embarqué
 GET    /api/v1/dashboard/state              → Snapshot JSON état runtime
 GET    /api/v1/dashboard/partials/{section} → Fragment HTML (HTMX)
 GET    /api/v1/dashboard/stream             → SSE stream dashboard
 
-# Pipelines CRUD [Sprint 17]
+# Pipelines CRUD
 POST   /api/v1/pipelines                    → Créer un pipeline
 PUT    /api/v1/pipelines/{id}               → Modifier un pipeline
 DELETE /api/v1/pipelines/{id}               → Supprimer un pipeline
 GET    /api/v1/pipelines/{id}               → Définition d'un pipeline
 
-# Notifications CRUD [Sprint 17]
+# Notifications CRUD
 POST   /api/v1/notifications/channels       → Créer un canal
 PUT    /api/v1/notifications/channels/{id}  → Modifier un canal
 DELETE /api/v1/notifications/channels/{id}  → Supprimer un canal
 GET    /api/v1/notifications/events         → Événements globaux
 PUT    /api/v1/notifications/events         → Définir événements globaux
 
-# Observabilité [Sprint 13]
+# Observabilité
 GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite)
 ```
 
@@ -328,7 +328,7 @@ AgentStopping(AgentId),
 AgentStopped(AgentId),
 ```
 
-### 7.2 Agents — Installation *(Sprint 32)*
+### 7.2 Agents — Installation
 
 ```rust
 /// Chargement d'un agent installé échoué au boot (runtime continue, dégradation gracieuse).
@@ -366,7 +366,7 @@ TaskCompleted {
 TaskCanceled { task_id: TaskId },
 ```
 
-### 7.4 Tâches — HITL *(Sprint 11)*
+### 7.4 Tâches — HITL
 
 ```rust
 /// Tâche suspendue en attente d'une décision humaine.
@@ -389,7 +389,7 @@ TaskApprovalTimeout { task_id: TaskId, after_secs: u64 },
 StepExecuted { task_id: TaskId, step: u32, tool: Option<String> },
 ```
 
-### 7.6 Plan / Step — Mode orchestré *(Sprint 10)*
+### 7.6 Plan / Step — Mode orchestré
 
 ```rust
 /// Plan généré par le Reasoner et persisté en SQLite.
@@ -448,7 +448,7 @@ PlanCompleted {
 PlanFailed { task_id: TaskId, plan_id: String, reason: String },
 ```
 
-### 7.7 Plan Cache *(Sprint 20)*
+### 7.7 Plan Cache
 
 ```rust
 /// Plan récupéré depuis le cache au lieu d'être régénéré par le Reasoner.
@@ -465,7 +465,7 @@ ToolCircuitBroken { tool_name: String },
 ToolCircuitRestored { tool_name: String },
 ```
 
-### 7.9 LLM *(Sprint 8 + 28)*
+### 7.9 LLM
 
 ```rust
 /// Backend LLM en cours de chargement (avant load() ou init HTTP).
@@ -490,7 +490,7 @@ LlmCallCompleted {
 },
 ```
 
-### 7.10 Triggers *(Sprint 9)*
+### 7.10 Triggers
 
 ```rust
 /// Trigger déclenché — tâche soumise au TaskRouter.
@@ -512,7 +512,7 @@ TriggerDisabled { trigger_id: String },
 TriggersReloaded { count: usize },
 ```
 
-### 7.11 Pipelines *(Sprint 12)*
+### 7.11 Pipelines
 
 ```rust
 /// Run de pipeline démarré.
@@ -553,7 +553,7 @@ PipelineCompleted    { run_id: String, pipeline_id: String, duration_ms: u64 },
 PipelineFailed       { run_id: String, pipeline_id: String, step_id: String, reason: String },
 ```
 
-### 7.12 Chat *(Sprint 18)*
+### 7.12 Chat
 
 ```rust
 /// Session de chat créée.
@@ -615,14 +615,14 @@ ChatApprovalResolved {
 ChatApprovalTimeout  { session_id: String, message_id: String, tool_name: String },
 ```
 
-### 7.13 Messagerie inter-agents *(Sprint 20)*
+### 7.13 Messagerie inter-agents
 
 ```rust
 /// Message envoyé entre deux agents via AgentMailbox.
 AgentMessageSent { from: String, to: String },
 ```
 
-### 7.14 A2A — Invocation *(Sprint 30 + 32)*
+### 7.14 A2A — Invocation
 
 ```rust
 /// Invocation A2A démarrée (émis avant soumission de la tâche au TaskRouter).
@@ -643,7 +643,7 @@ A2AInvocationCompleted {
 },
 ```
 
-### 7.15 A2A — Garde-fous *(Sprint 32)*
+### 7.15 A2A — Garde-fous
 
 ```rust
 /// Garde-fou A2A déclenché — invocation bloquée avant soumission.
@@ -656,7 +656,7 @@ A2AGuardTriggered {
 },
 ```
 
-### 7.16 STT *(Sprint 24)*
+### 7.16 STT
 
 ```rust
 /// Enregistrement audio démarré (hotkey activée).
@@ -682,7 +682,7 @@ SttTranscribed {
 SttTranscriptionFailed { reason: String },
 ```
 
-### 7.17 Onboarding *(Sprint 18)*
+### 7.17 Onboarding
 
 ```rust
 /// Premier lancement détecté — UserMemory vide.
@@ -803,13 +803,11 @@ level              = "info"
 format             = "text"
 path               = "~/.apollia/runtime.log"
 
-[a2a]                                        # Sprint 32
-max_depth                 = 3                # Profondeur max chaîne A2A (défaut : 3)
+[a2a]max_depth                 = 3                # Profondeur max chaîne A2A (défaut : 3)
 invocation_timeout_secs   = 120              # Timeout par invocation A2A (défaut : 120)
 chain_timeout_secs        = 300              # Budget cumulé chaîne A2A (défaut : 300)
 
-[observability]                              # Sprint 13
-max_input_bytes       = 32768               # troncature input tâches/steps (32 KB)
+[observability]max_input_bytes       = 32768               # troncature input tâches/steps (32 KB)
 max_output_bytes      = 32768               # troncature output tâches/steps (32 KB)
 max_tool_output_bytes = 10240               # troncature stdout/stderr outils (10 KB)
 debug_log_prompt      = false               # persister les prompts LLM (RGPD — false par défaut)
@@ -835,19 +833,19 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
 | Timeline API agrégée server-side (ADR-026) | 5 sources SQLite lues en parallèle, triées, retournées en JSON — pas de calcul client |
 | Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ — N octets total]`, jamais de rejet — observabilité partielle > aucune |
-| `SkillIndex` dans `AgentRegistry` (Sprint 30, ADR-049) | Index inversé skill_id → agent_name — pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
-| `A2AInvoker` timeout 120s (Sprint 30) | Invocations A2A synchrones — timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
-| Auto-installation des agents bundled (Sprint 32, ADR-050) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` — idempotent (pas de réinstallation si déjà présent) |
-| `A2AToolsProvider` (Sprint 32) | Injecte dynamiquement les skills A2A comme outils virtuels `a2a:{skill_id}` dans la boucle ReAct ORIA — backward-compatible (sans agents A2A = pas de changement) |
-| Garde-fous A2A (Sprint 32) | `max_depth`, `chain_timeout`, self-invocation — trois protections runtime non contournables pour les chaînes A2A (Principe #7) |
+| `SkillIndex` dans `AgentRegistry` (ADR-049) | Index inversé skill_id → agent_name — pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
+| `A2AInvoker` timeout 120s | Invocations A2A synchrones — timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
+| Auto-installation des agents bundled (ADR-050) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` — idempotent (pas de réinstallation si déjà présent) |
+| `A2AToolsProvider` | Injecte dynamiquement les skills A2A comme outils virtuels `a2a:{skill_id}` dans la boucle ReAct ORIA — backward-compatible (sans agents A2A = pas de changement) |
+| Garde-fous A2A | `max_depth`, `chain_timeout`, self-invocation — trois protections runtime non contournables pour les chaînes A2A (Principe #7) |
 
 ---
 
-## 11. Session Tool Access Control + Conversation Forking — Sprint 36
+## 11. Session Tool Access Control + Conversation Forking
 
-### `SessionConfig` — Contrôle d'accès aux outils (STORY-491)
+### `SessionConfig` — Contrôle d'accès aux outils
 
-Depuis le Sprint 36, `SessionConfig` supporte un allow-list et un deny-list par session CLI, sans modifier la config globale.
+`SessionConfig` supporte un allow-list et un deny-list par session CLI, sans modifier la config globale.
 
 ```rust
 pub struct SessionConfig {
@@ -867,7 +865,7 @@ Nouvelle variante `ToolError` :
 ToolNotAllowed { tool_name: String },
 ```
 
-### `ChatSession::fork()` — Forking de conversations (STORY-492)
+### `ChatSession::fork` — Forking de conversations
 
 ```rust
 impl ChatSession {
@@ -889,7 +887,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_i
 
 Les sessions filles sont **indépendantes** — ajouter un message dans la fille ne modifie pas le parent.
 
-### `CommandRegistry` — Slash commands custom (STORY-493)
+### `CommandRegistry` — Slash commands custom
 
 ```rust
 /// Charge les commandes custom depuis :
@@ -913,18 +911,18 @@ impl CommandRegistry {
 }
 ```
 
-Hot reload via `FileTimestampCache` (Sprint 36, STORY-476) si le répertoire `.apollia/commands/` est modifié.
+Hot reload via `FileTimestampCache` si le répertoire `.apollia/commands/` est modifié.
 
 ---
 
 ## 12. Diagrammes de référence
 
 - [Démarrage ordonné Supervisor](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-supervisor-startup.puml) — 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
-- [CRUD Config opérationnelle](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)
+- [CRUD Config opérationnelle](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload (ADR-033)
 - [HITL Flow complet](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
 - [Task Lifecycle](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
 - [Timeline Aggregation](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée
-- [Chat Libre sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
-- [Chat session state machine](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)
-- [STT Flow](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard (Sprint 24)
-- [A2A Guards sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-a2a-guards.puml) — garde-fous invocation A2A : depth, self-invocation, chain timeout (Sprint 32)
+- [Chat Libre sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token
+- [Chat session state machine](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/state-chat-session.puml) — Active → Processing → Closed
+- [STT Flow](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard
+- [A2A Guards sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-a2a-guards.puml) — garde-fous invocation A2A : depth, self-invocation, chain timeout

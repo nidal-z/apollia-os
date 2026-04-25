@@ -16,12 +16,12 @@
 | **ctx.log** | Toujours disponible | [`AgentLogger`](#ctxlog--agentlogger) | ✅ Livré |
 | **ctx.workspace** | Contexte workspace collecté | [`WorkspaceContextPy`](#ctxworkspace--workspacecontextpy) | ✅ Livré |
 | **ctx.user_context** | Mode chat uniquement | `dict[str, list[tuple]]` ou `None` | ✅ Livré |
-| **ctx.send()** | Si `supports_a2a: True` | Async, messagerie inter-agents | ✅ Livré |
-| **ctx.receive()** | Si `supports_a2a: True` | Async, réception messages | ✅ Livré |
-| **ctx.delegate()** | Si `supports_a2a: True` (Director) | Async, délégation A2A | ✅ Livré |
-| **ctx.emit_token()** | Mode chat uniquement | Sync, streaming tokens | ✅ Livré |
-| **ctx.a2a_invoke()** | Si `supports_a2a: True` | Async, invocation A2A de haut niveau | ✅ Livré |
-| **ctx.a2a_discover()** | Si `supports_a2a: True` | Async, découverte skill | ✅ Livré |
+| **ctx.send** | Si `supports_a2a: True` | Async, messagerie inter-agents | ✅ Livré |
+| **ctx.receive** | Si `supports_a2a: True` | Async, réception messages | ✅ Livré |
+| **ctx.delegate** | Si `supports_a2a: True` (Director) | Async, délégation A2A | ✅ Livré |
+| **ctx.emit_token** | Mode chat uniquement | Sync, streaming tokens | ✅ Livré |
+| **ctx.a2a_invoke** | Si `supports_a2a: True` | Async, invocation A2A de haut niveau | ✅ Livré |
+| **ctx.a2a_discover** | Si `supports_a2a: True` | Async, découverte skill | ✅ Livré |
 
 ---
 
@@ -33,9 +33,9 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| **call()** | `async call(tool_name: str, input: dict) -> dict` | `tool_name` : str ; `input` : dict JSON sérialisable | dict (résultat JSON du Rust) | `RuntimeError: tool not found` ; `RuntimeError: tool not allowed` ; `RuntimeError: tool execution failed` | Tous les appels comptabilisés, audit trail SQLite fire-and-forget |
-| **list_tools()** | `list_tools() -> list[str]` | — | liste des noms d'outils accessibles | — | Consulter avant de décider d'un appel optionnel |
-| **tool_call_count()** | `tool_call_count() -> int` | — | nombre d'appels effectués | — | Aide à adapter le comportement proche de la limite budget |
+| **call** | `async call(tool_name: str, input: dict) -> dict` | `tool_name` : str ; `input` : dict JSON sérialisable | dict (résultat JSON du Rust) | `RuntimeError: tool not found` ; `RuntimeError: tool not allowed` ; `RuntimeError: tool execution failed` | Tous les appels comptabilisés, audit trail SQLite fire-and-forget |
+| **list_tools** | `list_tools -> list[str]` | — | liste des noms d'outils accessibles | — | Consulter avant de décider d'un appel optionnel |
+| **tool_call_count** | `tool_call_count -> int` | — | nombre d'appels effectués | — | Aide à adapter le comportement proche de la limite budget |
 
 ### Outils natifs disponibles
 
@@ -80,7 +80,7 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 |---|---|---|---|---|
 | `path` | str | `.` | ❌ | Répertoire à lister |
 | `depth` | int | 1 | ❌ | Profondeur de récursion |
-| **Retour** | dict | — | — | `{"entries": [{"name": str, "is_dir": bool, "size": int}, ...]}` |
+| **Retour** | dict | — | — | `{"entries": [{"name": str, "is_dir": bool, "size": int},...]}` |
 
 #### file_glob
 
@@ -98,7 +98,7 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 | `path` | str | `.` | ❌ | Répertoire de recherche |
 | `glob` | str | — | ❌ | Filtre sur les fichiers (pattern glob) |
 | `context_lines` | int | 0 | ❌ | Lignes de contexte avant/après |
-| **Retour** | dict | — | — | `{"matches": [{"file": str, "line": int, "content": str}, ...], "count": int}` |
+| **Retour** | dict | — | — | `{"matches": [{"file": str, "line": int, "content": str},...], "count": int}` |
 
 #### http_fetch
 
@@ -118,7 +118,7 @@ Proxy de sécurité pour l'invocation d'outils. Permissifs, audit, comptabilité
 | `namespace` | str | namespace propre | ❌ | Namespace cible |
 | `limit` | int | 10 | ❌ | Max 50 résultats |
 | `source` | str | `"episodic"` | ❌ | `"episodic"` \| `"semantic"` |
-| **Retour** | dict | — | — | `{"results": [{"content": str, "score": float, "source": str}, ...], "count": int}` |
+| **Retour** | dict | — | — | `{"results": [{"content": str, "score": float, "source": str},...], "count": int}` |
 
 #### python_executor
 
@@ -144,11 +144,11 @@ Proxy vers les backends LLM configurés. Wrapper autour de `LlmRouter`.
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| **chat()** | `async chat(system: str, user: str, backend: str=None) -> LlmResponse` | `system` : str (system prompt) ; `user` : str (user message) ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `RuntimeError` si LLM None | Cas d'usage 80% : appel simple |
-| **complete()** | `async complete(messages: list[dict], backend: str=None) -> LlmResponse` | `messages` : `list[{"role": str, "content": str}]` ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `PyValueError` si message invalide | Multi-tour explicite : system/user/assistant |
-| **stream()** | `async stream(messages: list[dict], backend: str=None) -> list[str]` | `messages` : `list[dict]` ; `backend` : str optionnel | `list[str]` (chunks collectés) | `PyRuntimeError` si backend unavailable | Fallback : si pas de stream natif, une seule réponse |
-| **stream_complete()** | `async stream_complete(messages: list[dict], backend: str=None) -> PyTokenStream` | `messages` : `list[dict]` ; `backend` : str optionnel | Async iterator de chunks | `PyRuntimeError` si backend unavailable | Token par token en temps réel (vs `stream()` qui collecte) |
-| **run_tools()** | `async run_tools(messages: list[dict], tools: list[dict], max_iterations: int=5) -> dict` | `messages` : `list[dict]` ; `tools` : `list[dict]` JSON Schema ; `max_iterations` : int | dict avec `{"content": str, ...}` | `PyRuntimeError` si max_iterations atteint ou budget épuisé | Boucle ReAct auto : Thought → Action → Observe |
+| **chat** | `async chat(system: str, user: str, backend: str=None) -> LlmResponse` | `system` : str (system prompt) ; `user` : str (user message) ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `RuntimeError` si LLM None | Cas d'usage 80% : appel simple |
+| **complete** | `async complete(messages: list[dict], backend: str=None) -> LlmResponse` | `messages` : `list[{"role": str, "content": str}]` ; `backend` : str optionnel | [`LlmResponse`](#llmresponse) | `PyValueError` si message invalide | Multi-tour explicite : system/user/assistant |
+| **stream** | `async stream(messages: list[dict], backend: str=None) -> list[str]` | `messages` : `list[dict]` ; `backend` : str optionnel | `list[str]` (chunks collectés) | `PyRuntimeError` si backend unavailable | Fallback : si pas de stream natif, une seule réponse |
+| **stream_complete** | `async stream_complete(messages: list[dict], backend: str=None) -> PyTokenStream` | `messages` : `list[dict]` ; `backend` : str optionnel | Async iterator de chunks | `PyRuntimeError` si backend unavailable | Token par token en temps réel (vs `stream()` qui collecte) |
+| **run_tools** | `async run_tools(messages: list[dict], tools: list[dict], max_iterations: int=5) -> dict` | `messages` : `list[dict]` ; `tools` : `list[dict]` JSON Schema ; `max_iterations` : int | dict avec `{"content": str,...}` | `PyRuntimeError` si max_iterations atteint ou budget épuisé | Boucle ReAct auto : Thought → Action → Observe |
 
 ### LlmResponse
 
@@ -173,13 +173,13 @@ Accès à la mémoire persistante (épisodique, sémantique, procédurale). Name
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| **record()** | `async record(content: str, importance: float=0.5, task_id: str=None, metadata: dict=None) -> str` | `content` : str ; `importance` : float [0.0-1.0] ; `task_id` : str optionnel ; `metadata` : dict optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire épisodique (horodaté) |
-| **remember()** | `async remember(content: str, confidence: float=0.9, source: str=None) -> str` | `content` : str ; `confidence` : float [0.0-1.0] ; `source` : str optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire sémantique (fact) |
-| **recall()** | `async recall(key: str) -> list[dict]` | `key` : str (clé de fait sémantique) | `list[dict]` avec `{"content": str, "confidence": float, "created_at": str}` | — | Rappel simplifié : clé → valeur + metadata |
-| **recall_entry()** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | — | Rappel complet avec toutes métadonnées (Sprint 40+) |
-| **recall_all()** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | — | Toutes les entrées sémantiques du namespace (Sprint 40+) |
-| **search()** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | — | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
-| **forget()** | `async forget(memory_id: str) -> None` | `memory_id` : str (id retourné par `record()` ou `remember()`) | `None` | `RuntimeError` si id invalid | Suppression d'un enregistrement |
+| **record** | `async record(content: str, importance: float=0.5, task_id: str=None, metadata: dict=None) -> str` | `content` : str ; `importance` : float [0.0-1.0] ; `task_id` : str optionnel ; `metadata` : dict optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire épisodique (horodaté) |
+| **remember** | `async remember(content: str, confidence: float=0.9, source: str=None) -> str` | `content` : str ; `confidence` : float [0.0-1.0] ; `source` : str optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire sémantique (fact) |
+| **recall** | `async recall(key: str) -> list[dict]` | `key` : str (clé de fait sémantique) | `list[dict]` avec `{"content": str, "confidence": float, "created_at": str}` | — | Rappel simplifié : clé → valeur + metadata |
+| **recall_entry** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | — | Rappel complet avec toutes métadonnées |
+| **recall_all** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | — | Toutes les entrées sémantiques du namespace |
+| **search** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | — | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
+| **forget** | `async forget(memory_id: str) -> None` | `memory_id` : str (id retourné par `record()` ou `remember`) | `None` | `RuntimeError` si id invalid | Suppression d'un enregistrement |
 
 ---
 
@@ -205,10 +205,10 @@ Logs structurés envoyés via le système `tracing` du runtime.
 
 | Méthode | Signature | Paramètres | Notes |
 |---|---|---|---|
-| **info()** | `info(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level INFO |
-| **warn()** | `warn(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level WARN |
-| **error()** | `error(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level ERROR |
-| **debug()** | `debug(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level DEBUG |
+| **info** | `info(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level INFO |
+| **warn** | `warn(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level WARN |
+| **error** | `error(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level ERROR |
+| **debug** | `debug(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level DEBUG |
 
 Exemple : `ctx.log.info("step_started", step=1, tool="file_read")`
 
@@ -224,13 +224,13 @@ Contexte projet collecté au démarrage. Agrège les sections des providers acti
 |---|---|---|
 | **rules** | str \| None | Alias pour `get("Règles du projet")` |
 | **apollia_md** | str \| None | Alias pour `rules` (compatibilité) |
-| **sections** | list[dict] | Toutes les sections `[{"title": str, "content": str}, ...]` |
+| **sections** | list[dict] | Toutes les sections `[{"title": str, "content": str},...]` |
 
 ### Méthodes
 
 | Méthode | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| **get()** | `get(title: str) -> str \| None` | `title` : str (titre de section) | Contenu ou `None` | Lookup par titre exact |
+| **get** | `get(title: str) -> str \| None` | `title` : str (titre de section) | Contenu ou `None` | Lookup par titre exact |
 
 ---
 
@@ -253,7 +253,7 @@ if uc:
 
 ---
 
-## ctx.send() – Messagerie inter-agents
+## ctx.send – Messagerie inter-agents
 
 Envoie un message JSON asynchrone à un autre agent via mailbox.
 
@@ -268,7 +268,7 @@ Limitation : max 100 messages en file par agent.
 
 ---
 
-## ctx.receive() – Réception inter-agents
+## ctx.receive – Réception inter-agents
 
 Attend le prochain message dans la mailbox avec timeout.
 
@@ -280,7 +280,7 @@ Attend le prochain message dans la mailbox avec timeout.
 
 ---
 
-## ctx.delegate() – Délégation A2A
+## ctx.delegate – Délégation A2A
 
 Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 
@@ -294,7 +294,7 @@ Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 
 ---
 
-## ctx.emit_token() – Streaming chatbot
+## ctx.emit_token – Streaming chatbot
 
 Émet un token vers le frontend SSE en mode chat. No-op en mode task.
 
@@ -305,7 +305,7 @@ Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 
 ---
 
-## ctx.a2a_invoke() – Invocation A2A haut niveau
+## ctx.a2a_invoke – Invocation A2A haut niveau
 
 Invoque un Worker Agent via `A2AInvoker` (haut niveau, orchestration complète).
 
@@ -314,11 +314,11 @@ Invoque un Worker Agent via `A2AInvoker` (haut niveau, orchestration complète).
 | `skill_id` | str | — | ✅ | ID de compétence |
 | `input` | dict | — | ✅ | Données d'entrée JSON |
 | `timeout_secs` | int | — | ❌ | Timeout en secondes |
-| **Retour** | awaitable (dict) | — | — | `{"result": dict, "agent_name": str, "skill_id": str, "duration_ms": int}` ou `AIPResult.failed()` |
+| **Retour** | awaitable (dict) | — | — | `{"result": dict, "agent_name": str, "skill_id": str, "duration_ms": int}` ou `AIPResult.failed` |
 
 ---
 
-## ctx.a2a_discover() – Découverte skill
+## ctx.a2a_discover – Découverte skill
 
 Découvre l'agent qui expose un skill et retourne sa carte.
 
@@ -348,11 +348,11 @@ Indique si l'agent a accès en lecture à la mémoire utilisateur globale.
 | **Chaque service** | 40-100 lignes narratives | Table : sig/params/retour/erreurs | Grille de référence consultable |
 | **Exemples Python** | 10+ par service | 0 (sauf 1 pour syntax) | Exemples = book ch03/ch06, pas wiki |
 | **Outils natifs** | Prose + exemples (200 lignes) | 10 tables (1 par outil) | Paramètres structurés = queryable |
-| **ctx.delegate()** | Suspect per Audit Axe 3 | ✅ Confirmé, signature actuelle | Vérification effectuée dans context.rs:1128-1184 |
-| **ctx.llm.stream_complete()** | Absent (Sprint 40 nouveau) | ✅ Ajouté | Async iterator vs collect |
-| **ctx.emit_token()** | Absent | ✅ Ajouté | Mode chat streaming |
-| **ctx.user_memory_read_only** | Absent | ✅ Ajouté | Propriété booléenne Sprint 40+ |
-| **Métadonnées memory** | Narratif | Tables : `recall_entry()`, `recall_all()` | Sprint 40 (injection tracker) |
+| **ctx.delegate** | Suspect per Audit Axe 3 | ✅ Confirmé, signature actuelle | Vérification effectuée dans context.rs:1128-1184 |
+| **ctx.llm.stream_complete** | Absent | ✅ Ajouté | Async iterator vs collect |
+| **ctx.emit_token** | Absent | ✅ Ajouté | Mode chat streaming |
+| **ctx.user_memory_read_only** | Absent | ✅ Ajouté | Propriété booléenne+ |
+| **Métadonnées memory** | Narratif | Tables : `recall_entry()`, `recall_all()` | (injection tracker) |
 
 ---
 

@@ -75,14 +75,14 @@ Si un acteur dépasse `max_restarts` (défaut : 5) dans `restart_window_secs` (d
 
 ## Mode embarqué — Desktop Tauri
 
-Quand l'application desktop Tauri démarre, elle appelle `init_embedded()` :
+Quand l'application desktop Tauri démarre, elle appelle `init_embedded` :
 
 ```rust
 // La même séquence de démarrage que la CLI, dans un thread dédié
 pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError>
 ```
 
-`init_embedded()` spawne un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor` complet, et attend `AllReady` (timeout 30s par défaut). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — utilisables directement par les commandes Tauri `#[tauri::command]` sans passer par HTTP.
+`init_embedded` spawne un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor` complet, et attend `AllReady` (timeout 30s par défaut). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — utilisables directement par les commandes Tauri `#[tauri::command]` sans passer par HTTP.
 
 Le socket Unix et l'API TCP restent actifs : la CLI fonctionne en parallèle du desktop, sur le même runtime.
 

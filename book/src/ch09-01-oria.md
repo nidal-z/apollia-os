@@ -59,8 +59,8 @@ La classification repose sur un scoring pondéré à 7 facteurs. Chaque facteur 
 |---|---|---|
 | `WEIGHT_STEPS` | 0.30 | `step_budget.max_steps > 15` |
 | `WEIGHT_MULTI_STEP_TAG` | 0.40 | tag `"multi-step"` présent dans le manifest |
-| `WEIGHT_PARTS` | 0.20 | `input.parts.len() > 3` |
-| `WEIGHT_TOOLS` | 0.20 | `tools_required.len() > 4` |
+| `WEIGHT_PARTS` | 0.20 | `input.parts.len > 3` |
+| `WEIGHT_TOOLS` | 0.20 | `tools_required.len > 4` |
 | `WEIGHT_INPUT_LENGTH` | 0.10 | input texte > 500 caractères |
 | `WEIGHT_MEMORY_DEPTH` | 0.10 | mémoire épisodique > 5 entrées |
 | `WEIGHT_PLANNING_PROMPT` | 0.10 | input contient des mots-clés de planification |
@@ -73,7 +73,7 @@ Pour un agent avec `execution_mode: "orchestrated"` dans son manifest, le scorin
 
 ## Reasoner — générer le plan
 
-En Mode Direct, il n'y a pas de Reasoner : l'agent Python gère son propre raisonnement via `ctx.llm.run_tools()`. ORIA se contente de superviser le budget et d'appliquer la ResilienceLayer.
+En Mode Direct, il n'y a pas de Reasoner : l'agent Python gère son propre raisonnement via `ctx.llm.run_tools`. ORIA se contente de superviser le budget et d'appliquer la ResilienceLayer.
 
 En Mode Orchestré, le Reasoner appelle le LLM configuré pour produire un `ExecutionPlan` JSON structuré. Il reçoit en entrée le `system_prompt` de l'agent, la tâche soumise, et la liste des outils disponibles :
 
@@ -104,7 +104,7 @@ Tâche : {task_input}
 
 ### Multi-model routing par step
 
-Depuis le Sprint 20, chaque step du plan peut spécifier un backend LLM différent via le champ `model_hint`. Le Reasoner peut ainsi router les steps de raisonnement complexe vers un modèle puissant, et les steps de formatage simple vers un modèle rapide :
+Chaque step du plan peut spécifier un backend LLM différent via le champ `model_hint`. Le Reasoner peut ainsi router les steps de raisonnement complexe vers un modèle puissant, et les steps de formatage simple vers un modèle rapide :
 
 ```json
 {
@@ -124,7 +124,7 @@ Si le backend demandé est introuvable, ORIA bascule silencieusement sur le back
 
 ## Actor — exécuter et observer
 
-L'Actor exécute le plan en ordre topologique. En Mode Orchestré, `agent.run()` n'est **jamais** appelé pendant les steps — ORIA invoque les outils et le LLM directement.
+L'Actor exécute le plan en ordre topologique. En Mode Orchestré, `agent.run` n'est **jamais** appelé pendant les steps — ORIA invoque les outils et le LLM directement.
 
 ### StepContext — chaque step voit les précédents
 

@@ -1,12 +1,12 @@
 # Pipelines Engine — Orchestration Multi-Agent
 
-> *Coordinatez plusieurs agents indépendants via un pipeline déclaratif persisté en SQLite. Fan-out, fan-in, conditions, fallback, HITL intégré — gérables via API REST ou application desktop (Sprint 17 — ADR-033).*
+> *Coordinatez plusieurs agents indépendants via un pipeline déclaratif persisté en SQLite. Fan-out, fan-in, conditions, fallback, HITL intégré — gérables via API REST ou application desktop (ADR-033).*
 
 ---
 
 ## 1. Vue d'ensemble
 
-La crate `apollia-pipelines` (Sprint 12, CRUD Sprint 17) permet de décrire un workflow multi-agent comme un graphe orienté acyclique (DAG) de **steps**, où chaque step soumet une tâche à un agent déjà démarré dans le runtime. Les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop (ADR-033).
+La crate `apollia-pipelines` (CRUD) permet de décrire un workflow multi-agent comme un graphe orienté acyclique (DAG) de **steps**, où chaque step soumet une tâche à un agent déjà démarré dans le runtime. Les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop (ADR-033).
 
 ```bash
 # Créer un pipeline via API REST
@@ -119,7 +119,7 @@ pub struct PipelineRun {
 apollia-pipelines crate
 ├── types.rs                    — PipelineDefinition, PipelineRun, StepRun, enums
 ├── repository.rs               — PipelineRepository (runs SQLite, migration 006)
-├── definition_repository.rs    — PipelineDefinitionRepository (définitions, Sprint 17)
+├── definition_repository.rs    — PipelineDefinitionRepository (définitions)
 ├── validation.rs               — validate_pipeline() (DAG, step IDs, depends_on)
 ├── template.rs                 — TemplateContext, render() — {{steps.x.output}}
 ├── topo.rs                     — topological_layers() via Kahn BFS
@@ -135,7 +135,7 @@ PipelineEngineHandle (Clone + Send + Sync)
   │  mpsc::channel(256)
   ▼
 PipelineEngine (Tokio task)
-  ├── pipelines: HashMap<PipelineId, PipelineDefinition>  — chargées depuis SQLite (Sprint 17)
+  ├── pipelines: HashMap<PipelineId, PipelineDefinition>  — chargées depuis SQLite
   ├── repo: Arc<Mutex<PipelineRepository>>               — SQLite pipelines.db (runs)
   ├── submitter: Arc<dyn TaskSubmitter>                  — injecté (ADR-015)
   └── event_bus: EventBusSender                          — observe ShutdownRequested
@@ -147,7 +147,7 @@ PipelineEngine (Tokio task)
 
 ### 3.3 Exécuteur et topologie
 
-`PipelineExecutor` exécute les steps couche par couche (layers topologiques calculés par `topological_layers()`) :
+`PipelineExecutor` exécute les steps couche par couche (layers topologiques calculés par `topological_layers`) :
 
 ```
 Layer 0 : [ocr]                    → soumis simultanément (FuturesUnordered)
@@ -165,7 +165,7 @@ Pour chaque step, l'exécuteur :
 
 ### 3.4 Intégration EventBus
 
-Nouveaux variants `RuntimeEvent` ajoutés dans `apollia-core` (STORY-116) :
+Nouveaux variants `RuntimeEvent` ajoutés dans `apollia-core` :
 
 | Événement | Émis par | Données |
 |---|---|---|
@@ -181,9 +181,9 @@ Nouveaux variants `RuntimeEvent` ajoutés dans `apollia-core` (STORY-116) :
 
 ---
 
-## 4. Gestion des pipelines — CRUD SQLite (Sprint 17)
+## 4. Gestion des pipelines — CRUD SQLite
 
-Depuis le Sprint 17 (ADR-033), les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[pipelines]]` de `apollia.toml` n'est plus utilisée.
+(ADR-033), les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[pipelines]]` de `apollia.toml` n'est plus utilisée.
 
 ### 4.1 Créer / modifier / supprimer via API
 
@@ -206,7 +206,7 @@ $ curl -X DELETE http://localhost:7771/api/v1/pipelines/mon-pipeline
 $ curl http://localhost:7771/api/v1/pipelines/mon-pipeline
 ```
 
-### 4.2 `PipelineDefinitionRepository` *(Sprint 17)*
+### 4.2 `PipelineDefinitionRepository`
 
 ```rust
 // apollia-pipelines/src/definition_repository.rs
@@ -311,7 +311,7 @@ Chaque opération CRUD (insertion, modification) valide le pipeline avant écrit
 - `loop_until` présent sans `max_iterations` → `ValidationError` immédiat (Principe #4)
 - Les agents référencés n'ont pas besoin d'être installés à la création — l'erreur se produit au moment du run
 
-### 4.8 Fan-out sur tableau *(Sprint 34 — ADR-053)*
+### 4.8 Fan-out sur tableau *(ADR-053)*
 
 Un step déclaré `fan_out = true` distribue sa sortie (tableau JSON) en sous-steps parallèles :
 
@@ -332,7 +332,7 @@ depends_on = ["list-files"]  # reçoit chaque élément individuellement
 - Les résultats sont agrégés dans l'ordre d'index du tableau source (déterministe, pas l'ordre de completion).
 - Si le step `list-files` retourne un tableau vide, `process-file` est marqué `Skipped`.
 
-### 4.9 Boucles conditionnelles *(Sprint 34 — ADR-053)*
+### 4.9 Boucles conditionnelles *(ADR-053)*
 
 Un step peut s'exécuter plusieurs fois jusqu'à satisfaction d'une condition :
 
@@ -348,7 +348,7 @@ max_iterations = 5                            # garde-fou obligatoire
 - Si `max_iterations` est atteint sans satisfaire la condition : `StepRunStatus::Cancelled { reason: "max_iterations_reached" }`.
 - Comportement à la cancellation contrôlé par `on_cancel` (défaut : `fail`).
 
-### 4.10 Timeout de step *(Sprint 34 — ADR-053)*
+### 4.10 Timeout de step *(ADR-053)*
 
 Chaque step peut déclarer un timeout maximum :
 
@@ -390,13 +390,13 @@ CREATE TABLE pipeline_step_runs (
 );
 ```
 
-**Reprise après restart :** au démarrage du `PipelineEngine`, `find_running_runs()` charge tous les runs avec `status = "running"` et relance leurs executors. Les steps déjà `completed` ou `failed` sont ignorés ; les steps `running` sont remis en `pending` pour être re-soumis.
+**Reprise après restart :** au démarrage du `PipelineEngine`, `find_running_runs` charge tous les runs avec `status = "running"` et relance leurs executors. Les steps déjà `completed` ou `failed` sont ignorés ; les steps `running` sont remis en `pending` pour être re-soumis.
 
 ---
 
 ## 6. HITL dans les pipelines
 
-Quand un step produit `AIPResult.input_required()`, le pipeline se suspend automatiquement :
+Quand un step produit `AIPResult.input_required`, le pipeline se suspend automatiquement :
 
 1. `PipelineExecutor` reçoit `StepResult::InputRequired { task_id }` depuis l'EventBus
 2. Le run passe en `PipelineStatus::WaitingApproval { step_id, task_id }`
@@ -470,10 +470,10 @@ Voir [API-HTTP-Workspace](./API-HTTP-Workspace#pipelines-sprint-12-crud-sprint-1
 
 | Méthode | Route | Description |
 |---|---|---|
-| `POST` | `/api/v1/pipelines` | Créer un pipeline *(Sprint 17)* |
-| `PUT` | `/api/v1/pipelines/{id}` | Modifier un pipeline *(Sprint 17)* |
-| `DELETE` | `/api/v1/pipelines/{id}` | Supprimer un pipeline *(Sprint 17)* |
-| `GET` | `/api/v1/pipelines/{id}` | Lire une définition *(Sprint 17)* |
+| `POST` | `/api/v1/pipelines` | Créer un pipeline |
+| `PUT` | `/api/v1/pipelines/{id}` | Modifier un pipeline |
+| `DELETE` | `/api/v1/pipelines/{id}` | Supprimer un pipeline |
+| `GET` | `/api/v1/pipelines/{id}` | Lire une définition |
 | `GET` | `/api/v1/pipelines` | Liste tous les pipelines |
 | `POST` | `/api/v1/pipelines/{id}/run` | Démarre un run |
 | `GET` | `/api/v1/pipelines/{id}/runs` | Historique des runs |
@@ -483,7 +483,7 @@ Voir [API-HTTP-Workspace](./API-HTTP-Workspace#pipelines-sprint-12-crud-sprint-1
 
 ## 9. Notifications
 
-Trois événements pipeline sont mappés vers le système de notifications (configurable via `NotificationConfigRepository` — Sprint 17) :
+Trois événements pipeline sont mappés vers le système de notifications (configurable via `NotificationConfigRepository`) :
 
 | Événement notification | RuntimeEvent | Sévérité |
 |---|---|---|
@@ -553,7 +553,7 @@ while let Some((step_id, result)) = futs.next().await {
 | Propriété | Comportement |
 |---|---|
 | Soumission | Les steps d'un même layer sont soumis dans l'ordre de définition du pipeline |
-| Complétion | **Aucune garantie d'ordre** — `FuturesUnordered::next()` retourne le premier future complété |
+| Complétion | **Aucune garantie d'ordre** — `FuturesUnordered::next` retourne le premier future complété |
 | Isolation entre layers | Le layer N ne démarre qu'après que **tous** les steps du layer N-1 ont atteint un état terminal |
 | Timeout par step | `DEFAULT_STEP_TIMEOUT = 60 secondes` — un step qui dépasse ce délai produit `StepResult::Failed` |
 
@@ -575,7 +575,7 @@ Quand un step échoue avec `on_failure: fallback`, l'executor active le step de 
 - `active_fallbacks: HashSet<StepId>` — fallbacks actuellement actifs
 - `done_steps: HashSet<StepId>` — steps déjà dans un état terminal (évite la re-soumission)
 
-Le `topological_layers()` est recalculé à chaque restart, mais les steps dans `done_steps` sont filtrés avant soumission.
+Le `topological_layers` est recalculé à chaque restart, mais les steps dans `done_steps` sont filtrés avant soumission.
 
 ---
 
@@ -645,7 +645,7 @@ Le champ `on_failure` de `PipelineDefinition` accepte `fail | continue` (défaut
 La détection de cycles fait partie intégrante de la validation du DAG. Elle est invoquée à deux moments :
 
 1. **CRUD validation** (`validation.rs`) — avant toute écriture en SQLite via les endpoints REST
-2. **Exécution** (`executor.rs::execute()`) — au démarrage de chaque run, comme filet de sécurité
+2. **Exécution** (`executor.rs::execute`) — au démarrage de chaque run, comme filet de sécurité
 
 ### Algorithme : Kahn BFS
 
@@ -669,7 +669,7 @@ L'implémentation utilise l'**algorithme de Kahn** (BFS), non un DFS. Le fichier
 
 | Erreur | Condition | Exemple |
 |---|---|---|
-| `TopologicalError::CycleDetected(step_id)` | `processed < steps.len()` après BFS | A → B → A |
+| `TopologicalError::CycleDetected(step_id)` | `processed < steps.len` après BFS | A → B → A |
 | `TopologicalError::UnknownDependency { dependent, dependency }` | `depends_on` référence un `step_id` inexistant | `"depends_on": ["inexistant"]` |
 
 La détection `UnknownDependency` est effectuée **avant** le BFS. Si toutes les dépendances sont valides mais un cycle existe, `CycleDetected` est retourné en nommant **un** des steps impliqués (le premier trouvé avec `in_degree > 0`).
@@ -684,9 +684,9 @@ Les steps fallback (`fallback_for: Some(...)`) sont traités comme des steps nor
 
 ---
 
-## 9. Registry communautaire de pipelines — Sprint 37
+## 9. Registry communautaire de pipelines
 
-Depuis le Sprint 37 (STORY-488), les pipelines pré-construits peuvent être téléchargés depuis un registry Git communautaire via `apollia pipeline install`.
+, les pipelines pré-construits peuvent être téléchargés depuis un registry Git communautaire via `apollia pipeline install`.
 
 ### `PipelineStepType::LlmPrompt` — nouveau type de step
 

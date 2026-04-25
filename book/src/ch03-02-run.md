@@ -1,4 +1,4 @@
-# run() — exécuter une tâche
+# run — exécuter une tâche
 
 `run()` est le cœur de tout agent. C'est la méthode que le runtime appelle à chaque tâche reçue. Elle prend deux paramètres — `task` et `ctx` — et retourne un résultat structuré.
 
@@ -209,7 +209,7 @@ async def run(self, task, ctx):
 |---|---|---|
 | `ir.approved` | `bool` | `True` si approuvé, `False` si rejeté |
 | `ir.reason` | `str \| None` | Raison fournie par l'humain (`None` si approuvé) |
-| `ir.context` | `dict` | Contexte exact passé à `input_required()` |
+| `ir.context` | `dict` | Contexte exact passé à `input_required` |
 | `ir.responded_at` | `str` | Horodatage ISO 8601 de la décision |
 
 ### Appliquer à file-assistant
@@ -243,7 +243,7 @@ async def run(self, task, ctx):
 
 ---
 
-## Bonnes pratiques pour run()
+## Bonnes pratiques pour run
 
 **Vérifier avant d'avancer** — chaque source d'erreur potentielle est vérifiée avant de passer à l'étape suivante. Ne jamais supposer que `ctx.llm` est disponible, que le fichier existe, ou que l'entrée est bien formée.
 

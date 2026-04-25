@@ -1,6 +1,6 @@
 # Tool Approval en Mode Orchestré
 
-En Mode Orchestré, l'agent Python n'est pas appelé pendant l'exécution des steps — c'est ORIA qui pilote. Le mécanisme `AIPResult.input_required()` ne s'applique donc pas directement. À la place, l'agent déclare dans son manifest quels outils nécessitent une approbation humaine avant d'être exécutés.
+En Mode Orchestré, l'agent Python n'est pas appelé pendant l'exécution des steps — c'est ORIA qui pilote. Le mécanisme `AIPResult.input_required` ne s'applique donc pas directement. À la place, l'agent déclare dans son manifest quels outils nécessitent une approbation humaine avant d'être exécutés.
 
 ---
 
@@ -63,10 +63,10 @@ La suspension se produit **avant** l'exécution de l'outil — jamais après. Si
 
 | Aspect | Mode Direct | Mode Orchestré |
 |---|---|---|
-| Qui décide de suspendre | L'agent Python (`input_required()`) | L'ActorLoop Rust (avant `execute_step()`) |
+| Qui décide de suspendre | L'agent Python (`input_required`) | L'ActorLoop Rust (avant `execute_step`) |
 | Quand | À n'importe quel moment dans `run()` | Avant l'exécution d'un outil spécifique |
 | `step_id` dans l'événement | `None` | `Some("s3")` — le step exact qui attend |
-| Reprise | Re-appel `agent.run()` avec `is_resumed=True` | Exécution normale du step après `approved` |
+| Reprise | Re-appel `agent.run` avec `is_resumed=True` | Exécution normale du step après `approved` |
 | Rejet | `AIPResult::failed` sans re-appel Python | `StepError::RejectedByUser` → plan arrêté |
 | Déclaration | Dans `run()` au runtime | Dans `manifest()` statiquement |
 

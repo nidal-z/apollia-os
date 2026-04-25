@@ -1,8 +1,8 @@
 # A2AToolsProvider — Workers comme outils ORIA
 
-`ctx.delegate()` est explicite : le Director sait quel Worker appeler, à quel moment, avec quel payload. C'est le bon choix quand le workflow est connu à l'avance.
+`ctx.delegate` est explicite : le Director sait quel Worker appeler, à quel moment, avec quel payload. C'est le bon choix quand le workflow est connu à l'avance.
 
-Mais un Director qui utilise `ctx.llm.run_tools()` délègue son raisonnement au LLM — et le LLM, lui, ne sait pas quels Workers sont disponibles. Il voit uniquement les outils natifs que vous lui décrivez.
+Mais un Director qui utilise `ctx.llm.run_tools` délègue son raisonnement au LLM — et le LLM, lui, ne sait pas quels Workers sont disponibles. Il voit uniquement les outils natifs que vous lui décrivez.
 
 L'`A2AToolsProvider` résout ce problème en injectant automatiquement les skills A2A comme des outils virtuels dans la boucle ReAct d'ORIA. Le LLM voit `a2a:analyze-csv` exactement comme il voit `file_read` ou `python_executor` — et peut décider seul de l'appeler.
 
@@ -108,15 +108,15 @@ Les agents existants qui n'utilisent pas A2A ne sont pas affectés.
 
 ## Profondeur propagée
 
-Quand le LLM invoque `a2a:analyze-csv` via l'`A2AToolsProvider`, le compteur `a2a_depth` est incrémenté exactement comme lors d'un `ctx.delegate()` explicite. Les trois garde-fous (profondeur max, self-invocation, chain timeout) s'appliquent de la même façon.
+Quand le LLM invoque `a2a:analyze-csv` via l'`A2AToolsProvider`, le compteur `a2a_depth` est incrémenté exactement comme lors d'un `ctx.delegate` explicite. Les trois garde-fous (profondeur max, self-invocation, chain timeout) s'appliquent de la même façon.
 
-Un Director qui utilise l'`A2AToolsProvider` est soumis aux mêmes protections qu'un Director qui appelle `ctx.delegate()` — la transparence du routing ne contourne pas les garde-fous.
+Un Director qui utilise l'`A2AToolsProvider` est soumis aux mêmes protections qu'un Director qui appelle `ctx.delegate` — la transparence du routing ne contourne pas les garde-fous.
 
 ---
 
 ## Comparaison des deux approches
 
-| Aspect | `ctx.delegate()` | `A2AToolsProvider` |
+| Aspect | `ctx.delegate` | `A2AToolsProvider` |
 |---|---|---|
 | Qui décide quand invoquer | Le code Python du Director | Le LLM dans la boucle ReAct |
 | Prévisibilité | Élevée — flux déterministe | Variable — dépend du raisonnement LLM |
@@ -124,4 +124,4 @@ Un Director qui utilise l'`A2AToolsProvider` est soumis aux mêmes protections q
 | Débogage | Facile — appels explicites dans le code | Plus complexe — décisions LLM à inspecter |
 | Cas d'usage | Workflow connu, orchestration métier | Analyse ad-hoc, tâches ouvertes |
 
-La règle pratique : commencez avec `ctx.delegate()` pour les workflows que vous connaissez. Passez à l'`A2AToolsProvider` quand les tâches des utilisateurs sont trop variées pour être toutes orchestrées explicitement.
+La règle pratique : commencez avec `ctx.delegate` pour les workflows que vous connaissez. Passez à l'`A2AToolsProvider` quand les tâches des utilisateurs sont trop variées pour être toutes orchestrées explicitement.

@@ -163,7 +163,7 @@ $ apollia-os run devis-generator "..." --timeout 60 --wait
 # Lister tous les agents
 $ apollia-os agent list
 
-# Lister uniquement les agents A2A (Sprint 30)
+# Lister uniquement les agents A2A
 $ apollia-os agent list --supports-a2a
   A2A-capable agents (2):
   excel-worker   v0.1.0  active  skills: read-excel, write-excel, list-sheets
@@ -199,7 +199,7 @@ $ apollia-os agent logs devis-generator
 $ apollia-os agent logs devis-generator --last 50
 $ apollia-os agent logs devis-generator --follow
 
-# Créer un agent depuis un template SDK (Sprint 21)
+# Créer un agent depuis un template SDK
 $ apollia-os agent new mon-agent --type react
   ✔ SDK disponible (apollia 0.1.0)
   ✔ Nom disponible
@@ -218,7 +218,7 @@ $ apollia-os agent validate ./agents/mon-agent.py
   ⚠ Outil optionnel absent : mcp_erp_acme (démarrera en DEGRADED)
   ✔ Namespace "crm-dupont" accessible
 
-# Installer un agent communautaire [Sprint 32]
+# Installer un agent communautaire
 $ apollia-os agent install agents/community/sql-worker.py
   → Validation du manifest...
   ✔ Manifest valide (name: sql-worker, version: 0.1.0)
@@ -278,7 +278,7 @@ $ apollia-os task resume t-042 --approve
 $ apollia-os task resume t-042 --reject --reason "Budget insuffisant"
   ✔ Tâche t-042 terminée (rejetée : Budget insuffisant)
 
-# Inspecter le plan d'exécution d'une tâche orchestrée (Sprint 10)
+# Inspecter le plan d'exécution d'une tâche orchestrée
 # Lit directement ~/.apollia/plans.db — ne nécessite pas un runtime démarré
 $ apollia-os task inspect t-abc123
 
@@ -316,7 +316,7 @@ $ apollia-os tools reset-circuit mcp_erp_acme
 
 ### `apollia-os memory <verb>`
 
-Inspection et gestion de la mémoire des agents. Les commandes `inspect`, `list`, et `clear` opèrent directement sur SQLite sans nécessiter un runtime démarré.
+Inspection et gestion de la mémoire des agents. Les commandes `inspect`, `list()`, et `clear()` opèrent directement sur SQLite sans nécessiter un runtime démarré.
 
 ```bash
 # Inspecter l'état d'un namespace mémoire
@@ -327,7 +327,7 @@ Episodes    : 42
 Semantique  : 18 clés
 Procedures  : 3
 
-# Lister tous les namespaces mémoire présents sur le disque *(Sprint 28)*
+# Lister tous les namespaces mémoire présents sur le disque **
 $ apollia-os memory list
 NAMESPACE         EPISODIC  SEMANTIC  PROCEDURAL      SIZE
 agent-crm               42        18           3   1.2 MB
@@ -336,7 +336,7 @@ agent-mail               7         0           0  48.0 KB
 $ apollia-os memory list --agent agent-crm   # filtrer par agent
 $ apollia-os memory list --json              # sortie JSON
 
-# Vider la mémoire d'un agent *(Sprint 28)*
+# Vider la mémoire d'un agent **
 $ apollia-os memory clear --agent agent-crm              # prompt interactif
 $ apollia-os memory clear --agent agent-crm --confirm    # sans prompt
 $ apollia-os memory clear --agent agent-crm --type episodic --confirm  # type: episodic | semantic | procedural | all
@@ -721,9 +721,9 @@ colored = "2"
 
 ---
 
-## 10. Nouvelles commandes et fonctionnalités — Sprint 37
+## 10. Nouvelles commandes et fonctionnalités
 
-### `apollia auth` (STORY-478)
+### `apollia auth`
 
 Authentification OAuth2 PKCE auprès des providers LLM cloud avec stockage dans le keyring OS.
 
@@ -749,7 +749,7 @@ Providers supportés : `anthropic`, `openai`, `vertex`.
 
 > **Voir aussi :** [Briques Auth](./Briques-Auth.md) · [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md)
 
-### `apollia update` (STORY-479)
+### `apollia update`
 
 Auto-updater via GitHub Releases avec vérification SHA256 et remplacement atomique.
 
@@ -775,7 +775,7 @@ $ apollia update --check
 
 > **Voir aussi :** [ADR-065](../adr/ADR-065-auto-updater-distribution.md)
 
-### `apollia mcp set-approval` / `list-pending` / `revoke-approval` (STORY-483)
+### `apollia mcp set-approval` / `list-pending` / `revoke-approval`
 
 Gestion des approbations HITL pour les serveurs MCP avec `requires_approval = true`.
 
@@ -793,7 +793,7 @@ $ apollia mcp list-pending
 $ apollia mcp revoke-approval code-tools bash_exec
   ✔ Approbation révoquée
 
-# Découverte mDNS (STORY-481)
+# Découverte mDNS
 $ apollia mcp list --discover
   Scan réseau local (3s)...
   notion-mcp  192.168.1.10  8080  [search_pages, create_page]
@@ -801,10 +801,10 @@ $ apollia mcp list --discover
 
 > **Voir aussi :** [Briques MCP §15](./Briques-MCP.md#15-hitl-mcp--approbations-sqlite--sprint-37)
 
-### `apollia memory export` / `import` / `purge` amélioré (STORY-484, STORY-485)
+### `apollia memory export` / `import` / `purge` amélioré
 
 ```bash
-# Export/import de mémoire (STORY-484)
+# Export/import de mémoire
 $ apollia memory export --agent crm-agent --output backup.apollia-mem.gz
   ✔ 42 épisodes, 18 clés sémantiques exportés → backup.apollia-mem.gz
 
@@ -814,12 +814,12 @@ $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz
 $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replace
   ✔ 42 épisodes importés (mode replace — namespace réinitialisé)
 
-# Purge configurable par type (STORY-485)
+# Purge configurable par type
 $ apollia memory purge --agent crm-agent --older-than 7 --type episodic
   5 entrée(s) épisodique(s) supprimée(s).
 ```
 
-### `apollia pipeline install` (STORY-488)
+### `apollia pipeline install`
 
 ```bash
 # Installer un pipeline depuis le registry communautaire
@@ -834,9 +834,9 @@ $ apollia pipeline list --registry
 
 ---
 
-## 11. Nouvelles commandes et fonctionnalités — Sprint 36
+## 11. Nouvelles commandes et fonctionnalités
 
-### `apollia mcp-server` (STORY-468)
+### `apollia mcp-server`
 
 Lance Apollia en mode serveur MCP stdio. Des clients MCP externes (Claude Desktop, Cursor, VS Code) peuvent invoquer les outils natifs.
 
@@ -847,7 +847,7 @@ $ apollia mcp-server --with-runtime # + outil submit_task
 
 > **Voir aussi :** [Briques MCP — Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--sprint-36)
 
-### `apollia workspace` (STORY-475)
+### `apollia workspace`
 
 Inspecte le workspace courant et initialise `APOLLIA.md`.
 
@@ -869,7 +869,7 @@ Sortie JSON :
 }
 ```
 
-### `apollia run --alternatives` (STORY-471)
+### `apollia run --alternatives`
 
 Génère deux plans alternatifs et demande à l'opérateur de choisir avant l'exécution.
 
@@ -888,7 +888,7 @@ $ apollia run --alternatives "Migre la base de données"
 Choisissez un plan [1/2] :
 ```
 
-### `--allowed-tools` / `--disallowed-tools` (STORY-491)
+### `--allowed-tools` / `--disallowed-tools`
 
 Restreint les outils disponibles pour une session sans modifier la config globale.
 
@@ -902,11 +902,11 @@ $ apollia run --disallowed-tools bash_executor,file_write "Réponds à ma questi
 
 `disallowed-tools` a priorité sur `allowed-tools` en cas de conflit.
 
-### REPL history persisté (STORY-491)
+### REPL history persisté
 
 L'historique du REPL `apollia chat` est persisté dans `~/.apollia/repl_history` (format readline, max 10 000 entrées). Flèches haut/bas et Ctrl-R fonctionnent entre les sessions.
 
-### `/fork` — Conversation forking (STORY-492)
+### `/fork` — Conversation forking
 
 ```
 /fork             → fork depuis maintenant (copie tout l'historique)
@@ -918,7 +918,7 @@ L'historique du REPL `apollia chat` est persisté dans `~/.apollia/repl_history`
 $ apollia chat --list   # Affiche l'arborescence parent → enfants
 ```
 
-### Slash commands custom — `APOLLIA_COMMANDS` (STORY-493)
+### Slash commands custom — `APOLLIA_COMMANDS`
 
 Définissez des commandes réutilisables dans `.apollia/commands/*.md` :
 

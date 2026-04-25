@@ -14,7 +14,7 @@ Au démarrage, Apollia OS lit `~/.apollia/mcp.toml`. Pour chaque serveur déclar
 2. Demande la liste des outils via `tools/list`
 3. Enregistre chaque outil dans le Tool Registry avec le préfixe `mcp:<serveur>/<outil>`
 
-Un outil MCP comme `search` sur le serveur `notion` devient `mcp:notion/search` dans le registry. Depuis votre agent, vous l'appelez exactement comme un outil natif :
+Un outil MCP comme `search()` sur le serveur `notion` devient `mcp:notion/search` dans le registry. Depuis votre agent, vous l'appelez exactement comme un outil natif :
 
 ```python
 result = await ctx.tools.call("mcp:notion/search", {"query": "rapport Q3"})
@@ -150,7 +150,7 @@ apollia-os mcp list
 apollia-os mcp remove filesystem
 ```
 
-La CLI met à jour `mcp.toml` et notifie le runtime qui connecte ou déconnecte le transport en temps réel. Les agents déjà démarrés voient les nouveaux outils apparaître dans `ctx.tools.list_tools()` après reconnexion.
+La CLI met à jour `mcp.toml` et notifie le runtime qui connecte ou déconnecte le transport en temps réel. Les agents déjà démarrés voient les nouveaux outils apparaître dans `ctx.tools.list_tools` après reconnexion.
 
 ---
 

@@ -34,7 +34,7 @@ POST /webhooks/push   ──fire──►  render template  ──►   agent.ru
 
 ## Créer un trigger
 
-Les triggers se créent via l'API REST et sont persistés dans SQLite (`triggers_def.db`). Il n'y a plus de section `[[triggers]]` dans `apollia.toml` depuis Sprint 17.
+Les triggers se créent via l'API REST et sont persistés dans SQLite (`triggers_def.db`). Il n'y a plus de section `[[triggers]]` dans `apollia.toml`.
 
 ```bash
 # Trigger cron — rapport chaque lundi à 8h
@@ -89,7 +89,7 @@ apollia-os trigger status rapport-hebdomadaire
 
 ## Architecture — le TriggerEngine
 
-`TriggerEngine` est l'acteur Tokio numéro 6 dans le Supervisor, démarré avant l'API Server. Chaque source est un `JoinHandle<()>` indépendant qui envoie des `TriggerEvent` sur un canal `mpsc` vers l'engine central :
+`TriggerEngine` est l'acteur Tokio numéro 6 dans le Supervisor, démarré avant l'API Server. Chaque source est un `JoinHandle<>` indépendant qui envoie des `TriggerEvent` sur un canal `mpsc` vers l'engine central :
 
 ```
 Supervisor

@@ -88,7 +88,7 @@ print(json.dumps(data))
 
 **Décision de design :** Les packages sont installés au démarrage (fail fast) et non à l'exécution pour éviter les surprises de performance et les installations silencieuses non auditées.
 
-### 3.3 `file_read` *(Sprint 25)*
+### 3.3 `file_read`
 
 Lit un fichier dans le répertoire sandbox de l'agent. Supporte un offset et une limite de lignes pour les fichiers volumineux.
 
@@ -108,7 +108,7 @@ content = await ctx.tools.file_read.run(
 
 **Sandbox :** Tout chemin est validé par `SandboxRoot` avant lecture. Une tentative de traversal (`../`) retourne une erreur `SandboxPathError::TraversalAttempted`.
 
-### 3.4 `file_write` *(Sprint 25)*
+### 3.4 `file_write`
 
 Écrit un fichier dans le répertoire sandbox. Crée les répertoires parents manquants.
 
@@ -122,7 +122,7 @@ await ctx.tools.file_write.run(
 
 **Sandbox :** Chemin validé par `SandboxRoot`. Écriture hors sandbox rejetée avant toute opération disque.
 
-### 3.5 `file_edit` *(Sprint 25)*
+### 3.5 `file_edit`
 
 Remplacement chirurgical d'une chaîne dans un fichier. Échoue si `old_str` est introuvable ou apparaît plusieurs fois.
 
@@ -138,7 +138,7 @@ await ctx.tools.file_edit.run(
 
 **Cas d'erreur :** La non-unicité est une protection explicite — fournir un contexte plus large dans `old_str` pour disambiguïser.
 
-### 3.6 `file_list` *(Sprint 25)*
+### 3.6 `file_list`
 
 Liste les entrées d'un répertoire, triées. Supporte un paramètre `depth` pour les arborescences.
 
@@ -149,7 +149,7 @@ entries = await ctx.tools.file_list.run(path=".", depth=2)
 
 **Sandbox :** Limité à l'arborescence sandbox de l'agent.
 
-### 3.7 `file_glob` *(Sprint 25)*
+### 3.7 `file_glob`
 
 Recherche de fichiers par pattern glob dans le sandbox.
 
@@ -161,7 +161,7 @@ matches = await ctx.tools.file_glob.run(pattern="**/*.json")
 
 **Sandbox :** Le glob est ancré à la racine sandbox — un pattern absolu est rejeté par `SandboxRoot`.
 
-### 3.8 `file_grep` *(Sprint 25)*
+### 3.8 `file_grep`
 
 Recherche par expression régulière dans les fichiers du sandbox, avec lignes de contexte optionnelles.
 
@@ -176,7 +176,7 @@ results = await ctx.tools.file_grep.run(
 
 **Implémentation :** Basé sur ripgrep (bibliothèque Rust `grep-regex`). Résultats limités à 1000 matches par appel pour éviter les surcharges mémoire.
 
-### 3.9 `http_fetch` *(Sprint 25 — feature flag `http`)*
+### 3.9 `http_fetch` *(feature flag `http`)*
 
 Requêtes HTTP GET/POST avec application de la network allowlist de l'agent. Corps limité à 1 Mo.
 
@@ -203,7 +203,7 @@ AgentManifest(
 
 **Feature flag :** Compilé uniquement si `features = ["http"]` dans `apollia-tools`. Absent du binaire par défaut.
 
-### 3.10 `memory_search` *(Sprint 25 — feature flag `memory-search`)*
+### 3.10 `memory_search` *(feature flag `memory-search`)*
 
 Recherche FTS5/BM25 dans la mémoire de l'agent, isolée par namespace. Respecte le Principe #6 (mémoire à initiative de l'agent — jamais d'injection automatique).
 
@@ -236,7 +236,7 @@ result = await ctx.tools.mcp_database.query(sql="SELECT * FROM clients")
 
 ### Outil déprécié : `file_io`
 
-> **DEPRECATION (Sprint 25)** — `file_io` est déprécié et remplacé par les outils atomiques `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`.
+> **DEPRECATION** — `file_io` est déprécié et remplacé par les outils atomiques `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`.
 >
 > Le code source est conservé dans `apollia-tools` mais l'outil **n'est plus enregistré** dans le registry. Toute tentative de résolution via `tools_required = ["file_io"]` ou `tools_optional = ["file_io"]` retourne un avertissement dans les logs :
 >
@@ -306,7 +306,7 @@ $ apollia-os tools list
   erp_acme           custom   1.0.0    ✔       NetworkRestricted
 ```
 
-> Note : `file_io` n'apparaît plus dans cette liste (déprécié, non enregistré depuis Sprint 25).
+> Note : `file_io` n'apparaît plus dans cette liste (déprécié, non enregistré).
 
 ---
 
@@ -390,15 +390,15 @@ CREATE TABLE tool_invocations (
     success         BOOLEAN NOT NULL,
     error_code      TEXT,
     resources_used  TEXT,                 -- JSON : cpu_ms, memory_peak_kb
-    args_json       TEXT,                 -- paramètres complets JSON (Sprint 13)
-    stdout          TEXT,                 -- sortie standard tronquée (Sprint 13)
-    stderr          TEXT                  -- sortie erreur tronquée (Sprint 13)
+    args_json       TEXT,                 -- paramètres complets JSON
+    stdout          TEXT,                 -- sortie standard tronquée
+    stderr          TEXT                  -- sortie erreur tronquée
 );
 ```
 
-### 7.1 Observabilité des appels outils *(Sprint 13)*
+### 7.1 Observabilité des appels outils
 
-Depuis le Sprint 13, chaque invocation d'outil persiste les paramètres d'entrée et les sorties stdout/stderr, tronqués selon `ObservabilityConfig` :
+Chaque invocation d'outil persiste les paramètres d'entrée et les sorties stdout/stderr, tronqués selon `ObservabilityConfig` :
 
 ```rust
 pub struct ObservabilityConfig {
@@ -409,9 +409,9 @@ pub struct ObservabilityConfig {
 }
 ```
 
-La troncature utilise `truncate_with_marker()` qui garantit des frontières UTF-8 valides et ajoute le marqueur `[TRONQUÉ — N octets total]` si le contenu dépasse la limite. Un flag `*_truncated` accompagne chaque champ tronqué.
+La troncature utilise `truncate_with_marker` qui garantit des frontières UTF-8 valides et ajoute le marqueur `[TRONQUÉ — N octets total]` si le contenu dépasse la limite. Un flag `*_truncated` accompagne chaque champ tronqué.
 
-Les colonnes `args_json`, `stdout`, `stderr` sont ajoutées par migration idempotente (`ALTER TABLE ADD COLUMN IF NOT EXISTS`). Les invocations antérieures au Sprint 13 ont ces colonnes à `NULL`.
+Les colonnes `args_json`, `stdout`, `stderr` sont ajoutées par migration idempotente (`ALTER TABLE ADD COLUMN IF NOT EXISTS`). Les invocations antérieures ont ces colonnes à `NULL`.
 
 **Consultation via CLI :**
 
@@ -433,9 +433,9 @@ $ apollia-os audit stats
 
 ---
 
-## 8. Introspection d'outils *(Sprint 20)*
+## 8. Introspection d'outils
 
-Depuis le Sprint 20 (STORY-224), le `ToolRegistryHandle` expose une méthode `describe()` qui retourne le `ToolDescriptor` complet d'un outil enregistré :
+, le `ToolRegistryHandle` expose une méthode `describe()` qui retourne le `ToolDescriptor` complet d'un outil enregistré :
 
 ```rust
 impl ToolRegistryHandle {
@@ -443,7 +443,7 @@ impl ToolRegistryHandle {
 }
 ```
 
-**Usage côté agent Python (STORY-225) :**
+**Usage côté agent Python :**
 
 ```python
 async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
@@ -454,7 +454,7 @@ async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
         input_fields = schema["input_schema"]
 ```
 
-**Endpoints REST (Sprint 20) :**
+**Endpoints REST :**
 
 ```
 GET /api/v1/tools           → Liste tous les outils actifs (ToolSummary[])
@@ -469,9 +469,9 @@ GET /api/v1/tools/:name     → Détail complet d'un outil (ToolDescriptor)
 
 ---
 
-## 9. ToolExecutor — Interface unifiée d'exécution *(Sprint 25)*
+## 9. ToolExecutor — Interface unifiée d'exécution
 
-Le Sprint 25 introduit un trait `ToolExecutor` et un routeur `ToolDispatcher` pour unifier l'invocation des outils natifs via une interface JSON générique. Voir ADR-043.
+Le introduit un trait `ToolExecutor` et un routeur `ToolDispatcher` pour unifier l'invocation des outils natifs via une interface JSON générique. Voir ADR-043.
 
 ### 9.1 Trait `ToolExecutor`
 
@@ -500,7 +500,7 @@ pub enum ToolExecutionError {
 
 **Conventions :**
 - `code` dans `ExecutionFailed` est une chaîne machine lisible (`"NOT_FOUND"`, `"NOT_UNIQUE"`, `"DOMAIN_NOT_ALLOWED"`, `"TRAVERSAL_ATTEMPTED"`, `"TIMEOUT"`, etc.)
-- L'implémentation ne doit jamais `unwrap()` ni `panic!()` — toute erreur prévisible retourne `ToolExecutionError`
+- L'implémentation ne doit jamais `unwrap` ni `panic!` — toute erreur prévisible retourne `ToolExecutionError`
 - `execute` reçoit et retourne `serde_json::Value` : la sérialisation/désérialisation des types métier est interne à l'implémentation
 
 ### 9.2 `ToolDispatcher` — Routeur par nom
@@ -553,13 +553,13 @@ pub enum SandboxPathError {
 }
 ```
 
-**Utilisé par :** `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`. Tout chemin est passé par `SandboxRoot::resolve()` avant toute opération disque.
+**Utilisé par :** `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`. Tout chemin est passé par `SandboxRoot::resolve` avant toute opération disque.
 
 ---
 
-## 10. Outils MCP *(Sprint 26)*
+## 10. Outils MCP
 
-Le Sprint 26 introduit la crate `apollia-mcp` qui connecte le Tool Registry aux serveurs MCP externes. Un serveur MCP est un processus tiers (Node.js, Python, ou autre) qui expose des outils via le protocole JSON-RPC MCP.
+Le introduit la crate `apollia-mcp` qui connecte le Tool Registry aux serveurs MCP externes. Un serveur MCP est un processus tiers (Node.js, Python, ou autre) qui expose des outils via le protocole JSON-RPC MCP.
 
 ### 10.1 Naming — `mcp:{server}/{tool}`
 
@@ -573,7 +573,7 @@ Exemples :
 
 | Serveur | Outil MCP | Nom dans le Tool Registry |
 |---|---|---|
-| `notion` | `search` | `mcp:notion/search` |
+| `notion` | `search()` | `mcp:notion/search` |
 | `notion` | `create_page` | `mcp:notion/create_page` |
 | `sqlite` | `query` | `mcp:sqlite/query` |
 | `brave-search` | `brave_web_search` | `mcp:brave-search/brave_web_search` |
@@ -670,15 +670,15 @@ Chaque méthode : lit le fichier courant, applique la mutation en mémoire, vali
 | `ToolExecutor` trait + `ToolDispatcher` (ADR-043) | Interface JSON unifiée — découplage registry/dispatch, ajout d'outils sans modifier le routeur |
 | Feature flags `http` et `memory-search` | `http_fetch` et `memory_search` sont opt-in à la compilation — binaire minimal par défaut, zéro surface d'attaque réseau inutile |
 | `SandboxRoot` comme type dédié | Centralisation de la logique anti-traversal — un seul endroit à auditer, impossibilité d'oublier la validation |
-| Naming `mcp:{server}/{tool}` (Sprint 26) | Namespace explicite — évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
-| `McpClientManager` comme acteur unique (Sprint 26) | Pattern acteur Tokio strict — zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
-| `McpConfigWriter` séparé de `McpClientManager` (Sprint 26) | Séparation I/O disque / état runtime — le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
-| `McpToolExecutor` implémente `ToolExecutor` (Sprint 26) | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` — ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
-| Transport stdio V1 uniquement (Sprint 26 — ADR-043) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
+| Naming `mcp:{server}/{tool}` | Namespace explicite — évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
+| `McpClientManager` comme acteur unique | Pattern acteur Tokio strict — zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
+| `McpConfigWriter` séparé de `McpClientManager` | Séparation I/O disque / état runtime — le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
+| `McpToolExecutor` implémente `ToolExecutor` | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` — ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
+| Transport stdio V1 uniquement (ADR-043) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
 
 ---
 
-## 12. Concurrence d'outils *(Sprint 35, ADR-059)*
+## 12. Concurrence d'outils *(ADR-059)*
 
 ### 12.1 Champ `is_read_only` sur `ToolDescriptor`
 
@@ -712,7 +712,7 @@ pub struct ToolDescriptor {
 | `persistent_bash` | Shell stateful avec effets de bord |
 | `mcp:*` | Effets de bord inconnus côté serveur MCP |
 
-### 12.2 `execute_batch()` sur `ToolDispatcher`
+### 12.2 `execute_batch` sur `ToolDispatcher`
 
 ```rust
 impl ToolDispatcher {
@@ -739,7 +739,7 @@ impl ToolDispatcher {
 
 ---
 
-## 13. `persistent_bash` — Shell Persistant *(Sprint 35)*
+## 13. `persistent_bash` — Shell Persistant
 
 `PersistentBashExecutor` maintient un processus shell (`/bin/bash`) vivant entre les steps. L'état du shell (répertoire courant, variables d'environnement, fonctions définies) est préservé.
 
@@ -808,11 +808,11 @@ result = await ctx.tools.persistent_bash.run(command="echo $API_KEY")
 
 ---
 
-## 14. Nouvelles fonctionnalités Sprint 36
+## 14. Nouvelles fonctionnalités
 
 ### 14.1 `BashValidator` — Validation pré-exécution
 
-`BashValidator` valide la syntaxe bash et classe les risques **avant** l'exécution d'une commande. Il s'intègre dans `BashExecutor::execute()` : risques d'abord (sync), syntaxe ensuite (async).
+`BashValidator` valide la syntaxe bash et classe les risques **avant** l'exécution d'une commande. Il s'intègre dans `BashExecutor::execute` : risques d'abord (sync), syntaxe ensuite (async).
 
 ```rust
 pub struct BashValidator {
@@ -883,7 +883,7 @@ syntax_check_timeout_ms = 1000
 
 ### 14.3 `FilePathExtractor` — Extraction post-bash non-bloquante
 
-Extrait les paths de fichiers depuis la sortie d'une commande bash via `LlmRouter::route_fast()`. Tournant dans un `tokio::spawn` détaché — n'impacte pas la latence de `BashExecutor`.
+Extrait les paths de fichiers depuis la sortie d'une commande bash via `LlmRouter::route_fast`. Tournant dans un `tokio::spawn` détaché — n'impacte pas la latence de `BashExecutor`.
 
 ```rust
 pub struct FilePathExtractor {
@@ -913,13 +913,13 @@ BashFilePathsExtracted {
 
 ORIA reçoit cet event pour invalider les caches de plan stale sur les fichiers affectés.
 
-> **Voir aussi :** [apollia-permissions](./Briques-Permissions.md) — intégration `PermissionEngine::decide()` dans `ToolRegistry::invoke()`
+> **Voir aussi :** [apollia-permissions](./Briques-Permissions.md) — intégration `PermissionEngine::decide` dans `ToolRegistry::invoke`
 
 ---
 
-## 15. Outils Notebook Jupyter — Sprint 37
+## 15. Outils Notebook Jupyter
 
-Depuis le Sprint 37 (STORY-496), deux outils natifs permettent aux agents de lire et d'éditer des notebooks Jupyter `.ipynb` (format ipynb v4).
+, deux outils natifs permettent aux agents de lire et d'éditer des notebooks Jupyter `.ipynb` (format ipynb v4).
 
 ### Types publics (`apollia-core`)
 
@@ -1028,7 +1028,7 @@ result = await ctx.tools.notebook_edit.run(
 
 ---
 
-## Décisions architecturales clés (mises à jour Sprint 35)
+## Décisions architecturales clés (mises à jour)
 
 | Décision | Justification |
 |---|---|

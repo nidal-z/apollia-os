@@ -43,7 +43,7 @@ ls -lh target/release/apollia-os
 # Environ 20-30 MB (statiquement lié, cloud uniquement)
 ```
 
-**Avec inférence locale (modèle .gguf sur la machine) :**
+**Avec inférence locale (modèle.gguf sur la machine) :**
 
 ```bash
 # CPU (Linux x86_64, ARM)

@@ -121,7 +121,7 @@ apollia-os agent info mon-agent
 
 ---
 
-## Symptôme : `ToolNotAllowed` lors d'un appel ctx.tools.call()
+## Symptôme : `ToolNotAllowed` lors d'un appel ctx.tools.call
 
 **Cause :** L'agent tente d'utiliser un outil qu'il n'a pas déclaré dans `tools_required` ou `tools_optional`.
 
@@ -159,7 +159,7 @@ Redéployer l'agent (`apollia-os agent stop` + `apollia-os agent start`).
 
 ---
 
-## Symptôme : exception Python dans run() non diagnostiquable
+## Symptôme : exception Python dans run non diagnostiquable
 
 **Cause :** L'exception n'est pas catchée et le message est tronqué dans les logs.
 

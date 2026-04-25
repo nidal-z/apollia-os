@@ -58,15 +58,15 @@ Implémente la boucle Reason-Act-Observe avec LLM et outils.
 
 | Méthode | Signature | Retour | Description |
 |---|---|---|---|
-| `manifest()` | `() -> dict[str, Any]` | Agent metadata dict | Renvoie nom, version, outils requis, mode execution, etc. |
+| `manifest()` | ` -> dict[str, Any]` | Agent metadata dict | Renvoie nom, version, outils requis, mode execution, etc. |
 | `run(task, ctx)` | `async (dict, RuntimeContext) -> dict[str, Any]` | `AIPResult` serialized | Point d'entrée — appelé une fois par tâche |
 
 **Méthodes publiques** :
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `react()` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM", ...)`. |
-| `get_tool_schemas()` | `() -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 10 outils natifs (bash_executor, file_io, python_executor, etc.) |
+| `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
+| `get_tool_schemas` | ` -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 10 outils natifs (bash_executor, file_io, python_executor, etc.) |
 
 ---
 
@@ -86,15 +86,15 @@ Agent dialogue uniquement, sans outils. Hérite de `ABC`.
 
 | Méthode | Signature | Retour | Description |
 |---|---|---|---|
-| `manifest()` | `() -> dict[str, Any]` | Manifest dict (requiert `tools_required: []`) | Métadonnées agent |
+| `manifest()` | ` -> dict[str, Any]` | Manifest dict (requiert `tools_required: []`) | Métadonnées agent |
 
 **Méthodes publiques** :
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
-| `converse()` | `async (ctx, user_message, history=None) -> tuple[str, list[dict]]` | `ctx`: RuntimeContext; `user_message`: str; `history`: previous turns (list[dict] \| None) | `(response_text, updated_history)` | `RuntimeError` si `ctx.llm is None` | Persiste dans `ctx.memory` (importance=0.3) si disponible |
-| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | `AIPResult.completed()` | `RuntimeError` si `ctx.llm is None` | Extrait `task["input"]["parts"][0]["text"]` et appelle `converse()` |
-| `on_response()` | `(response: str) -> str` | `response`: LLM text (overridable) | Texte post-traité | — | Post-processing optionnel (défaut : pas de modification) |
+| `converse` | `async (ctx, user_message, history=None) -> tuple[str, list[dict]]` | `ctx`: RuntimeContext; `user_message`: str; `history`: previous turns (list[dict] \| None) | `(response_text, updated_history)` | `RuntimeError` si `ctx.llm is None` | Persiste dans `ctx.memory` (importance=0.3) si disponible |
+| `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | `AIPResult.completed` | `RuntimeError` si `ctx.llm is None` | Extrait `task["input"]["parts"][0]["text"]` et appelle `converse` |
+| `on_response` | `(response: str) -> str` | `response`: LLM text (overridable) | Texte post-traité | — | Post-processing optionnel (défaut : pas de modification) |
 
 ---
 
@@ -106,15 +106,15 @@ Agent piloté par ORIA (mode orchestré). Hérite de `ABC`.
 
 | Méthode | Signature | Retour | Description |
 |---|---|---|---|
-| `manifest()` | `() -> dict[str, Any]` | Manifest (requiert `execution_mode: "orchestrated"` + `system_prompt`) | Métadonnées |
+| `manifest()` | ` -> dict[str, Any]` | Manifest (requiert `execution_mode: "orchestrated"` + `system_prompt`) | Métadonnées |
 
 **Méthodes publiques** :
 
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | — | **`RuntimeError`** (toujours) | ORIA gère l'exécution — `run()` ne doit pas être appelée |
-| `on_plan_complete()` | `(step_results: dict[str, Any]) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}` (overridable) | `{"text": "...", ...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
-| `format_step_results()` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | — | Helper statique pour formatter les résultats |
+| `on_plan_complete` | `(step_results: dict[str, Any]) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}` (overridable) | `{"text": "...",...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
+| `format_step_results` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | — | Helper statique pour formatter les résultats |
 
 ---
 
@@ -126,13 +126,13 @@ Agent spécialisé dans un domaine métier. **Hérite de `BaseReActAgent`** — 
 
 | Méthode | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `run_python()` | `async (ctx, code, timeout_secs=30) -> dict[str, Any]` | `code`: str Python; `timeout_secs`: int | `{"stdout", "stderr", "exit_code", "duration_ms"}` | Exécute Python via `python_executor` |
-| `check_python_result()` | `(result: dict, operation: str) -> str \| dict` | `result`: output de `run_python()`; `operation`: str de log | Stdout (`str`) ou `AIPResult.failed()` dict | Vérifie `exit_code == 0` |
-| `read_file()` | `async (ctx, path: str) -> str` | `path`: chemin fichier | Contenu fichier | Via `file_read` tool |
-| `write_file()` | `async (ctx, path: str, content: str) -> None` | `path`: chemin; `content`: str | — | Via `file_write` tool ; crée répertoires |
-| `list_files()` | `async (ctx, path: str, recursive: bool=False) -> list[str]` | `path`: répertoire; `recursive`: bool | Chemins relatifs (list[str]) | Via `file_list` tool |
-| `delegate_skill()` | `async (ctx, skill_id: str, payload: dict, timeout_secs=120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Via `ctx.delegate()` ; lève `RuntimeError` si skill absent |
-| `domain_error()` | `(code: str, message: str, details=None) -> dict[str, Any]` | `code`: stable snake_case (ex: `file_not_found`); `message`: str; `details`: dict \| None | `AIPResult.failed()` dict | Codes: `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied` |
+| `run_python` | `async (ctx, code, timeout_secs=30) -> dict[str, Any]` | `code`: str Python; `timeout_secs`: int | `{"stdout", "stderr", "exit_code", "duration_ms"}` | Exécute Python via `python_executor` |
+| `check_python_result` | `(result: dict, operation: str) -> str \| dict` | `result`: output de `run_python`; `operation`: str de log | Stdout (`str`) ou `AIPResult.failed` dict | Vérifie `exit_code == 0` |
+| `read_file` | `async (ctx, path: str) -> str` | `path`: chemin fichier | Contenu fichier | Via `file_read` tool |
+| `write_file` | `async (ctx, path: str, content: str) -> None` | `path`: chemin; `content`: str | — | Via `file_write` tool ; crée répertoires |
+| `list_files` | `async (ctx, path: str, recursive: bool=False) -> list[str]` | `path`: répertoire; `recursive`: bool | Chemins relatifs (list[str]) | Via `file_list` tool |
+| `delegate_skill` | `async (ctx, skill_id: str, payload: dict, timeout_secs=120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Via `ctx.delegate` ; lève `RuntimeError` si skill absent |
+| `domain_error` | `(code: str, message: str, details=None) -> dict[str, Any]` | `code`: stable snake_case (ex: `file_not_found`); `message`: str; `details`: dict \| None | `AIPResult.failed` dict | Codes: `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied` |
 
 **Constantes recommandées** :
 
@@ -165,10 +165,10 @@ Résultat retourné par `run()` pour le runtime.
 
 | Méthode | Signature | Retour | Notes |
 |---|---|---|---|
-| `completed()` | `(text: str, data=None) -> AIPResult` | Status=`"completed"` | Succès avec texte optionnel + données |
-| `failed()` | `(code: str, message: str) -> AIPResult` | Status=`"failed"` | Erreur typée |
-| `input_required()` | `(prompt: str, context=None) -> AIPResult` | Status=`"input_required"` | Suspension HITL avec contexte optionnel |
-| `to_dict()` | `() -> dict[str, Any]` | Dict sérialisé | Pour runtime (omit fields=None) |
+| `completed` | `(text: str, data=None) -> AIPResult` | Status=`"completed"` | Succès avec texte optionnel + données |
+| `failed` | `(code: str, message: str) -> AIPResult` | Status=`"failed"` | Erreur typée |
+| `input_required` | `(prompt: str, context=None) -> AIPResult` | Status=`"input_required"` | Suspension HITL avec contexte optionnel |
+| `to_dict` | ` -> dict[str, Any]` | Dict sérialisé | Pour runtime (omit fields=None) |
 
 ---
 
@@ -176,12 +176,12 @@ Résultat retourné par `run()` pour le runtime.
 
 | Fonction | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `extract_json()` | `(content: str) -> dict[str, Any]` | `content`: str potentiellement avec JSON | Dict extrait ou `{}` | 4 stratégies : full JSON, fence, outermost braces, heuristic repair |
-| `extract_code_block()` | `(content: str, language: str = "") -> str` | `content`: str; `language`: Python, bash, etc. | Code extrait ou `""` | Extrait depuis fences `` ``` `` |
-| `extract_xml_tag()` | `(content: str, tag: str) -> str` | `content`: str XML; `tag`: nom tag | Contenu tag ou `""` | Extrait `<tag>...</tag>` |
-| `truncate()` | `(text: str, max_chars: int, marker: str = "…") -> str` | `text`: str; `max_chars`: int; `marker`: str suffix | Texte tronqué UTF-8 safe | Jamais de levée |
-| `safe_json_loads()` | `(content: str, default: Any = None) -> Any` | `content`: str JSON; `default`: valeur fallback | JSON désérialisé ou `default` | Jamais d'exception |
-| `validate_action()` | `(data: dict) -> dict` | `data`: extracted JSON (ReAct action) | Action dict validée | Lève `ActionParseError` si structure invalide |
+| `extract_json` | `(content: str) -> dict[str, Any]` | `content`: str potentiellement avec JSON | Dict extrait ou `{}` | 4 stratégies : full JSON, fence, outermost braces, heuristic repair |
+| `extract_code_block` | `(content: str, language: str = "") -> str` | `content`: str; `language`: Python, bash, etc. | Code extrait ou `""` | Extrait depuis fences `` ``` `` |
+| `extract_xml_tag` | `(content: str, tag: str) -> str` | `content`: str XML; `tag`: nom tag | Contenu tag ou `""` | Extrait `<tag>...</tag>` |
+| `truncate` | `(text: str, max_chars: int, marker: str = "…") -> str` | `text`: str; `max_chars`: int; `marker`: str suffix | Texte tronqué UTF-8 safe | Jamais de levée |
+| `safe_json_loads` | `(content: str, default: Any = None) -> Any` | `content`: str JSON; `default`: valeur fallback | JSON désérialisé ou `default` | Jamais d'exception |
+| `validate_action` | `(data: dict) -> dict` | `data`: extracted JSON (ReAct action) | Action dict validée | Lève `ActionParseError` si structure invalide |
 
 ---
 
@@ -189,10 +189,10 @@ Résultat retourné par `run()` pour le runtime.
 
 | Fonction | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `format_as_text()` | `(data: Any) -> str` | `data`: Any type | Texte lisible | dict → `key: value` par ligne; list → une ligne/element |
-| `format_as_markdown()` | `(data: Any) -> str` | `data`: Any type | Markdown | dict → table 2-colonnes; list[dict] → table multi-colonnes |
-| `format_as_json()` | `(data: Any, indent: int = 2) -> str` | `data`: Any; `indent`: int spaces | JSON indented | Non-serializable types → `str()` ; jamais d'exception |
-| `aip_result_text()` | `(result_dict: dict) -> str` | `result_dict`: AIPResult dict | Texte extrait | Extrait le texte principal de `result["output"]` ou `result["error"]` |
+| `format_as_text` | `(data: Any) -> str` | `data`: Any type | Texte lisible | dict → `key: value` par ligne; list → une ligne/element |
+| `format_as_markdown` | `(data: Any) -> str` | `data`: Any type | Markdown | dict → table 2-colonnes; list[dict] → table multi-colonnes |
+| `format_as_json` | `(data: Any, indent: int = 2) -> str` | `data`: Any; `indent`: int spaces | JSON indented | Non-serializable types → `str` ; jamais d'exception |
+| `aip_result_text` | `(result_dict: dict) -> str` | `result_dict`: AIPResult dict | Texte extrait | Extrait le texte principal de `result["output"]` ou `result["error"]` |
 
 ---
 
@@ -200,7 +200,7 @@ Résultat retourné par `run()` pour le runtime.
 
 | Fonction | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `resume_pending_tool()` | `(task: dict) -> dict \| None` | `task`: AIP task dict | `{"tool": str, "args": dict}` or `None` | À utiliser avec `react(..., pending_tool=...)` sur HITL resume |
+| `resume_pending_tool` | `(task: dict) -> dict \| None` | `task`: AIP task dict | `{"tool": str, "args": dict}` or `None` | À utiliser avec `react(..., pending_tool=...)` sur HITL resume |
 
 ---
 
@@ -212,8 +212,8 @@ Résultat retourné par `run()` pour le runtime.
 
 | Fonction | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `describe_tool()` | `(name: str) -> str` | `name`: outil natif | Description texte court | Utile pour affichage CLI |
-| `build_tools_block()` | `(tools: list[str]) -> str` | `tools`: noms outils | Bloc système prompt | Formate les specs pour injection dans system prompt |
+| `describe_tool` | `(name: str) -> str` | `name`: outil natif | Description texte court | Utile pour affichage CLI |
+| `build_tools_block` | `(tools: list[str]) -> str` | `tools`: noms outils | Bloc système prompt | Formate les specs pour injection dans system prompt |
 
 ---
 
@@ -224,19 +224,19 @@ Résultat retourné par `run()` pour le runtime.
 | Classe | Constructeur | Description |
 |---|---|---|
 | `MockContext` | `create(tools={}, llm_responses=[], memory=False)` | Contexte mock complet ; retourne objet avec `.tools`, `.llm`, `.memory` |
-| `MockToolProxy` | (crée via `MockContext`) | Proxy outils mock ; méthodes : `call()`, `list_tools()`, `tool_call_count()`, `assert_called(name)`, `assert_called_with(name, args)` |
+| `MockToolProxy` | (crée via `MockContext`) | Proxy outils mock ; méthodes : `call()`, `list_tools`, `tool_call_count`, `assert_called(name)`, `assert_called_with(name, args)` |
 | `MockLlmProxy` | (crée via `MockContext`) | Proxy LLM mock ; méthodes : `complete()`, `chat()`, `call_count` |
-| `MockMemory` | (crée via `MockContext`) | Mémoire mock ; méthodes : `record()`, `recall()`, `remember()`, `search()`, `forget()` |
+| `MockMemory` | (crée via `MockContext`) | Mémoire mock ; méthodes : `record()`, `recall()`, `remember`, `search()`, `forget` |
 
 ### Assertions
 
 | Fonction | Signature | Notes |
 |---|---|---|
-| `assert_result_completed()` | `(result: dict, contains: str = "") -> None` | Lève AssertionError si status ≠ `"completed"` ou contenu absent |
-| `assert_result_failed()` | `(result: dict, code: str = "") -> None` | Lève si status ≠ `"failed"` ou code absent |
-| `assert_result_input_required()` | `(result: dict) -> None` | Lève si status ≠ `"input_required"` |
-| `assert_tool_called()` | `(ctx: MockContext, name: str, times: int = 1) -> None` | Lève si tool non appelé `times` fois |
-| `assert_llm_called()` | `(ctx: MockContext, times: int = 1) -> None` | Lève si LLM non appelé `times` fois |
+| `assert_result_completed` | `(result: dict, contains: str = "") -> None` | Lève AssertionError si status ≠ `"completed"` ou contenu absent |
+| `assert_result_failed` | `(result: dict, code: str = "") -> None` | Lève si status ≠ `"failed"` ou code absent |
+| `assert_result_input_required` | `(result: dict) -> None` | Lève si status ≠ `"input_required"` |
+| `assert_tool_called` | `(ctx: MockContext, name: str, times: int = 1) -> None` | Lève si tool non appelé `times` fois |
+| `assert_llm_called` | `(ctx: MockContext, times: int = 1) -> None` | Lève si LLM non appelé `times` fois |
 
 ---
 
@@ -258,7 +258,7 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `needs_bootstrap()` | `async (ctx) -> bool` | `ctx`: RuntimeContext | `bool` | Vérifie status + staleness |
 | `load_snapshot()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Snapshot dict or None | Charge depuis mémoire sémantique |
 | `load_meta()` | `async (ctx) -> dict \| None` | `ctx`: RuntimeContext | Métadonnées dict or None | Charge `{version, created_at, staleness_marker}` |
-| `persist()` | `async (ctx, snapshot, *, staleness_marker, ...)` | `ctx`: RuntimeContext; `snapshot`: dict; `staleness_marker`: str | — | Écrit snapshot + meta + status en mémoire |
+| `persist()` | `async (ctx, snapshot, *, staleness_marker,...)` | `ctx`: RuntimeContext; `snapshot`: dict; `staleness_marker`: str | — | Écrit snapshot + meta + status en mémoire |
 
 **Clés mémoire convention** :
 
@@ -282,13 +282,13 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `execution_mode` | `str` | ✓ | `"direct"` (ReAct) ou `"orchestrated"` (ORIA) |
 | `tools_required` | `list[str]` | — | Outils natifs utilisés (ex: `["bash_executor", "file_io"]`) |
 | `tools_requiring_approval` | `list[str]` | — | Outils qui triggent HITL (subset de `tools_required`) |
-| `agent_type` | `str` | — | `"worker"` \| `"assistant"` \| `"system"` (Sprint 40) |
+| `agent_type` | `str` | — | `"worker"` \| `"assistant"` \| `"system"` |
 | `examples` | `list[str]` | — | Cas d'usage exemple (UI + doc) |
 | `limitations` | `list[str]` | — | Contraintes connues |
 | `setup_notes` | `str` | — | Notes configuration |
 | `packages` | `list[str]` | — | Dépendances pip (ex: `["openpyxl>=3.1.0"]`) |
 | `supports_a2a` | `bool` | — | Accessible via A2A routing (défaut: false) |
-| `skills` | `list[dict]` | — | Skills publiés pour delegation A2A (Sprint 40) |
+| `skills` | `list[dict]` | — | Skills publiés pour delegation A2A |
 
 ---
 
@@ -303,7 +303,7 @@ Injecté par le runtime Rust ; type stub PEP 561.
 | `llm` | `LlmProxy` | ✓ | Proxy pour LLM backend (Claude, etc.) |
 | `tools` | `ToolProxy` | ✓ | Proxy pour outils natifs (bash, file_io, etc.) |
 | `memory` | `MemoryInterface` | ✓ | Mémoire sémantique persistante |
-| `delegate` | callable | — | Fonction A2A pour déléguer à autres agents |
+| `delegate()` | callable | — | Fonction A2A pour déléguer à autres agents |
 
 **Méthode** :
 
@@ -342,8 +342,8 @@ Stub pour exécution outils.
 | Méthode | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
 | `call()` | `async (tool_name: str, input: dict[str, object]) -> dict[str, object]` | `tool_name`: str; `input`: args dict | Résultat tool (dict) | Jamais de levée ; dégradation gracieuse si tool absent |
-| `list_tools()` | `() -> list[str]` | — | Noms outils disponibles | Immuable par session |
-| `tool_call_count()` | `() -> int` | — | Nombre d'appels cumulés | Test helper (mock seulement) |
+| `list_tools` | ` -> list[str]` | — | Noms outils disponibles | Immuable par session |
+| `tool_call_count` | ` -> int` | — | Nombre d'appels cumulés | Test helper (mock seulement) |
 | `describe()` | `async (name: str) -> dict[str, object] \| None` | `name`: str outil | Spec dict ou None | Retourne schéma outil |
 
 ---
@@ -356,11 +356,11 @@ Stub pour mémoire persistante.
 
 | Méthode | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
-| `record()` | `async (key: str, content: str, importance: float \| None = None, ...) -> None` | `key`: str identifier; `content`: str; `importance`: 0–1 float; kwargs pour metadata | — | Persiste en mémoire sémantique |
-| `remember()` | `async (key: str, value: str, source: str \| None = None) -> None` | `key`: str; `value`: str; `source`: optional | — | Alias pour `record()` |
+| `record()` | `async (key: str, content: str, importance: float \| None = None,...) -> None` | `key`: str identifier; `content`: str; `importance`: 0–1 float; kwargs pour metadata | — | Persiste en mémoire sémantique |
+| `remember` | `async (key: str, value: str, source: str \| None = None) -> None` | `key`: str; `value`: str; `source`: optional | — | Alias pour `record()` |
 | `recall()` | `async (key: str) -> list[dict[str, object]] \| None` | `key`: str | Liste d'entrées avec metadata ou None | Retourne tous les matches pour clé |
 | `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | Résultats sémantiques (list[dict]) | Recherche full-text + vectorielle |
-| `forget()` | `async (key: str) -> None` | `key`: str | — | Supprime la clé |
+| `forget` | `async (key: str) -> None` | `key`: str | — | Supprime la clé |
 
 ---
 
@@ -399,26 +399,26 @@ Génère : `<snake_name>_agent.py` + `test_<snake_name>_agent.py`
 
 ## Notes de validation (Axe 1 — inventaire)
 
-**Signatures cross-check** vs `/docs/internal/audit/01-inventaire-code-livre.md` — Sprint 40 :
+**Signatures cross-check** vs `/docs/internal/audit/01-inventaire-code-livre.md` :
 
-1. ✅ `BaseReActAgent.react()` — async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
-2. ✅ `ConversationalAgent.converse()` — async, 3 params (ctx, user_message, history)
-3. ✅ `WorkerAgent.run_python()` — async, 3 params (ctx, code, timeout_secs)
-4. ✅ `AIPResult.completed()` — static factory (text, data)
-5. ✅ `AIPResult.failed()` — static factory (code, message, details)
-6. ✅ `extract_json()` — 4 stratégies parsing (full JSON, fence, outermost, repair)
-7. ✅ `ContextBootstrap.is_stale()` — abstract, async (ctx)
+1. ✅ `BaseReActAgent.react` — async, 5 params (task, ctx, user_message, extra_context, pending_tool, history)
+2. ✅ `ConversationalAgent.converse` — async, 3 params (ctx, user_message, history)
+3. ✅ `WorkerAgent.run_python` — async, 3 params (ctx, code, timeout_secs)
+4. ✅ `AIPResult.completed` — static factory (text, data)
+5. ✅ `AIPResult.failed` — static factory (code, message, details)
+6. ✅ `extract_json` — 4 stratégies parsing (full JSON, fence, outermost, repair)
+7. ✅ `ContextBootstrap.is_stale` — abstract, async (ctx)
 8. ✅ `AgentManifestDict` — TypedDict avec champs AIP v2 (agent_type, examples, limitations, setup_notes)
-9. ✅ `ToolProxy.call()` — async (tool_name, input) → dict
+9. ✅ `ToolProxy.call` — async (tool_name, input) → dict
 
 **Mises à jour par rapport aux versions antérieures** :
 
-- **Sprint 40** : Ajout `AgentManifestDict` TypedDict (remplace usage raw dict pour manifest)
-- **Sprint 40** : Ajout `ContextBootstrap` classe abstraite pour convention cross-session
-- **Sprint 40** : Champs AIP v2 (agent_type, examples, limitations, setup_notes) dans manifest
-- **Sprint 32** : Ajout `WorkerAgent` avec helpers (run_python, read_file, delegate_skill, domain_error)
+- Ajout `AgentManifestDict` TypedDict (remplace usage raw dict pour manifest)
+- Ajout `ContextBootstrap` classe abstraite pour convention cross-session
+- Champs AIP v2 (agent_type, examples, limitations, setup_notes) dans manifest
+- Ajout `WorkerAgent` avec helpers (run_python, read_file, delegate_skill, domain_error)
 
 ---
 
-*Dernière mise à jour : 2026-04-24 (Sprint 40)*
+*Dernière mise à jour : 2026-04-24*
 

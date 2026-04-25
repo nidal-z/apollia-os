@@ -80,18 +80,18 @@ La résilience runtime est-elle critique (tâche longue, panne partielle inaccep
 
 | Mécanisme | Statut | Disponible |
 |---|---|---|
-| MCP Tool | ✅ Stable | Sprint 26 |
-| ORIA Mode Direct | ✅ Stable | Sprint 20 |
-| ORIA Mode Orchestré | ✅ Stable | Sprint 20 |
-| Worker Agent | ✅ Stable | Sprint 29 |
-| A2A (discovery + invocation) | ✅ Livré | Sprint 30 |
-| Pipeline TOML | ⏸ En pause | Sprint 12 — réactivation post-v1 |
+| MCP Tool | ✅ Stable | |
+| ORIA Mode Direct | ✅ Stable | |
+| ORIA Mode Orchestré | ✅ Stable | |
+| Worker Agent | ✅ Stable | |
+| A2A (discovery + invocation) | ✅ Livré | |
+| Pipeline TOML | ⏸ En pause | — réactivation post-v1 |
 
 ---
 
 ## Note sur les Pipelines
 
-Les Pipelines TOML (Sprint 12) sont fonctionnels et couvrent un cas d'usage de type N8N local : workflow déclaratif versionnabe, fan-out/fan-in, conditions, fallback, HITL, reprise restart. Ils ne sont pas abandonnés — ils sont mis en pause parce que la composition dynamique via A2A est plus alignée avec l'état de l'art 2026 et les besoins identifiés chez les early adopters. La réactivation sera explicitement décidée si le cas d'usage "workflow fixe versionnabe" devient prioritaire.
+Les Pipelines TOML sont fonctionnels et couvrent un cas d'usage de type N8N local : workflow déclaratif versionnabe, fan-out/fan-in, conditions, fallback, HITL, reprise restart. Ils ne sont pas abandonnés — ils sont mis en pause parce que la composition dynamique via A2A est plus alignée avec l'état de l'art 2026 et les besoins identifiés chez les early adopters. La réactivation sera explicitement décidée si le cas d'usage "workflow fixe versionnabe" devient prioritaire.
 
 ---
 

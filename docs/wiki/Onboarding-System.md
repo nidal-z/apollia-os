@@ -45,16 +45,16 @@ Toute phase peut etre interrompue — l'etat est persiste et la barre de reprise
 | `get_onboarding_state` | — | `OnboardingState` | Etat complet depuis la DB |
 | `advance_onboarding_phase` | `phase: String` | `OnboardingState` | Avance vers la phase cible |
 | `get_onboarding_status` | — | `OnboardingStatus` | Topics couverts, statut completion |
-| `dismiss_onboarding` | — | `()` | Marque la conversation comme dismissee |
+| `dismiss_onboarding` | — | `` | Marque la conversation comme dismissee |
 | `check_onboarded` | — | `bool` | `true` si `done` |
-| `reset_onboarding` | — | `()` | Reinitialise vers `welcome` |
+| `reset_onboarding` | — | `` | Reinitialise vers `welcome` |
 
 ### Tour guidé (4 commandes)
 
 | Commande | Parametres | Retour | Description |
 |---|---|---|---|
 | `get_tour_steps` | `profile: String` | `Vec<TourStep>` | Etapes pour le profil donne |
-| `set_tour_step` | `index: u32` | `()` | Persiste la position courante |
+| `set_tour_step` | `index: u32` | `` | Persiste la position courante |
 | `complete_tour_action` | `step_key: String` | `TourActionResult` | Marque l'action de l'etape comme accomplie |
 | `trigger_onboarding` | `topic: Option<String>, profile: Option<String>` | `TriggerResult` | Demarre une session de chat onboarding |
 
@@ -65,16 +65,16 @@ Toute phase peut etre interrompue — l'etat est persiste et la barre de reprise
 | `get_ai_setup_info` | — | `SystemInfo` | RAM, OS, arch, GPU |
 | `scan_for_gguf_models` | — | `Vec<GgufModelInfo>` | Scan `~/.apollia/models/` + `~/Downloads/` |
 | `scan_for_whisper_models` | — | `Vec<WhisperModelInfo>` | Scan modeles Whisper |
-| `setup_local_llm` | `gguf_path: String` | `()` | Configure le backend LLM local |
-| `setup_whisper_model` | `model_path: String` | `()` | Configure le modele STT |
+| `setup_local_llm` | `gguf_path: String` | `` | Configure le backend LLM local |
+| `setup_whisper_model` | `model_path: String` | `` | Configure le modele STT |
 
 ### Companion (3 commandes)
 
 | Commande | Parametres | Retour | Description |
 |---|---|---|---|
-| `set_companion_enabled` | `enabled: bool` | `()` | Active/desactive le companion post-onboarding |
+| `set_companion_enabled` | `enabled: bool` | `` | Active/desactive le companion post-onboarding |
 | `get_companion_state` | — | `CompanionState` | Etat du companion (enabled, session_id) |
-| `start_tour_recording` / `stop_tour_recording` | — | `()` | Push-to-talk STT pendant le tour |
+| `start_tour_recording` / `stop_tour_recording` | — | `` | Push-to-talk STT pendant le tour |
 
 ### Voice (1 commande)
 

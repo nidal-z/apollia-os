@@ -14,11 +14,11 @@
 
 L'API HTTP locale est exposée sur deux transports :
 - **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (Sprint 34 — ADR-051)
+- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (ADR-051)
 
 Tous les endpoints retournent du JSON.
 
-### Authentification TCP (Sprint 34)
+### Authentification TCP
 
 Toutes les requêtes TCP doivent porter le header `Authorization: Bearer <token>` :
 
@@ -36,7 +36,7 @@ Le token est généré au premier démarrage et stocké dans `~/.apollia/api-tok
 
 ---
 
-## Audit Trail *(Sprint 13)*
+## Audit Trail
 
 ### GET /api/v1/audit
 
@@ -93,7 +93,7 @@ Statistiques agrégées de l'audit trail (toute l'histoire, pas de fenêtre de t
 
 ---
 
-## Observabilité — Timeline *(Sprint 13)*
+## Observabilité — Timeline
 
 ### GET /api/v1/tasks/:id/timeline
 
@@ -188,7 +188,7 @@ L'agrégation est faite côté serveur dans un seul `spawn_blocking` (5 lectures
 
 ---
 
-## Approbations HITL *(Sprint 11)*
+## Approbations HITL
 
 ### GET /api/v1/approvals/pending
 
@@ -247,7 +247,7 @@ Retourne `[]` si aucune approbation ou si TaskRepository n'est pas configuré.
 
 ---
 
-## Profil Utilisateur *(Sprint 18)*
+## Profil Utilisateur
 
 ### GET /api/v1/user/profile
 
@@ -307,7 +307,7 @@ Tous les champs sont optionnels. Seules les catégories fournies sont fusionnée
 
 ---
 
-## Mémoire Utilisateur *(Sprint 18)*
+## Mémoire Utilisateur
 
 ### GET /api/v1/user/memory
 
@@ -357,7 +357,7 @@ Supprime une entrée de mémoire par clé (toutes les catégories sont scrutées
 
 ---
 
-## Dashboard *(Sprint 9)*
+## Dashboard
 
 ### GET /dashboard
 
@@ -382,7 +382,7 @@ curl -N -H "Accept: text/event-stream" \
 
 ---
 
-## STT — Speech-to-Text *(Sprint 24 + 28)*
+## STT — Speech-to-Text
 
 7 endpoints pour la transcription audio locale et la gestion de la configuration STT. Les endpoints de transcription retournent `503` si le moteur STT est absent (`stt.enabled = false` ou modèle non chargé).
 
@@ -480,7 +480,7 @@ Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
 }
 ```
 
-### GET /api/v1/stt/config *(Sprint 28)*
+### GET /api/v1/stt/config
 
 Retourne la configuration STT persistée dans `system.db`. Si la table est vide (premier boot), les valeurs par défaut sont insérées et retournées.
 
@@ -503,7 +503,7 @@ Retourne la configuration STT persistée dans `system.db`. Si la table est vide 
 
 ---
 
-### PUT /api/v1/stt/config *(Sprint 28)*
+### PUT /api/v1/stt/config
 
 Met à jour la configuration STT (upsert). Remplace le singleton en base.
 
@@ -514,7 +514,7 @@ Met à jour la configuration STT (upsert). Remplace le singleton en base.
 
 ---
 
-## MCP *(Sprint 26, ADR-044)*
+## MCP *(ADR-044)*
 
 ### GET /api/v1/mcp/servers
 
@@ -646,10 +646,10 @@ Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-h
 - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, LLM, tools, a2a, sessions
 - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications, pipelines
 - [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
-- [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué (Sprint 24)
-- [Briques MCP](./Briques-MCP) — spécification crate apollia-mcp (Sprint 26)
+- [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué
+- [Briques MCP](./Briques-MCP) — spécification crate apollia-mcp
 - [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration mcp.toml, exemples serveurs MCP
-- [Briques User Memory](./Briques-User-Memory) — mémoire utilisateur (Sprint 18)
+- [Briques User Memory](./Briques-User-Memory) — mémoire utilisateur
 - [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature
 - [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) — décisions moteur STT (whisper-rs, trait SttBackend)
 - [ADR-044](../adr/ADR-044-client-mcp.md) — décisions client MCP (transport stdio, McpClientManager, HITL)

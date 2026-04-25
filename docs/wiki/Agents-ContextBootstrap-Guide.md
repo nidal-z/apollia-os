@@ -9,7 +9,7 @@
 ## Prérequis
 
 - Apollia OS installé et fonctionnel (voir [Installation](./INSTALL-Quickstart))
-- SDK `apollia-sdk >= 0.3.0` installé (`pip install -e ./sdk`)
+- SDK `apollia-sdk >= 0.3.0` installé (`pip install -e./sdk`)
 - `memory_namespace` défini dans le manifest de l'agent (le bootstrap persiste en mémoire sémantique)
 
 ---
@@ -18,7 +18,7 @@
 
 ### Le problème
 
-Les agents Sprint 39 chargeaient leurs règles projet via `file_read("APOLLIA.md")` à chaque session — même quand rien n'avait changé. Ce pattern ad-hoc :
+Les agents chargeaient leurs règles projet via `file_read("APOLLIA.md")` à chaque session — même quand rien n'avait changé. Ce pattern ad-hoc :
 - Gaspille des tokens LLM à chaque démarrage
 - N'a aucune détection de péremption (si APOLLIA.md change, le cache mémoire reste stale)
 - Duplique la logique de chargement dans chaque agent
@@ -69,9 +69,9 @@ class MyBootstrap(ContextBootstrap):
 | Méthode | Comportement par défaut |
 |---|---|
 | `needs_bootstrap(ctx)` | Lit `bootstrap.status` → si None/missing/partial → True ; si complete → délègue à `is_stale()` |
-| `load_snapshot(ctx)` | Lit `bootstrap.snapshot` → `json.loads()` ou None |
-| `load_meta(ctx)` | Lit `bootstrap.meta` → `json.loads()` ou None |
-| `persist(ctx, snapshot, *, staleness_marker, ...)` | Écrit snapshot + meta + status. Refuse le downgrade complete → partial |
+| `load_snapshot(ctx)` | Lit `bootstrap.snapshot` → `json.loads` ou None |
+| `load_meta(ctx)` | Lit `bootstrap.meta` → `json.loads` ou None |
+| `persist(ctx, snapshot, *, staleness_marker,...)` | Écrit snapshot + meta + status. Refuse le downgrade complete → partial |
 
 ### Clés mémoire convention
 
@@ -209,7 +209,7 @@ class DocumentContextBootstrap(ContextBootstrap):
 
 ## 4. Intégration dans `run()`
 
-Pattern commun aux 4 assistants Sprint 40 :
+Pattern commun aux 4 assistants :
 
 ```python
 class MonAssistant(ConversationalAgent):
@@ -285,7 +285,7 @@ class AccountingBootstrap(ContextBootstrap):
 | Domaine | Marqueur | Logique |
 |---|---|---|
 | Dev agents (pipeline Apollia) | Commit hash (`git rev-parse HEAD`) | `current_hash != meta["staleness_marker"]` |
-| Document agents | Timestamp epoch | `time.time() - float(marker) > 7 jours` |
+| Document agents | Timestamp epoch | `time.time - float(marker) > 7 jours` |
 | Comptabilité | TTL 7 jours | Identique aux documents |
 | CRM | Hash de la base contacts | `current_hash != marker` |
 
@@ -294,7 +294,7 @@ class AccountingBootstrap(ContextBootstrap):
 ## Limitations connues
 
 - **Latence premier lancement** : 3-5s de discovery lors du premier bootstrap (git, fichiers, détection stack)
-- **Pas de `update_partial()`** : modifier un champ du snapshot nécessite un re-bootstrap complet
+- **Pas de `update_partial`** : modifier un champ du snapshot nécessite un re-bootstrap complet
 - **Pas de cross-agent** : le namespace mémoire isole les snapshots (ADR-070). Deux agents ne partagent pas un bootstrap
 - **Snapshots obsolètes** : si `is_stale()` ne retourne jamais `True`, les données vieillissent sans limite. Recommandation : toujours inclure un marqueur temporel
 

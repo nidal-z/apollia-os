@@ -93,12 +93,12 @@ submitted ──► working ──► completed
 |---|---|---|
 | `submitted` | `working` | `ExecutionCoordinator` accepte et démarre la tâche |
 | `submitted` | `canceled` | `apollia-os task cancel` avant démarrage |
-| `working` | `completed` | Agent retourne `AIPResult.completed()` |
-| `working` | `failed` | Agent retourne `AIPResult.failed()` ou exception Python |
+| `working` | `completed` | Agent retourne `AIPResult.completed` |
+| `working` | `failed` | Agent retourne `AIPResult.failed` ou exception Python |
 | `working` | `failed` | `StepBudget` épuisé (steps, tool_calls, ou wall_clock) |
 | `working` | `canceled` | `apollia-os task cancel` + signal à l'agent |
 | `working` | `input_required` | Agent retourne `AIPResult.input_required(prompt, context)` — HITL |
-| `input_required` | `working` | `POST /api/v1/tasks/{id}/resume { approved: true }` — ORIA rappelle `agent.run()` |
+| `input_required` | `working` | `POST /api/v1/tasks/{id}/resume { approved: true }` — ORIA rappelle `agent.run` |
 | `input_required` | `failed` | `POST /api/v1/tasks/{id}/resume { approved: false }` → `AIPResult::failed("REJECTED")` |
 | `input_required` | `canceled` | `TimeoutWatcher` (scan 60s, expire après `input_required_timeout`, défaut 24h) |
 

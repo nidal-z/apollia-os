@@ -117,10 +117,10 @@ Pattern `mpsc::channel` + `HashMap` état interne + `JoinHandle` Tokio pour chaq
 **Formulation :** Le runtime n'injecte jamais automatiquement de mémoire dans le contexte d'un agent. C'est toujours l'agent qui décide ce qu'il récupère et comment il l'utilise.
 
 **Ce que ça signifie concrètement :**
-- `ctx.memory.search()` est appelé explicitement par l'agent
+- `ctx.memory.search` est appelé explicitement par l'agent
 - Le runtime ne pré-charge pas de contexte mémoriel dans le prompt de l'agent
 - Pas de consolidation automatique des épisodes en background en MVP
-- L'agent contrôle ce qu'il mémorise via `ctx.memory.record()` et `ctx.memory.remember()`
+- L'agent contrôle ce qu'il mémorise via `ctx.memory.record` et `ctx.memory.remember`
 
 **Pourquoi ce principe existe :**
 La "mémoire automatique" est séduisante en théorie. En pratique, elle génère des appels LLM non contrôlés (résumés automatiques, extraction de faits...), des coûts imprévisibles, des comportements difficiles à debugger, et des risques de perte d'information par consolidation trop agressive.
@@ -157,7 +157,7 @@ En production PME, ce type d'incident est inacceptable. Le runtime doit être la
 **Formulation :** La CLI doit être utilisable par un administrateur PME non-développeur. L'API REST doit être exploitable par n'importe quel script bash.
 
 **Ce que ça signifie concrètement :**
-- Commandes de niveau 1 lisibles et mémorisables sans documentation (`start`, `stop`, `status`, `run`)
+- Commandes de niveau 1 lisibles et mémorisables sans documentation (`start()`, `stop()`, `status`, `run()`)
 - Sorties humaines par défaut (tableaux colorés, indicateurs visuels)
 - `--json` disponible sur toutes les commandes pour les scripts
 - TTY auto-détecté (couleurs désactivées hors terminal)

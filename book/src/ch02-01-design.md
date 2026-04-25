@@ -52,7 +52,7 @@ Pour cette première version, on traitera les 4 premiers cas. Le découpage par 
 
 ---
 
-## Architecture de run()
+## Architecture de run
 
 ```
 run(task, ctx)

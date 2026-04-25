@@ -208,9 +208,9 @@ Ce mécanisme garantit qu'un agent ne peut pas accidentellement accéder à des 
 
 ---
 
-## Garde-fous A2A — protection des chaînes d'invocations inter-agents (Sprint 32)
+## Garde-fous A2A — protection des chaînes d'invocations inter-agents
 
-Quand un Director Agent invoque un Worker via A2A (`ctx.delegate(skill_id, ...)`), le runtime applique trois garde-fous automatiques non contournables depuis Python.
+Quand un Director Agent invoque un Worker via A2A (`ctx.delegate(skill_id,...)`), le runtime applique trois garde-fous automatiques non contournables depuis Python.
 
 ### Les trois protections
 
@@ -262,7 +262,7 @@ A2AGuardTriggered {
 4. Skill résolu → invocation normale
 ```
 
-Le `chain_deadline` est initialisé lors de la première invocation A2A à `Instant::now() + chain_timeout_secs` et propagé dans toute la chaîne. Le timeout effectif par invocation est `min(invocation_timeout, chain_remaining)`.
+Le `chain_deadline` est initialisé lors de la première invocation A2A à `Instant::now + chain_timeout_secs` et propagé dans toute la chaîne. Le timeout effectif par invocation est `min(invocation_timeout, chain_remaining)`.
 
 ### Interaction avec StepBudget
 

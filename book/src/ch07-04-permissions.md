@@ -37,11 +37,11 @@ Invocation outil (depuis Python)
    NeedsApproval → carte HITL desktop
 ```
 
-L'ordre n'est pas négociable : un motif d'injection passe **toujours avant** la SafeList. Vous ne pouvez pas auto-approuver `bash_executor("$(curl ...)")`.
+L'ordre n'est pas négociable : un motif d'injection passe **toujours avant** la SafeList. Vous ne pouvez pas auto-approuver `bash_executor("$(curl...)")`.
 
 ## Ce que vous écrivez dans votre agent
 
-Rien de spécial. Le moteur s'interpose dans `ToolRegistry::invoke()` au niveau du runtime. Votre agent appelle simplement :
+Rien de spécial. Le moteur s'interpose dans `ToolRegistry::invoke` au niveau du runtime. Votre agent appelle simplement :
 
 ```python
 result = await ctx.tools.call("bash_executor", {"command": "git status"})

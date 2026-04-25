@@ -1,4 +1,4 @@
-# Implémenter run()
+# Implémenter run
 
 Maintenant qu'on a le manifest, écrivons la logique métier. On va construire `run()` étape par étape, en expliquant chaque décision.
 
@@ -72,7 +72,7 @@ async def run(self, task, ctx):
     total_lines = read_result.get("total_lines", 0)
 ```
 
-`ctx.tools.call("file_read", ...)` retourne un dict Python avec le contenu du fichier. Si le fichier n'existe pas ou si le chemin tente un traversal hors sandbox, le dict contient un champ `"error"` avec un code machine.
+`ctx.tools.call("file_read",...)` retourne un dict Python avec le contenu du fichier. Si le fichier n'existe pas ou si le chemin tente un traversal hors sandbox, le dict contient un champ `"error"` avec un code machine.
 
 > **Qu'est-ce que le sandbox ?** `file_read` valide que le chemin reste dans le répertoire sandbox de l'agent (`~/.apollia/sandboxes/<agent_id>/`). Un chemin absolu vers `/data/rapport.txt` est autorisé si ce chemin est accessible — la protection est contre les traversals (`../../etc/passwd`). Voir le chapitre 4 pour les détails.
 
@@ -106,7 +106,7 @@ async def run(self, task, ctx):
     summary = response.content
 ```
 
-`ctx.llm.chat()` prend un `system` prompt et un message `user`, et retourne un objet avec `.content` (le texte généré) et `.usage` (tokens consommés, coût).
+`ctx.llm.chat` prend un `system` prompt et un message `user`, et retourne un objet avec `.content` (le texte généré) et `.usage` (tokens consommés, coût).
 
 ---
 
@@ -150,9 +150,9 @@ async def run(self, task, ctx):
 
 ---
 
-## run() complet
+## run complet
 
-Voici `run()` assemblé, avec le helper `_now()` :
+Voici `run()` assemblé, avec le helper `_now` :
 
 ```python
 import re
@@ -274,7 +274,7 @@ agent = FileAssistant()
 
 ---
 
-## Lire run() comme un contrat
+## Lire run comme un contrat
 
 Remarquez la structure de `run()` : chaque condition d'erreur est vérifiée **avant** d'aller plus loin. On ne commence pas à écrire le fichier résumé si la lecture a échoué. On ne commence pas à appeler le LLM si le fichier est introuvable.
 

@@ -10,7 +10,7 @@ Le **HITL (Human-in-the-Loop)** est le mécanisme d'Apollia OS qui permet à un 
 
 Apollia OS propose deux approches HITL selon le mode d'exécution de l'agent :
 
-### Mode Direct — `AIPResult.input_required()`
+### Mode Direct — `AIPResult.input_required`
 
 L'agent Python décide lui-même du moment de la suspension. Dans `run()`, quand il atteint un point de contrôle critique, il retourne `AIPResult.input_required(prompt, context)` au lieu d'un résultat final. ORIA suspendut la tâche et attend une décision via l'API.
 
@@ -42,13 +42,13 @@ def manifest(self):
 
 | Situation | Mécanisme |
 |---|---|
-| Validation d'une valeur calculée avant action | Mode Direct — `input_required()` |
+| Validation d'une valeur calculée avant action | Mode Direct — `input_required` |
 | Confirmation avant d'utiliser un outil à effet de bord | Mode Orchestré — `tools_requiring_approval` |
-| Workflow avec plusieurs points de contrôle explicites | Mode Direct — plusieurs `input_required()` |
+| Workflow avec plusieurs points de contrôle explicites | Mode Direct — plusieurs `input_required` |
 | Outil toujours risqué quel que soit le contexte | Mode Orchestré — déclaration dans le manifest |
 | Logique de reprise complexe (état à restaurer) | Mode Direct — `is_resumed` + `context` |
 
-Les deux mécanismes sont orthogonaux : un agent en mode orchestré peut déclarer `tools_requiring_approval` ET retourner `input_required()` dans `on_plan_complete()` si besoin.
+Les deux mécanismes sont orthogonaux : un agent en mode orchestré peut déclarer `tools_requiring_approval` ET retourner `input_required` dans `on_plan_complete` si besoin.
 
 ---
 
@@ -64,6 +64,6 @@ Pendant la suspension HITL :
 
 ## Ce que vous allez apprendre
 
-- **Section 1 — Suspend-Resume** : le pattern `input_required()` en Mode Direct, `is_resumed` et `InputResponse`, le flow ORIA complet, le TimeoutWatcher
+- **Section 1 — Suspend-Resume** : le pattern `input_required` en Mode Direct, `is_resumed` et `InputResponse`, le flow ORIA complet, le TimeoutWatcher
 - **Section 2 — Tool Approval** : `tools_requiring_approval` dans le manifest, la mécanique Mode Orchestré, différences avec le Mode Direct
 - **Section 3 — Notifications** : le NotificationEngine, les canaux desktop et webhook, comment être alerté quand une tâche attend une décision

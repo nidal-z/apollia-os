@@ -6,7 +6,7 @@ Le choix du mode se fait à la création de la session et ne peut pas être chan
 
 ## Chat Libre — Rust pur, sans Python
 
-En mode `libre`, c'est le `ChatSessionManager` Rust qui appelle directement `LlmRouter.stream()`. Aucun processus Python n'est démarré, aucun agent n'est instancié.
+En mode `libre`, c'est le `ChatSessionManager` Rust qui appelle directement `LlmRouter.stream`. Aucun processus Python n'est démarré, aucun agent n'est instancié.
 
 ```
 Message utilisateur

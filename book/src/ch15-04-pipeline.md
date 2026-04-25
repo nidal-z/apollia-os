@@ -45,7 +45,7 @@ curl -X POST http://localhost:7771/api/v1/pipelines \
 
 ### Le HITL pour les gros montants
 
-La clé du pipeline est dans le `compta-worker` : s'il reçoit des données avec `"alerte_montant": true`, il retourne `AIPResult.input_required()` avant d'enregistrer. Le pipeline se suspend automatiquement.
+La clé du pipeline est dans le `compta-worker` : s'il reçoit des données avec `"alerte_montant": true`, il retourne `AIPResult.input_required` avant d'enregistrer. Le pipeline se suspend automatiquement.
 
 ```
 [validation] → {"statut": "VALIDE", "alerte_montant": true, ...}

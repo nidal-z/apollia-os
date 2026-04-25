@@ -1,6 +1,6 @@
 # Triggers Engine — Déclenchement automatique des agents
 
-> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (Sprint 17 — ADR-033).*
+> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (ADR-033).*
 
 ---
 
@@ -8,7 +8,7 @@
 
 Le `TriggerEngine` est un acteur Tokio positionné en **position 6** dans la séquence de démarrage du Supervisor (après le `LlmRouter`). Il gère un ensemble de `TriggerDefinition` persistées en SQLite (`~/.apollia/triggers_def.db`) et déclenche des tâches vers le `TaskRouter` selon les événements reçus.
 
-Depuis le Sprint 17, les triggers ne sont plus déclarés dans `apollia.toml` — ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
+Les triggers ne sont plus déclarés dans `apollia.toml` — ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
 
 ```
 triggers_def.db (SQLite)
@@ -50,9 +50,9 @@ triggers_def.db (SQLite)
 
 ---
 
-## 2. Gestion des triggers — CRUD SQLite (Sprint 17)
+## 2. Gestion des triggers — CRUD SQLite
 
-Depuis le Sprint 17 (ADR-033), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
+(ADR-033), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
 
 ### 2.1 Créer un trigger via API
 
@@ -250,7 +250,7 @@ pub fn spawn_interval(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) ->
 pub fn spawn_file_watch(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()>;
 ```
 
-**Améliorations Sprint 34 :**
+**Améliorations :**
 
 - **Symlinks** : les symlinks dans le répertoire surveillé sont maintenant suivis (`notify::Config::with_follow_symlinks(true)`). Un lien symbolique créé dans le dossier déclenche l'événement `create` si la cible existe. Comportement cohérent sur Linux et macOS.
 
@@ -290,7 +290,7 @@ Séquence de validation :
 
 ## 6. Persistance SQLite
 
-### 6.1 Définitions — `TriggerDefinitionRepository` *(Sprint 17)*
+### 6.1 Définitions — `TriggerDefinitionRepository`
 
 Les définitions de triggers sont persistées dans `~/.apollia/triggers_def.db` via le `TriggerDefinitionRepository` :
 
@@ -339,8 +339,8 @@ CREATE TABLE trigger_history (
     reason        TEXT,
     error_msg     TEXT,
     fired_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
-    payload_json  TEXT,              -- payload JSON du trigger (Sprint 13)
-    dispatch_ms   INTEGER            -- latence fire → soumission tâche (Sprint 13)
+    payload_json  TEXT,              -- payload JSON du trigger
+    dispatch_ms   INTEGER            -- latence fire → soumission tâche
 );
 CREATE INDEX idx_trigger_history_id  ON trigger_history(trigger_id);
 CREATE INDEX idx_trigger_history_at  ON trigger_history(fired_at DESC);
@@ -354,11 +354,11 @@ CREATE TABLE trigger_state (
 );
 ```
 
-### 6.3 Compteurs persistés au redémarrage *(Sprint 34)*
+### 6.3 Compteurs persistés au redémarrage
 
-Les compteurs `fire_count`, `skip_count`, `error_count` de la table `trigger_state` sont désormais persistés et survivent au redémarrage du runtime. Avant le Sprint 34, ils étaient en mémoire uniquement et remis à zéro à chaque démarrage.
+Les compteurs `fire_count`, `skip_count`, `error_count` de la table `trigger_state` sont désormais persistés et survivent au redémarrage du runtime. Ils étaient en mémoire uniquement et remis à zéro à chaque démarrage.
 
-Au boot du `TriggerEngine`, chaque `TriggerDefinition` chargée récupère ses compteurs depuis `trigger_state` via `TriggerStateRepository::load(trigger_id)`. Les `TriggerStatus` retournés par `TriggerEngineHandle::list()` reflètent l'historique cumulé depuis l'installation.
+Au boot du `TriggerEngine`, chaque `TriggerDefinition` chargée récupère ses compteurs depuis `trigger_state` via `TriggerStateRepository::load(trigger_id)`. Les `TriggerStatus` retournés par `TriggerEngineHandle::list` reflètent l'historique cumulé depuis l'installation.
 
 ```rust
 pub struct TriggerStatus {
@@ -376,7 +376,7 @@ pub struct TriggerStatus {
 
 ## 7. Événements EventBus
 
-Sprint 9 ajoute 6 nouveaux variants `RuntimeEvent` dans `apollia-core` :
+ajoute 6 nouveaux variants `RuntimeEvent` dans `apollia-core` :
 
 ```rust
 // apollia-core/src/events.rs
@@ -384,7 +384,7 @@ Sprint 9 ajoute 6 nouveaux variants `RuntimeEvent` dans `apollia-core` :
 pub enum RuntimeEvent {
     // ... variants existants ...
 
-    // Sprint 9 — Triggers
+    // Triggers
     TriggerFired    { trigger_id: TriggerId, agent: String, task_id: TaskId },
     TriggerSkipped  { trigger_id: TriggerId, reason: String },
     TriggerError    { trigger_id: TriggerId, error: String },
@@ -441,7 +441,7 @@ github-push           deploy-agent    webhook   ✓        8      1      2026-03
 
 ## 9. Hot Reload
 
-Le hot reload est déclenché automatiquement après chaque opération CRUD via l'API REST. Le pattern est : **écriture SQLite → engine.reload()** (ADR-033, Option A).
+Le hot reload est déclenché automatiquement après chaque opération CRUD via l'API REST. Le pattern est : **écriture SQLite → engine.reload** (ADR-033, Option A).
 
 ```bash
 # Créer un trigger via API → reload automatique
@@ -478,7 +478,7 @@ Comportement interne :
 ```
 
 Au démarrage, le Supervisor :
-1. Ouvre `TriggerDefinitionRepository` depuis `data_dir/triggers_def.db` *(Sprint 17)*
+1. Ouvre `TriggerDefinitionRepository` depuis `data_dir/triggers_def.db`
 2. Charge toutes les lignes, convertit en `TriggerDefinition` (les définitions invalides sont ignorées avec un `warn!`)
 3. Wraps le repository dans `Arc<Mutex<>>` → stocké dans `AppState`
 4. Affiche : `✔ TriggerEngine — 3 trigger(s) actif(s)`
@@ -489,9 +489,9 @@ Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement 
 
 ---
 
-## 10. `OnBusyPolicy::Queue` — File bornée — Sprint 37
+## 10. `OnBusyPolicy::Queue` — File bornée
 
-Depuis le Sprint 37 (STORY-486), `OnBusyPolicy` dispose d'un troisième variant `Queue` qui met en file d'attente les triggers quand l'agent est occupé, dans la limite d'une capacité configurable.
+, `OnBusyPolicy` dispose d'un troisième variant `Queue` qui met en file d'attente les triggers quand l'agent est occupé, dans la limite d'une capacité configurable.
 
 ### Enum mis à jour
 
@@ -499,7 +499,7 @@ Depuis le Sprint 37 (STORY-486), `OnBusyPolicy` dispose d'un troisième variant 
 // crates/apollia-triggers/src/types.rs
 
 pub enum OnBusyPolicy {
-    /// Ignore le trigger si l'agent est occupé. Comportement par défaut avant Sprint 37.
+    /// Ignore le trigger si l'agent est occupé. Comportement par défaut historique.
     Skip,
     /// (Existait mais non implémenté — remplacé par Queue)
     Enqueue,
@@ -549,7 +549,7 @@ TriggerQueueFull {
 | Agent occupé, queue < max_depth | Trigger en queue — exécuté dès que l'agent se libère (FIFO) |
 | Agent occupé, queue == max_depth | Trigger droppé + `TriggerQueueFull` émis |
 | Agent libre | Trigger dispatché immédiatement (pas de queuing) |
-| Policy `Skip` | Trigger ignoré silencieusement (comportement pré-Sprint 37) |
+| Policy `Skip` | Trigger ignoré silencieusement (comportement pré) |
 
 ---
 

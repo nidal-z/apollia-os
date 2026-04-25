@@ -29,7 +29,7 @@ Cette contrainte est appliquée par le runtime **avant** d'invoquer l'outil — 
 
 ## Ce qui se passe à chaque appel
 
-Chaque `ctx.tools.call()` déclenche cette séquence dans le runtime :
+Chaque `ctx.tools.call` déclenche cette séquence dans le runtime :
 
 ```
 1. Vérification d'autorisation (manifest)
@@ -45,7 +45,7 @@ Les étapes 3 et 4 sont parallèles : l'audit trail est écrit de manière async
 
 ## La structure du résultat
 
-`ctx.tools.call()` retourne **toujours** un `dict` Python. En cas de succès, les clés sont spécifiques à chaque outil (voir section précédente). En cas d'erreur, le dict contient un champ `"error"` :
+`ctx.tools.call` retourne **toujours** un `dict` Python. En cas de succès, les clés sont spécifiques à chaque outil (voir section précédente). En cas d'erreur, le dict contient un champ `"error"` :
 
 ```python
 result = await ctx.tools.call("file_read", {"path": "/inexistant.txt"})
@@ -98,7 +98,7 @@ Encapsuler les appels d'outils dans des méthodes d'aide rend `run()` plus lisib
 
 ## L'impact sur le step_budget
 
-Chaque `ctx.tools.call()` consomme **1 step** du budget. Les appels `ctx.llm.chat()` et `ctx.llm.complete()` consomment également 1 step chacun. `ctx.llm.run_tools()` consomme 1 step par itération de la boucle.
+Chaque `ctx.tools.call` consomme **1 step** du budget. Les appels `ctx.llm.chat` et `ctx.llm.complete` consomment également 1 step chacun. `ctx.llm.run_tools` consomme 1 step par itération de la boucle.
 
 ```python
 # Budget initial : 10 steps
@@ -148,7 +148,7 @@ schema = await ctx.tools.describe("file_read")
 # {"name": "file_read", "description": "...", "input_schema": {...}}
 ```
 
-`ctx.tools.describe()` est utile quand vous construisez dynamiquement les descripteurs d'outils pour `ctx.llm.run_tools()` — vous n'avez pas à dupliquer le schéma manuellement.
+`ctx.tools.describe` est utile quand vous construisez dynamiquement les descripteurs d'outils pour `ctx.llm.run_tools` — vous n'avez pas à dupliquer le schéma manuellement.
 
 ---
 

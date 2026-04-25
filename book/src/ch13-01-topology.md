@@ -99,7 +99,7 @@ async def run(self, task, ctx):
 
 ## HITL dans un pipeline
 
-Un agent peut suspendre un step en retournant `AIPResult.input_required()`. Le pipeline détecte ce résultat et se fige :
+Un agent peut suspendre un step en retournant `AIPResult.input_required`. Le pipeline détecte ce résultat et se fige :
 
 ```
 PipelineExecutor reçoit StepResult::InputRequired { task_id }

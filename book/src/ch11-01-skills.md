@@ -59,7 +59,7 @@ def manifest(self):
 
 | Champ | Type | Obligatoire | Rôle |
 |---|---|---|---|
-| `id` | `str` | Oui | Identifiant machine pour le routing — `ctx.delegate("analyze-csv", ...)` |
+| `id` | `str` | Oui | Identifiant machine pour le routing — `ctx.delegate("analyze-csv",...)` |
 | `name` | `str` | Oui | Libellé lisible — affiché dans la CLI, les logs et l'UI |
 | `description` | `str` | Oui | Phrase complète — utilisée par le router A2A pour le matching sémantique |
 | `input_modes` | `list[str]` | Oui | Modes d'entrée : `"text"`, `"file"`, `"json"` |
@@ -91,7 +91,7 @@ La `description` est l'interface sémantique du skill. Le router A2A l'utilise p
 
 ## Découverte automatique — SkillIndex
 
-Au démarrage de chaque agent avec `supports_a2a: True`, le runtime lit `manifest()["skills"]` et alimente le `SkillIndex` — un index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
+Au démarrage de chaque agent avec `supports_a2a: True`, le runtime lit `manifest["skills"]` et alimente le `SkillIndex` — un index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
 
 ```
 apollia-os agent start agents/csv-data-worker.py

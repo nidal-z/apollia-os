@@ -36,9 +36,9 @@ Sur les modèles frontier (Claude, GPT-4o), le LLM improvise correctement même 
 
 | Problème | Agent générique | Worker Agent |
 |---|---|---|
-| Hallucination API | `openpyxl.open_workbook()` (inexistant) | Import correct dans le `SYSTEM_PROMPT` |
+| Hallucination API | `openpyxl.open_workbook` (inexistant) | Import correct dans le `SYSTEM_PROMPT` |
 | Guardrails oubliés | "ne jamais bash" ignoré après 4 étapes | Règle compilée, toujours présente |
-| Séquençage incorrect | `wb.save()` oublié | Pattern obligatoire dans le prompt |
+| Séquençage incorrect | `wb.save` oublié | Pattern obligatoire dans le prompt |
 | Contexte saturé | 4K tokens → instructions tronquées | `SYSTEM_PROMPT` statique, jamais perdu |
 
 ---
@@ -53,7 +53,7 @@ Créer un Worker Agent si **au moins 2 des 3 conditions** suivantes sont réunie
 
 La tâche impose un ordre d'opérations critique que le LLM oublie régulièrement.
 
-> Exemple positif : lecture d'un `.xlsx` → inspection des feuilles → calcul → `wb.save()`. Chaque étape dépend de la précédente avec des contraintes `openpyxl` précises. Sur un modèle 7B, l'ordre peut être inversé et `save()` oublié.
+> Exemple positif : lecture d'un `.xlsx` → inspection des feuilles → calcul → `wb.save`. Chaque étape dépend de la précédente avec des contraintes `openpyxl` précises. Sur un modèle 7B, l'ordre peut être inversé et `save` oublié.
 
 ### Condition 2 — Guardrail critique
 
@@ -206,7 +206,7 @@ Ce que la réponse finale doit toujours contenir
 
 ### Codes d'erreur domaine stables
 
-Pour les erreurs domaine non-génériques, utiliser `domain_error()` plutôt qu'une exception :
+Pour les erreurs domaine non-génériques, utiliser `domain_error` plutôt qu'une exception :
 
 ```python
 # Dans le SYSTEM_PROMPT :
@@ -303,7 +303,7 @@ SYSTEM_PROMPT: str = """Tu es mon-agent, un agent expert de [domaine].
 """
 ```
 
-### Étape 4 — Implémenter run()
+### Étape 4 — Implémenter run
 
 Dans la grande majorité des cas, le pattern hérité suffit sans modification :
 
@@ -426,7 +426,7 @@ apollia new json-validator --type worker
 
 | Fichier | Contenu |
 |---|---|
-| `agents/mon-agent.py` | Squelette complet avec `SYSTEM_PROMPT`, `manifest()`, classe `WorkerAgent` et `agent = ...` |
+| `agents/mon-agent.py` | Squelette complet avec `SYSTEM_PROMPT`, `manifest()`, classe `WorkerAgent` et `agent =...` |
 | `agents/tests/test_mon-agent.py` | Tests `test_manifest_is_valid` + `test_system_prompt_has_guardrails` |
 
 ### Points à personnaliser dans le squelette généré
@@ -435,10 +435,10 @@ Le template génère des placeholders à remplacer, marqués `# TODO` :
 
 | Placeholder | Emplacement | Quoi mettre |
 |---|---|---|
-| `mon-agent` | `manifest()["name"]` | Nom kebab-case du domaine |
-| `"..."` | `manifest()["description"]` | Description précise (formats gérés, LLMs supportés) |
-| `["ma-lib>=1.0.0"]` | `manifest()["packages"]` | Dépendances pip réelles du domaine |
-| `"main-skill"` | `manifest()["skills"][0]["id"]` | Skill principal du domaine |
+| `mon-agent` | `manifest["name"]` | Nom kebab-case du domaine |
+| `"..."` | `manifest["description"]` | Description précise (formats gérés, LLMs supportés) |
+| `["ma-lib>=1.0.0"]` | `manifest["packages"]` | Dépendances pip réelles du domaine |
+| `"main-skill"` | `manifest["skills"][0]["id"]` | Skill principal du domaine |
 | Section RÈGLES ABSOLUES | `SYSTEM_PROMPT` | Guardrails réels du domaine |
 | Section PATTERNS OBLIGATOIRES | `SYSTEM_PROMPT` | Snippets d'usage exacts de la librairie |
 
@@ -469,7 +469,7 @@ Un guardrail efficace combine trois éléments :
 | Guardrail faible | Guardrail efficace |
 |---|---|
 | "Évite bash si possible" | "N'utilise JAMAIS bash_executor sur un `.xlsx`. RAISON : `.xlsx` est une archive ZIP — bash corrompt l'archive silencieusement." |
-| "Sauvegarde après modification" | "Appelle TOUJOURS `wb.save(path)` après modification. RAISON : sans `save()`, les changements ne sont jamais écrits sur disque." |
+| "Sauvegarde après modification" | "Appelle TOUJOURS `wb.save(path)` après modification. RAISON : sans `save`, les changements ne sont jamais écrits sur disque." |
 | "Attention aux CSVs encodés" | "Essaie TOUJOURS UTF-8 puis latin-1 si UnicodeDecodeError. RAISON : les CSVs Excel Windows français sont en latin-1, pas UTF-8." |
 
 Les guardrails sont **testables statiquement** sans exécuter l'agent :
@@ -555,7 +555,7 @@ Les tests domaine avec de **vrais fichiers** utilisent les fixtures de `conftest
 
 | Champ | Type | Rôle |
 |---|---|---|
-| `id` | `str` | Identifiant machine utilisé par `ctx.delegate(skill_id, ...)` — doit être unique dans l'ensemble des agents déployés |
+| `id` | `str` | Identifiant machine utilisé par `ctx.delegate(skill_id,...)` — doit être unique dans l'ensemble des agents déployés |
 | `name` | `str` | Libellé lisible affiché dans l'UI, la CLI, et les logs |
 | `description` | `str` | Phrase complète utilisée par le router A2A pour le matching sémantique — être précis sur les inputs/outputs |
 | `input_modes` | `list[str]` | Modes d'entrée supportés (`"text"` = description textuelle, `"file"` = chemin de fichier, `"json"` = payload structuré) |
@@ -576,7 +576,7 @@ async def run(self, task, ctx):
     return AIPResult.completed(f"Analyse terminée : {result}")
 ```
 
-Ou via le helper `WorkerAgent.delegate_skill()` depuis un autre Worker Agent :
+Ou via le helper `WorkerAgent.delegate_skill` depuis un autre Worker Agent :
 
 ```python
 result = await self.delegate_skill(ctx, "analyze-csv", payload)
@@ -584,7 +584,7 @@ result = await self.delegate_skill(ctx, "analyze-csv", payload)
 
 ### Comment l'agent est découvert et invoqué
 
-1. Au démarrage, le runtime lit `manifest()["skills"]` de chaque agent actif avec `supports_a2a: True`
+1. Au démarrage, le runtime lit `manifest["skills"]` de chaque agent actif avec `supports_a2a: True`
 2. Il construit un index `skill_id → agent_name`
 3. Quand `ctx.delegate("analyze-csv", payload)` est appelé, le runtime résout l'agent et lui envoie la tâche via A2A
 4. Le résultat est retourné synchrone au Director (avec timeout configurable)
@@ -596,7 +596,7 @@ En composition A2A, le trust model appliqué à la mémoire est :
 | Opération | Portée |
 |---|---|
 | Lecture mémoire | **Globale** — un Worker Agent invoqué via A2A peut lire les entrées de n'importe quel namespace |
-| Écriture mémoire | **Namespace propre uniquement** — un Worker Agent ne peut écrire que dans `manifest()["memory_namespace"]` |
+| Écriture mémoire | **Namespace propre uniquement** — un Worker Agent ne peut écrire que dans `manifest["memory_namespace"]` |
 
 Ce modèle permet au Director de partager du contexte en mémoire avec le Worker (lecture), sans que le Worker puisse polluer l'espace mémoire d'autres agents (écriture isolée).
 
@@ -726,14 +726,14 @@ apollia-os agent run sql-worker "Liste les clients dont le CA dépasse 10000"
 
 ### `git-worker` (communautaire)
 
-Spécialité : opérations Git en lecture et commit. Bloque les opérations destructives (`push --force`, `reset --hard`, `clean -fd`, `branch -D`, `checkout -- .`). Guardrail central : commits conventionnels obligatoires (`type(scope): description`), `git status` systématique avant tout commit, pas de `git add .` sans inspection. Opérations distantes (push, pull, fetch) interdites sans approbation.
+Spécialité : opérations Git en lecture et commit. Bloque les opérations destructives (`push --force`, `reset --hard`, `clean -fd`, `branch -D`, `checkout --.`). Guardrail central : commits conventionnels obligatoires (`type(scope): description`), `git status` systématique avant tout commit, pas de `git add.` sans inspection. Opérations distantes (push, pull, fetch) interdites sans approbation.
 
 ```bash
 apollia-os agent install agents/community/git-worker.py
 apollia-os agent run git-worker "Montre-moi les modifications en cours et committe-les"
 ```
 
-### `browser-worker` (communautaire — Sprint 34)
+### `browser-worker` (communautaire)
 
 Spécialité : navigation web et capture d'écran via Playwright. Skills A2A : `browse-url`, `screenshot-url`. Packages pip : `playwright`, `pillow`. Guardrail central : validation de l'URL avant navigation (schéma `http`/`https` uniquement), timeout par page (défaut 30s), screenshots dans un répertoire temporaire isolé. Installation depuis Git :
 
@@ -742,7 +742,7 @@ apollia-os agent install https://github.com/apollia-os/browser-worker.git
 apollia-os agent run browser-worker "Prends une capture d'écran de https://example.com"
 ```
 
-### `email-worker` (communautaire — Sprint 34)
+### `email-worker` (communautaire)
 
 Spécialité : envoi et lecture d'emails via SMTP/IMAP. Skills A2A : `send-email` (HITL — approbation opérateur requise), `read-inbox`. Packages pip : stdlib Python (`smtplib`, `imaplib`). Guardrail central : `send-email` est une action HITL non-contournable — aucun email n'est envoyé sans confirmation explicite. Validation des adresses email avant soumission.
 
@@ -751,7 +751,7 @@ apollia-os agent install https://github.com/apollia-os/email-worker.git
 apollia-os agent run email-worker "Envoie un rapport hebdomadaire à admin@acme.com"
 ```
 
-### `slack-worker` (communautaire — Sprint 34)
+### `slack-worker` (communautaire)
 
 Spécialité : intégration Slack — envoi de messages et lecture de canaux. Skills A2A : `send-message` (HITL), `read-channel`. Packages pip : `slack-sdk`. Guardrail central : `send-message` est une action HITL — confirmation opérateur avant envoi. `read-channel` en lecture seule, aucune modification de canal. Token Slack lu depuis `SLACK_BOT_TOKEN` (jamais hardcodé).
 
@@ -765,13 +765,13 @@ apollia-os agent run slack-worker "Résume les messages #sales de cette semaine"
 ## Checklist avant de soumettre un Worker Agent
 
 - [ ] `SYSTEM_PROMPT` contient au moins 1 guardrail avec `RAISON`
-- [ ] `manifest()["packages"]` liste toutes les dépendances pip (vide si aucune)
-- [ ] `manifest()["tools_required"]` contient `python_executor` si des packages sont utilisés
+- [ ] `manifest["packages"]` liste toutes les dépendances pip (vide si aucune)
+- [ ] `manifest["tools_required"]` contient `python_executor` si des packages sont utilisés
 - [ ] `MAX_STEPS` est défini (valeur conseillée : 6–10 selon la complexité)
 - [ ] `TEMPERATURE` est bas (0.0–0.2)
-- [ ] `agent = MonWorkerAgent()` est déclaré au niveau du module (requis par le runtime)
+- [ ] `agent = MonWorkerAgent` est déclaré au niveau du module (requis par le runtime)
 - [ ] Tests : manifest valide, guardrail vérifié, happy path, au moins 1 cas d'erreur domaine
-- [ ] Si `supports_a2a: True` : au moins 1 skill déclaré dans `manifest()["skills"]`
+- [ ] Si `supports_a2a: True` : au moins 1 skill déclaré dans `manifest["skills"]`
 - [ ] Si `supports_a2a: True` : `skill_id` unique dans l'ensemble des agents déployés
 - [ ] `pytest agents/tests/test_mon-agent.py` passe sans erreur
 

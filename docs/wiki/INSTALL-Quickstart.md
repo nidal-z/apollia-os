@@ -40,7 +40,7 @@ export PATH="$PWD/target/release:$PATH"
 cargo install --path crates/apollia-cli
 ```
 
-### Option : inférence locale (modèle .gguf sur la machine)
+### Option : inférence locale (modèle.gguf sur la machine)
 
 Pour activer le backend embarqué (`device = "cpu"`, `"metal"`, etc.) dans `apollia.toml`, recompiler avec la feature correspondante :
 

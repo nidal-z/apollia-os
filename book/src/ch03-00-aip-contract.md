@@ -4,7 +4,7 @@ Dans les chapitres précédents, vous avez écrit deux agents — `hello-agent` 
 
 L'**Agent Interface Protocol** (AIP) est le contrat entre votre code Python et le runtime Apollia OS. Sa philosophie tient en une phrase :
 
-> **Un agent est n'importe quel objet Python qui a `manifest()` et `async run()`.**
+> **Un agent est n'importe quel objet Python qui a `manifest()` et `async run`.**
 
 Pas de classe de base. Pas de framework à importer. Pas de décorateur. Le runtime utilise le duck typing pour vérifier que votre objet respecte le contrat — et si c'est le cas, il peut l'exécuter.
 

@@ -51,7 +51,7 @@ Le runtime tente de se connecter au serveur MCP `filesystem` à `INITIALIZING`. 
 
 ### Configuration du serveur MCP
 
-Dans `~/.apollia/mcp.toml` (disponible depuis Sprint 26) :
+Dans `~/.apollia/mcp.toml` (disponible) :
 
 ```toml
 [[servers]]
@@ -142,11 +142,11 @@ Un agent Apollia OS avec `supports_a2a: True` génère automatiquement une Agent
 | Fonctionnalité | Statut |
 |---|---|
 | Tool Registry aligné JSON Schema MCP | ✅ v0.1 |
-| Client MCP natif (`apollia-mcp`) | ✅ v0.2 (Sprint 26) |
-| Transport stdio MCP | ✅ v0.2 (Sprint 26) |
-| HITL gate à deux niveaux (serveur + agent) | ✅ v0.2 (Sprint 26) |
-| Mutations dynamiques à chaud (API REST) | ✅ v0.2 (Sprint 26) |
-| Configuration `~/.apollia/mcp.toml` | ✅ v0.2 (Sprint 26) |
+| Client MCP natif (`apollia-mcp`) | ✅ v0.2 |
+| Transport stdio MCP | ✅ v0.2 |
+| HITL gate à deux niveaux (serveur + agent) | ✅ v0.2 |
+| Mutations dynamiques à chaud (API REST) | ✅ v0.2 |
+| Configuration `~/.apollia/mcp.toml` | ✅ v0.2 |
 | Exposition serveur MCP | v0.3 (planifié) |
 | Transport HTTP+SSE MCP | v0.3 (planifié) |
 

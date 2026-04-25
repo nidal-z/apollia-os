@@ -70,7 +70,7 @@ L'identite Apollia combine trois influences :
 | `--border` | `240 6% 20%` | Bordures dark |
 | `--primary` | `240 91% 62%` | Accent plus lumineux pour contraste |
 
-### 2.2 Aliases resolus (var())
+### 2.2 Aliases resolus (var)
 
 Disponibles dans `:root` pour usage inline :
 
@@ -342,7 +342,7 @@ RadioItem : cercle `h-4 w-4 rounded-full border`, dot interieur `h-1.5 w-1.5 rou
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `open` | `boolean` | — | Affichage |
-| `onclose` | `() => void` | — | Fermeture |
+| `onclose` | ` => void` | — | Fermeture |
 | `size` | `"sm" \| "md" \| "lg"` | `"md"` | Largeur |
 | `title` | `string?` | — | Titre avec bordure basse |
 
@@ -359,7 +359,7 @@ RadioItem : cercle `h-4 w-4 rounded-full border`, dot interieur `h-1.5 w-1.5 rou
 | Prop | Type | Description |
 |---|---|---|
 | `open` | `boolean` | Affichage |
-| `onclose` | `() => void` | Fermeture |
+| `onclose` | ` => void` | Fermeture |
 
 Panneau lateral droit `w-[400px]`, `glass-panel border-l`.
 **Animation** : `fly({ x: 400, duration: 250 })` avec easing cubic-out.
@@ -384,7 +384,7 @@ removeToast(id: string)
 **Auto-dismiss** : 4 secondes.
 **Animation** : `fly({ y: -8, duration: 200 })`.
 
-> **REGLE** : Ne JAMAIS implementer de toast inline dans un composant. Toujours utiliser `addToast()` depuis le store.
+> **REGLE** : Ne JAMAIS implementer de toast inline dans un composant. Toujours utiliser `addToast` depuis le store.
 
 ### 5.13 Separator
 
@@ -798,7 +798,7 @@ Exemples :
 
 ## 14. Confirmations destructives
 
-Utiliser le composant `ConfirmDialog` (STORY-212, Sprint 19) pour toute action destructive :
+Utiliser le composant `ConfirmDialog` pour toute action destructive :
 
 ```svelte
 <ConfirmDialog

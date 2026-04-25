@@ -137,7 +137,7 @@ apollia-os agent list --supports-a2a
 #     ...
 ```
 
-Votre `csv-data-worker` est maintenant découvrable et invocable depuis n'importe quel Director Agent via `ctx.delegate("analyze-csv", ...)`.
+Votre `csv-data-worker` est maintenant découvrable et invocable depuis n'importe quel Director Agent via `ctx.delegate("analyze-csv",...)`.
 
 ---
 

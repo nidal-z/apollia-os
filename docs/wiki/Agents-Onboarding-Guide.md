@@ -218,7 +218,7 @@ La validation d'une entrée augmente son score de confiance à 0.95. La suppress
 
 **Fichier** : `agents/onboarding-agent.py`
 
-`OnboardingAgent` hérite de `ConversationalAgent` (SDK Sprint 21). Il utilise le même contrat que tout autre agent — `manifest()` + `run()` async.
+`OnboardingAgent` hérite de `ConversationalAgent` (SDK). Il utilise le même contrat que tout autre agent — `manifest()` + `run()` async.
 
 Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement sur le premier message de l'utilisateur via une heuristique lexicale.
 
@@ -233,9 +233,9 @@ Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement 
 
 | Commande | Description |
 |---|---|
-| `get_onboarding_status()` | Retourne `OnboardingStatus` (completed, topics_covered, completion_pct, skipped) |
+| `get_onboarding_status` | Retourne `OnboardingStatus` (completed, topics_covered, completion_pct, skipped) |
 | `trigger_onboarding(topic?)` | Crée une session chat agent-backed, retourne `TriggerResult` |
-| `dismiss_onboarding()` | Marque l'onboarding comme "skipped" |
+| `dismiss_onboarding` | Marque l'onboarding comme "skipped" |
 
 ---
 

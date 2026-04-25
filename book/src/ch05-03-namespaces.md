@@ -41,7 +41,7 @@ Depuis `run()`, la recherche dans les namespaces partagés est transparente :
 results = await ctx.memory.search("rapport client Acme")
 ```
 
-Les résultats indiquent leur namespace d'origine dans les métadonnées. Les écritures via `ctx.memory.record()` ou `ctx.memory.remember()` écrivent **toujours** dans le namespace privé — impossible d'écrire dans un namespace partagé.
+Les résultats indiquent leur namespace d'origine dans les métadonnées. Les écritures via `ctx.memory.record` ou `ctx.memory.remember` écrivent **toujours** dans le namespace privé — impossible d'écrire dans un namespace partagé.
 
 Ce mécanisme est la base des architectures multi-agents : un agent coordinateur peut consulter la mémoire de ses workers sans les modifier.
 

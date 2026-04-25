@@ -4,7 +4,7 @@
 
 ---
 
-## chat() — le cas courant
+## chat — le cas courant
 
 Un system prompt, un message utilisateur, une réponse. C'est 80% des cas.
 
@@ -44,7 +44,7 @@ response = await ctx.llm.chat(system=SYSTEM_PROMPT, user=file_content_for_llm)
 
 ---
 
-## complete() — les conversations multi-tours
+## complete — les conversations multi-tours
 
 Quand vous avez besoin de passer un historique de messages ou de construire des échanges complexes :
 
@@ -86,7 +86,7 @@ async def run(self, task, ctx):
 
 ---
 
-## stream() — les réponses longues
+## stream — les réponses longues
 
 Pour les réponses qui peuvent prendre plusieurs secondes (rapports détaillés, analyses longues), le streaming permet de retourner les tokens au fur et à mesure :
 

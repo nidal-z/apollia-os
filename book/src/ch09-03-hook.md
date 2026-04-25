@@ -1,8 +1,8 @@
-# Le hook on_plan_complete()
+# Le hook on_plan_complete
 
 Quand tous les steps d'un plan sont exécutés, ORIA a une liste de résultats intermédiaires — un output par step. Par défaut, il les concatène dans l'ordre et retourne le résultat final. C'est souvent suffisant.
 
-Mais parfois, vous voulez faire plus : consolider les outputs en un rapport structuré, calculer un total à partir de plusieurs steps numériques, persister un résumé en mémoire. C'est le rôle du hook `on_plan_complete()`.
+Mais parfois, vous voulez faire plus : consolider les outputs en un rapport structuré, calculer un total à partir de plusieurs steps numériques, persister un résumé en mémoire. C'est le rôle du hook `on_plan_complete`.
 
 ---
 
@@ -21,7 +21,7 @@ async def on_plan_complete(
     ...
 ```
 
-Le hook est **optionnel**. ORIA le détecte via duck typing (`hasattr(agent, "on_plan_complete")`). Le contrat minimal reste `manifest()` + `run()` — `on_plan_complete()` est un enrichissement, pas une obligation.
+Le hook est **optionnel**. ORIA le détecte via duck typing (`hasattr(agent, "on_plan_complete")`). Le contrat minimal reste `manifest()` + `run()` — `on_plan_complete` est un enrichissement, pas une obligation.
 
 `step_results` est un dictionnaire `step_id → output` contenant les résultats de tous les steps complétés. Si un step a échoué (et que la replanification n'a pas réussi), son entrée est absente du dictionnaire.
 
@@ -29,7 +29,7 @@ Le hook est **optionnel**. ORIA le détecte via duck typing (`hasattr(agent, "on
 
 ## Comportement sans le hook
 
-Si `on_plan_complete()` est absent, ORIA concatène les outputs dans l'ordre d'exécution :
+Si `on_plan_complete` est absent, ORIA concatène les outputs dans l'ordre d'exécution :
 
 ```
 output_s1
@@ -159,9 +159,9 @@ async def on_plan_complete(self, step_results, ctx) -> str:
 
 ---
 
-## Erreurs dans on_plan_complete()
+## Erreurs dans on_plan_complete
 
-Si `on_plan_complete()` lève une exception, ORIA la capture et retourne la concaténation par défaut des outputs — le hook est fail-safe. L'exception est loguée comme `WARN` :
+Si `on_plan_complete` lève une exception, ORIA la capture et retourne la concaténation par défaut des outputs — le hook est fail-safe. L'exception est loguée comme `WARN` :
 
 ```
 WARN apollia_oria: on_plan_complete() raised ValueError: ... — using default output
@@ -180,12 +180,12 @@ async def on_plan_complete(self, step_results, ctx) -> str:
 
 ---
 
-## Récapitulatif — quand utiliser on_plan_complete()
+## Récapitulatif — quand utiliser on_plan_complete
 
 | Besoin | Solution |
 |---|---|
 | Outputs des steps sufisent tels quels | Ne pas implémenter le hook — comportement par défaut |
-| Consolider les outputs en rapport structuré | `on_plan_complete()` avec formatage |
+| Consolider les outputs en rapport structuré | `on_plan_complete` avec formatage |
 | Extraire une valeur d'un step spécifique | `step_results.get("sN", "")` |
 | Persister un résumé en mémoire | `ctx.memory.record(...)` dans le hook |
 | Calculer une valeur agrégée sur plusieurs steps | Traitement Python dans le hook |

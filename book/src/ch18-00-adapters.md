@@ -2,7 +2,7 @@
 
 Vous avez déjà un agent LangGraph, une Crew CrewAI, ou un workflow AutoGen qui fonctionne. Vous ne voulez pas tout réécrire — vous voulez juste l'exécuter dans Apollia OS pour bénéficier de la persistance, des triggers, des pipelines, et du HITL.
 
-Bonne nouvelle : le contrat AIP est minimaliste. Deux méthodes suffisent — `manifest()` et `async run()`. Tout framework Python peut être enveloppé en quelques dizaines de lignes.
+Bonne nouvelle : le contrat AIP est minimaliste. Deux méthodes suffisent — `manifest()` et `async run`. Tout framework Python peut être enveloppé en quelques dizaines de lignes.
 
 ---
 
@@ -268,4 +268,4 @@ Une exception non catchée dans `run()` est convertie en `AIPBridgeError::Python
 
 **Frameworks synchrones → `run_in_executor`**
 
-CrewAI, AutoGen, et de nombreux agents custom sont synchrones. Utiliser `asyncio.get_event_loop().run_in_executor(None, lambda: ...)` pour les exécuter sans bloquer la boucle d'événements Python partagée avec le bridge Rust.
+CrewAI, AutoGen, et de nombreux agents custom sont synchrones. Utiliser `asyncio.get_event_loop.run_in_executor(None, lambda:...)` pour les exécuter sans bloquer la boucle d'événements Python partagée avec le bridge Rust.
