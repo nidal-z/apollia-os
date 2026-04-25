@@ -387,10 +387,10 @@ L'agent **ne peut pas écrire** dans `__user__` — `ctx.memory.store()` écrit 
 
 ## Diagrammes
 
-- [seq-chat-user-memory.puml](../diagrams/seq-chat-user-memory.puml) — Injection de la mémoire utilisateur dans le chat
-- [seq-conversation-summarize.puml](../diagrams/seq-conversation-summarize.puml) — Flux de summarization des conversations
-- [seq-chat-libre.puml](../diagrams/seq-chat-libre.puml) — Chat libre complet (mis à jour avec user memory et summary)
-- [seq-onboarding-flow.puml](../diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet
+- [seq-chat-user-memory.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-chat-user-memory.puml) — Injection de la mémoire utilisateur dans le chat
+- [seq-conversation-summarize.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-conversation-summarize.puml) — Flux de summarization des conversations
+- [seq-chat-libre.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-chat-libre.puml) — Chat libre complet (mis à jour avec user memory et summary)
+- [seq-onboarding-flow.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet
 
 ---
 

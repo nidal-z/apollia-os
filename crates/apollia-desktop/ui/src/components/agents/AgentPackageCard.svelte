@@ -2,7 +2,7 @@
   import type { AgentPackageListItem } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Package, AlertTriangle, Users, Zap, Info, Trash2 } from "lucide-svelte";
+  import { Package, AlertTriangle, Users, Info, Trash2 } from "lucide-svelte";
 
   interface Props {
     pkg: AgentPackageListItem;
@@ -14,9 +14,6 @@
 
   let confirmUninstall = $state(false);
   let uninstalling = $state(false);
-
-  const directorCount = $derived(pkg.agents.filter((a) => a.role === "director").length);
-  const workerCount = $derived(pkg.agents.filter((a) => a.role === "worker").length);
 
   async function handleUninstall() {
     uninstalling = true;

@@ -58,6 +58,7 @@ struct RawTrigger {
     enabled: bool,
     #[serde(default)]
     on_busy: String,
+    #[serde(default)]
     input_template: String,
     source: RawTriggerSource,
 }

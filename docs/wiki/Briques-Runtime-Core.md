@@ -919,12 +919,12 @@ Hot reload via `FileTimestampCache` (Sprint 36, STORY-476) si le répertoire `.a
 
 ## 12. Diagrammes de référence
 
-- [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
-- [CRUD Config opérationnelle](../diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)
-- [HITL Flow complet](../diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
-- [Task Lifecycle](../diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
-- [Timeline Aggregation](../diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée
-- [Chat Libre sequence](../diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
-- [Chat session state machine](../diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)
-- [STT Flow](../diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard (Sprint 24)
-- [A2A Guards sequence](../diagrams/seq-a2a-guards.puml) — garde-fous invocation A2A : depth, self-invocation, chain timeout (Sprint 32)
+- [Démarrage ordonné Supervisor](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-supervisor-startup.puml) — 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
+- [CRUD Config opérationnelle](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)
+- [HITL Flow complet](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
+- [Task Lifecycle](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
+- [Timeline Aggregation](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée
+- [Chat Libre sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
+- [Chat session state machine](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)
+- [STT Flow](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard (Sprint 24)
+- [A2A Guards sequence](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-a2a-guards.puml) — garde-fous invocation A2A : depth, self-invocation, chain timeout (Sprint 32)

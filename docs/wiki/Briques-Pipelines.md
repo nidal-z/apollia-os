@@ -34,11 +34,11 @@ $ curl -X POST http://localhost:7771/api/v1/pipelines \
 
 **Topologie d'un pipeline** — DAG avec fan-out, fan-in, condition et fallback :
 
-![Topologie pipeline](../diagrams/component-pipeline-topology.svg)
+![Topologie pipeline](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/component-pipeline-topology.svg)
 
 **Machine d'état** — cycle de vie d'un `PipelineRun` et d'un `StepRun` :
 
-![Machines d'état pipeline](../diagrams/state-pipeline.svg)
+![Machines d'état pipeline](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/state-pipeline.svg)
 
 ---
 
@@ -107,11 +107,11 @@ pub struct PipelineRun {
 
 **Séquence d'exécution complète** — de la soumission à la completion (layers topologiques, fan-out) :
 
-![Séquence exécution pipeline](../diagrams/seq-pipeline-execution.svg)
+![Séquence exécution pipeline](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-pipeline-execution.svg)
 
 **Séquence HITL** — suspension d'un step et reprise après approbation :
 
-![Séquence HITL pipeline](../diagrams/seq-pipeline-hitl.svg)
+![Séquence HITL pipeline](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-pipeline-hitl.svg)
 
 ### 3.1 Composants
 

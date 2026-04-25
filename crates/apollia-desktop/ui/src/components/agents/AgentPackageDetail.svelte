@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { AgentPackageDetailView } from "$lib/types";
-  import { Sheet, SheetContent, SheetHeader, SheetTitle } from "$lib/components/ui/sheet";
+  import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Package, AlertTriangle, Users, Clock, FolderOpen, Trash2, Zap } from "lucide-svelte";
@@ -36,20 +36,21 @@
   });
 </script>
 
-<Sheet bind:open onOpenChange={(v) => !v && onclose()}>
-  <SheetContent side="right" class="w-[420px] sm:w-[480px] overflow-y-auto">
-    {#if pkg}
-      <SheetHeader class="mb-4">
+<Sheet {open} {onclose} width="md">
+  {#if pkg}
+    <div class="flex flex-col h-full overflow-y-auto px-5 py-5">
+      <!-- Header -->
+      <div class="mb-4">
         <div class="flex items-center gap-3">
-          <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <Package size={20} class="text-primary" />
           </div>
-          <div>
-            <SheetTitle class="text-base">{pkg.name}</SheetTitle>
+          <div class="min-w-0 flex-1">
+            <p class="text-base font-semibold truncate">{pkg.name}</p>
             <p class="text-xs text-muted-foreground">v{pkg.version} · {pkg.author || "Apollia OS"}</p>
           </div>
         </div>
-      </SheetHeader>
+      </div>
 
       {#if pkg.root_missing}
         <div class="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -124,7 +125,7 @@
       {/if}
 
       <!-- Actions -->
-      <div class="mt-6 flex flex-col gap-2">
+      <div class="mt-auto pt-4 flex flex-col gap-2">
         {#if confirmUninstall}
           <p class="text-xs text-muted-foreground text-center">
             Désinstaller '{pkg.name}' et ses {pkg.agents.length} agents ?
@@ -151,6 +152,6 @@
           </Button>
         {/if}
       </div>
-    {/if}
-  </SheetContent>
+    </div>
+  {/if}
 </Sheet>

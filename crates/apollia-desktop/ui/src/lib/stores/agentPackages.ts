@@ -5,6 +5,7 @@ import type {
   AgentPackageDetailView,
   PackagePreview,
   InstallPackageResponse,
+  TriggerConfigOverride,
 } from "$lib/types";
 
 export const agentPackages = writable<AgentPackageListItem[]>([]);
@@ -28,8 +29,14 @@ export async function previewPackage(path: string): Promise<PackagePreview> {
   return invoke<PackagePreview>("preview_agent_package", { path });
 }
 
-export async function installPackage(path: string): Promise<InstallPackageResponse> {
-  const result = await invoke<InstallPackageResponse>("install_agent_package", { path });
+export async function installPackage(
+  path: string,
+  triggerConfigs: TriggerConfigOverride[] = [],
+): Promise<InstallPackageResponse> {
+  const result = await invoke<InstallPackageResponse>("install_agent_package", {
+    path,
+    triggerConfigs,
+  });
   await refreshPackages();
   return result;
 }

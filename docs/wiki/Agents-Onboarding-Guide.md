@@ -241,7 +241,7 @@ Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement 
 
 ## Diagrammes
 
-- [seq-onboarding-flow.puml](../diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet (premier lancement + re-déclenchement)
+- [seq-onboarding-flow.puml](https://github.com/nidal-z/apollia-os/blob/main/docs/diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet (premier lancement + re-déclenchement)
 
 ---
 

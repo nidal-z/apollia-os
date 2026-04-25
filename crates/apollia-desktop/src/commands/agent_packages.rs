@@ -8,12 +8,13 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use apollia_aip::package_loader::{load_package, validate_manifest, PackageLoaderError};
+use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
 use apollia_triggers::{
-    definition_repository::TriggerDefinitionRepository, parse_triggers_from_toml_str, OnBusy,
-    OnBusyPolicy, TriggerDefinitionRow, TriggerSourceConfig,
+    definition_repository::TriggerDefinitionRepository, OnBusy, OnBusyPolicy,
+    TriggerDefinitionRow, TriggerSourceConfig,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +27,31 @@ pub struct PackageAgentSummary {
     pub name: String,
     pub role: String,
     pub entry: String,
+}
+
+/// Preview d'un trigger (dry-run, sans validation stricte).
+#[derive(Debug, Serialize)]
+pub struct TriggerPreview {
+    pub id: String,
+    pub source_type: String,
+    pub agent: String,
+    /// Expression cron (cron triggers).
+    pub schedule: Option<String>,
+    /// Intervalle (interval triggers).
+    pub every: Option<String>,
+    /// Chemin surveillé (file_watch triggers).
+    pub path: Option<String>,
+    /// Ce trigger nécessite une configuration supplémentaire (ex : secret webhook).
+    pub needs_config: bool,
+    pub enabled: bool,
+}
+
+/// Override de configuration à appliquer lors de l'installation (ex : secret webhook).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TriggerConfigOverride {
+    pub id: String,
+    /// Secret HMAC pour les webhooks.
+    pub secret: Option<String>,
 }
 
 /// Élément de la liste des packages installés.
@@ -64,6 +90,7 @@ pub struct PackagePreview {
     pub description: String,
     pub author: String,
     pub agents: Vec<PackageAgentSummary>,
+    pub triggers: Vec<TriggerPreview>,
     pub trigger_count: usize,
     pub pip_packages: Vec<String>,
     pub valid: bool,
@@ -77,6 +104,67 @@ pub struct InstallPackageResponse {
     pub version: String,
     pub agent_count: usize,
     pub trigger_count: usize,
+    pub trigger_errors: Vec<String>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Raw TOML helpers (lenient, no semantic validation — for preview)
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct RawPreviewRoot {
+    #[serde(default)]
+    triggers: Vec<RawPreviewTrigger>,
+}
+
+#[derive(Deserialize)]
+struct RawPreviewTrigger {
+    id: String,
+    #[serde(default)]
+    agent: String,
+    #[serde(default = "bool_true")]
+    enabled: bool,
+    #[serde(default)]
+    source: RawPreviewSource,
+}
+
+#[derive(Deserialize, Default)]
+struct RawPreviewSource {
+    #[serde(rename = "type", default)]
+    kind: String,
+    schedule: Option<String>,
+    every: Option<String>,
+    path: Option<String>,
+    secret: Option<String>,
+}
+
+fn bool_true() -> bool { true }
+
+fn parse_trigger_previews(toml_str: &str) -> Vec<TriggerPreview> {
+    let Ok(raw) = toml::from_str::<RawPreviewRoot>(toml_str) else {
+        return vec![];
+    };
+    raw.triggers
+        .into_iter()
+        .map(|t| {
+            let needs_config = t.source.kind == "webhook"
+                && t.source.secret.as_deref().unwrap_or("").is_empty();
+            TriggerPreview {
+                id: t.id,
+                source_type: if t.source.kind.is_empty() {
+                    "cron".to_string()
+                } else {
+                    t.source.kind
+                },
+                agent: t.agent,
+                schedule: t.source.schedule,
+                every: t.source.every,
+                path: t.source.path,
+                needs_config,
+                enabled: t.enabled,
+            }
+        })
+        .collect()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +190,7 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
             description: manifest.package.description.clone(),
             author: manifest.package.author.clone(),
             agents: vec![],
+            triggers: vec![],
             trigger_count: 0,
             pip_packages: vec![],
             valid: false,
@@ -109,9 +198,8 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
         });
     }
 
-    let trigger_count = parse_triggers_from_toml_str(&toml_str)
-        .map(|v| v.len())
-        .unwrap_or(0);
+    let triggers = parse_trigger_previews(&toml_str);
+    let trigger_count = triggers.len();
 
     let pip_packages = manifest
         .pip
@@ -135,6 +223,7 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
         description: manifest.package.description,
         author: manifest.package.author,
         agents,
+        triggers,
         trigger_count,
         pip_packages,
         valid: true,
@@ -146,8 +235,10 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
 #[tauri::command]
 pub async fn install_agent_package(
     path: String,
+    trigger_configs: Vec<TriggerConfigOverride>,
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
     agent_repo_state: State<'_, Arc<Mutex<AgentRepository>>>,
+    runtime: State<'_, RuntimeHandle>,
 ) -> Result<InstallPackageResponse, String> {
     let root = PathBuf::from(&path);
     let data_dir = apollia_data_dir();
@@ -212,7 +303,9 @@ pub async fn install_agent_package(
                 installed_at: now.clone(),
                 updated_at: now.clone(),
             };
-            agent_repo.save(&agent).map_err(|e| format!("failed to save agent '{}': {e}", entry.name))?;
+            agent_repo
+                .save(&agent)
+                .map_err(|e| format!("failed to save agent '{}': {e}", entry.name))?;
             agent_count += 1;
         }
     }
@@ -227,23 +320,39 @@ pub async fn install_agent_package(
             installed_at: now.clone(),
             updated_at: now.clone(),
         };
-        pkg_repo.save(&installed_pkg).map_err(|e| format!("failed to save package: {e}"))?;
+        pkg_repo
+            .save(&installed_pkg)
+            .map_err(|e| format!("failed to save package: {e}"))?;
         for entry in &pkg.agents {
-            pkg_repo.link_agent(&pkg_name, &entry.name)
+            pkg_repo
+                .link_agent(&pkg_name, &entry.name)
                 .map_err(|e| format!("failed to link agent: {e}"))?;
         }
     }
 
-    // Inject triggers.
-    let toml_str = std::fs::read_to_string(root.join("agent.toml"))
-        .map_err(|e| format!("cannot read agent.toml: {e}"))?;
-    let trigger_count = inject_package_triggers(&data_dir, &toml_str).unwrap_or(0);
+    // Inject triggers with user-provided overrides.
+    let toml_str = std::fs::read_to_string(install_root.join("agent.toml"))
+        .map_err(|e| format!("cannot read installed agent.toml: {e}"))?;
+
+    let (trigger_count, trigger_errors) =
+        inject_package_triggers(&data_dir, &toml_str, &trigger_configs);
+
+    // Hot-reload the TriggerEngine from DB so new triggers activate immediately.
+    if trigger_count > 0 {
+        let _ = crate::commands::http_post_json(
+            runtime.api_port,
+            "/api/v1/triggers/reload",
+            &serde_json::json!({}),
+        )
+        .await;
+    }
 
     Ok(InstallPackageResponse {
         name: pkg_name,
         version: pkg_version,
         agent_count,
         trigger_count,
+        trigger_errors,
     })
 }
 
@@ -257,25 +366,36 @@ pub async fn list_agent_packages(
 
     let mut items = Vec::with_capacity(packages.len());
     for pkg in &packages {
-        let agent_names = pkg_repo.list_agents_for_package(&pkg.name).unwrap_or_default();
-        let agent_count = agent_names.len();
-
         let manifest: serde_json::Value =
             serde_json::from_str(&pkg.manifest_json).unwrap_or_default();
 
-        let agents = manifest
+        let agents: Vec<PackageAgentSummary> = manifest
             .get("agents")
             .and_then(|a| a.as_array())
             .map(|arr| {
                 arr.iter()
                     .map(|a| PackageAgentSummary {
-                        name: a.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                        role: a.get("role").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                        entry: a.get("entry").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                        name: a
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        role: a
+                            .get("role")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        entry: a
+                            .get("entry")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                     })
                     .collect()
             })
             .unwrap_or_default();
+
+        let agent_count = agents.len();
 
         let description = manifest
             .get("package")
@@ -319,9 +439,21 @@ pub async fn get_agent_package_detail(
         .map(|arr| {
             arr.iter()
                 .map(|a| PackageAgentSummary {
-                    name: a.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    role: a.get("role").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    entry: a.get("entry").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    name: a
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    role: a
+                        .get("role")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    entry: a
+                        .get("entry")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                 })
                 .collect()
         })
@@ -378,8 +510,10 @@ pub async fn uninstall_agent_package(
     }
 
     {
-        let pkg_repo = pkg_repo_state.lock().map_err(|_| "repo lock poisoned")?;
-        pkg_repo.delete(&name).map_err(|e| format!("failed to delete package: {e}"))?;
+        let pkg_repo = pkg_repo_state.lock().map_err(|_| "pkg repo lock poisoned")?;
+        pkg_repo
+            .delete(&name)
+            .map_err(|e| format!("failed to delete package: {e}"))?;
     }
 
     let _ = std::fs::remove_dir_all(&root_path);
@@ -410,85 +544,101 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, String> {
-    let trigger_defs = parse_triggers_from_toml_str(toml_str)
-        .map_err(|e| format!("trigger parse error: {e}"))?;
+/// Injecte les triggers du package dans `triggers.db` en appliquant les overrides utilisateur.
+/// Retourne `(nombre de triggers créés, liste d'erreurs par trigger)`.
+fn inject_package_triggers(
+    data_dir: &Path,
+    toml_str: &str,
+    overrides: &[TriggerConfigOverride],
+) -> (usize, Vec<String>) {
+    // Parse raw triggers leniently (input_template defaults to "").
+    let raw: RawPreviewRoot = match toml::from_str(toml_str) {
+        Ok(r) => r,
+        Err(e) => return (0, vec![format!("TOML parse error: {e}")]),
+    };
 
-    if trigger_defs.is_empty() {
-        return Ok(0);
+    if raw.triggers.is_empty() {
+        return (0, vec![]);
     }
 
     let triggers_db = data_dir.join("triggers.db");
-    let repo = TriggerDefinitionRepository::open(&triggers_db)
-        .map_err(|e| format!("cannot open triggers.db: {e}"))?;
-
-    let mut count = 0;
-    for def in &trigger_defs {
-        let row = trigger_def_to_row(def);
-        let _ = repo.delete(&def.id);
-        repo.insert(&row)
-            .map_err(|e| format!("failed to insert trigger '{}': {e}", def.id))?;
-        count += 1;
-    }
-    Ok(count)
-}
-
-fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefinitionRow {
-    let (source_type, source_config) = match &def.source {
-        TriggerSourceConfig::Cron { schedule } => (
-            "cron".to_string(),
-            serde_json::json!({"schedule": schedule}),
-        ),
-        TriggerSourceConfig::Interval { every } => (
-            "interval".to_string(),
-            serde_json::json!({"every": every}),
-        ),
-        TriggerSourceConfig::Oneshot { fire_at } => (
-            "oneshot".to_string(),
-            serde_json::json!({"fire_at": fire_at.to_rfc3339()}),
-        ),
-        TriggerSourceConfig::FileWatch {
-            path,
-            events,
-            follow_symlinks,
-            exclude_patterns,
-        } => (
-            "file_watch".to_string(),
-            serde_json::json!({
-                "path": path.to_string_lossy(),
-                "events": events,
-                "follow_symlinks": follow_symlinks,
-                "exclude_patterns": exclude_patterns,
-            }),
-        ),
-        TriggerSourceConfig::Webhook { secret } => (
-            "webhook".to_string(),
-            serde_json::json!({"secret": secret}),
-        ),
+    let repo = match TriggerDefinitionRepository::open(&triggers_db) {
+        Ok(r) => r,
+        Err(e) => return (0, vec![format!("cannot open triggers.db: {e}")]),
     };
 
-    let on_busy = match &def.on_busy {
-        OnBusyPolicy::Skip => OnBusy::Drop,
-        OnBusyPolicy::Queue { .. } | OnBusyPolicy::Block => OnBusy::Queue,
+    let mut count = 0;
+    let mut errors = Vec::new();
+
+    for t in &raw.triggers {
+        // Apply user-provided override for this trigger.
+        let secret = overrides
+            .iter()
+            .find(|o| o.id == t.id)
+            .and_then(|o| o.secret.clone())
+            .or_else(|| t.source.secret.clone());
+
+        // Validate webhook secret.
+        if t.source.kind == "webhook" {
+            if secret.as_deref().unwrap_or("").is_empty() {
+                errors.push(format!(
+                    "trigger '{}': webhook secret is required but not provided",
+                    t.id
+                ));
+                continue;
+            }
+        }
+
+        let row = build_trigger_row(t, secret);
+        let _ = repo.delete(&t.id);
+        if let Err(e) = repo.insert(&row) {
+            errors.push(format!("trigger '{}': {e}", t.id));
+        } else {
+            count += 1;
+        }
+    }
+
+    (count, errors)
+}
+
+fn build_trigger_row(t: &RawPreviewTrigger, webhook_secret_override: Option<String>) -> TriggerDefinitionRow {
+    let (source_type, source_config) = match t.source.kind.as_str() {
+        "interval" => (
+            "interval".to_string(),
+            serde_json::json!({"every": t.source.every.as_deref().unwrap_or("1h")}),
+        ),
+        "oneshot" => (
+            "oneshot".to_string(),
+            serde_json::json!({"fire_at": t.source.schedule.as_deref().unwrap_or("")}),
+        ),
+        "file_watch" => (
+            "file_watch".to_string(),
+            serde_json::json!({
+                "path": t.source.path.as_deref().unwrap_or(""),
+                "events": ["create", "modify"],
+                "follow_symlinks": false,
+                "exclude_patterns": [],
+            }),
+        ),
+        "webhook" => (
+            "webhook".to_string(),
+            serde_json::json!({"secret": webhook_secret_override.as_deref().unwrap_or("")}),
+        ),
+        _ => (
+            "cron".to_string(),
+            serde_json::json!({"schedule": t.source.schedule.as_deref().unwrap_or("0 * * * *")}),
+        ),
     };
 
     TriggerDefinitionRow {
-        id: def.id.clone(),
-        agent: if def.agent.is_empty() {
-            None
-        } else {
-            Some(def.agent.clone())
-        },
-        pipeline: def.pipeline.clone(),
-        enabled: def.enabled,
-        on_busy,
+        id: t.id.clone(),
+        agent: if t.agent.is_empty() { None } else { Some(t.agent.clone()) },
+        pipeline: None,
+        enabled: t.enabled,
+        on_busy: OnBusy::Queue,
         source_type,
         source_config,
-        input_template: if def.input_template.0.is_empty() {
-            None
-        } else {
-            Some(def.input_template.0.clone())
-        },
+        input_template: None,
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     }

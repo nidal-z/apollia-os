@@ -33,6 +33,24 @@ export interface AgentPackageDetailView {
   manifest: Record<string, unknown>;
 }
 
+/** Preview d'un trigger (dry-run, sans validation stricte). */
+export interface TriggerPreview {
+  id: string;
+  source_type: "cron" | "interval" | "webhook" | "file_watch" | "oneshot" | string;
+  agent: string;
+  schedule?: string;
+  every?: string;
+  path?: string;
+  needs_config: boolean;
+  enabled: boolean;
+}
+
+/** Override de configuration pour un trigger (ex : secret webhook). */
+export interface TriggerConfigOverride {
+  id: string;
+  secret?: string;
+}
+
 /** Résultat d'un preview (dry-run). */
 export interface PackagePreview {
   name: string;
@@ -40,6 +58,7 @@ export interface PackagePreview {
   description: string;
   author: string;
   agents: PackageAgentSummary[];
+  triggers: TriggerPreview[];
   trigger_count: number;
   pip_packages: string[];
   valid: boolean;
@@ -52,6 +71,7 @@ export interface InstallPackageResponse {
   version: string;
   agent_count: number;
   trigger_count: number;
+  trigger_errors: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
