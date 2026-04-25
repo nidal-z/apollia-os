@@ -364,6 +364,47 @@ impl PrefixRuleEngine {
         Ok(affected > 0)
     }
 
+    /// Supprime toutes les règles persistées correspondant à *scope* (et
+    /// éventuellement à *project_path* lorsque *scope* est `Project`).
+    ///
+    /// Retourne le nombre de lignes supprimées.
+    ///
+    /// # Errors
+    ///
+    /// - [`PermissionError::InvalidRule`] si *scope* est `Session` (les règles
+    ///   de session ne sont pas persistées).
+    /// - [`PermissionError::Database`] en cas d'erreur SQLite.
+    pub fn remove_rules_by_scope(
+        &mut self,
+        scope: PermissionScope,
+        project_path: Option<&Path>,
+    ) -> Result<u32, PermissionError> {
+        if scope == PermissionScope::Session {
+            return Err(PermissionError::InvalidRule(
+                "session rules are not persisted; clear them via PermissionEngine::clear_session_rules"
+                    .to_string(),
+            ));
+        }
+
+        let affected = match (scope, project_path) {
+            (PermissionScope::Project, Some(p)) => {
+                let path_str = p.to_string_lossy().to_string();
+                self.db.execute(
+                    "DELETE FROM permission_rules WHERE scope = 'project' AND project_path = ?",
+                    params![path_str],
+                )?
+            }
+            (PermissionScope::Project, None) => self
+                .db
+                .execute("DELETE FROM permission_rules WHERE scope = 'project'", [])?,
+            (PermissionScope::Global, _) => self
+                .db
+                .execute("DELETE FROM permission_rules WHERE scope = 'global'", [])?,
+            (PermissionScope::Session, _) => 0,
+        };
+        Ok(affected as u32)
+    }
+
     /// Retourne toutes les règles persistées, triées par identifiant croissant.
     ///
     /// # Errors

@@ -266,28 +266,35 @@ pub async fn list_resolved_approvals(
     Ok(approvals)
 }
 
-/// Ajoute une règle de préfixe dans le `PrefixRuleEngine` SQLite.
+/// Ajoute une règle de préfixe dont la portée est choisie par l'opérateur.
 ///
-/// Appelé par le bouton "Toujours autoriser" des composants HITL desktop.
-/// Ouvre directement la base de données consolidée `~/.apollia/governance.db`
-/// pour persister la règle sans passer par le runtime. Si une ancienne
-/// `permissions.db` est présente, elle est migrée automatiquement vers
-/// `governance.db` au premier appel.
+/// Appelé par les boutons « Toujours autoriser » des composants HITL desktop.
+/// Trois portées sont supportées :
+///
+/// - `"session"` — règle vivant uniquement en mémoire dans le processus
+///   desktop. Disparaît au redémarrage et n'est jamais écrite en base.
+/// - `"project"` — règle persistée dans `governance.db` avec son
+///   `project_path` canonicalisé. `project_path` est requis dans ce mode.
+/// - `"global"` — règle persistée pour tous les projets.
 ///
 /// # Errors
 ///
 /// Retourne une erreur si :
-/// - la variable `HOME` est absente
-/// - la base SQLite ne peut pas être ouverte ou écrite
-/// - `action` n'est ni `"allow"` ni `"deny"`
+/// - `tool_name`, `action`, ou `scope` sont invalides ;
+/// - `scope = "project"` mais `project_path` est absent ;
+/// - la variable `HOME` est absente ;
+/// - la base SQLite ne peut pas être ouverte ou écrite.
 #[tauri::command]
 pub async fn add_permission_prefix_rule(
     tool_name: String,
     arg_prefix: Option<String>,
     action: String,
+    scope: String,
+    project_path: Option<String>,
 ) -> Result<(), String> {
-    use apollia_permissions::prefix_rule_engine::{PrefixRule, PrefixRuleEngine, RuleAction};
-    use apollia_tools::GovernanceDb;
+    use apollia_permissions::prefix_rule_engine::{PrefixRule, RuleAction};
+
+    use super::tool_governance::{persist_scoped_rule, push_session_rule};
 
     if tool_name.trim().is_empty() {
         return Err("tool_name must not be empty".to_string());
@@ -303,40 +310,84 @@ pub async fn add_permission_prefix_rule(
         }
     };
 
-    let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
-    let base_dir = std::path::PathBuf::from(home).join(".apollia");
-
-    let db_path = {
-        let governance = GovernanceDb::open(&base_dir)
-            .map_err(|e| format!("failed to open governance database: {e}"))?;
-        governance.path().to_path_buf()
+    let scope_enum = match scope.as_str() {
+        "session" => apollia_permissions::PermissionScope::Session,
+        "project" => apollia_permissions::PermissionScope::Project,
+        "global" => apollia_permissions::PermissionScope::Global,
+        other => {
+            return Err(format!(
+                "unknown scope '{other}', expected 'session' | 'project' | 'global'"
+            ));
+        }
     };
 
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
 
-    let mut engine = PrefixRuleEngine::new(&db_path)
-        .map_err(|e| format!("failed to open permissions database: {e}"))?;
+    match scope_enum {
+        apollia_permissions::PermissionScope::Session => {
+            let rule = PrefixRule {
+                tool_name: tool_name.clone(),
+                arg_prefix: arg_prefix.clone(),
+                action: rule_action,
+                created_at,
+                scope: apollia_permissions::PermissionScope::Session,
+                ..PrefixRule::default()
+            };
+            push_session_rule(rule)?;
+            tracing::info!(
+                tool = %tool_name,
+                arg_prefix = ?arg_prefix,
+                scope = "session",
+                "operator added in-memory session permission rule"
+            );
+        }
+        apollia_permissions::PermissionScope::Project => {
+            use super::tool_governance::canonical_project_path;
+            let raw =
+                project_path.ok_or_else(|| "project scope requires project_path".to_string())?;
+            let canonical = canonical_project_path(&raw)?;
 
-    let rule = PrefixRule {
-        tool_name,
-        arg_prefix,
-        action: rule_action,
-        created_at,
-        ..PrefixRule::default()
-    };
+            let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+            let base_dir = std::path::PathBuf::from(home).join(".apollia");
 
-    engine
-        .add_rule(&rule)
-        .map_err(|e| format!("failed to persist prefix rule: {e}"))?;
-
-    tracing::info!(
-        tool = %rule.tool_name,
-        arg_prefix = ?rule.arg_prefix,
-        "operator added always-allow prefix rule"
-    );
+            persist_scoped_rule(
+                &base_dir,
+                tool_name.clone(),
+                arg_prefix.clone(),
+                rule_action,
+                apollia_permissions::PermissionScope::Project,
+                Some(canonical.clone()),
+            )?;
+            tracing::info!(
+                tool = %tool_name,
+                arg_prefix = ?arg_prefix,
+                project_path = %canonical.display(),
+                scope = "project",
+                "operator added project permission rule"
+            );
+        }
+        apollia_permissions::PermissionScope::Global => {
+            let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+            let base_dir = std::path::PathBuf::from(home).join(".apollia");
+            persist_scoped_rule(
+                &base_dir,
+                tool_name.clone(),
+                arg_prefix.clone(),
+                rule_action,
+                apollia_permissions::PermissionScope::Global,
+                None,
+            )?;
+            tracing::info!(
+                tool = %tool_name,
+                arg_prefix = ?arg_prefix,
+                scope = "global",
+                "operator added global permission rule"
+            );
+        }
+    }
 
     Ok(())
 }

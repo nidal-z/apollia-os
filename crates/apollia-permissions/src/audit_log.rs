@@ -40,6 +40,12 @@ pub struct PermissionAuditEntry {
     pub decision: String,
     /// Timestamp de la décision (Unix epoch, secondes).
     pub decided_at: i64,
+    /// Portée de la règle ayant déclenché la décision, lorsque disponible.
+    pub scope: Option<String>,
+    /// Identifiant de la règle persistée ayant tranché, le cas échéant.
+    pub rule_id: Option<i64>,
+    /// Nom de l'agent à l'origine de l'invocation, si renseigné par l'appelant.
+    pub agent: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -115,7 +121,7 @@ impl PermissionAuditLog {
     ) -> Result<Vec<PermissionAuditEntry>, PermissionError> {
         let entries = if let Some(name) = tool_name {
             let mut stmt = self.db.prepare_cached(
-                "SELECT id, tool_name, first_arg, decision, decided_at \
+                "SELECT id, tool_name, first_arg, decision, decided_at, scope, rule_id, agent \
                  FROM permission_audit \
                  WHERE tool_name = ? \
                  ORDER BY decided_at DESC \
@@ -125,7 +131,7 @@ impl PermissionAuditLog {
             rows.collect::<Result<Vec<_>, _>>()?
         } else {
             let mut stmt = self.db.prepare_cached(
-                "SELECT id, tool_name, first_arg, decision, decided_at \
+                "SELECT id, tool_name, first_arg, decision, decided_at, scope, rule_id, agent \
                  FROM permission_audit \
                  ORDER BY decided_at DESC \
                  LIMIT ? OFFSET ?",
@@ -182,6 +188,9 @@ fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionAuditEntr
         first_arg: row.get(2)?,
         decision: row.get(3)?,
         decided_at: row.get(4)?,
+        scope: row.get(5)?,
+        rule_id: row.get(6)?,
+        agent: row.get(7)?,
     })
 }
 

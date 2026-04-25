@@ -36,6 +36,7 @@ pub(crate) mod ssrf;
 pub mod stt;
 pub mod tasks;
 pub mod templates;
+pub mod tool_governance;
 pub mod tools;
 pub mod triggers;
 pub mod updates;
