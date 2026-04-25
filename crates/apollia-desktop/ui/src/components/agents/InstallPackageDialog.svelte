@@ -141,9 +141,10 @@
     return "";
   }
 
+  // Webhook secrets must be ≥ 32 chars (matches validation.rs MIN_WEBHOOK_SECRET_LENGTH).
   const canInstall = $derived(
     !needsConfig ||
-    webhookTriggers.every((t) => !t.needs_config || (webhookSecrets[t.id] ?? "").trim().length >= 8),
+    webhookTriggers.every((t) => !t.needs_config || (webhookSecrets[t.id] ?? "").trim().length >= 32),
   );
 </script>
 
@@ -355,7 +356,7 @@
               <input
                 id="secret-{trigger.id}"
                 type="text"
-                placeholder="Ex: my-super-secret-key-32chars"
+                placeholder="Ex: my-super-secret-key-at-least-32-chars"
                 class="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary"
                 bind:value={webhookSecrets[trigger.id]}
               />
@@ -373,8 +374,8 @@
                 </button>
               {/if}
             </div>
-            {#if trigger.needs_config && (webhookSecrets[trigger.id] ?? "").trim().length > 0 && (webhookSecrets[trigger.id] ?? "").trim().length < 8}
-              <p class="text-[10px] text-destructive">Le secret doit faire au moins 8 caractères.</p>
+            {#if trigger.needs_config && (webhookSecrets[trigger.id] ?? "").trim().length > 0 && (webhookSecrets[trigger.id] ?? "").trim().length < 32}
+              <p class="text-[10px] text-destructive">Le secret doit faire au moins 32 caractères.</p>
             {/if}
           </div>
         </div>

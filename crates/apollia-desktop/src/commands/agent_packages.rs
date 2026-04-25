@@ -7,13 +7,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use apollia_aip::package_loader::{load_package, validate_manifest, PackageLoaderError};
+use apollia_aip::package_loader::{load_package, validate_manifest};
+use apollia_core::events::RuntimeEvent;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
-use apollia_triggers::{
-    definition_repository::TriggerDefinitionRepository, OnBusy, OnBusyPolicy,
-    TriggerDefinitionRow, TriggerSourceConfig,
-};
+use apollia_triggers::{definition_repository::TriggerDefinitionRepository, OnBusy, TriggerDefinitionRow};
+use apollia_runtime::eventbus::EventBusSender;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -486,11 +485,18 @@ pub async fn get_agent_package_detail(
 }
 
 /// Désinstalle un package, ses agents et ses triggers.
+///
+/// 1. Supprime les agents de `agents.db` et les retire du registry runtime.
+/// 2. Supprime le package de `installed_packages` (CASCADE sur `package_agents`).
+/// 3. Supprime le répertoire d'installation.
+/// 4. Émet `AgentUninstalled` pour chaque agent → SSE → le frontend rafraîchit la liste.
 #[tauri::command]
 pub async fn uninstall_agent_package(
     name: String,
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
     agent_repo_state: State<'_, Arc<Mutex<AgentRepository>>>,
+    runtime: State<'_, RuntimeHandle>,
+    event_bus: State<'_, EventBusSender>,
 ) -> Result<(), String> {
     let (root_path, agent_names) = {
         let pkg_repo = pkg_repo_state.lock().map_err(|_| "repo lock poisoned")?;
@@ -502,6 +508,7 @@ pub async fn uninstall_agent_package(
         (pkg.root_path, agents)
     };
 
+    // Delete from DB.
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
         for agent_name in &agent_names {
@@ -509,11 +516,27 @@ pub async fn uninstall_agent_package(
         }
     }
 
+    // Remove package record (cascades to package_agents).
     {
         let pkg_repo = pkg_repo_state.lock().map_err(|_| "pkg repo lock poisoned")?;
         pkg_repo
             .delete(&name)
             .map_err(|e| format!("failed to delete package: {e}"))?;
+    }
+
+    // Unregister each agent from the in-memory runtime registry and emit events.
+    // This prevents ghost "session only" entries in list_agents.
+    for agent_name in &agent_names {
+        if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(agent_name).await {
+            let _ = runtime
+                .router_handle
+                .unregister_coordinator(&agent_id)
+                .await;
+            let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
+        }
+        let _ = event_bus.send(RuntimeEvent::AgentUninstalled {
+            name: agent_name.clone(),
+        });
     }
 
     let _ = std::fs::remove_dir_all(&root_path);
@@ -544,7 +567,7 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Injecte les triggers du package dans `triggers.db` en appliquant les overrides utilisateur.
+/// Injecte les triggers du package dans `triggers_def.db` en appliquant les overrides utilisateur.
 /// Retourne `(nombre de triggers créés, liste d'erreurs par trigger)`.
 fn inject_package_triggers(
     data_dir: &Path,
@@ -561,10 +584,12 @@ fn inject_package_triggers(
         return (0, vec![]);
     }
 
-    let triggers_db = data_dir.join("triggers.db");
+    // The TriggerEngine reads definitions from `triggers_def.db` (not `triggers.db`,
+    // which stores fire history). Writing to the wrong file is silently ignored by reload.
+    let triggers_db = data_dir.join("triggers_def.db");
     let repo = match TriggerDefinitionRepository::open(&triggers_db) {
         Ok(r) => r,
-        Err(e) => return (0, vec![format!("cannot open triggers.db: {e}")]),
+        Err(e) => return (0, vec![format!("cannot open triggers_def.db: {e}")]),
     };
 
     let mut count = 0;

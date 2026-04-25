@@ -204,7 +204,7 @@ class SynthesisWorker(WorkerAgent):
         })
 
         if not articles:
-            return AIPResult.completed({
+            return AIPResult.completed(json.dumps({
                 "report_markdown": (
                     f"# Veille IA/LLM — {date}\n\n"
                     "> Aucun article trouvé pour cette session.\n"
@@ -212,7 +212,7 @@ class SynthesisWorker(WorkerAgent):
                 "summary": "Aucun article trouvé pour cette session.",
                 "top_items": [],
                 "article_count": 0,
-            })
+            }, ensure_ascii=False))
 
         tech_articles = [a for a in articles if a.get("axis") == "tech"]
         competitive_articles = [a for a in articles if a.get("axis") == "competitive"]
@@ -237,15 +237,15 @@ class SynthesisWorker(WorkerAgent):
 
         parsed = extract_json(result)
         if parsed and "report_markdown" in parsed:
-            return AIPResult.completed(parsed)
+            return AIPResult.completed(json.dumps(parsed, ensure_ascii=False))
 
         # If the LLM returned raw Markdown directly instead of JSON
-        return AIPResult.completed({
+        return AIPResult.completed(json.dumps({
             "report_markdown": result,
             "summary": result.split("\n")[0].lstrip("#> "),
             "top_items": [],
             "article_count": len(articles),
-        })
+        }, ensure_ascii=False))
 
 
 agent = SynthesisWorker()

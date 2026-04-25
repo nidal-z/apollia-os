@@ -369,12 +369,7 @@ class VeilleIaAgent(BaseReActAgent):
         await self._update_memory_post_run(ctx, today, result)
         await self._record_run(ctx, today, article_count, success=True)
 
-        return AIPResult.completed({
-            "summary": result,
-            "report_path": report_path,
-            "date": today,
-            "article_count": article_count,
-        })
+        return AIPResult.completed(result)
 
     def _build_user_message(
         self,

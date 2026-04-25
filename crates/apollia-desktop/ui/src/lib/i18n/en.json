@@ -745,6 +745,7 @@
     "input": "Input",
     "output": "Output",
     "result": "Result",
+    "error": "Error",
     "technical_details": "Technical details",
     "timeline": "Timeline",
     "loading_timeline": "Loading timeline...",

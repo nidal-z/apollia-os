@@ -222,7 +222,12 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
                     false
                 }
             };
-            let output = result.as_ref().ok().map(aip_result_to_text);
+            // For Err results, surface the error string as output_text so
+            // the UI can display it instead of showing an empty result panel.
+            let output = match &result {
+                Ok(aip_result) => Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty()),
+                Err(e) => Some(e.to_string()),
+            };
 
             // Persistance observabilité : output + transition terminale + durée
             if let Some(ref repo) = task_repo {

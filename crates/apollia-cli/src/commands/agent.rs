@@ -861,7 +861,7 @@ async fn run_package_uninstall(name: &str, json: bool) -> i32 {
 
 // ─── Trigger injection ───────────────────────────────────────────────────────
 
-/// Parse triggers from `agent.toml` content and upsert into `triggers.db`.
+/// Parse triggers from `agent.toml` content and upsert into `triggers_def.db`.
 ///
 /// Returns the number of triggers successfully injected.
 fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, String> {
@@ -872,9 +872,9 @@ fn inject_package_triggers(data_dir: &Path, toml_str: &str) -> Result<usize, Str
         return Ok(0);
     }
 
-    let triggers_db = data_dir.join("triggers.db");
+    let triggers_db = data_dir.join("triggers_def.db");
     let repo = TriggerDefinitionRepository::open(&triggers_db)
-        .map_err(|e| format!("cannot open triggers.db: {e}"))?;
+        .map_err(|e| format!("cannot open triggers_def.db: {e}"))?;
 
     let mut count = 0;
     for def in &trigger_defs {

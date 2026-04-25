@@ -745,6 +745,7 @@
     "input": "Entrée",
     "output": "Sortie",
     "result": "Résultat",
+    "error": "Erreur",
     "technical_details": "Détails techniques",
     "timeline": "Chronologie",
     "loading_timeline": "Chargement de la chronologie...",

@@ -232,15 +232,15 @@ class WebSearchWorker(WorkerAgent):
                 if not article.get("source"):
                     article["source"] = _extract_domain(article.get("url", ""))
                 article.setdefault("axis", axis)
-            return AIPResult.completed(parsed)
+            return AIPResult.completed(json.dumps(parsed, ensure_ascii=False))
 
         # Fallback: return raw text (shouldn't happen with a good model)
-        return AIPResult.completed({
+        return AIPResult.completed(json.dumps({
             "articles": [],
             "total_found": 0,
             "skipped_dupes": 0,
             "raw": result,
-        })
+        }, ensure_ascii=False))
 
 
 agent = WebSearchWorker()

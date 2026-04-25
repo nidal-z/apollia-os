@@ -48,7 +48,6 @@
   const isInstalled = $derived(agent.installed_at !== null);
   const runtimeStatus = $derived(agent.runtime_status as RuntimeState | null);
   const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
-  const isLoaded = $derived(runtimeStatus !== null);
   const config = $derived(runtimeStatus ? STATUS_CONFIG[runtimeStatus] : null);
 
   async function handleStop() {

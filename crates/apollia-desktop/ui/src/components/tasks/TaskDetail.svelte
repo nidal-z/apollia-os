@@ -190,17 +190,29 @@
           {/if}
         </div>
 
-        <!-- Result card -->
+        <!-- Result / Error card -->
         {#if task.output_text}
-          <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="task-detail-result">
+          <div
+            class="glass-card glass-border rounded-lg px-4 py-3.5 {task.status === 'failed' ? 'border-destructive/30' : ''}"
+            data-testid="task-detail-result"
+          >
             <div class="flex items-center gap-2 mb-2">
-              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.result')}</span>
+              {#if task.status === 'failed'}
+                <XCircle size={11} class="text-destructive shrink-0" />
+                <span class="text-[10px] font-medium uppercase tracking-wider text-destructive/70">{$t('tasks.error')}</span>
+              {:else}
+                <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.result')}</span>
+              {/if}
               {#if outputTruncated}
                 <Badge variant="outline" class="text-[9px] px-1 py-0">{$t('tasks.truncated')}</Badge>
               {/if}
             </div>
-            <div class="text-xs">
-              <SmartOutput output={task.output_text} />
+            <div class="text-xs {task.status === 'failed' ? 'text-destructive/80 font-mono break-all' : ''}">
+              {#if task.status === 'failed'}
+                {task.output_text}
+              {:else}
+                <SmartOutput output={task.output_text} />
+              {/if}
             </div>
           </div>
         {/if}

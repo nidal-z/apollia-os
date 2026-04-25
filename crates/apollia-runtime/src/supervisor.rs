@@ -881,10 +881,15 @@ impl Supervisor {
                     .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
                 let active = notif_config.channels.iter().filter(|c| c.enabled).count();
                 let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
-                let api_base_url = format!(
-                    "http://{}:{}",
-                    self.config.api_config.bind_addr, self.config.api_config.tcp_port
-                );
+                // Use 127.0.0.1 as connect address even when bind_addr is 0.0.0.0
+                // (wildcard bind address is not a valid remote address for connect).
+                let connect_addr = if self.config.api_config.bind_addr == "0.0.0.0" {
+                    "127.0.0.1".to_string()
+                } else {
+                    self.config.api_config.bind_addr.clone()
+                };
+                let api_base_url =
+                    format!("http://{}:{}", connect_addr, self.config.api_config.tcp_port);
                 let engine = NotificationEngine::new(
                     notif_config.clone(),
                     channels,
