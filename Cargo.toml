@@ -107,6 +107,10 @@ hound = "3.5"
 
 # --- Config parsing ---
 toml = "0.8"
+toml_edit = "0.22"
+
+# --- Interactive password prompt (apollia-cli credentials) ---
+rpassword = "7"
 
 # --- HuggingFace model download ---
 hf-hub = "0.3"

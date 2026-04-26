@@ -130,7 +130,7 @@ enum Commands {
         command: TaskCommand,
     },
 
-    /// Tool registry queries (list, describe).
+    /// Native tool governance (list, enable, disable, config, reload, credentials, describe).
     Tools {
         /// Tools subcommand.
         #[command(subcommand)]

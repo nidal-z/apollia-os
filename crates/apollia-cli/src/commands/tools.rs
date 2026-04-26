@@ -1,192 +1,1088 @@
-//! `apollia-os tools` subcommands — query registered tools via the runtime API.
+//! `apollia-os tools` — gouvernance locale des outils natifs.
 //!
-//! Provides `list` and `describe` operations on the tool registry.
+//! Cette sous-commande opère directement sur la base `governance.db` et le
+//! fichier `apollia.toml` du poste, sans passer par le runtime. Les commandes
+//! sont sûres même quand le daemon n'est pas démarré ; le runtime relit le
+//! snapshot de gouvernance à chaque exécution d'agent (cf.
+//! [`apollia_tools::load_governance_snapshot`]).
+//!
+//! `describe` reste exposée pour interroger le catalogue de descripteurs via
+//! `GET /api/v1/tools/<name>` quand le runtime tourne.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 
+use apollia_core::{ToolsConfig, WebSearchBackend};
+use apollia_tools::{
+    governance_db::GOVERNANCE_DB_FILENAME, CredentialEntry, NativeToolRegistry,
+    ToolCredentialStore, ToolGovernanceError, NATIVE_TOOL_NAMES,
+};
 use clap::Subcommand;
+use toml_edit::{DocumentMut, Item, Value};
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
+use crate::config::parse_apollia_toml;
 use crate::exit_codes;
 
-/// Tools subcommands: `apollia-os tools <verb>`.
+/// Sous-commandes de `apollia-os tools`.
 #[derive(Debug, Subcommand)]
 pub enum ToolsCommand {
-    /// List all registered tools.
+    /// Affiche l'état de chaque outil natif (actif, backend, credentials).
     List,
-    /// Describe a specific tool.
+    /// Active l'outil *name* (supprime un éventuel disabled en `governance.db`).
+    Enable {
+        /// Nom canonique de l'outil natif.
+        name: String,
+    },
+    /// Désactive l'outil *name* (ajoute `enabled = FALSE` en `governance.db`).
+    Disable {
+        /// Nom canonique de l'outil natif.
+        name: String,
+    },
+    /// Lecture/modification de la configuration `[tools.<name>]` dans `apollia.toml`.
+    Config {
+        /// Sous-commande config.
+        #[command(subcommand)]
+        command: ToolsConfigCmd,
+    },
+    /// Recharge le snapshot de gouvernance et affiche l'état effectif.
+    Reload,
+    /// Gestion des credentials chiffrés associés à un outil.
+    Credentials {
+        /// Sous-commande credentials.
+        #[command(subcommand)]
+        command: ToolsCredentialsCmd,
+    },
+    /// Affiche le descripteur d'un outil enregistré dans le runtime.
     Describe {
-        /// Tool name.
+        /// Nom de l'outil.
         tool_name: String,
     },
 }
 
-/// Execute a `tools` subcommand.
-///
-/// Returns the process exit code.
+/// Sous-commandes de `apollia-os tools config`.
+#[derive(Debug, Subcommand)]
+pub enum ToolsConfigCmd {
+    /// Affiche la configuration effective de *name*.
+    Get {
+        /// Nom de l'outil natif (`web_search`, `web_read`, …).
+        name: String,
+    },
+    /// Modifie une clé de configuration `<tool>.<chemin>` dans `apollia.toml`.
+    Set {
+        /// Chemin de clé pointée, ex. `web_search.backend` ou `web_search.brave.timeout_secs`.
+        key_path: String,
+        /// Nouvelle valeur (parsée selon le type attendu).
+        value: String,
+    },
+}
+
+/// Sous-commandes de `apollia-os tools credentials`.
+#[derive(Debug, Subcommand)]
+pub enum ToolsCredentialsCmd {
+    /// Liste les credentials enregistrées (valeurs masquées).
+    List {
+        /// Filtre optionnel sur un outil.
+        tool: Option<String>,
+    },
+    /// Stocke une credential `(tool, key)` après prompt interactif masqué.
+    Set {
+        /// Nom de l'outil propriétaire.
+        tool: String,
+        /// Nom logique de la clé (ex. `brave.api_key`).
+        key: String,
+    },
+    /// Supprime la credential `(tool, key)`.
+    Delete {
+        /// Nom de l'outil propriétaire.
+        tool: String,
+        /// Nom logique de la clé.
+        key: String,
+    },
+    /// Teste la validité d'une credential par un appel live au backend concerné.
+    Test {
+        /// Nom de l'outil dont les credentials doivent être vérifiées.
+        tool: String,
+    },
+}
+
+/// Exécute une sous-commande `tools`.
 pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32 {
+    match cmd {
+        ToolsCommand::List => run_list(json),
+        ToolsCommand::Enable { name } => run_set_enabled(name, true, json),
+        ToolsCommand::Disable { name } => run_set_enabled(name, false, json),
+        ToolsCommand::Config { command } => run_config(command, json),
+        ToolsCommand::Reload => run_reload(json),
+        ToolsCommand::Credentials { command } => run_credentials(command, json).await,
+        ToolsCommand::Describe { tool_name } => run_describe(socket, tool_name, json).await,
+    }
+}
+
+// ─── List ─────────────────────────────────────────────────────────────
+
+fn run_list(json: bool) -> i32 {
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let registry = match open_registry(&data_dir, json) {
+        Ok(r) => r,
+        Err(code) => return code,
+    };
+    let statuses = match registry.list() {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("registry list failed: {e}"), json),
+    };
+
+    let credentials = open_credential_store(&data_dir).and_then(|s| s.list(None).ok());
+
+    let tools_cfg = load_tools_config(json);
+
+    if json {
+        let arr: Vec<serde_json::Value> = statuses
+            .iter()
+            .map(|s| {
+                let backend = backend_label(&s.name, &tools_cfg);
+                let creds = credentials_summary(&s.name, credentials.as_deref());
+                serde_json::json!({
+                    "name": s.name,
+                    "enabled": s.enabled,
+                    "backend": backend,
+                    "credentials": creds,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"tools": arr}))
+                .unwrap_or_else(|_| "{}".to_string())
+        );
+    } else {
+        println!(
+            "  {:<16} {:<7} {:<22} CREDENTIALS",
+            "NOM", "ACTIF", "BACKEND"
+        );
+        for s in &statuses {
+            let active = if s.enabled { "✓" } else { "✗" };
+            let backend = backend_label(&s.name, &tools_cfg);
+            let creds = credentials_text(&s.name, credentials.as_deref());
+            println!("  {:<16} {:<7} {:<22} {}", s.name, active, backend, creds);
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+fn backend_label(tool: &str, cfg: &ToolsConfig) -> String {
+    if tool == "web_search" {
+        match cfg.web_search.backend {
+            WebSearchBackend::Auto => "DuckDuckGo (auto)".to_string(),
+            WebSearchBackend::DuckDuckGo => "DuckDuckGo".to_string(),
+            WebSearchBackend::Brave => "Brave".to_string(),
+        }
+    } else {
+        "—".to_string()
+    }
+}
+
+fn credentials_summary(tool: &str, credentials: Option<&[CredentialEntry]>) -> serde_json::Value {
+    let needs = required_credentials(tool);
+    if needs.is_empty() {
+        return serde_json::Value::Null;
+    }
+    let entries = credentials.unwrap_or(&[]);
+    let arr: Vec<serde_json::Value> = needs
+        .iter()
+        .map(|key| {
+            let present = entries
+                .iter()
+                .any(|e| e.tool_name == tool && e.key_name == *key);
+            serde_json::json!({"key": key, "present": present})
+        })
+        .collect();
+    serde_json::Value::Array(arr)
+}
+
+fn credentials_text(tool: &str, credentials: Option<&[CredentialEntry]>) -> String {
+    let needs = required_credentials(tool);
+    if needs.is_empty() {
+        return "—".to_string();
+    }
+    let entries = credentials.unwrap_or(&[]);
+    needs
+        .iter()
+        .map(|key| {
+            let present = entries
+                .iter()
+                .any(|e| e.tool_name == tool && e.key_name == *key);
+            if present {
+                format!("{key}: présent")
+            } else {
+                format!("{key}: absent ⚠")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn required_credentials(tool: &str) -> &'static [&'static str] {
+    match tool {
+        "web_search" => &["brave.api_key"],
+        _ => &[],
+    }
+}
+
+// ─── Enable / Disable ─────────────────────────────────────────────────
+
+fn run_set_enabled(name: &str, enabled: bool, json: bool) -> i32 {
+    if !is_known_tool(name) {
+        return emit_unknown_tool(name, json);
+    }
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let mut registry = match open_registry(&data_dir, json) {
+        Ok(r) => r,
+        Err(code) => return code,
+    };
+    if let Err(e) = registry.set_enabled(name, enabled) {
+        return emit_error(format!("registry update failed: {e}"), json);
+    }
+    let action = if enabled { "activé" } else { "désactivé" };
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "tool": name,
+                "enabled": enabled,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ {name} {action}");
+    }
+    exit_codes::SUCCESS
+}
+
+// ─── Config ───────────────────────────────────────────────────────────
+
+fn run_config(cmd: &ToolsConfigCmd, json: bool) -> i32 {
+    match cmd {
+        ToolsConfigCmd::Get { name } => run_config_get(name, json),
+        ToolsConfigCmd::Set { key_path, value } => run_config_set(key_path, value, json),
+    }
+}
+
+fn run_config_get(name: &str, json: bool) -> i32 {
+    if !is_known_tool(name) {
+        return emit_unknown_tool(name, json);
+    }
+    let cfg = load_tools_config(json);
+    let value = effective_config_for(name, &cfg);
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string())
+        );
+    } else {
+        let toml_value = json_to_toml_value(&value);
+        let mut doc = DocumentMut::new();
+        let header = format!("tools.{name}");
+        doc[&header] = toml_edit::Item::Value(toml_value);
+        let s = doc.to_string();
+        let trimmed = s.trim_start_matches('\n');
+        print!("{trimmed}");
+    }
+    exit_codes::SUCCESS
+}
+
+fn effective_config_for(name: &str, cfg: &ToolsConfig) -> serde_json::Value {
+    match name {
+        "web_search" => serde_json::json!({
+            "backend": backend_to_str(cfg.web_search.backend),
+            "require_configured": cfg.web_search.require_configured,
+            "brave": {
+                "api_key_env_var": cfg.web_search.brave.api_key_env_var,
+                "timeout_secs": cfg.web_search.brave.timeout_secs,
+                "max_results": cfg.web_search.brave.max_results,
+            },
+            "duckduckgo": {
+                "timeout_secs": cfg.web_search.duckduckgo.timeout_secs,
+                "max_response_kb": cfg.web_search.duckduckgo.max_response_kb,
+            },
+        }),
+        "web_read" => serde_json::json!({
+            "timeout_secs": cfg.web_read.timeout_secs,
+            "max_response_kb": cfg.web_read.max_response_kb,
+            "ssrf_guard": cfg.web_read.ssrf_guard,
+        }),
+        _ => serde_json::Value::Object(serde_json::Map::new()),
+    }
+}
+
+fn backend_to_str(b: WebSearchBackend) -> &'static str {
+    match b {
+        WebSearchBackend::Auto => "auto",
+        WebSearchBackend::DuckDuckGo => "duckduckgo",
+        WebSearchBackend::Brave => "brave",
+    }
+}
+
+fn json_to_toml_value(v: &serde_json::Value) -> Value {
+    match v {
+        serde_json::Value::Null => Value::from(""),
+        serde_json::Value::Bool(b) => Value::from(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Value::from(i)
+            } else if let Some(f) = n.as_f64() {
+                Value::from(f)
+            } else {
+                Value::from(n.to_string())
+            }
+        }
+        serde_json::Value::String(s) => Value::from(s.as_str()),
+        serde_json::Value::Array(a) => {
+            let arr: toml_edit::Array = a.iter().map(json_to_toml_value).collect();
+            Value::Array(arr)
+        }
+        serde_json::Value::Object(o) => {
+            let mut tbl = toml_edit::InlineTable::new();
+            for (k, val) in o {
+                tbl.insert(k, json_to_toml_value(val));
+            }
+            Value::InlineTable(tbl)
+        }
+    }
+}
+
+fn run_config_set(key_path: &str, value: &str, json: bool) -> i32 {
+    let parts: Vec<&str> = key_path.split('.').collect();
+    if parts.len() < 2 {
+        return emit_error(
+            format!("clé invalide '{key_path}' — format attendu : <tool>.<clé>"),
+            json,
+        );
+    }
+    let tool = parts[0];
+    let key_segments = &parts[1..];
+
+    let parsed = match parse_value_for(tool, key_segments, value) {
+        Ok(v) => v,
+        Err(msg) => return emit_error(msg, json),
+    };
+
+    let path = match resolve_writable_config_path() {
+        Ok(p) => p,
+        Err(code) => return code,
+    };
+
+    let original = match read_or_empty(&path) {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("read {} failed: {e}", path.display()), json),
+    };
+    let mut doc: DocumentMut = match original.parse() {
+        Ok(d) => d,
+        Err(e) => return emit_error(format!("invalid TOML in {}: {e}", path.display()), json),
+    };
+
+    set_nested_value(&mut doc, &["tools", tool], key_segments, parsed);
+
+    let written = doc.to_string();
+
+    if let Err(e) = write_config_file(&path, &written) {
+        return emit_error(format!("write {} failed: {e}", path.display()), json);
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "key": key_path,
+                "value": value,
+                "path": path.display().to_string(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ {} → {} ({})", key_path, value, path.display());
+    }
+    exit_codes::SUCCESS
+}
+
+fn parse_value_for(tool: &str, key_segments: &[&str], raw: &str) -> Result<Value, String> {
+    let key = key_segments.join(".");
+    match (tool, key.as_str()) {
+        ("web_search", "backend") => match raw {
+            "auto" | "duckduckgo" | "brave" => Ok(Value::from(raw)),
+            _ => Err(format!(
+                "valeur invalide '{raw}' pour web_search.backend — attendu : auto | duckduckgo | brave"
+            )),
+        },
+        ("web_search", "require_configured") => parse_bool(raw),
+        ("web_search", "brave.api_key_env_var") => Ok(Value::from(raw)),
+        ("web_search", "brave.timeout_secs") => parse_int_in(raw, 1, 120),
+        ("web_search", "brave.max_results") => parse_int_in(raw, 1, 20),
+        ("web_search", "duckduckgo.timeout_secs") => parse_int_in(raw, 1, 120),
+        ("web_search", "duckduckgo.max_response_kb") => parse_int_in(raw, 16, 16_384),
+        ("web_read", "timeout_secs") => parse_int_in(raw, 1, 120),
+        ("web_read", "max_response_kb") => parse_int_in(raw, 64, 32_768),
+        ("web_read", "ssrf_guard") => parse_bool(raw),
+        _ => Err(format!(
+            "clé inconnue '{tool}.{key}'\n{}",
+            valid_keys_help(tool)
+        )),
+    }
+}
+
+fn valid_keys_help(tool: &str) -> String {
+    match tool {
+        "web_search" => "clés valides : backend, require_configured, brave.api_key_env_var, \
+                         brave.timeout_secs, brave.max_results, duckduckgo.timeout_secs, \
+                         duckduckgo.max_response_kb"
+            .to_string(),
+        "web_read" => "clés valides : timeout_secs, max_response_kb, ssrf_guard".to_string(),
+        _ => "outil sans configuration TOML — outils configurables : web_search, web_read"
+            .to_string(),
+    }
+}
+
+fn parse_bool(raw: &str) -> Result<Value, String> {
+    match raw {
+        "true" => Ok(Value::from(true)),
+        "false" => Ok(Value::from(false)),
+        _ => Err(format!("booléen attendu (true|false), reçu '{raw}'")),
+    }
+}
+
+fn parse_int_in(raw: &str, min: i64, max: i64) -> Result<Value, String> {
+    let n: i64 = raw
+        .parse()
+        .map_err(|_| format!("entier attendu, reçu '{raw}'"))?;
+    if n < min || n > max {
+        return Err(format!("valeur {n} hors bornes [{min}, {max}]"));
+    }
+    Ok(Value::from(n))
+}
+
+fn set_nested_value(
+    doc: &mut DocumentMut,
+    table_path: &[&str],
+    leaf_segments: &[&str],
+    value: Value,
+) {
+    let table = ensure_table(doc.as_table_mut(), table_path);
+    let (last, parents) = match leaf_segments.split_last() {
+        Some(s) => s,
+        None => return,
+    };
+    let target = ensure_subtable(table, parents);
+    target[last] = Item::Value(value);
+}
+
+fn ensure_table<'a>(root: &'a mut toml_edit::Table, path: &[&str]) -> &'a mut toml_edit::Table {
+    let mut current = root;
+    for segment in path {
+        if !current.contains_key(segment) {
+            let mut t = toml_edit::Table::new();
+            t.set_implicit(false);
+            current[segment] = Item::Table(t);
+        }
+        let item = &mut current[segment];
+        if !matches!(item, Item::Table(_)) {
+            *item = Item::Table(toml_edit::Table::new());
+        }
+        current = item
+            .as_table_mut()
+            .expect("freshly created or matched table item");
+    }
+    current
+}
+
+fn ensure_subtable<'a>(root: &'a mut toml_edit::Table, path: &[&str]) -> &'a mut toml_edit::Table {
+    ensure_table(root, path)
+}
+
+// ─── Reload ───────────────────────────────────────────────────────────
+
+fn run_reload(json: bool) -> i32 {
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let snapshot = match apollia_tools::load_governance_snapshot(&data_dir) {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("snapshot reload failed: {e}"), json),
+    };
+    if json {
+        let payload = serde_json::json!({
+            "disabled_tools": snapshot.disabled_tools,
+            "brave_api_key_present": snapshot.brave_api_key.is_some(),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_default()
+        );
+    } else {
+        println!("✔ Snapshot de gouvernance rechargé");
+        if snapshot.disabled_tools.is_empty() {
+            println!("  Outils désactivés : (aucun)");
+        } else {
+            println!(
+                "  Outils désactivés : {}",
+                snapshot.disabled_tools.join(", ")
+            );
+        }
+        let brave = if snapshot.brave_api_key.is_some() {
+            "présente"
+        } else {
+            "absente"
+        };
+        println!("  Clé Brave         : {brave}");
+        println!(
+            "  Note : le runtime relit ce snapshot à chaque exécution d'agent — \
+             aucun redémarrage requis."
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+// ─── Credentials ──────────────────────────────────────────────────────
+
+async fn run_credentials(cmd: &ToolsCredentialsCmd, json: bool) -> i32 {
+    match cmd {
+        ToolsCredentialsCmd::List { tool } => run_credentials_list(tool.as_deref(), json),
+        ToolsCredentialsCmd::Set { tool, key } => run_credentials_set(tool, key, json),
+        ToolsCredentialsCmd::Delete { tool, key } => run_credentials_delete(tool, key, json),
+        ToolsCredentialsCmd::Test { tool } => run_credentials_test(tool, json).await,
+    }
+}
+
+fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let store = match open_credential_store(&data_dir) {
+        Some(s) => s,
+        None => {
+            return emit_error(
+                "impossible d'ouvrir le credential store — vérifiez ~/.apollia".to_string(),
+                json,
+            );
+        }
+    };
+    let entries = match store.list(filter) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("list credentials failed: {e}"), json),
+    };
+    if json {
+        let arr: Vec<serde_json::Value> = entries
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "tool": e.tool_name,
+                    "key": e.key_name,
+                    "created_at": e.created_at,
+                    "last_used_at": e.last_used_at,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"credentials": arr}))
+                .unwrap_or_default()
+        );
+    } else if entries.is_empty() {
+        println!("  (aucune credential enregistrée)");
+    } else {
+        println!(
+            "  {:<14} {:<18} {:<12} DERNIÈRE UTILISATION",
+            "OUTIL", "CLÉ", "AJOUTÉ LE"
+        );
+        for e in &entries {
+            let created = format_unix_date(e.created_at);
+            let last = e
+                .last_used_at
+                .map(format_unix_date)
+                .unwrap_or_else(|| "jamais".to_string());
+            println!(
+                "  {:<14} {:<18} {:<12} {}",
+                e.tool_name, e.key_name, created, last
+            );
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
+    if !is_known_tool(tool) {
+        return emit_unknown_tool(tool, json);
+    }
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let prompt = format!("Valeur pour {tool}/{key} : ");
+    let value = match rpassword::prompt_password(&prompt) {
+        Ok(v) => v,
+        Err(e) => return emit_error(format!("lecture du prompt échouée : {e}"), json),
+    };
+    if value.is_empty() {
+        return emit_error("valeur vide — credential non enregistrée".to_string(), json);
+    }
+    let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
+    };
+    if let Err(e) = store.set(tool, key, &value) {
+        return emit_error(format!("set credential failed: {e}"), json);
+    }
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "tool": tool,
+                "key": key,
+                "stored": true,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ credential {tool}/{key} enregistrée (chiffrée)");
+    }
+    exit_codes::SUCCESS
+}
+
+fn run_credentials_delete(tool: &str, key: &str, json: bool) -> i32 {
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
+    };
+    let removed = match store.delete(tool, key) {
+        Ok(b) => b,
+        Err(e) => return emit_error(format!("delete failed: {e}"), json),
+    };
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "tool": tool,
+                "key": key,
+                "removed": removed,
+            }))
+            .unwrap_or_default()
+        );
+    } else if removed {
+        println!("✔ credential {tool}/{key} supprimée");
+    } else {
+        println!("ℹ aucune credential {tool}/{key} enregistrée");
+    }
+    exit_codes::SUCCESS
+}
+
+async fn run_credentials_test(tool: &str, json: bool) -> i32 {
+    if tool != "web_search" {
+        return emit_error(
+            format!("test credentials non implémenté pour '{tool}' (seul web_search est supporté)"),
+            json,
+        );
+    }
+    let data_dir = match resolve_data_dir() {
+        Ok(d) => d,
+        Err(code) => return code,
+    };
+    let store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
+    };
+    let api_key = match store.get("web_search", "brave.api_key") {
+        Ok(Some(k)) => k,
+        Ok(None) => {
+            return emit_error(
+                "aucune brave.api_key enregistrée — utilisez `apollia-os tools credentials set web_search brave.api_key`"
+                    .to_string(),
+                json,
+            );
+        }
+        Err(e) => return emit_error(format!("lecture credential échouée : {e}"), json),
+    };
+
+    let cfg = load_tools_config(json);
+    let timeout = std::time::Duration::from_secs(cfg.web_search.brave.timeout_secs);
+    let client = match reqwest::Client::builder().timeout(timeout).build() {
+        Ok(c) => c,
+        Err(e) => return emit_error(format!("HTTP client init failed: {e}"), json),
+    };
+    let url = "https://api.search.brave.com/res/v1/web/search?q=apollia&count=1";
+    let started = Instant::now();
+    let response = client
+        .get(url)
+        .header("X-Subscription-Token", &api_key)
+        .header("Accept", "application/json")
+        .send()
+        .await;
+    let elapsed_ms = started.elapsed().as_millis();
+
+    match response {
+        Ok(resp) => {
+            let status = resp.status();
+            let mut store_mut = store;
+            let _ = store_mut.touch_last_used("web_search", "brave.api_key");
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "tool": "web_search",
+                        "key": "brave.api_key",
+                        "http_status": status.as_u16(),
+                        "latency_ms": elapsed_ms as u64,
+                        "ok": status.is_success(),
+                    }))
+                    .unwrap_or_default()
+                );
+            } else if status.is_success() {
+                println!("✔ brave.api_key valide ({elapsed_ms}ms, HTTP {status})");
+            } else {
+                println!("✗ brave.api_key rejetée (HTTP {status}, {elapsed_ms}ms)");
+            }
+            if status.is_success() {
+                exit_codes::SUCCESS
+            } else {
+                exit_codes::GENERAL_ERROR
+            }
+        }
+        Err(e) => emit_error(format!("appel Brave échoué : {e}"), json),
+    }
+}
+
+// ─── Describe (legacy) ────────────────────────────────────────────────
+
+async fn run_describe(socket: Option<PathBuf>, tool_name: &str, json: bool) -> i32 {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
-
-    match cmd {
-        ToolsCommand::List => run_list(&client, json).await,
-        ToolsCommand::Describe { tool_name } => run_describe(&client, tool_name, json).await,
-    }
-}
-
-/// `apollia-os tools list` — display all registered tools.
-async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
-    let resp = match client.get("/api/v1/tools").await {
-        Ok(r) => r,
-        Err(e) => return handle_error(e, json),
-    };
-
-    if resp.status >= 400 {
-        return handle_server_error(resp.status, &resp.body, json);
-    }
-
-    let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
-
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&parsed).unwrap_or_default()
-        );
-    } else {
-        format_tools_list(&parsed);
-    }
-    exit_codes::SUCCESS
-}
-
-/// `apollia-os tools describe <name>` — display tool detail.
-async fn run_describe(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
     let resp = match client.get(&format!("/api/v1/tools/{tool_name}")).await {
         Ok(r) => r,
-        Err(e) => return handle_error(e, json),
+        Err(e) => return handle_client_error(e, json),
     };
-
     if resp.status >= 400 {
         return handle_server_error(resp.status, &resp.body, json);
     }
-
     let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
         Ok(v) => v,
-        Err(e) => {
-            eprintln!("Error: invalid JSON response: {e}");
-            return exit_codes::GENERAL_ERROR;
-        }
+        Err(e) => return emit_error(format!("invalid JSON response: {e}"), json),
     };
-
     if json {
         println!(
             "{}",
             serde_json::to_string_pretty(&parsed).unwrap_or_default()
         );
     } else {
-        format_tool_detail(&parsed);
+        let name = parsed.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+        let kind = parsed
+            .get("kind")
+            .and_then(|v| v.get("type"))
+            .and_then(|t| t.as_str())
+            .unwrap_or("?");
+        let desc = parsed
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        println!("  Name      : {name}");
+        println!("  Kind      : {kind}");
+        if !desc.is_empty() {
+            println!("  Desc      : {desc}");
+        }
     }
     exit_codes::SUCCESS
 }
 
-/// Format tools list as a human-readable table.
-fn format_tools_list(resp: &serde_json::Value) {
-    let tools = resp
-        .get("tools")
-        .and_then(|t| t.as_array())
-        .cloned()
-        .unwrap_or_default();
+// ─── Helpers ──────────────────────────────────────────────────────────
 
-    println!("  {:<24} {:<10}", "NAME", "KIND");
-
-    if tools.is_empty() {
-        println!("  (no tools registered)");
-    } else {
-        for tool in &tools {
-            let name = tool.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-            let kind = tool_kind_label(tool.get("kind"));
-            println!("  {:<24} {kind}", name);
-        }
+fn resolve_data_dir() -> Result<PathBuf, i32> {
+    match std::env::var("HOME") {
+        Ok(h) => Ok(PathBuf::from(h).join(".apollia")),
+        Err(_) => Err(emit_error(
+            "variable d'environnement HOME absente".to_string(),
+            false,
+        )),
     }
 }
 
-/// Extract a human-readable label from a [`ToolKind`] JSON value.
-///
-/// `ToolKind` is serialized as an adjacently-tagged object `{"type": "native"}`,
-/// not a plain string. This function reads the `"type"` field of that object.
-fn tool_kind_label(kind: Option<&serde_json::Value>) -> &str {
-    kind.and_then(|v| v.get("type"))
-        .and_then(|t| t.as_str())
-        .unwrap_or("?")
+fn db_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(GOVERNANCE_DB_FILENAME)
 }
 
-/// Format tool detail as human-readable text.
-fn format_tool_detail(resp: &serde_json::Value) {
-    let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-    let kind = tool_kind_label(resp.get("kind"));
-    let desc = resp
-        .get("description")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
-    println!("  Name      : {name}");
-    println!("  Kind      : {kind}");
-    if !desc.is_empty() {
-        println!("  Desc      : {desc}");
-    }
+fn keyfile_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(".keyfile")
 }
 
-/// Handle client errors uniformly.
-fn handle_error(err: ClientError, json: bool) -> i32 {
-    match err {
-        ClientError::ConnectionRefused => {
-            if json {
-                let output =
-                    serde_json::json!({"error": "runtime not started (connection refused)"});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: runtime not started (connection refused)");
-            }
-            exit_codes::RUNTIME_ERROR
-        }
-        other => {
-            if json {
-                let output = serde_json::json!({"error": other.to_string()});
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&output).unwrap_or_default()
-                );
-            } else {
-                eprintln!("Error: {other}");
-            }
-            exit_codes::GENERAL_ERROR
+fn open_registry(data_dir: &Path, json: bool) -> Result<NativeToolRegistry, i32> {
+    if !data_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(data_dir) {
+            return Err(emit_error(
+                format!("create {} failed: {e}", data_dir.display()),
+                json,
+            ));
         }
     }
+    if !db_path(data_dir).exists() {
+        if let Err(e) = apollia_tools::GovernanceDb::open(data_dir) {
+            return Err(emit_error(format!("init governance.db failed: {e}"), json));
+        }
+    }
+    NativeToolRegistry::new(&db_path(data_dir))
+        .map_err(|e: ToolGovernanceError| emit_error(format!("open registry failed: {e}"), json))
 }
 
-/// Handle HTTP server errors.
-fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
-    let error_msg = serde_json::from_str::<serde_json::Value>(body)
-        .ok()
-        .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
-        .unwrap_or_else(|| format!("server error ({status})"));
+fn open_credential_store(data_dir: &Path) -> Option<ToolCredentialStore> {
+    if !db_path(data_dir).exists() {
+        return None;
+    }
+    ToolCredentialStore::new(&db_path(data_dir), &keyfile_path(data_dir)).ok()
+}
 
+fn is_known_tool(name: &str) -> bool {
+    NATIVE_TOOL_NAMES.contains(&name)
+}
+
+fn emit_unknown_tool(name: &str, json: bool) -> i32 {
+    let known = NATIVE_TOOL_NAMES.join(", ");
+    emit_error(
+        format!("outil inconnu '{name}' — outils natifs disponibles : {known}"),
+        json,
+    )
+}
+
+fn emit_error(msg: String, json: bool) -> i32 {
     if json {
-        let output = serde_json::json!({"error": error_msg});
         println!(
             "{}",
-            serde_json::to_string_pretty(&output).unwrap_or_default()
+            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
+                .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
         );
     } else {
-        eprintln!("Error: {error_msg}");
+        eprintln!("Erreur : {msg}");
     }
     exit_codes::GENERAL_ERROR
+}
+
+fn load_tools_config(json: bool) -> ToolsConfig {
+    match find_config_path() {
+        Some(p) => match parse_apollia_toml(&p) {
+            Ok(c) => c.tools.unwrap_or_default(),
+            Err(e) => {
+                if !json {
+                    eprintln!(
+                        "Avertissement : apollia.toml illisible ({e}) — valeurs par défaut utilisées"
+                    );
+                }
+                ToolsConfig::default()
+            }
+        },
+        None => ToolsConfig::default(),
+    }
+}
+
+/// Recherche `apollia.toml` dans le répertoire courant puis `~/.config/apollia/`.
+fn find_config_path() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    let local = cwd.join("apollia.toml");
+    if local.exists() {
+        return Some(local);
+    }
+    let home = std::env::var("HOME").ok()?;
+    let user = PathBuf::from(home).join(".config/apollia/apollia.toml");
+    if user.exists() {
+        Some(user)
+    } else {
+        None
+    }
+}
+
+/// Renvoie un chemin où écrire la config : préfère un fichier existant, sinon
+/// `~/.config/apollia/apollia.toml` (créé à la volée si nécessaire).
+fn resolve_writable_config_path() -> Result<PathBuf, i32> {
+    if let Some(p) = find_config_path() {
+        return Ok(p);
+    }
+    let home = std::env::var("HOME")
+        .map_err(|_| emit_error("variable d'environnement HOME absente".to_string(), false))?;
+    let dir = PathBuf::from(home).join(".config/apollia");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| emit_error(format!("create {} failed: {e}", dir.display()), false))?;
+    }
+    Ok(dir.join("apollia.toml"))
+}
+
+fn read_or_empty(path: &Path) -> std::io::Result<String> {
+    match std::fs::read_to_string(path) {
+        Ok(s) => Ok(s),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e),
+    }
+}
+
+fn write_config_file(path: &Path, content: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    std::fs::write(path, content)
+}
+
+fn format_unix_date(ts: i64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+fn handle_client_error(err: ClientError, json: bool) -> i32 {
+    match err {
+        ClientError::ConnectionRefused => {
+            emit_error("runtime non démarré (connection refused)".to_string(), json)
+        }
+        other => emit_error(other.to_string(), json),
+    }
+}
+
+fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
+    let msg = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
+        .unwrap_or_else(|| format!("erreur serveur ({status})"));
+    emit_error(msg, json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn write_toml(dir: &TempDir, content: &str) -> PathBuf {
+        let p = dir.path().join("apollia.toml");
+        std::fs::write(&p, content).expect("write");
+        p
+    }
+
+    #[test]
+    fn parse_value_for_web_search_backend_ok() {
+        // GIVEN une valeur de backend acceptée.
+        // WHEN parse_value_for est appelé.
+        let v = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
+        // THEN la valeur TOML est bien la chaîne attendue.
+        assert_eq!(v.as_str(), Some("duckduckgo"));
+    }
+
+    #[test]
+    fn parse_value_for_unknown_key_returns_help() {
+        // GIVEN une clé inconnue.
+        let err = parse_value_for("web_search", &["plouf"], "x").unwrap_err();
+        // THEN le message liste les clés valides.
+        assert!(err.contains("clés valides"));
+    }
+
+    #[test]
+    fn parse_value_for_int_bounds_enforced() {
+        // GIVEN un entier hors borne pour brave.timeout_secs.
+        let err = parse_value_for("web_search", &["brave", "timeout_secs"], "999").unwrap_err();
+        // THEN bornes signalées.
+        assert!(err.contains("hors bornes"));
+    }
+
+    #[test]
+    fn config_set_writes_toml_section() {
+        // GIVEN un fichier TOML vide.
+        let dir = TempDir::new().expect("tempdir");
+        let path = write_toml(&dir, "");
+
+        // WHEN on injecte tools.web_search.backend = "duckduckgo".
+        let mut doc: DocumentMut = "".parse().expect("empty parse");
+        let value = parse_value_for("web_search", &["backend"], "duckduckgo").expect("parse");
+        set_nested_value(&mut doc, &["tools", "web_search"], &["backend"], value);
+        std::fs::write(&path, doc.to_string()).expect("write");
+
+        // THEN le fichier contient la section attendue.
+        let read = std::fs::read_to_string(&path).expect("read");
+        assert!(read.contains("[tools.web_search]"));
+        assert!(read.contains("backend = \"duckduckgo\""));
+    }
+
+    #[test]
+    fn known_tool_check_recognizes_native_set() {
+        // GIVEN le set NATIVE_TOOL_NAMES.
+        // THEN bash_executor est connu, mais "fake_tool" non.
+        assert!(is_known_tool("bash_executor"));
+        assert!(!is_known_tool("fake_tool"));
+    }
+
+    #[test]
+    fn list_includes_all_native_tools_via_registry() {
+        // GIVEN un data_dir frais.
+        let dir = TempDir::new().expect("tempdir");
+        apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
+        let reg = NativeToolRegistry::new(&dir.path().join(GOVERNANCE_DB_FILENAME))
+            .expect("open registry");
+        // WHEN on liste.
+        let entries = reg.list().expect("list");
+        // THEN tous les outils natifs sont présents.
+        for native in NATIVE_TOOL_NAMES {
+            assert!(
+                entries.iter().any(|e| e.name == *native),
+                "outil natif manquant : {native}"
+            );
+        }
+    }
+
+    #[test]
+    fn disable_then_enable_roundtrip() {
+        // GIVEN un registre frais.
+        let dir = TempDir::new().expect("tempdir");
+        apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
+        let mut reg = NativeToolRegistry::new(&dir.path().join(GOVERNANCE_DB_FILENAME))
+            .expect("open registry");
+        // WHEN on désactive puis réactive bash_executor.
+        reg.set_enabled("bash_executor", false).expect("disable");
+        assert!(!reg.is_enabled("bash_executor").expect("read"));
+        reg.set_enabled("bash_executor", true).expect("enable");
+        // THEN l'outil est de nouveau actif.
+        assert!(reg.is_enabled("bash_executor").expect("read"));
+    }
+
+    #[test]
+    fn credential_set_then_list_masks_value() {
+        // GIVEN un store frais avec une credential.
+        let dir = TempDir::new().expect("tempdir");
+        apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
+        let mut store = ToolCredentialStore::new(
+            &dir.path().join(GOVERNANCE_DB_FILENAME),
+            &dir.path().join(".keyfile"),
+        )
+        .expect("store");
+        store
+            .set("web_search", "brave.api_key", "BSA-test")
+            .expect("set");
+        // WHEN on liste les entrées.
+        let entries = store.list(None).expect("list");
+        // THEN une entrée existe sans exposer la valeur claire.
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].tool_name, "web_search");
+        assert_eq!(entries[0].key_name, "brave.api_key");
+    }
+
+    #[test]
+    fn backend_label_reflects_config() {
+        // GIVEN une config par défaut (auto).
+        let cfg = ToolsConfig::default();
+        // THEN web_search affiche "DuckDuckGo (auto)".
+        assert_eq!(backend_label("web_search", &cfg), "DuckDuckGo (auto)");
+        assert_eq!(backend_label("file_read", &cfg), "—");
+    }
 }
