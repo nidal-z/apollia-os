@@ -18,6 +18,7 @@ export type SettingsSubRoute =
   | "model-hub"
   | "configuration"
   | "tools"
+  | "permissions"
   | "system"
   | "memories"
   | "shortcuts"
@@ -31,6 +32,7 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "model-hub",
   "configuration",
   "tools",
+  "permissions",
   "system",
   "memories",
   "shortcuts",

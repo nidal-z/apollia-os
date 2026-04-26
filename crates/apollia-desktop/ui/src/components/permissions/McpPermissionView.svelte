@@ -8,10 +8,11 @@
   interface Props {
     taskId: string;
     permission: McpPermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   const argsJson = $derived(JSON.stringify(permission.arguments, null, 2));
 </script>
@@ -31,6 +32,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName={permission.tool_name}
     argPrefix={permission.server_name}
     {onResolved}

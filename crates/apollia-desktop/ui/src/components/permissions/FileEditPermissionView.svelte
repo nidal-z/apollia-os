@@ -7,10 +7,11 @@
   interface Props {
     taskId: string;
     permission: FileEditPermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   type DiffLine = { type: "context" | "removed" | "added"; line: string };
 
@@ -97,6 +98,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName="file_edit"
     argPrefix={permission.file_path}
     {onResolved}

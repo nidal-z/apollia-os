@@ -9,10 +9,11 @@
   interface Props {
     taskId: string;
     permission: FileWritePermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   const contentPreview = $derived.by(() => {
     const lines = permission.content.split("\n");
@@ -46,6 +47,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName="file_write"
     argPrefix={permission.file_path}
     {onResolved}

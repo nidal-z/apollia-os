@@ -35,6 +35,7 @@
     "model-hub": () => import("./settings/ModelHub.svelte"),
     configuration: () => import("./settings/Configuration.svelte"),
     tools: () => import("./settings/Tools.svelte"),
+    permissions: () => import("./settings/Permissions.svelte"),
     system: () => import("./settings/System.svelte"),
     memories: () => import("./settings/Memories.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),

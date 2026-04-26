@@ -13,14 +13,16 @@ describe("settings router", () => {
     settingsSubRoute.set(DEFAULT_SETTINGS_SUB_ROUTE);
   });
 
-  it("exposes 9 canonical sub-routes", () => {
-    expect(SETTINGS_SUB_ROUTES).toHaveLength(9);
+  it("exposes the canonical sub-routes in order", () => {
     expect(SETTINGS_SUB_ROUTES).toEqual([
       "appearance",
       "profile",
       "stt",
       "llm",
+      "model-hub",
       "configuration",
+      "tools",
+      "permissions",
       "system",
       "memories",
       "shortcuts",

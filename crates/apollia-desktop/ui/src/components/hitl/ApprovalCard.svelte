@@ -29,6 +29,16 @@
 
   const permission = $derived(extractPermission(approval.context));
 
+  /**
+   * Si le contexte de l'approbation transporte un `project_path` canonique,
+   * on le propage à la barre d'actions pour activer le bouton « Ce projet »
+   * des règles « toujours autoriser ».
+   */
+  const projectPath = $derived.by(() => {
+    const raw = approval.context?.project_path;
+    return typeof raw === "string" && raw.trim().length > 0 ? raw : undefined;
+  });
+
   const WARNING_THRESHOLD_MS = 1_800_000;
   const MIN_REASON_LENGTH = 10;
 
@@ -147,6 +157,7 @@
           <PermissionDispatcher
             taskId={approval.task_id}
             {permission}
+            {projectPath}
             onResolved={() => { resolved = true; }}
           />
         </div>

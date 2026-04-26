@@ -1597,6 +1597,7 @@
       "model_hub": "Hub de modèles",
       "configuration": "Configuration",
       "tools": "Outils",
+      "permissions": "Autorisations",
       "system": "Informations système",
       "memories": "Mémoires",
       "shortcuts": "Raccourcis",

@@ -9,10 +9,11 @@
   interface Props {
     taskId: string;
     permission: FilesystemPermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   const opVariant = $derived<BadgeVariant>(
     permission.operation === "delete"
@@ -51,6 +52,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName="filesystem"
     argPrefix={permission.path}
     {onResolved}

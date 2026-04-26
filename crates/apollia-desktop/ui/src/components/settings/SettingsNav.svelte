@@ -12,6 +12,7 @@
     AlertTriangle,
     Download,
     Wrench,
+    ShieldCheck,
   } from "lucide-svelte";
   import type { SettingsSubRoute } from "$lib/stores/settings";
 
@@ -55,6 +56,7 @@
       entries: [
         { key: "configuration", labelKey: "settings.nav.configuration", icon: Sliders },
         { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
+        { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
         { key: "system", labelKey: "settings.nav.system", icon: Info },
         { key: "memories", labelKey: "settings.nav.memories", icon: Brain },
         { key: "shortcuts", labelKey: "settings.nav.shortcuts", icon: Keyboard },

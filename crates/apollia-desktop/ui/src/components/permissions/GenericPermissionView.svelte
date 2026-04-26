@@ -8,10 +8,11 @@
   interface Props {
     taskId: string;
     permission: GenericPermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   const inputJson = $derived(JSON.stringify(permission.input, null, 2));
 </script>
@@ -27,6 +28,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName={permission.tool_name}
     {onResolved}
   />

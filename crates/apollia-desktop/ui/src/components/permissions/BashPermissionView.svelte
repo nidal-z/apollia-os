@@ -13,10 +13,11 @@
   interface Props {
     taskId: string;
     permission: BashPermission;
+    projectPath?: string;
     onResolved: () => void;
   }
 
-  let { taskId, permission, onResolved }: Props = $props();
+  let { taskId, permission, projectPath, onResolved }: Props = $props();
 
   const highlighted = $derived(
     hljs.highlight(permission.command, { language: "bash" }).value,
@@ -43,6 +44,7 @@
 
   <PermissionActionBar
     {taskId}
+    {projectPath}
     toolName="bash"
     {argPrefix}
     {onResolved}

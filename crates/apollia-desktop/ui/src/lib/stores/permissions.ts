@@ -1,0 +1,131 @@
+import { writable, get } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+
+/** Portée d'une règle de permission persistée ou en mémoire. */
+export type PermissionRuleScope = "session" | "project" | "global";
+
+/** Représentation frontend d'une règle exposée par `governance_list_permission_rules`. */
+export interface PermissionRuleDto {
+  id: number;
+  tool_name: string;
+  arg_prefix: string | null;
+  action: string;
+  scope: PermissionRuleScope;
+  project_path: string | null;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+/** Entrée de l'audit log immuable des décisions de permission. */
+export interface AuditEntryDto {
+  id: number;
+  tool_name: string;
+  first_arg: string | null;
+  decision: string;
+  scope: string | null;
+  rule_id: number | null;
+  agent: string | null;
+  decided_at: string;
+}
+
+/** Filtres appliqués à la liste des règles. `null` ⇒ pas de filtre. */
+export interface PermissionRuleFilter {
+  scope: PermissionRuleScope | null;
+  tool_name: string | null;
+}
+
+export const permissionRules = writable<PermissionRuleDto[]>([]);
+export const auditEntries = writable<AuditEntryDto[]>([]);
+export const loadingRules = writable<boolean>(false);
+export const loadingAudit = writable<boolean>(false);
+export const rulesError = writable<string | null>(null);
+export const auditError = writable<string | null>(null);
+export const filterScope = writable<PermissionRuleScope | null>(null);
+export const filterTool = writable<string | null>(null);
+
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** Recharge la liste des règles depuis le backend, en respectant les filtres. */
+export async function loadRules(): Promise<void> {
+  loadingRules.set(true);
+  rulesError.set(null);
+  try {
+    const filter = {
+      scope: get(filterScope),
+      tool_name: get(filterTool),
+    };
+    const list = await invoke<PermissionRuleDto[]>("governance_list_permission_rules", {
+      filter,
+    });
+    permissionRules.set(list);
+  } catch (err) {
+    rulesError.set(toErrorMessage(err));
+  } finally {
+    loadingRules.set(false);
+  }
+}
+
+/** Supprime une règle individuelle puis met à jour la liste locale. */
+export async function revokeRule(id: number): Promise<void> {
+  await invoke("governance_revoke_permission_rule", { ruleId: id });
+  permissionRules.update((list) => list.filter((r) => r.id !== id));
+}
+
+/**
+ * Supprime toutes les règles d'un scope (`null` ⇒ toutes portées confondues).
+ * Retourne le nombre de règles révoquées côté backend.
+ */
+export async function revokeAll(
+  scope: PermissionRuleScope | null,
+): Promise<number> {
+  const count = await invoke<number>("governance_revoke_all_rules", {
+    scope,
+  });
+  await loadRules();
+  return count;
+}
+
+/** Compte les règles correspondant à un scope donné, dans le store local. */
+export function countRulesForScope(scope: PermissionRuleScope | null): number {
+  const rules = get(permissionRules);
+  if (scope === null) return rules.length;
+  return rules.filter((r) => r.scope === scope).length;
+}
+
+/** Recharge l'audit log avec les paramètres optionnels du backend. */
+export async function loadAudit(
+  tool: string | null = null,
+  limit = 50,
+): Promise<void> {
+  loadingAudit.set(true);
+  auditError.set(null);
+  try {
+    const list = await invoke<AuditEntryDto[]>("governance_list_audit", {
+      toolName: tool,
+      limit,
+      offset: 0,
+    });
+    auditEntries.set(list);
+  } catch (err) {
+    auditError.set(toErrorMessage(err));
+  } finally {
+    loadingAudit.set(false);
+  }
+}
+
+/** Met à jour le filtre de scope et recharge la liste. */
+export async function setScopeFilter(
+  scope: PermissionRuleScope | null,
+): Promise<void> {
+  filterScope.set(scope);
+  await loadRules();
+}
+
+/** Met à jour le filtre par outil et recharge la liste. */
+export async function setToolFilter(tool: string | null): Promise<void> {
+  filterTool.set(tool);
+  await loadRules();
+}
