@@ -523,12 +523,7 @@ class BaseReActAgent(ABC):
         task_id = task.get("task_id", "unknown")
         key = f"{_HISTORY_MEMORY_KEY_PREFIX}{task_id}"
         try:
-            await ctx.memory.record(
-                key,
-                importance=MEMORY_IMPORTANCE_HISTORY,
-                task_id=task_id,
-                metadata={"history_json": json.dumps(messages)},
-            )
+            await ctx.memory.remember(key, json.dumps(messages))
         except Exception:
             pass
 
@@ -547,11 +542,10 @@ class BaseReActAgent(ABC):
         task_id = task.get("task_id", "unknown")
         key = f"{_HISTORY_MEMORY_KEY_PREFIX}{task_id}"
         try:
-            entries = await ctx.memory.recall(key)
-            if entries:
-                history_json = entries[0].get("metadata", {}).get("history_json")
-                if history_json:
-                    return json.loads(history_json)
+            history_json = await ctx.memory.recall(key)
+            if not history_json:
+                return []
+            return json.loads(history_json)
         except Exception:
             pass
         return []

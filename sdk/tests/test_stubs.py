@@ -1,6 +1,6 @@
 """Tests for apollia.stubs — type stubs for PyO3 runtime objects."""
 
-from apollia.stubs.context import RuntimeContext
+from apollia.stubs.context import RuntimeContext, StepBudgetView
 from apollia.stubs.llm import LlmProxy, LlmResponse, TokenUsage
 from apollia.stubs.memory import MemoryInterface
 from apollia.stubs.tools import ToolProxy
@@ -68,8 +68,15 @@ def test_llm_proxy_has_expected_methods():
 
 
 def test_memory_interface_has_expected_methods():
-    """MemoryInterface exposes record, remember, recall, search, forget."""
-    expected = {"record", "remember", "recall", "search", "forget"}
+    """MemoryInterface exposes record, remember, recall, recall_procedure, search, forget."""
+    expected = {"record", "remember", "recall", "recall_procedure", "search", "forget"}
+    actual = {name for name in dir(MemoryInterface) if not name.startswith("_")}
+    assert expected.issubset(actual), f"Missing: {expected - actual}"
+
+
+def test_memory_interface_has_recall_entry_and_recall_all():
+    """MemoryInterface exposes recall_entry and recall_all."""
+    expected = {"recall_entry", "recall_all"}
     actual = {name for name in dir(MemoryInterface) if not name.startswith("_")}
     assert expected.issubset(actual), f"Missing: {expected - actual}"
 
@@ -79,3 +86,24 @@ def test_runtime_context_has_expected_attrs():
     expected = {"tools", "llm", "memory", "send", "receive"}
     actual = {name for name in dir(RuntimeContext) if not name.startswith("_")}
     assert expected.issubset(actual), f"Missing: {expected - actual}"
+
+
+def test_runtime_context_has_log_and_step_budget():
+    """RuntimeContext exposes log() and step_budget."""
+    expected = {"log", "step_budget"}
+    actual = {name for name in dir(RuntimeContext) if not name.startswith("_")}
+    assert expected.issubset(actual), f"Missing: {expected - actual}"
+
+
+def test_step_budget_view_has_expected_attrs():
+    """StepBudgetView has steps_remaining, tool_calls_remaining, elapsed_seconds."""
+    expected = {"steps_remaining", "tool_calls_remaining", "elapsed_seconds"}
+    actual = {name for name in dir(StepBudgetView) if not name.startswith("_")}
+    assert expected.issubset(actual), f"Missing: {expected - actual}"
+
+
+def test_step_budget_view_importable_from_stubs():
+    """StepBudgetView is importable from apollia.stubs."""
+    from apollia.stubs import StepBudgetView as SBV
+
+    assert SBV is not None

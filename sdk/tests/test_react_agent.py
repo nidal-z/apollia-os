@@ -259,6 +259,68 @@ def test_native_tool_schemas_structure() -> None:
 
 
 # ---------------------------------------------------------------------------
+# HITL history persistence tests (FC15)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_save_and_load_history_round_trip() -> None:
+    """_save_history + _load_history performs a correct round-trip via remember/recall."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    agent = DummyAgent()
+    messages = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+        {"role": "user", "content": "bye"},
+        {"role": "assistant", "content": "later"},
+        {"role": "user", "content": "ok"},
+    ]
+    store: dict[str, str] = {}
+
+    async def fake_remember(key: str, value: str) -> None:
+        store[key] = value
+
+    async def fake_recall(key: str) -> str | None:
+        return store.get(key)
+
+    memory = MagicMock()
+    memory.remember = AsyncMock(side_effect=fake_remember)
+    memory.recall = AsyncMock(side_effect=fake_recall)
+
+    ctx = MagicMock()
+    ctx.memory = memory
+
+    task = {"task_id": "task-abc"}
+
+    # WHEN saving 5 messages
+    await agent._save_history(task, ctx, messages)
+
+    # THEN loading from a resumed task returns the same 5 messages
+    resumed_task = {"task_id": "task-abc", "is_resumed": True}
+    loaded = await agent._load_history(resumed_task, ctx)
+    assert loaded == messages, f"Expected {messages}, got {loaded}"
+
+
+@pytest.mark.asyncio
+async def test_load_history_unknown_key_returns_empty() -> None:
+    """_load_history returns [] when the key does not exist in memory."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    agent = DummyAgent()
+
+    memory = MagicMock()
+    memory.recall = AsyncMock(return_value=None)
+
+    ctx = MagicMock()
+    ctx.memory = memory
+
+    task = {"task_id": "nonexistent-task", "is_resumed": True}
+    result = await agent._load_history(task, ctx)
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
 # Backward compatibility import test
 # ---------------------------------------------------------------------------
 

@@ -6,6 +6,7 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,
 };
+use std::time::Instant;
 
 use crate::types::{
     ChatMessage, CompletionModel, CompletionRequest, FinishReason, LlmError, ToolSpec,
@@ -15,21 +16,47 @@ use crate::types::{
 // StepBudgetView
 // ─────────────────────────────────────────────
 
-/// Vue read-only du `StepBudget` exposée à la boucle ReAct.
+/// Vue read-only du `StepBudget` exposée à la boucle ReAct et à `ctx.step_budget`.
 ///
 /// Partagée via `Arc<AtomicU32>` avec le budget mutable du runtime.
 /// Aucune mutation n'est possible depuis cette vue.
 pub struct StepBudgetView {
     step_count: Arc<AtomicU32>,
     step_limit: u32,
+    tool_calls_count: Arc<AtomicU32>,
+    max_tool_calls: u32,
+    started_at: Instant,
 }
 
 impl StepBudgetView {
     /// Crée une vue à partir d'un compteur atomique partagé et d'une limite.
+    ///
+    /// `tool_calls_count` et `max_tool_calls` défaut à 0 / `u32::MAX`.
+    /// `started_at` est initialisé à maintenant.
     pub fn new(step_count: Arc<AtomicU32>, step_limit: u32) -> Self {
         Self {
             step_count,
             step_limit,
+            tool_calls_count: Arc::new(AtomicU32::new(0)),
+            max_tool_calls: u32::MAX,
+            started_at: Instant::now(),
+        }
+    }
+
+    /// Crée une vue avec tracking complet des tool calls et du temps écoulé.
+    pub fn with_tool_tracking(
+        step_count: Arc<AtomicU32>,
+        step_limit: u32,
+        tool_calls_count: Arc<AtomicU32>,
+        max_tool_calls: u32,
+        started_at: Instant,
+    ) -> Self {
+        Self {
+            step_count,
+            step_limit,
+            tool_calls_count,
+            max_tool_calls,
+            started_at,
         }
     }
 
@@ -38,6 +65,9 @@ impl StepBudgetView {
         Self {
             step_count: Arc::new(AtomicU32::new(0)),
             step_limit: u32::MAX,
+            tool_calls_count: Arc::new(AtomicU32::new(0)),
+            max_tool_calls: u32::MAX,
+            started_at: Instant::now(),
         }
     }
 
@@ -53,6 +83,20 @@ impl StepBudgetView {
         let used = self.step_count.load(Ordering::Relaxed) as i64;
         let limit = self.step_limit as i64;
         (limit - used).max(0)
+    }
+
+    /// Appels outils restants avant d'atteindre `max_tool_calls`.
+    ///
+    /// Retourne 0 si épuisé. Retourne `i64::MAX` si non limité (`max_tool_calls = u32::MAX`).
+    pub fn tool_calls_remaining(&self) -> i64 {
+        let used = self.tool_calls_count.load(Ordering::Relaxed) as i64;
+        let max = self.max_tool_calls as i64;
+        (max - used).max(0)
+    }
+
+    /// Secondes écoulées depuis le démarrage du budget.
+    pub fn elapsed_secs(&self) -> f64 {
+        self.started_at.elapsed().as_secs_f64()
     }
 }
 
@@ -186,17 +230,11 @@ mod tests {
     // ── Helpers de budget ──────────────────────────────────────────────────
 
     fn unlimited_budget() -> StepBudgetView {
-        StepBudgetView {
-            step_count: Arc::new(AtomicU32::new(0)),
-            step_limit: 100,
-        }
+        StepBudgetView::new(Arc::new(AtomicU32::new(0)), 100)
     }
 
     fn exhausted_budget() -> StepBudgetView {
-        StepBudgetView {
-            step_count: Arc::new(AtomicU32::new(100)),
-            step_limit: 100,
-        }
+        StepBudgetView::new(Arc::new(AtomicU32::new(100)), 100)
     }
 
     // ── Helpers de réponse ────────────────────────────────────────────────

@@ -8,6 +8,7 @@ Rust and is injected at runtime via PyO3.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Awaitable
 
 
@@ -24,10 +25,15 @@ class MemoryInterface:
         content: str,
         importance: float | None = None,
         task_id: str | None = None,
-    ) -> Awaitable[None]:
+        metadata: dict | None = None,
+        expires_in: timedelta | None = None,
+    ) -> Awaitable[str]:
         """Record an episodic memory event.
 
         ``importance`` defaults to 0.5 if not provided.
+        ``metadata`` is an arbitrary dict stored alongside the entry.
+        ``expires_in`` sets a TTL; ``None`` means no expiration.
+        Returns the entry ID.
         """
         ...
 
@@ -94,6 +100,14 @@ class MemoryInterface:
 
         ``injection_reason`` applies to *every* entry surfaced by this
         call; provide a coarse rationale (e.g. ``"session bootstrap"``).
+        """
+        ...
+
+    def recall_procedure(self, trigger: str) -> Awaitable[list[dict]]:
+        """Retrieve procedural memory entries matching ``trigger``.
+
+        Returns a list of dicts with keys: ``trigger``, ``steps``, ``created_at``.
+        Returns ``[]`` if no procedure matches.
         """
         ...
 

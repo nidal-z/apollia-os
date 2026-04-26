@@ -15,6 +15,22 @@ from apollia.stubs.memory import MemoryInterface
 from apollia.stubs.tools import ToolProxy
 
 
+class StepBudgetView:
+    """Read-only snapshot of the execution budget exposed via ``ctx.step_budget``.
+
+    Mirrors ``PyStepBudgetView`` defined in ``crates/apollia-aip/src/context.rs``.
+    """
+
+    steps_remaining: int = 0
+    """Steps remaining before the ``max_steps`` limit is reached."""
+
+    tool_calls_remaining: int = -1
+    """Tool calls remaining before the ``max_tool_calls`` limit is reached."""
+
+    elapsed_seconds: float = 0.0
+    """Seconds elapsed since the task started."""
+
+
 class WorkspaceContextPy:
     """Workspace context collected at task startup.
 
@@ -78,6 +94,21 @@ class RuntimeContext:
 
         Keys: ``"preferences"``, ``"habits"``, ``"context"``.
         Each value is a list of ``(key, value)`` tuples.
+        """
+        ...
+
+    # --- Budget & logging ---
+
+    @property
+    def step_budget(self) -> "StepBudgetView | None":
+        """Current execution budget snapshot — ``None`` if not configured."""
+        ...
+
+    def log(self, level: str, message: str) -> None:
+        """Emit a structured log line from within the agent.
+
+        ``level`` must be one of ``"debug"``, ``"info"``, ``"warn"``, ``"error"``.
+        Forwarded to the runtime ``tracing`` layer and surfaced in the operator UI.
         """
         ...
 

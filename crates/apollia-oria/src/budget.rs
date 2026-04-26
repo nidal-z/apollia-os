@@ -12,7 +12,7 @@
 //! between ORIAEngine and ToolProxy.
 
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::oneshot;
@@ -182,15 +182,17 @@ impl StepBudget {
         })
     }
 
-    /// Crée un snapshot [`StepBudgetView`] reflétant l'état courant du budget.
+    /// Crée un snapshot du budget exposant steps, tool_calls et temps écoulé.
     ///
-    /// La vue retournée est une copie figée (snapshot) : elle ne se met pas à jour
-    /// automatiquement si le budget évolue après sa création.
+    /// Les compteurs sont capturés au moment de l'appel. `started_at` est partagé
+    /// par copie — `elapsed_secs()` sur la vue reflète toujours le bon temps écoulé.
     pub fn to_budget_view(&self) -> apollia_llm::StepBudgetView {
-        use std::sync::Arc;
-        apollia_llm::StepBudgetView::new(
+        apollia_llm::StepBudgetView::with_tool_tracking(
             Arc::new(AtomicU32::new(self.current_steps.load(Ordering::Relaxed))),
             self.max_steps,
+            Arc::new(AtomicU32::new(self.current_tool_calls.load(Ordering::Relaxed))),
+            self.max_tool_calls,
+            self.started_at,
         )
     }
 
@@ -224,7 +226,6 @@ impl StepBudget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
     fn default_config() -> StepBudgetConfig {
         StepBudgetConfig {

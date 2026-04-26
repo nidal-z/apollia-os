@@ -702,9 +702,8 @@ use crate::llm::LlmProxy;
 
 /// Vue lecture-seule du budget d'exécution exposée à l'agent Python via `ctx.step_budget`.
 ///
-/// Snapshot instantané au moment de l'accès. `tool_calls_remaining` et
-/// `elapsed_seconds` retournent `-1` / `0.0` — ces dimensions ne sont pas
-/// encore trackées dans [`StepBudgetView`].
+/// Snapshot instantané au moment de l'accès. Les trois dimensions reflètent
+/// les compteurs live du [`StepBudgetView`] Rust au moment de l'appel.
 #[pyclass(frozen, name = "StepBudgetView")]
 pub struct PyStepBudgetView {
     steps_remaining: i64,
@@ -720,13 +719,13 @@ impl PyStepBudgetView {
         self.steps_remaining
     }
 
-    /// Appels outils restants — non trackés dans cette vue, retourne `-1`.
+    /// Appels outils restants avant d'atteindre `max_tool_calls`.
     #[getter]
     fn tool_calls_remaining(&self) -> i64 {
         self.tool_calls_remaining
     }
 
-    /// Secondes écoulées depuis le démarrage — non trackées dans cette vue, retourne `0.0`.
+    /// Secondes écoulées depuis le démarrage de la tâche.
     #[getter]
     fn elapsed_seconds(&self) -> f64 {
         self.elapsed_seconds
@@ -1368,8 +1367,8 @@ impl RuntimeContext {
             Some(view) => {
                 let py_view = PyStepBudgetView {
                     steps_remaining: view.steps_remaining(),
-                    tool_calls_remaining: -1,
-                    elapsed_seconds: 0.0,
+                    tool_calls_remaining: view.tool_calls_remaining(),
+                    elapsed_seconds: view.elapsed_secs(),
                 };
                 Ok(Py::new(py, py_view)?.into_any())
             }
