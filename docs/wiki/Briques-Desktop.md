@@ -81,8 +81,9 @@ crates/apollia-desktop/
         │   ├── stores/
         │   │   ├── sse.ts             ← SSE connection + 7 stores reactifs + 4 derives
         │   │   ├── navigation.ts      ← currentRoute + showOnboarding
-        │   │   ├── settings.ts        ← SettingsSubRoute (11 valeurs) + SETTINGS_SUB_ROUTES
-        │   │   └── toolGovernance.ts  ← ToolStatusDto, CredentialEntryDto, CredentialTestResultDto + 7 fonctions IPC (loadTools, toggleTool, getToolConfig, updateToolConfig, setCredential, deleteCredential, testCredential)
+        │   │   ├── settings.ts        ← SettingsSubRoute (12 valeurs) + SETTINGS_SUB_ROUTES
+        │   │   ├── toolGovernance.ts  ← ToolStatusDto, CredentialEntryDto, CredentialTestResultDto + 7 fonctions IPC (loadTools, toggleTool, getToolConfig, updateToolConfig, setCredential, deleteCredential, testCredential)
+        │   │   └── permissions.ts     ← PermissionRuleDto, AuditEntryDto, PermissionRuleFilter + 7 fonctions IPC (loadRules, revokeRule, revokeAll, countRulesForScope, loadAudit, setScopeFilter, setToolFilter)
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
@@ -95,7 +96,7 @@ crates/apollia-desktop/
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte
-        │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte
+        │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
         └── routes/            ← 15 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Pipelines, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)

@@ -1,50 +1,62 @@
-# Configurer les permissions de fichiers
+# Gérer les autorisations d'outils
 
-> Pour les operators qui veulent pré-définir ou ajuster les règles de permission d'accès aux fichiers, sans attendre qu'un agent demande chaque approbation.
+> Pour les operators qui veulent visualiser, filtrer ou révoquer les autorisations accordées aux outils d'un agent — sans attendre qu'une action déclenche une nouvelle carte d'approbation.
 
 ## Prérequis
 
-- L'application est ouverte et au moins un agent est installé.
-- Vous savez quels dossiers vos agents doivent (ou ne doivent pas) toucher.
-- Vous avez identifié les opérations à autoriser : lecture, écriture, exécution.
+- L'application est ouverte et au moins un agent a été exécuté.
+- Des autorisations ont été accordées lors d'une session précédente (lors d'une approbation, vous avez choisi « Toujours autoriser » ou une portée persistée).
 
-## Étapes
+## Comment les autorisations sont-elles créées ?
+
+Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Vous ne créez pas de règle manuellement depuis cet écran : cet onglet sert uniquement à les consulter et à les révoquer.
+
+## Visualiser les autorisations actives
 
 1. Dans la sidebar, cliquez sur l'icône **Settings** (engrenage en bas).
 
-2. Dans le menu de gauche, sélectionnez l'onglet **Permissions**. Vous voyez le tableau des règles déjà créées (issues de cartes d'approbation passées ou ajoutées manuellement).
-   `[SCREENSHOT: page Settings > Permissions, tableau avec colonnes Agent, Chemin, Opération, Périmètre, Actions]`
+2. Dans le menu de gauche, sélectionnez **Autorisations**.
+   `[SCREENSHOT: page Settings > Autorisations, liste de cartes d'autorisation avec badges de portée Session / Ce projet / Partout]`
 
-3. Pour créer une nouvelle règle, cliquez sur **+ Nouvelle règle** en haut à droite.
+3. Le panneau central affiche toutes les règles actives. Chaque carte indique :
+   - le **nom de l'outil** autorisé (ex. : `bash`, `file_write`, `mcp_call`)
+   - un **badge de portée** : *Session en cours*, *Ce projet* ou *Partout*
+   - le **préfixe d'argument** (si la règle est limitée à certaines invocations)
+   - la **date d'expiration** ou la mention *Permanente*
+   - l'**auteur** de la décision (agent ou utilisateur)
 
-4. Sélectionnez l'**agent concerné** dans la liste déroulante, ou choisissez **Tous les agents** pour appliquer la règle de manière globale.
+4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
+   - **Portée** : *Toutes*, *Session*, *Ce projet*, *Partout*
+   - **Outil** : sélectionnez un outil précis dans la liste des outils présents
 
-5. Saisissez le **chemin** du dossier (par exemple : `~/Rapports/`). Cliquez sur l'icône dossier pour parcourir et choisir visuellement.
-   `[SCREENSHOT: formulaire de création de règle, champ Agent, champ Chemin avec icône dossier, listes déroulantes Opération et Périmètre]`
+## Révoquer une autorisation individuelle
 
-6. Choisissez l'**opération** autorisée :
-   - **Lecture** — l'agent peut consulter les fichiers.
-   - **Écriture** — l'agent peut créer ou modifier les fichiers.
-   - **Exécution** — l'agent peut lancer des scripts ou commandes depuis ce chemin.
+1. Repérez la carte correspondant à la règle à supprimer.
+2. Cliquez sur le bouton **Révoquer** (icône corbeille, à droite de la carte).
+3. Un message de confirmation apparaît brièvement. La carte disparaît immédiatement.
+   `[SCREENSHOT: carte d'autorisation avec bouton Révoquer visible, toast de confirmation "Règle bash révoquée"]`
 
-7. Choisissez le **périmètre** :
-   - **Ce dossier exact** — uniquement les fichiers à la racine.
-   - **Ce dossier et ses sous-dossiers** — récursif.
-   - **N'importe quel dossier** — règle globale (à utiliser avec prudence).
+Une fois révoquée, l'outil concerné redemandera une approbation manuelle à la prochaine invocation.
 
-8. Cliquez sur **Créer**. La règle apparaît immédiatement dans le tableau et s'applique aux exécutions à venir.
+## Révoquer toutes les autorisations d'un coup
 
-9. Pour modifier une règle, cliquez sur l'icône crayon sur sa ligne. Pour la supprimer, cliquez sur la croix : les actions équivalentes redemanderont alors une approbation manuelle.
-   `[SCREENSHOT: tableau de règles, ligne sélectionnée avec icônes crayon et croix visibles à droite]`
+1. Cliquez sur le bouton rouge **Tout révoquer** en haut à droite.
+2. Choisissez la portée à purger :
+   - *Session uniquement* — supprime uniquement les règles non persistées (disparaissent de toute façon à la fermeture)
+   - *Ce projet* — supprime les règles liées au projet courant
+   - *Partout* — supprime les règles globales
+   - *Toutes portées* — supprime absolument tout
+3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
+   `[SCREENSHOT: dialog "Tout révoquer", sélecteur de portée, compteur de règles concernées, bouton Révoquer]`
 
-## Vérification
+## Consulter l'audit récent
 
-La règle apparaît dans le tableau avec ses paramètres. Lancez un agent qui touche au chemin concerné : aucune carte d'approbation ne s'affiche, l'action est exécutée directement et tracée dans l'audit trail.
+En bas de la page, la section **Audit récent** (lecture seule) liste les 20 dernières décisions de permission : outil, décision (allow / deny), portée, numéro de règle appliquée et agent impliqué. Cela permet de vérifier qu'une règle est bien appliquée sans avoir à lancer un agent.
 
 ## Si ça ne marche pas
 
-- **Une approbation est encore demandée alors que la règle existe** : vérifiez que le périmètre couvre bien le chemin réel (un dossier exact ne couvre pas les sous-dossiers).
-- **L'agent ne peut pas écrire malgré la règle** : l'opération sélectionnée est peut-être *Lecture*. Modifiez la règle et passez sur *Écriture*.
-- **Trop de règles, on s'y perd** : utilisez le filtre par agent en haut du tableau, ou supprimez les règles obsolètes pour repartir sur une base claire.
+- **Aucune autorisation affichée** : aucune règle persistée n'existe pour les filtres sélectionnés. Réinitialisez les filtres ou exécutez un agent et accordez une autorisation persistée via la carte d'approbation.
+- **La règle revient après révocation** : un autre agent (ou une configuration globale) crée la même règle automatiquement. Vérifiez vos agents ou contactez le support.
+- **Le bouton "Tout révoquer" est grisé** : la liste est vide — il n'y a rien à révoquer pour les filtres actuels.
 
 > **Référence technique :** [Securite-Guardrails](https://github.com/nidal-z/apollia-os/wiki/Securite-Guardrails)
