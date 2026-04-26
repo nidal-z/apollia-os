@@ -10,7 +10,7 @@ La CLI `apollia-os` suit le pattern `<noun> <verb>` — cohérent avec `docker c
 
 ```
 Niveau 1 (admin, usage quotidien) : start · stop · status · run
-Niveau 2 (développeur)            : agent · task · tools · memory · audit · llm · pipeline · trigger · notify · stt
+Niveau 2 (développeur)            : agent · task · tools · permissions · memory · audit · llm · pipeline · trigger · notify · stt
 Niveau 3 (debug)                  : --verbose · --debug · --raw
 ```
 
@@ -92,6 +92,31 @@ $ apollia-os status
   http_client      ✔  mcp_erp_acme    ✗  (retry dans 18s)
 ```
 
+### `apollia-os permissions` — règles persistées
+
+Le moteur de permissions enregistre automatiquement vos choix "Toujours autoriser" dans `governance.db`. La sous-commande `permissions` vous permet de les inspecter et de les révoquer.
+
+```bash
+# Voir toutes les règles persistées (project + global)
+$ apollia-os permissions list
+  ID    OUTIL             PORTÉE    ARGUMENT               EXPIRATION     CRÉÉ LE
+  1     file_write        project   /tmp/ @ /mon/projet    permanente     2026-04-25
+  2     web_search        global    (tous)                 permanente     2026-04-22
+  (les règles 'session' vivent en mémoire du runtime — non listables depuis la CLI)
+
+# Révoquer une règle par son identifiant
+$ apollia-os permissions revoke 1
+  Confirmer la révocation de la règle #1 (file_write) ? [o/N] o
+  ✔ Règle #1 révoquée
+
+# Consulter l'historique des décisions automatiques
+$ apollia-os permissions audit --tool web_search --limit 10
+```
+
+La sous-commande opère directement sur `governance.db` — **pas besoin d'un runtime démarré**.
+
+> **Référence technique :** [Briques-CLI §permissions](https://github.com/nidal-z/apollia-os/wiki/Briques-CLI) — tous les flags `list()`, `revoke`, `audit`, portées, et sorties JSON.
+
 ### `apollia-os task resume` — HITL
 
 ```bash
@@ -165,12 +190,13 @@ TOUTES LES COMMANDES
   start · stop · restart · status · run · health · onboard
   agent    list | start | stop | restart | info | logs | validate | new
   task     list | status | result | cancel | retry | resume | inspect
-  pipeline list | run | runs | status
-  tools    list | enable | disable | config | reload | credentials | describe
-  memory   inspect | search | get | forget | purge | export | import
-  audit    [list] | stats | export
-  notify   test | list | logs
-  stt      status | transcribe | transcriptions list | model list | model download
+  pipeline    list | run | runs | status
+  tools       list | enable | disable | config | reload | credentials | describe
+  permissions list | revoke | audit
+  memory      inspect | search | get | forget | purge | export | import
+  audit       [list] | stats | export
+  notify      test | list | logs
+  stt         status | transcribe | transcriptions list | model list | model download
 
 FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 
@@ -179,4 +205,4 @@ FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 
 ---
 
-> **Référence complète :** [Briques-CLI](https://github.com/nidal-z/apollia-os/wiki/Briques-CLI) — toutes les sous-commandes `agent`, `task`, `tools`, `memory`, `audit`, `llm`, `pipeline`, `trigger`, `notify`, `stt` avec leurs flags, sorties, et exemples détaillés.
+> **Référence complète :** [Briques-CLI](https://github.com/nidal-z/apollia-os/wiki/Briques-CLI) — toutes les sous-commandes `agent`, `task`, `tools`, `permissions`, `memory`, `audit`, `llm`, `pipeline`, `trigger`, `notify`, `stt` avec leurs flags, sorties, et exemples détaillés.

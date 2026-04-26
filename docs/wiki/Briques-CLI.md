@@ -347,6 +347,72 @@ $ apollia-os tools credentials test web_search
 $ apollia-os tools describe bash_executor
 ```
 
+### `apollia-os permissions <verb>`
+
+Gestion des règles de permissions persistées. Opère directement sur `governance.db` — **pas besoin d'un runtime démarré**. Les règles de portée `session` vivent uniquement en mémoire du daemon ; elles ne sont pas listables ni révocables depuis cette commande.
+
+```bash
+# Lister toutes les règles persistées (project + global)
+$ apollia-os permissions list
+  ID    OUTIL             PORTÉE    ARGUMENT               EXPIRATION     CRÉÉ LE
+  1     file_write        project   /tmp/ @ /mon/projet    permanente     2026-04-25
+  2     web_search        global    (tous)                 permanente     2026-04-22
+  (les règles 'session' vivent en mémoire du runtime — non listables depuis la CLI)
+
+# Filtres disponibles
+$ apollia-os permissions list --scope global
+$ apollia-os permissions list --scope project
+$ apollia-os permissions list --tool web_search
+
+# Sortie JSON
+$ apollia-os permissions list --json
+  {
+    "rules": [...],
+    "session_rules_visible": false,
+    "note": "session rules live in the runtime memory and are not visible from the CLI"
+  }
+
+# Révoquer une règle par identifiant
+$ apollia-os permissions revoke 1
+  Confirmer la révocation de la règle #1 (file_write) ? [o/N] o
+  ✔ Règle #1 révoquée
+
+# Révoquer sans confirmation interactive (scripts CI)
+$ apollia-os permissions revoke 1 --yes
+  ✔ Règle #1 révoquée
+
+# Révoquer toutes les règles d'une portée
+$ apollia-os permissions revoke --all --scope global
+  Révoquer toutes les règles global (2 règles) ? [o/N] o
+  ✔ 2 règles globales révoquées
+
+$ apollia-os permissions revoke --all --scope project --yes
+  ✔ 3 règles projet révoquées
+
+# Règle de session passée à revoke → message explicatif
+$ apollia-os permissions revoke s42
+  Erreur : les règles de session (préfixe 's') vivent en mémoire du runtime.
+  Elles disparaissent au prochain redémarrage du daemon, ou utilisez l'app desktop pour les gérer.
+
+# Consulter l'historique des décisions de permissions
+$ apollia-os permissions audit
+  HEURE            OUTIL           ARGUMENT          DÉCISION
+  2026-04-25 14:32 web_search      apollia           AutoAllowedSafeList
+  2026-04-25 14:28 file_write      /tmp/output.txt   NeedsApproval
+
+$ apollia-os permissions audit --tool file_write
+$ apollia-os permissions audit --limit 100
+$ apollia-os permissions audit --json
+```
+
+**Portées :**
+
+| Portée | Persistance | Révocable depuis CLI |
+|---|---|---|
+| `global` | `governance.db` (table `permission_rules`) | ✅ |
+| `project` | `governance.db` — lié à un `project_path` | ✅ |
+| `session` | Mémoire du daemon uniquement | ❌ (redémarrage ou app desktop) |
+
 ### `apollia-os memory <verb>`
 
 Inspection et gestion de la mémoire des agents. Les commandes `inspect`, `list()`, et `clear()` opèrent directement sur SQLite sans nécessiter un runtime démarré.
@@ -707,12 +773,13 @@ $ apollia-os
     start · stop · restart · status · run · health · onboard
     agent    list | start | stop | restart | info | logs | validate | new
     task     list | status | result | cancel | retry | resume | inspect
-    pipeline list | run | runs | status
-    tools    list | enable | disable | config | reload | credentials | describe
-    memory   inspect | search | get | forget | purge | export | import
-    audit    [list] | stats | export
-    notify   test | list | logs
-    stt      status | transcribe | transcriptions list | model list | model download
+    pipeline    list | run | runs | status
+    tools       list | enable | disable | config | reload | credentials | describe
+    permissions list | revoke | audit
+    memory      inspect | search | get | forget | purge | export | import
+    audit       [list] | stats | export
+    notify      test | list | logs
+    stt         status | transcribe | transcriptions list | model list | model download
 
   FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 
