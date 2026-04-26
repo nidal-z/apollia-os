@@ -95,6 +95,64 @@ bash_timeout_seconds = 30
 # Timeout par défaut pour python_executor en secondes
 # Défaut : 60
 python_timeout_seconds = 60
+
+# Outils natifs désactivés statiquement au démarrage.
+# Complète la table tools de governance.db : un outil absent des deux sources
+# est actif. Un outil présent dans l'une ou l'autre est inactif.
+# Défaut : []
+disabled = ["bash_executor", "python_executor"]
+```
+
+#### [tools.web_search]
+
+```toml
+[tools.web_search]
+# Backend préféré pour l'outil web_search.
+# "auto"       : DuckDuckGo en priorité, Brave si une clé API est disponible (défaut)
+# "duckduckgo" : DuckDuckGo uniquement (zero-config)
+# "brave"      : Brave uniquement — requiert une clé API
+backend = "auto"
+
+# Si true, le démarrage échoue si le backend sélectionné n'est pas opérationnel.
+# Utile pour les déploiements où web_search est critique.
+# Défaut : false
+require_configured = false
+
+[tools.web_search.brave]
+# Nom de la variable d'environnement portant la clé API Brave Search.
+# Défaut : "BRAVE_SEARCH_API_KEY"
+api_key_env_var = "BRAVE_SEARCH_API_KEY"
+
+# Timeout de requête HTTP en secondes. Bornes : [1, 120]. Défaut : 15.
+timeout_secs = 15
+
+# Nombre maximum de résultats retournés par Brave. Bornes : [1, 20]. Défaut : 10.
+max_results = 10
+
+[tools.web_search.duckduckgo]
+# Timeout de requête HTTP en secondes. Bornes : [1, 120]. Défaut : 15.
+timeout_secs = 15
+
+# Taille maximale de la réponse HTML DuckDuckGo avant abandon, en kio.
+# Bornes : [16, 16 384]. Défaut : 1024 (1 Mio).
+max_response_kb = 1024
+```
+
+#### [tools.web_read]
+
+```toml
+[tools.web_read]
+# Timeout de requête HTTP en secondes. Bornes : [1, 120]. Défaut : 20.
+timeout_secs = 20
+
+# Taille maximale de la réponse HTTP avant abandon, en kio.
+# Bornes : [64, 32 768]. Défaut : 2048 (2 Mio).
+max_response_kb = 2048
+
+# Active le garde anti-SSRF : rejette les URL à destination d'hôtes privés
+# (127.x, 10.x, 192.168.x, ::1, etc.). Désactiver uniquement en lab isolé.
+# Défaut : true — NE PAS désactiver en production.
+ssrf_guard = true
 ```
 
 ### [api]
@@ -497,13 +555,14 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 ---
 
-## Variables d'environnement LLM
+## Variables d'environnement LLM et outils web
 
 | Variable | Usage |
 |---|---|
 | `ANTHROPIC_API_KEY` | Clé API Anthropic (backend `type = "api"` avec api_url anthropic) |
 | `OPENAI_API_KEY` | Clé API OpenAI ou compatible |
 | `APOLLIA_LLM_DEFAULT` | Override du backend par défaut |
+| `BRAVE_SEARCH_API_KEY` | Clé API Brave Search (ou autre nom via `tools.web_search.brave.api_key_env_var`) |
 
 ---
 

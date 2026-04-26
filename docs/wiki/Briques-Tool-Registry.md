@@ -1180,19 +1180,46 @@ pub fn load_governance_snapshot(base_dir: &Path)
 
 ### 16.5 Intégration dans `NativeDispatcherConfig`
 
-`build_native_dispatcher` accepte maintenant deux champs supplémentaires :
+`build_native_dispatcher` accepte les champs de gouvernance et les configurations d'outils web :
 
 ```rust
 pub struct NativeDispatcherConfig {
     // ... champs existants ...
     /// Outils exclus du dispatcher — tout appel retourne `UnknownTool`.
+    /// Produit par `merge_disabled` : union de la liste statique (`apollia.toml`)
+    /// et de la liste dynamique (`governance.db`). Un outil absent des deux est actif.
     pub disabled_tools: Vec<String>,
-    /// Clé Brave Search issue du credential store ; `None` → fallback env `BRAVE_SEARCH_API_KEY`.
+    /// Clé Brave Search issue du credential store ; `None` → fallback env configuré
+    /// dans `web_search_config.brave.api_key_env_var` (défaut `BRAVE_SEARCH_API_KEY`).
     pub brave_api_key: Option<String>,
+    /// Configuration de l'outil `web_search` issue de `[tools.web_search]` dans `apollia.toml`.
+    /// Pilote le choix du backend (auto/duckduckgo/brave), les timeouts et les limites.
+    pub web_search_config: WebSearchConfig,
+    /// Configuration de l'outil `web_read` issue de `[tools.web_read]` dans `apollia.toml`.
+    /// Pilote le timeout HTTP, la taille maximale de réponse et le garde anti-SSRF.
+    pub web_read_config: WebReadConfig,
 }
 ```
 
 **Règle d'exclusion :** chaque outil est conditionné par `is_active(name) = !disabled_tools.contains(name)`. Un outil absent de `disabled_tools` est toujours inséré dans le `ToolDispatcher`.
+
+**Fusion des listes de désactivation :** la fonction `merge_disabled` réalise l'union des deux sources :
+
+```rust
+/// Union de la liste statique (apollia.toml) et de la liste dynamique (governance.db).
+/// Un outil désactivé dans l'une ou l'autre source est inactif — les deux sources
+/// sont complémentaires.
+fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>) -> Vec<String> {
+    for name in static_disabled {
+        if !runtime_disabled.iter().any(|n| n == name) {
+            runtime_disabled.push(name.clone());
+        }
+    }
+    runtime_disabled
+}
+```
+
+`static_disabled` provient de `ToolsConfig.disabled` (section `[tools]` de `apollia.toml`). `runtime_disabled` provient de `GovernanceSnapshot.disabled_tools` (table `tools` de `governance.db`).
 
 ### 16.6 `ToolGovernanceError` — erreurs typées
 

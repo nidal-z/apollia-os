@@ -1,6 +1,6 @@
 # Outils natifs — Référence rapide
 
-> Référence des 10 outils natifs Apollia OS. Version.
+> Référence des 12 outils natifs Apollia OS. Version.
 
 ---
 
@@ -17,6 +17,8 @@
 | `file_glob` | Recherche | — | Recherche par glob pattern |
 | `file_grep` | Recherche | — | Recherche par regex avec contexte |
 | `http_fetch` | Réseau | `http` | Requête HTTP avec allowlist |
+| `web_search` | Réseau | `web-search` | Recherche web (DuckDuckGo / Brave) |
+| `web_read` | Réseau | `web-read` | Extraction texte d'une URL publique |
 | `memory_search` | Mémoire | `memory-search` | Recherche FTS5/BM25 en mémoire locale |
 
 ---
@@ -468,6 +470,132 @@ Effectue une requête HTTP vers un hôte externe. Nécessite le feature flag `ht
   "body":        "{\"status\": \"ok\"}",
   "headers":     { "content-type": "application/json" },
   "duration_ms": 243
+}
+```
+
+---
+
+### `web_search` *(feature flag `web-search`)*
+
+Effectue une recherche web et retourne une liste de résultats structurés. Utilise DuckDuckGo par défaut (zero-config), ou Brave Search si une clé API est disponible. Le backend actif est sélectionné selon `[tools.web_search]` dans `apollia.toml`.
+
+**Input**
+
+```json
+{
+  "query":       "String          — requête de recherche",
+  "max_results": "u32 (optionnel) — nombre maximum de résultats (défaut: 10, max: 20)",
+  "region":      "String (optionnel) — région au format BCP-47 (ex: \"fr-fr\", \"en-us\")",
+  "time_range":  "String (optionnel) — filtre temporel : \"day\" | \"week\" | \"month\" | \"year\""
+}
+```
+
+**Output**
+
+```json
+{
+  "results": [
+    {
+      "title":       "String — titre de la page",
+      "url":         "String — URL canonique",
+      "description": "String — extrait de description"
+    }
+  ],
+  "count":         "u32    — nombre de résultats retournés",
+  "backend_used":  "String — backend effectivement utilisé : \"duckduckgo\" | \"brave\"",
+  "duration_ms":   "u64    — durée totale de la requête"
+}
+```
+
+**Erreurs**
+
+| Code | Description |
+|---|---|
+| `no_backends` | Aucun backend opérationnel (configuration invalide) |
+| `timeout` | La requête a dépassé le timeout configuré |
+| `rate_limited` | Trop de requêtes (DuckDuckGo 429 ou Brave quota dépassé) |
+| `request_failed` | Erreur réseau (DNS, TLS, connexion refusée…) |
+
+**Configuration opérateur**
+
+Le backend, les timeouts et le nombre de résultats sont configurables dans `[tools.web_search]` (voir [Config-apollia-toml — §tools.web_search](./Config-apollia-toml#toolsweb_search)). La clé Brave Search peut être stockée dans le credential store chiffré (`apollia-os tools credentials set web_search brave.api_key <clé>`) ou dans la variable d'environnement `BRAVE_SEARCH_API_KEY`.
+
+**Exemple**
+
+```json
+// Input
+{ "query": "apollia os rust agent", "max_results": 5, "region": "en-us" }
+
+// Output
+{
+  "results": [
+    {
+      "title":       "Apollia OS — Local-first agent runtime",
+      "url":         "https://github.com/apollia-os/apollia",
+      "description": "Rust runtime for autonomous AI agents..."
+    }
+  ],
+  "count":        1,
+  "backend_used": "duckduckgo",
+  "duration_ms":  312
+}
+```
+
+---
+
+### `web_read` *(feature flag `web-read`)*
+
+Récupère une URL publique et en extrait le contenu textuel (article, documentation, page web). Applique un garde anti-SSRF par défaut : les URL à destination d'hôtes privés sont rejetées.
+
+**Input**
+
+```json
+{
+  "url":       "String          — URL complète à lire (schéma https:// ou http://)",
+  "max_chars": "u32 (optionnel) — longueur maximale du texte extrait (défaut: valeur runtime)"
+}
+```
+
+**Output**
+
+```json
+{
+  "url":         "String — URL finale après redirections",
+  "title":       "String — titre de la page (balise <title> ou premier <h1>)",
+  "text":        "String — contenu textuel extrait (HTML strippé)",
+  "is_truncated": "bool  — true si le texte a été tronqué par max_chars",
+  "duration_ms": "u64   — durée totale de la requête"
+}
+```
+
+**Erreurs**
+
+| Code | Description |
+|---|---|
+| `ssrf_blocked` | URL à destination d'un hôte privé ou loopback (garde anti-SSRF) |
+| `invalid_url` | URL malformée ou schéma non supporté |
+| `invalid_content_type` | Le serveur retourne un type MIME non textuel (binaire, vidéo…) |
+| `response_too_large` | La réponse dépasse `max_response_kb` configuré |
+| `timeout` | La requête a dépassé le timeout configuré |
+| `request_failed` | Erreur réseau (DNS, TLS, connexion refusée…) |
+
+**Configuration opérateur**
+
+Timeout, taille maximale et activation du garde SSRF sont configurables dans `[tools.web_read]` (voir [Config-apollia-toml — §tools.web_read](./Config-apollia-toml#toolsweb_read)). `ssrf_guard = false` ne doit être utilisé qu'en lab isolé — jamais en production.
+
+**Exemple**
+
+```json
+// Input
+{ "url": "https://docs.rs/tokio/latest/tokio/", "max_chars": 5000 }
+
+// Output
+{
+  "url":          "https://docs.rs/tokio/latest/tokio/",
+  "title":        "tokio — Rust — Docs.rs",
+  "text":         "Tokio is an asynchronous runtime for the Rust programming language...",
+  "is_truncated": true,
+  "duration_ms":  891
 }
 ```
 

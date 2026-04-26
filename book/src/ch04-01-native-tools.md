@@ -12,7 +12,7 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 
 ---
 
-## Les 10 outils en un coup d'œil
+## Les 12 outils en un coup d'œil
 
 | Catégorie | Outil | Usage typique |
 |---|---|---|
@@ -25,9 +25,11 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 | **Shell** | `bash_executor` | Commande shell dans un environnement isolé |
 | **Python** | `python_executor` | Code Python dans un venv par agent |
 | **Réseau** | `http_fetch` | Requête HTTP (whitelist de domaines) |
+| | `web_search` | Recherche web — DuckDuckGo par défaut, Brave opt-in |
+| | `web_read` | Extraction texte d'une URL publique |
 | **Mémoire** | `memory_search` | Recherche FTS5/BM25 dans la mémoire persistante |
 
-Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque.
+Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque. `web_search` et `web_read` nécessitent les feature flags `web-search` et `web-read` à la compilation.
 
 ---
 
@@ -121,10 +123,15 @@ Le chapitre 5 explique quand utiliser l'un ou l'autre.
 
 ## Gouvernance des outils
 
-L'opérateur peut activer ou désactiver chaque outil natif sans recompiler. La liste effective est lue au démarrage depuis `governance.db` et injectée dans le dispatcher. Un outil désactivé n'est pas enregistré dans le `ToolDispatcher` — tout appel à son nom retourne une erreur `UnknownTool`, que l'outil soit déclaré ou non dans le manifest de l'agent.
+L'opérateur peut activer ou désactiver chaque outil natif sans recompiler. La liste effective est la **fusion** de deux sources :
+
+1. **Statique** — champ `disabled` dans `[tools]` de `apollia.toml` (lu au démarrage, immuable)
+2. **Dynamique** — table `tools` de `governance.db` (modifiable à chaud via CLI ou desktop)
+
+Un outil absent des deux sources est actif. Un outil présent dans l'une ou l'autre est inactif.
 
 ```bash
-# Désactiver bash_executor pour tous les agents
+# Désactiver bash_executor dynamiquement (governance.db)
 apollia-os tools disable bash_executor
 
 # Réactiver
@@ -134,7 +141,14 @@ apollia-os tools enable bash_executor
 apollia-os tools list
 ```
 
-> **Référence technique :** [Briques-Tool-Registry — §16 Gouvernance](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry#16-gouvernance-des-outils-natifs) — `ToolRegistry`, `ToolCredentialStore`, AES-256-GCM, `GovernanceSnapshot`, `NativeDispatcherConfig`.
+Pour une désactivation permanente indépendante de la base de gouvernance, déclarez l'outil dans `apollia.toml` :
+
+```toml
+[tools]
+disabled = ["bash_executor"]
+```
+
+> **Référence technique :** [Briques-Tool-Registry — §16 Gouvernance](https://github.com/nidal-z/apollia-os/wiki/Briques-Tool-Registry#16-gouvernance-des-outils-natifs) — `ToolRegistry`, `ToolCredentialStore`, AES-256-GCM, `GovernanceSnapshot`, `NativeDispatcherConfig`, `merge_disabled`.
 
 ---
 
@@ -150,6 +164,8 @@ await ctx.tools.call("file_grep",        {"pattern": "regex", "path": "..."})
 await ctx.tools.call("bash_executor",    {"command": "...", "timeout": 30})
 await ctx.tools.call("python_executor",  {"code": "..."})
 await ctx.tools.call("http_fetch",       {"url": "https://..."})
+await ctx.tools.call("web_search",       {"query": "...", "max_results": 10})
+await ctx.tools.call("web_read",         {"url": "https://..."})
 await ctx.tools.call("memory_search",    {"query": "..."})
 ```
 
