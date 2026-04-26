@@ -1596,6 +1596,7 @@
       "llm": "Backends LLM",
       "model_hub": "Hub de modèles",
       "configuration": "Configuration",
+      "tools": "Outils",
       "system": "Informations système",
       "memories": "Mémoires",
       "shortcuts": "Raccourcis",
