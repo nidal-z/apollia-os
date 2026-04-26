@@ -11,6 +11,7 @@ pub mod memory;
 pub mod model;
 pub mod notify;
 pub mod onboard;
+pub mod permissions;
 pub mod pipeline;
 pub mod review;
 pub mod rollback;

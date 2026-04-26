@@ -1,0 +1,671 @@
+//! `apollia-os permissions` — gestion locale des règles de permissions.
+//!
+//! Cette sous-commande opère directement sur `governance.db` (table
+//! `permission_rules` et `permission_audit`) sans passer par le runtime.
+//! Elle expose trois opérations à l'opérateur :
+//!
+//! - `list`   : afficher les règles persistées (project + global) avec leur portée.
+//! - `revoke` : supprimer une règle persistée par identifiant ou en masse par scope.
+//! - `audit`  : consulter l'historique immuable des décisions de permissions.
+//!
+//! Les règles `session` vivent uniquement en mémoire dans le `PermissionEngine`
+//! du runtime ; elles ne sont pas listables ni révocables depuis cette
+//! sous-commande, qui s'exécute hors du process daemon. Lorsqu'un identifiant
+//! préfixé `s` est passé à `revoke`, un message clair indique cette limite et
+//! redirige l'opérateur vers l'app desktop.
+
+use std::io::{self, IsTerminal, Write};
+use std::path::{Path, PathBuf};
+
+use apollia_permissions::{
+    PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
+};
+use apollia_tools::GovernanceDb;
+use clap::Subcommand;
+
+use crate::exit_codes;
+
+/// Sous-commandes de `apollia-os permissions`.
+#[derive(Debug, Subcommand)]
+pub enum PermissionsCommand {
+    /// Liste les règles persistées (project + global).
+    List {
+        /// Filtre par portée : `global`, `project` ou `session`.
+        #[arg(long)]
+        scope: Option<String>,
+        /// Filtre par nom d'outil.
+        #[arg(long)]
+        tool: Option<String>,
+    },
+    /// Révoque une règle par identifiant, ou toutes les règles via `--all`.
+    Revoke {
+        /// Identifiant numérique d'une règle persistée.
+        ///
+        /// Les identifiants préfixés `s` désignent des règles de session — non
+        /// révocables depuis la CLI (utilisez l'app desktop ou redémarrez le daemon).
+        id: Option<String>,
+        /// Révoque toutes les règles correspondant à `--scope`.
+        #[arg(long)]
+        all: bool,
+        /// Scope ciblé par `--all` : `global` (défaut) ou `project`.
+        #[arg(long)]
+        scope: Option<String>,
+        /// Saute la confirmation interactive (utile pour les scripts).
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Affiche l'historique des décisions de permissions.
+    Audit {
+        /// Filtre par nom d'outil.
+        #[arg(long)]
+        tool: Option<String>,
+        /// Nombre maximal d'entrées affichées.
+        #[arg(long, default_value = "50")]
+        limit: u32,
+    },
+}
+
+/// Exécute une sous-commande `permissions`.
+///
+/// Le paramètre `socket` est accepté pour cohérence avec les autres
+/// sous-commandes mais n'est pas utilisé : tout passe par accès direct à
+/// `governance.db`.
+pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool) -> i32 {
+    match cmd {
+        PermissionsCommand::List { scope, tool } => {
+            run_list(scope.as_deref(), tool.as_deref(), json)
+        }
+        PermissionsCommand::Revoke {
+            id,
+            all,
+            scope,
+            yes,
+        } => run_revoke(id.as_deref(), *all, scope.as_deref(), *yes, json),
+        PermissionsCommand::Audit { tool, limit } => run_audit(tool.as_deref(), *limit, json),
+    }
+}
+
+// ─── List ────────────────────────────────────────────────────────────
+
+fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -> i32 {
+    let parsed_scope = match scope_filter.map(parse_scope_filter).transpose() {
+        Ok(s) => s,
+        Err(msg) => return emit_error(msg, json),
+    };
+
+    let db_path = match ensure_governance_db_path() {
+        Ok(p) => p,
+        Err(msg) => return emit_error(msg, json),
+    };
+    let engine = match PrefixRuleEngine::new(&db_path) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+    };
+
+    let rules = match load_rules(&engine, parsed_scope) {
+        Ok(r) => r,
+        Err(msg) => return emit_error(msg, json),
+    };
+    let filtered: Vec<PrefixRule> = match tool_filter {
+        Some(t) => rules.into_iter().filter(|r| r.tool_name == t).collect(),
+        None => rules,
+    };
+
+    if json {
+        let arr: Vec<serde_json::Value> = filtered.iter().map(rule_to_json).collect();
+        let payload = serde_json::json!({
+            "rules": arr,
+            "session_rules_visible": false,
+            "note": "session rules live in the runtime memory and are not visible from the CLI",
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".to_string())
+        );
+    } else {
+        print_rules_table(&filtered);
+        println!(
+            "  (les règles 'session' vivent en mémoire du runtime — non listables depuis la CLI)"
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+fn load_rules(
+    engine: &PrefixRuleEngine,
+    scope: Option<PermissionScope>,
+) -> Result<Vec<PrefixRule>, String> {
+    engine
+        .list_rules_filtered(scope, None)
+        .map_err(|e| format!("lecture des règles échouée : {e}"))
+}
+
+fn print_rules_table(rules: &[PrefixRule]) {
+    println!(
+        "  {:<5} {:<18} {:<8} {:<22} {:<14} CRÉÉ LE",
+        "ID", "OUTIL", "PORTÉE", "ARGUMENT", "EXPIRATION"
+    );
+    if rules.is_empty() {
+        println!("  (aucune règle persistée)");
+        return;
+    }
+    for r in rules {
+        let arg = display_arg(r.arg_prefix.as_deref(), r.scope, r.project_path.as_deref());
+        let expiration = display_expiration(r.expires_at);
+        let created = format_unix_date(r.created_at);
+        println!(
+            "  {:<5} {:<18} {:<8} {:<22} {:<14} {}",
+            r.id,
+            r.tool_name,
+            r.scope.as_str(),
+            arg,
+            expiration,
+            created
+        );
+    }
+}
+
+fn display_arg(
+    arg_prefix: Option<&str>,
+    scope: PermissionScope,
+    project_path: Option<&Path>,
+) -> String {
+    let prefix = arg_prefix.unwrap_or("(tous)");
+    if matches!(scope, PermissionScope::Project) {
+        if let Some(p) = project_path {
+            return format!("{prefix} @ {}", p.display());
+        }
+    }
+    prefix.to_string()
+}
+
+fn display_expiration(expires_at: Option<i64>) -> String {
+    match expires_at {
+        Some(ts) => format_unix_date(ts),
+        None => "permanente".to_string(),
+    }
+}
+
+fn rule_to_json(r: &PrefixRule) -> serde_json::Value {
+    serde_json::json!({
+        "id": r.id,
+        "tool_name": r.tool_name,
+        "arg_prefix": r.arg_prefix,
+        "action": match r.action { RuleAction::Allow => "allow", RuleAction::Deny => "deny" },
+        "scope": r.scope.as_str(),
+        "project_path": r.project_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+        "expires_at": r.expires_at,
+        "created_at": r.created_at,
+        "created_by_agent": r.created_by_agent,
+    })
+}
+
+// ─── Revoke ──────────────────────────────────────────────────────────
+
+fn run_revoke(
+    id: Option<&str>,
+    all: bool,
+    scope_filter: Option<&str>,
+    yes: bool,
+    json: bool,
+) -> i32 {
+    if all {
+        return run_revoke_all(scope_filter, yes, json);
+    }
+
+    let raw_id = match id {
+        Some(s) => s.trim(),
+        None => {
+            return emit_error(
+                "identifiant requis (ou utilisez --all --scope <portée>)".to_string(),
+                json,
+            );
+        }
+    };
+
+    if raw_id.starts_with('s') || raw_id.starts_with('S') {
+        return emit_error(
+            format!(
+                "{raw_id} désigne une règle de session vivant en mémoire du runtime — \
+                 utilisez l'app desktop ou redémarrez le daemon pour la retirer"
+            ),
+            json,
+        );
+    }
+
+    let parsed: i64 = match raw_id.parse() {
+        Ok(n) => n,
+        Err(_) => return emit_error(format!("identifiant invalide : '{raw_id}'"), json),
+    };
+
+    if !confirm(&format!("Révoquer la règle #{parsed} ? [o/N] "), yes, json) {
+        return cancelled(json);
+    }
+
+    let db_path = match ensure_governance_db_path() {
+        Ok(p) => p,
+        Err(msg) => return emit_error(msg, json),
+    };
+    let mut engine = match PrefixRuleEngine::new(&db_path) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+    };
+
+    let removed = match engine.remove_rule_checked(parsed) {
+        Ok(b) => b,
+        Err(e) => return emit_error(format!("suppression échouée : {e}"), json),
+    };
+    if !removed {
+        return emit_error(
+            format!("règle #{parsed} introuvable (déjà révoquée ?)"),
+            json,
+        );
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "revoked_id": parsed,
+                "removed": 1,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ règle #{parsed} révoquée");
+    }
+    exit_codes::SUCCESS
+}
+
+fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
+    let scope = match scope_filter.map(parse_scope_filter).transpose() {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return emit_error(
+                "--all requiert --scope global|project (la CLI ne touche pas les règles de session)"
+                    .to_string(),
+                json,
+            );
+        }
+        Err(msg) => return emit_error(msg, json),
+    };
+    if matches!(scope, PermissionScope::Session) {
+        return emit_error(
+            "--scope session inapplicable depuis la CLI (les règles vivent en mémoire du runtime)"
+                .to_string(),
+            json,
+        );
+    }
+
+    let db_path = match ensure_governance_db_path() {
+        Ok(p) => p,
+        Err(msg) => return emit_error(msg, json),
+    };
+    let mut engine = match PrefixRuleEngine::new(&db_path) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+    };
+
+    let candidates = match engine.list_rules_filtered(Some(scope), None) {
+        Ok(r) => r,
+        Err(e) => return emit_error(format!("lecture des règles échouée : {e}"), json),
+    };
+    let count = candidates.len();
+    if count == 0 {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "scope": scope.as_str(),
+                    "removed": 0,
+                }))
+                .unwrap_or_default()
+            );
+        } else {
+            println!("  (aucune règle {} à révoquer)", scope.as_str());
+        }
+        return exit_codes::SUCCESS;
+    }
+
+    if !confirm(
+        &format!("Révoquer {count} règle(s) {} ? [o/N] ", scope.as_str()),
+        yes,
+        json,
+    ) {
+        return cancelled(json);
+    }
+
+    let removed = match engine.remove_rules_by_scope(scope, None) {
+        Ok(n) => n,
+        Err(e) => return emit_error(format!("révocation en masse échouée : {e}"), json),
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "scope": scope.as_str(),
+                "removed": removed,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ {removed} règle(s) {} révoquée(s)", scope.as_str());
+    }
+    exit_codes::SUCCESS
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────
+
+fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
+    let db_path = match ensure_governance_db_path() {
+        Ok(p) => p,
+        Err(msg) => return emit_error(msg, json),
+    };
+    let log = match PermissionAuditLog::new(&db_path) {
+        Ok(l) => l,
+        Err(e) => return emit_error(format!("ouverture du log d'audit échouée : {e}"), json),
+    };
+    let entries = match log.query(tool_filter, limit, 0) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("lecture du log d'audit échouée : {e}"), json),
+    };
+
+    if json {
+        let arr: Vec<serde_json::Value> = entries
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "id": e.id,
+                    "decided_at": e.decided_at,
+                    "tool_name": e.tool_name,
+                    "first_arg": e.first_arg,
+                    "decision": e.decision,
+                    "scope": e.scope,
+                    "rule_id": e.rule_id,
+                    "agent": e.agent,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"events": arr}))
+                .unwrap_or_else(|_| "{}".to_string())
+        );
+    } else {
+        println!(
+            "  {:<19} {:<18} {:<28} AGENT",
+            "TIMESTAMP", "OUTIL", "DÉCISION"
+        );
+        if entries.is_empty() {
+            println!("  (aucune décision enregistrée)");
+        } else {
+            for e in &entries {
+                let ts = format_unix_datetime(e.decided_at);
+                let agent = e.agent.as_deref().unwrap_or("—");
+                println!(
+                    "  {:<19} {:<18} {:<28} {}",
+                    ts, e.tool_name, e.decision, agent
+                );
+            }
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
+    match raw {
+        "session" => Ok(PermissionScope::Session),
+        "project" => Ok(PermissionScope::Project),
+        "global" => Ok(PermissionScope::Global),
+        other => Err(format!(
+            "scope inconnu '{other}' — attendu : session | project | global"
+        )),
+    }
+}
+
+fn ensure_governance_db_path() -> Result<PathBuf, String> {
+    let home =
+        std::env::var("HOME").map_err(|_| "variable d'environnement HOME absente".to_string())?;
+    let base = PathBuf::from(home).join(".apollia");
+    if !base.exists() {
+        std::fs::create_dir_all(&base)
+            .map_err(|e| format!("création de {} échouée : {e}", base.display()))?;
+    }
+    let db = GovernanceDb::open(&base)
+        .map_err(|e| format!("ouverture de governance.db échouée : {e}"))?;
+    Ok(db.path().to_path_buf())
+}
+
+fn confirm(prompt: &str, yes: bool, json: bool) -> bool {
+    if yes {
+        return true;
+    }
+    if json || !io::stdin().is_terminal() {
+        eprintln!("Erreur : confirmation interactive requise — relancez avec --yes pour scripts");
+        return false;
+    }
+    print!("{prompt}");
+    if io::stdout().flush().is_err() {
+        return false;
+    }
+    let mut answer = String::new();
+    if io::stdin().read_line(&mut answer).is_err() {
+        return false;
+    }
+    let trimmed = answer.trim();
+    trimmed.eq_ignore_ascii_case("o") || trimmed.eq_ignore_ascii_case("y")
+}
+
+fn cancelled(json: bool) -> i32 {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"cancelled": true}))
+                .unwrap_or_default()
+        );
+    } else {
+        println!("Annulé.");
+    }
+    exit_codes::SUCCESS
+}
+
+fn emit_error(msg: String, json: bool) -> i32 {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
+                .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
+        );
+    } else {
+        eprintln!("Erreur : {msg}");
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+fn format_unix_date(ts: i64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+fn format_unix_datetime(ts: i64) -> String {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_permissions::{PermissionDecision, RuleAction};
+    use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn fresh_engine(dir: &TempDir) -> (PrefixRuleEngine, PathBuf) {
+        GovernanceDb::open(dir.path()).expect("init governance");
+        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
+        (
+            PrefixRuleEngine::new(&db_path).expect("open engine"),
+            db_path,
+        )
+    }
+
+    fn now() -> i64 {
+        chrono::Utc::now().timestamp()
+    }
+
+    #[test]
+    fn test_list_shows_all_scopes() {
+        let dir = TempDir::new().expect("tempdir");
+        let (mut engine, _) = fresh_engine(&dir);
+        engine
+            .add_rule(&PrefixRule {
+                tool_name: "web_search".into(),
+                action: RuleAction::Allow,
+                created_at: now(),
+                scope: PermissionScope::Global,
+                ..PrefixRule::default()
+            })
+            .expect("add global");
+        engine
+            .add_rule(&PrefixRule {
+                tool_name: "file_write".into(),
+                arg_prefix: Some("/tmp/".into()),
+                action: RuleAction::Allow,
+                created_at: now(),
+                scope: PermissionScope::Project,
+                project_path: Some(PathBuf::from("/home/user/projet")),
+                ..PrefixRule::default()
+            })
+            .expect("add project");
+
+        let all = engine.list_rules_filtered(None, None).expect("list");
+        assert_eq!(all.len(), 2);
+        let scopes: Vec<&str> = all.iter().map(|r| r.scope.as_str()).collect();
+        assert!(scopes.contains(&"global"));
+        assert!(scopes.contains(&"project"));
+    }
+
+    #[test]
+    fn test_revoke_by_id_removes_rule() {
+        let dir = TempDir::new().expect("tempdir");
+        let (mut engine, _) = fresh_engine(&dir);
+        let id = engine
+            .add_rule(&PrefixRule {
+                tool_name: "web_search".into(),
+                action: RuleAction::Allow,
+                created_at: now(),
+                scope: PermissionScope::Global,
+                ..PrefixRule::default()
+            })
+            .expect("add");
+
+        let removed = engine.remove_rule_checked(id).expect("remove");
+        assert!(removed);
+        let after = engine.list_rules().expect("list");
+        assert!(after.is_empty());
+    }
+
+    #[test]
+    fn test_revoke_all_global_keeps_project() {
+        let dir = TempDir::new().expect("tempdir");
+        let (mut engine, _) = fresh_engine(&dir);
+        engine
+            .add_rule(&PrefixRule {
+                tool_name: "web_search".into(),
+                action: RuleAction::Allow,
+                created_at: now(),
+                scope: PermissionScope::Global,
+                ..PrefixRule::default()
+            })
+            .expect("add global");
+        engine
+            .add_rule(&PrefixRule {
+                tool_name: "file_write".into(),
+                action: RuleAction::Allow,
+                created_at: now(),
+                scope: PermissionScope::Project,
+                project_path: Some(PathBuf::from("/projet")),
+                ..PrefixRule::default()
+            })
+            .expect("add project");
+
+        let removed = engine
+            .remove_rules_by_scope(PermissionScope::Global, None)
+            .expect("remove global");
+        assert_eq!(removed, 1);
+        let remaining = engine.list_rules().expect("list");
+        assert_eq!(remaining.len(), 1);
+        assert!(matches!(remaining[0].scope, PermissionScope::Project));
+    }
+
+    #[test]
+    fn test_audit_filtered_by_tool() {
+        let dir = TempDir::new().expect("tempdir");
+        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
+        GovernanceDb::open(dir.path()).expect("init governance");
+        let mut log = PermissionAuditLog::new(&db_path).expect("audit log");
+
+        log.record(
+            "web_search",
+            Some("apollia"),
+            &PermissionDecision::AutoAllowedSafeList,
+        )
+        .expect("record web_search");
+        log.record(
+            "file_write",
+            Some("/tmp/x"),
+            &PermissionDecision::NeedsApproval,
+        )
+        .expect("record file_write");
+
+        let only_web = log.query(Some("web_search"), 10, 0).expect("query");
+        assert_eq!(only_web.len(), 1);
+        assert_eq!(only_web[0].tool_name, "web_search");
+
+        let all = log.query(None, 10, 0).expect("query all");
+        assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn parse_scope_filter_accepts_known_values() {
+        assert!(matches!(
+            parse_scope_filter("global"),
+            Ok(PermissionScope::Global)
+        ));
+        assert!(matches!(
+            parse_scope_filter("project"),
+            Ok(PermissionScope::Project)
+        ));
+        assert!(matches!(
+            parse_scope_filter("session"),
+            Ok(PermissionScope::Session)
+        ));
+        assert!(parse_scope_filter("xyz").is_err());
+    }
+
+    #[test]
+    fn display_arg_includes_project_path_for_project_scope() {
+        let s = display_arg(
+            Some("/tmp/"),
+            PermissionScope::Project,
+            Some(Path::new("/home/u/projet")),
+        );
+        assert!(s.contains("/tmp/"));
+        assert!(s.contains("/home/u/projet"));
+
+        let g = display_arg(Some("git"), PermissionScope::Global, None);
+        assert_eq!(g, "git");
+    }
+
+    #[test]
+    fn display_expiration_handles_none_and_some() {
+        assert_eq!(display_expiration(None), "permanente");
+        let s = display_expiration(Some(0));
+        assert!(s.starts_with("1970"));
+    }
+}

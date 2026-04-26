@@ -28,6 +28,7 @@ use commands::mcp_server::McpServerArgs;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
+use commands::permissions::PermissionsCommand;
 use commands::pipeline::PipelineCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
@@ -193,6 +194,13 @@ enum Commands {
         topic: Option<String>,
     },
 
+    /// Permission rule management (list, revoke, audit).
+    Permissions {
+        /// Permissions subcommand.
+        #[command(subcommand)]
+        command: PermissionsCommand,
+    },
+
     /// Pipeline orchestration (list, run, runs, status).
     Pipeline {
         /// Pipeline subcommand.
@@ -317,6 +325,9 @@ fn main() {
             Commands::Stt { command } => commands::stt::run(&command, cli.socket, json).await,
             Commands::Onboard { topic } => {
                 commands::onboard::run(topic.as_deref(), cli.socket, json).await
+            }
+            Commands::Permissions { command } => {
+                commands::permissions::run(&command, cli.socket, json).await
             }
             Commands::Pipeline { command } => {
                 commands::pipeline::run(&command, cli.socket, json).await
