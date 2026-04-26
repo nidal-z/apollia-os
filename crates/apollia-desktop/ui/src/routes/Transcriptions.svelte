@@ -16,6 +16,7 @@
     deleteTranscription,
     listenSttEvents,
   } from "$lib/stores/stt";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   let loading = $state(true);
 
@@ -34,8 +35,8 @@
   async function handleDelete(id: string) {
     try {
       await deleteTranscription(id);
-    } catch {
-      // deletion failed — state unchanged
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
     }
   }
 </script>

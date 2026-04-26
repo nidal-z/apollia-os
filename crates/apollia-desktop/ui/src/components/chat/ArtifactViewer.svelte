@@ -14,6 +14,7 @@
     updateArtifact,
     type Artifact,
   } from "$lib/stores/artifacts";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     artifact: Artifact;
@@ -71,8 +72,12 @@
   }
 
   async function remove(): Promise<void> {
-    await deleteArtifact(artifact.id);
-    onback();
+    try {
+      await deleteArtifact(artifact.id);
+      onback();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   function safeFilename(a: Artifact): string {

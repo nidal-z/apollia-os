@@ -42,6 +42,7 @@
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { AlertOctagon } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     sessionId: string;
@@ -645,7 +646,7 @@
       if (!dest) return;
       await invoke("export_conversation", { destPath: dest, content, mime });
     } catch (err) {
-      console.warn("export_conversation failed", err);
+      addToast(err instanceof Error ? err.message : String(err), "error");
     }
   }
 

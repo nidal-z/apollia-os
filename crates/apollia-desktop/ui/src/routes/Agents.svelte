@@ -25,6 +25,7 @@
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import type { AgentPackageListItem, AgentPackageDetailView, ChatSessionSummary, CreateSessionRequest, InstallPackageResponse } from "$lib/types";
   import { agentPackages, refreshPackages, uninstallPackage, getPackageDetail } from "$lib/stores/agentPackages";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   const SKELETON_COUNT = 4;
 
@@ -92,7 +93,11 @@
   }
 
   async function handleUninstallPkg(pkg: AgentPackageListItem) {
-    await uninstallPackage(pkg.name);
+    try {
+      await uninstallPackage(pkg.name);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function handlePkgInstalled(_result: InstallPackageResponse) {
@@ -281,6 +286,9 @@
   pkg={pkgDetail}
   open={pkgDetailOpen}
   onclose={() => (pkgDetailOpen = false)}
-  onuninstall={async (name) => { await uninstallPackage(name); }}
+  onuninstall={async (name) => {
+    try { await uninstallPackage(name); }
+    catch (err) { addToast(err instanceof Error ? err.message : String(err), "error"); }
+  }}
 />
 
