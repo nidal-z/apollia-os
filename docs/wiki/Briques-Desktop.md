@@ -79,8 +79,10 @@ crates/apollia-desktop/
         ├── lib/
         │   ├── types.ts       ← 45+ interfaces TypeScript (dont SttStatus, TranscriptRow, SttModelInfo)
         │   ├── stores/
-        │   │   ├── sse.ts         ← SSE connection + 7 stores reactifs + 4 derives
-        │   │   └── navigation.ts  ← currentRoute + showOnboarding
+        │   │   ├── sse.ts             ← SSE connection + 7 stores reactifs + 4 derives
+        │   │   ├── navigation.ts      ← currentRoute + showOnboarding
+        │   │   ├── settings.ts        ← SettingsSubRoute (11 valeurs) + SETTINGS_SUB_ROUTES
+        │   │   └── toolGovernance.ts  ← ToolStatusDto, CredentialEntryDto, CredentialTestResultDto + 7 fonctions IPC (loadTools, toggleTool, getToolConfig, updateToolConfig, setCredential, deleteCredential, testCredential)
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
@@ -93,6 +95,7 @@ crates/apollia-desktop/
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte
+        │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
         └── routes/            ← 15 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Pipelines, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
@@ -447,7 +450,11 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 **Transcriptions** — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav,.mp3,.ogg,.m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
 
-**Settings** — Vue lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
+**Settings** — Vue multi-onglets. Navigation gauche (`SettingsNav.svelte`) regroupée en sections.
+
+- *Configuration* — lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
+- *Outils* (`/settings/tools`, `Tools.svelte`) — gouvernance des outils natifs. Liste les outils (`governance_list_tools`) avec toggle enable/disable (`ToolCard.svelte`). Bouton "Configurer" ouvre `ToolConfigDrawer.svelte` (panel latéral Sheet) pour les outils exposant une config : `web_search` (backend Auto/DDG/Brave, timeouts, résultats max, `require_configured`) et `web_read` (timeout, taille max, garde SSRF). `CredentialField.svelte` gère les credentials (Brave API key) : saisie masquée, enregistrement via `governance_set_credential`, suppression via `governance_delete_credential`, test live via `governance_test_credential`. Store réactif `toolGovernance.ts` applique un état optimiste pour les toggles avec rollback automatique si l'IPC échoue.
+- Les autres onglets (LLM backends, Permissions, Mémoires, Raccourcis, Danger, etc.) sont gérés par leurs routes respectives dans `routes/settings/`.
 
 ---
 
