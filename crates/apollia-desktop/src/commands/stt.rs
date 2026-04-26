@@ -1,8 +1,8 @@
 //! Tauri IPC commands for STT (Speech-to-Text) functionality.
 //!
 //! Exposes 9 commands to the Svelte frontend:
-//! - `get_stt_config`         — read [stt] section from apollia.toml
-//! - `update_stt_config`      — write [stt] section to apollia.toml
+//! - `get_stt_config`         — read STT config from system.db
+//! - `update_stt_config`      — write STT config to system.db
 //! - `get_stt_status`         — query runtime engine status
 //! - `list_transcriptions`    — list transcription history
 //! - `delete_transcription`   — delete a transcription by ID

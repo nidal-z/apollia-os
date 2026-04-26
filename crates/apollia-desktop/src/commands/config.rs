@@ -10,6 +10,8 @@
 
 use std::path::PathBuf;
 
+use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+
 use serde::Serialize;
 
 /// Entrée clé/valeur d'une section de configuration.
@@ -498,12 +500,12 @@ pub struct SetupLlmResult {
 
 /// Sets up a local embedded LLM from a user-selected GGUF file.
 ///
-/// Copies the model into `~/.apollia/models/`, adds the `[llm]` section
-/// to `apollia.toml`, and returns the path for confirmation.
+/// Copies the model into `~/.apollia/models/`, registers it as a backend
+/// in `system.db`, and returns the path for confirmation.
 ///
-/// This is a first-launch helper — it writes a minimal LLM config block
-/// so the onboarding agent can function. Advanced users can edit the
-/// TOML directly afterwards.
+/// This is a first-launch helper. The backend is inserted as `"local"` and
+/// marked as default if no backend with that name already exists.
+/// Call `reload_llm_from_db` afterwards to make the router available immediately.
 #[tauri::command]
 pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String> {
     let source = PathBuf::from(&gguf_path);
@@ -548,9 +550,42 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
 
     let model_path_str = format!("~/.apollia/models/{file_name}");
 
-    // Append [llm] section to apollia.toml if not already present
-    let config_path = default_config_path();
-    append_llm_config(&config_path, &model_path_str, &quantization).await?;
+    // Insert backend into system.db — idempotent (skips if "local" already exists).
+    // LlmBackendRepository is !Send, so DB work runs in spawn_blocking.
+    let db_path = default_config_path()
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("system.db");
+    let device = if cfg!(target_os = "macos") { "metal" } else { "cpu" }.to_string();
+    let model_for_db = model_path_str.clone();
+    let quant_for_db = quantization.clone();
+
+    tokio::task::spawn_blocking(move || {
+        let repo = LlmBackendRepository::open(&db_path)
+            .map_err(|e| format!("failed to open system.db: {e}"))?;
+        if repo
+            .find_by_name("local")
+            .map_err(|e| format!("failed to query system.db: {e}"))?
+            .is_none()
+        {
+            let config = LlmBackendConfig {
+                name: "local".to_string(),
+                provider: LlmProvider::LlamaCpp,
+                model: model_for_db,
+                config_json: serde_json::json!({
+                    "device": device,
+                    "quantization": quant_for_db,
+                }),
+                enabled: true,
+                is_default: true,
+            };
+            repo.save(&config)
+                .map_err(|e| format!("failed to save LLM backend to system.db: {e}"))?;
+        }
+        Ok::<_, String>(())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
     tracing::info!(
         model = %model_path_str,
@@ -583,83 +618,6 @@ fn infer_quantization(stem: &str) -> String {
     "q4_k_m".to_string()
 }
 
-/// Appends a minimal `[llm]` configuration block to `apollia.toml`.
-///
-/// Skips if the file already contains a `[llm]` section.
-async fn append_llm_config(
-    config_path: &std::path::Path,
-    model_path: &str,
-    quantization: &str,
-) -> Result<(), String> {
-    let existing = if config_path.exists() {
-        tokio::fs::read_to_string(config_path)
-            .await
-            .unwrap_or_default()
-    } else {
-        String::new()
-    };
-
-    let device = if cfg!(target_os = "macos") {
-        "metal"
-    } else {
-        "cpu"
-    };
-
-    let llm_block = format!(
-        r#"
-
-# ─────────────────────────────────────────────
-# LLM — configured automatically during onboarding
-# ─────────────────────────────────────────────
-[llm]
-default = "local"
-
-[llm.observability]
-log_token_usage  = true
-log_latency      = true
-log_cost         = false
-debug_log_prompt = false
-
-[llm.routing]
-precise = "local"
-fast    = "local"
-
-[[llm.backends]]
-type         = "embedded"
-name         = "local"
-model_path   = "{model_path}"
-device       = "{device}"
-quantization = "{quantization}"
-"#
-    );
-
-    // Skip if [llm] section is already present — but ensure [llm.routing] exists.
-    let already_has_llm = existing.starts_with("[llm]") || existing.contains("\n[llm]");
-    if already_has_llm {
-        if !existing.contains("[llm.routing]") {
-            let mut content = existing;
-            content.push_str("\n[llm.routing]\nprecise = \"local\"\nfast    = \"local\"\n");
-            tokio::fs::write(config_path, &content)
-                .await
-                .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
-        }
-        return Ok(());
-    }
-
-    let mut content = existing;
-    content.push_str(&llm_block);
-
-    if let Some(parent) = config_path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
-    }
-    tokio::fs::write(config_path, &content)
-        .await
-        .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
-
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {
