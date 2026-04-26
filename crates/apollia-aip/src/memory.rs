@@ -10,10 +10,12 @@ use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 use apollia_memory::episodic::EpisodicMemory;
 use apollia_memory::injection_tracker::{global_record, preview, InjectedEntry};
 use apollia_memory::manager::{MemoryAccess, MemoryManager};
+use apollia_memory::procedural::ProceduralMemory;
 use apollia_memory::search::{MemorySearch, SearchSource};
 use apollia_memory::semantic::SemanticMemory;
 
@@ -69,22 +71,27 @@ pub struct MemoryInterface {
 
 #[pymethods]
 impl MemoryInterface {
-    /// Records an episodic memory event.
+    /// Enregistre un souvenir dans la mémoire épisodique.
     ///
-    /// importance: score between 0.0 and 1.0 (default 0.5)
-    /// task_id: current task identifier (optional)
-    #[pyo3(signature = (content, importance=None, task_id=None))]
+    /// importance: score entre 0.0 et 1.0 (défaut 0.5)
+    /// task_id: identifiant de la tâche courante (optionnel)
+    /// metadata: dict Python de métadonnées arbitraires (optionnel)
+    /// expires_in: durée de vie en secondes — `None` = pas d'expiration
+    #[pyo3(signature = (content, importance=None, task_id=None, metadata=None, expires_in=None))]
     fn record<'py>(
         &self,
         py: Python<'py>,
         content: String,
         importance: Option<f64>,
         task_id: Option<String>,
+        metadata: Option<Bound<'py, PyDict>>,
+        expires_in: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
         let agent_id = self.agent_id.clone();
         let importance = importance.unwrap_or(0.5);
+        let metadata_json = metadata.map(|d| pydict_to_json(&d)).transpose()?;
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = tokio::task::spawn_blocking(move || {
@@ -95,6 +102,8 @@ impl MemoryInterface {
                     &content,
                     importance,
                     task_id.as_deref(),
+                    metadata_json,
+                    expires_in,
                 )
             })
             .await
@@ -300,7 +309,7 @@ impl MemoryInterface {
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
-            if let (Some(turn), Ok(ref items)) = (turn_id.as_ref(), result.as_ref()) {
+            if let (Some(turn), Ok(items)) = (turn_id.as_ref(), result.as_ref()) {
                 let reason = injection_reason
                     .clone()
                     .unwrap_or_else(|| "Matched query: recall_all".to_string());
@@ -308,6 +317,43 @@ impl MemoryInterface {
                     record_injected_entry(turn, &ns_for_log, item, reason.clone(), None);
                 }
             }
+
+            match result {
+                Ok(items) => Python::with_gil(|py| {
+                    let json_mod = py
+                        .import("json")
+                        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                    let json_str = serde_json::to_string(&items)
+                        .map_err(|e| PyRuntimeError::new_err(format!("serialize: {e}")))?;
+                    let py_obj: PyObject = json_mod
+                        .call_method1("loads", (json_str,))
+                        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                        .unbind();
+                    Ok(py_obj)
+                }),
+                Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+            }
+        })
+    }
+
+    /// Rappelle les procédures mémorisées correspondant au déclencheur (trigger exact).
+    ///
+    /// Retourne une liste de dicts Python `[{id, trigger, steps, success_count, …}]`.
+    /// Liste vide si aucune procédure n'existe pour ce trigger.
+    fn recall_procedure<'py>(
+        &self,
+        py: Python<'py>,
+        trigger: String,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = tokio::task::spawn_blocking(move || {
+                recall_procedure_inner(&manager, &namespace, &trigger)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
                 Ok(items) => Python::with_gil(|py| {
@@ -456,6 +502,7 @@ fn record_injected_entry(
 // ---------------------------------------------------------------------------
 
 /// Records an episodic event in the agent's namespace.
+#[allow(clippy::too_many_arguments)]
 fn record_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
@@ -463,6 +510,8 @@ fn record_inner(
     content: &str,
     importance: f64,
     task_id: Option<&str>,
+    metadata_json: Option<serde_json::Value>,
+    expires_in: Option<u64>,
 ) -> Result<String, MemoryInterfaceError> {
     let mut mgr = lock(manager)?;
     check_write_access(&mgr, namespace)?;
@@ -471,9 +520,17 @@ fn record_inner(
         .store(namespace)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
+    let expires_at = expires_in.map(expires_in_to_iso);
+
     let ep = EpisodicMemory::new(store);
     ep.record(
-        namespace, agent_id, content, importance, task_id, None, None,
+        namespace,
+        agent_id,
+        content,
+        importance,
+        task_id,
+        expires_at.as_deref(),
+        metadata_json.as_ref(),
     )
     .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
@@ -704,6 +761,61 @@ fn check_write_access(mgr: &MemoryManager, namespace: &str) -> Result<(), Memory
     }
 }
 
+/// Rappelle les procédures mémorisées correspondant au trigger exact.
+///
+/// Retourne une liste (0 ou 1 entrée) — correspond à la sémantique Python `List[dict]`.
+fn recall_procedure_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+    trigger: &str,
+) -> Result<Vec<serde_json::Value>, MemoryInterfaceError> {
+    let mut mgr = lock(manager)?;
+    let store = mgr
+        .store(namespace)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    let proc = ProceduralMemory::new(store);
+    let entry = proc
+        .recall(namespace, trigger)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    Ok(entry.into_iter().map(procedure_entry_to_json).collect())
+}
+
+/// Converts a [`ProcedureEntry`] to the dict shape exposed to Python.
+fn procedure_entry_to_json(entry: apollia_memory::procedural::ProcedureEntry) -> serde_json::Value {
+    serde_json::json!({
+        "id": entry.id,
+        "trigger": entry.trigger,
+        "steps": entry.steps,
+        "success_count": entry.success_count,
+        "last_used_at": entry.last_used_at,
+        "created_at": entry.created_at,
+    })
+}
+
+/// Converts a Python dict to a `serde_json::Value`.
+///
+/// Uses `json.dumps` via the Python interpreter to handle nested structures.
+fn pydict_to_json(dict: &Bound<'_, PyDict>) -> PyResult<serde_json::Value> {
+    let py = dict.py();
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+    let json_str: String = json_mod
+        .call_method1("dumps", (dict,))
+        .map_err(|e| PyRuntimeError::new_err(format!("json.dumps: {e}")))?
+        .extract()
+        .map_err(|e| PyRuntimeError::new_err(format!("extract: {e}")))?;
+    serde_json::from_str(&json_str).map_err(|e| PyRuntimeError::new_err(format!("json parse: {e}")))
+}
+
+/// Converts `expires_in` seconds from now to an ISO 8601 UTC timestamp string.
+fn expires_in_to_iso(secs: u64) -> String {
+    let expiry = chrono::Utc::now() + chrono::Duration::seconds(secs as i64);
+    expiry.format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -818,6 +930,8 @@ mod tests {
             "le client a valide le devis",
             0.9,
             Some("task-123"),
+            None,
+            None,
         );
 
         // THEN the event is stored successfully
@@ -904,6 +1018,8 @@ mod tests {
             "Devis envoye a Dupont SA",
             0.8,
             None,
+            None,
+            None,
         )
         .expect("record");
         remember_inner(
@@ -988,6 +1104,8 @@ mod tests {
             &iface.agent_id,
             "should fail",
             0.5,
+            None,
+            None,
             None,
         );
 
@@ -1120,6 +1238,8 @@ mod tests {
             "event with default importance",
             0.5,
             None,
+            None,
+            None,
         );
 
         // THEN it succeeds
@@ -1211,6 +1331,114 @@ mod tests {
 
         // THEN we get at most 5 entries
         assert_eq!(result.expect("recall_all").len(), 5);
+    }
+
+    // FC03 — recall_procedure with existing trigger returns list with one entry
+    #[test]
+    fn test_recall_procedure_existing_trigger() {
+        // GIVEN a namespace with a learned procedure
+        use apollia_memory::procedural::ProceduralMemory;
+
+        let (iface, _dir) = setup_interface("agent-proc");
+        let mut mgr = iface.manager.lock().expect("lock");
+        let store = mgr.store("agent-proc").expect("store");
+        let proc = ProceduralMemory::new(store);
+        proc.learn(
+            "agent-proc",
+            "handle_summary",
+            &["step1".to_string(), "step2".to_string()],
+        )
+        .expect("learn");
+        drop(mgr);
+
+        // WHEN recall_procedure_inner is called with the exact trigger
+        let results = recall_procedure_inner(&iface.manager, "agent-proc", "handle_summary");
+
+        // THEN a list with one entry is returned
+        let items = results.expect("recall_procedure");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["trigger"], "handle_summary");
+        assert_eq!(items[0]["steps"][0], "step1");
+    }
+
+    // FC03 — recall_procedure with unknown trigger returns empty list
+    #[test]
+    fn test_recall_procedure_unknown_trigger_returns_empty() {
+        // GIVEN a namespace with no procedures
+        let (iface, _dir) = setup_interface("agent-proc-empty");
+
+        // WHEN recall_procedure_inner is called with an unknown trigger
+        let results = recall_procedure_inner(&iface.manager, "agent-proc-empty", "unknown_trigger");
+
+        // THEN an empty list is returned (no exception)
+        assert!(results.expect("recall_procedure").is_empty());
+    }
+
+    // FC04 — record with metadata persists metadata in the entry
+    #[test]
+    fn test_record_with_metadata() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-meta");
+
+        // WHEN we record with metadata
+        let metadata = serde_json::json!({"source": "web_search", "url": "https://example.com"});
+        let id = record_inner(
+            &iface.manager,
+            &iface.namespace,
+            &iface.agent_id,
+            "content with metadata",
+            0.7,
+            Some("task-meta"),
+            Some(metadata.clone()),
+            None,
+        );
+
+        // THEN the record succeeds
+        assert!(id.is_ok(), "record with metadata should succeed");
+    }
+
+    // FC04 — record without metadata is backward compatible
+    #[test]
+    fn test_record_without_metadata_backward_compat() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-compat");
+
+        // WHEN we record without metadata or expires_in (old signature)
+        let id = record_inner(
+            &iface.manager,
+            &iface.namespace,
+            &iface.agent_id,
+            "backward compat content",
+            0.5,
+            None,
+            None,
+            None,
+        );
+
+        // THEN it succeeds as before
+        assert!(id.is_ok());
+    }
+
+    // FC04 — record with expires_in stores an expiration timestamp
+    #[test]
+    fn test_record_with_expires_in() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-expiry");
+
+        // WHEN we record with a 3600s expiry
+        let id = record_inner(
+            &iface.manager,
+            &iface.namespace,
+            &iface.agent_id,
+            "content with expiry",
+            0.8,
+            None,
+            None,
+            Some(3600),
+        );
+
+        // THEN the record succeeds (expiry is set)
+        assert!(id.is_ok(), "record with expires_in should succeed");
     }
 }
 

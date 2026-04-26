@@ -183,6 +183,7 @@ dependencies = [
  "apollia-tools",
  "apollia-workspace",
  "async-trait",
+ "chrono",
  "futures",
  "pyo3",
  "pyo3-async-runtimes",

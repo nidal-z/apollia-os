@@ -700,6 +700,39 @@ use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 use crate::llm::LlmProxy;
 
+/// Vue lecture-seule du budget d'exécution exposée à l'agent Python via `ctx.step_budget`.
+///
+/// Snapshot instantané au moment de l'accès. `tool_calls_remaining` et
+/// `elapsed_seconds` retournent `-1` / `0.0` — ces dimensions ne sont pas
+/// encore trackées dans [`StepBudgetView`].
+#[pyclass(frozen, name = "StepBudgetView")]
+pub struct PyStepBudgetView {
+    steps_remaining: i64,
+    tool_calls_remaining: i64,
+    elapsed_seconds: f64,
+}
+
+#[pymethods]
+impl PyStepBudgetView {
+    /// Steps restants avant d'atteindre la limite (`max_steps`).
+    #[getter]
+    fn steps_remaining(&self) -> i64 {
+        self.steps_remaining
+    }
+
+    /// Appels outils restants — non trackés dans cette vue, retourne `-1`.
+    #[getter]
+    fn tool_calls_remaining(&self) -> i64 {
+        self.tool_calls_remaining
+    }
+
+    /// Secondes écoulées depuis le démarrage — non trackées dans cette vue, retourne `0.0`.
+    #[getter]
+    fn elapsed_seconds(&self) -> f64 {
+        self.elapsed_seconds
+    }
+}
+
 /// Contexte d'exécution exposé à l'agent Python via `run(task, ctx)`.
 ///
 /// Construit par le runtime pour chaque exécution d'agent. Expose les
@@ -779,6 +812,8 @@ pub struct RuntimeContext {
     /// Injecté depuis `task.message_id` par le `BridgeRunner` en mode chat.
     /// `None` en mode task.
     chat_message_id: Option<String>,
+    /// Vue partagée du budget de steps — `None` en dehors d'une exécution budgétée.
+    step_budget: Option<Arc<StepBudgetView>>,
 }
 
 impl RuntimeContext {
@@ -825,6 +860,7 @@ impl RuntimeContext {
         user_memory_read_only: bool,
     ) -> Self {
         let bus_for_token = event_bus.clone();
+        let step_budget_arc = Arc::clone(&budget_view);
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
                 // fire-and-forget — erreurs send() silencieusement ignorées.
@@ -869,6 +905,7 @@ impl RuntimeContext {
             event_bus: Some(bus_for_token),
             chat_session_id: None,
             chat_message_id: None,
+            step_budget: Some(step_budget_arc),
         }
     }
 
@@ -895,6 +932,7 @@ impl RuntimeContext {
             event_bus: None,
             chat_session_id: None,
             chat_message_id: None,
+            step_budget: None,
         }
     }
 
@@ -1298,6 +1336,47 @@ impl RuntimeContext {
         self.user_memory_read_only
     }
 
+    /// Log un message via le système `tracing::` du runtime.
+    ///
+    /// Les messages sont émis avec le champ `agent` pour corrélation dans les traces
+    /// structurées. Niveaux acceptés : `"debug"`, `"info"`, `"warn"`, `"error"`.
+    /// Lève `ValueError` pour tout autre niveau.
+    #[pyo3(text_signature = "(self, level, message)")]
+    fn log(&self, level: &str, message: &str) -> PyResult<()> {
+        let agent = &self.agent_name;
+        match level {
+            "debug" => tracing::debug!(agent = %agent, "{}", message),
+            "info" => tracing::info!(agent = %agent, "{}", message),
+            "warn" => tracing::warn!(agent = %agent, "{}", message),
+            "error" => tracing::error!(agent = %agent, "{}", message),
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid log level '{other}'. Expected: debug, info, warn, error"
+                )))
+            }
+        }
+        Ok(())
+    }
+
+    /// Budget d'exécution restant pour la tâche en cours (lecture seule).
+    ///
+    /// Retourne un [`StepBudgetView`] avec `steps_remaining`, `tool_calls_remaining`,
+    /// et `elapsed_seconds`. Retourne `None` Python si le contexte n'est pas budgété.
+    #[getter]
+    fn step_budget(&self, py: Python<'_>) -> PyResult<PyObject> {
+        match &self.step_budget {
+            Some(view) => {
+                let py_view = PyStepBudgetView {
+                    steps_remaining: view.steps_remaining(),
+                    tool_calls_remaining: -1,
+                    elapsed_seconds: 0.0,
+                };
+                Ok(Py::new(py, py_view)?.into_any())
+            }
+            None => Ok(py.None()),
+        }
+    }
+
     /// Liste tous les skills A2A disponibles dans le runtime.
     ///
     /// Retourne un Python awaitable qui résout en `list[dict]`.
@@ -1534,6 +1613,77 @@ mod runtime_context_tests {
         );
         // THEN
         assert!(ctx.llm.is_none());
+    }
+
+    // FC01 — ctx.log with valid level emits tracing event (no panic, no error)
+    #[tokio::test]
+    async fn test_log_valid_levels_succeed() {
+        // GIVEN a minimal RuntimeContext
+        let ctx = RuntimeContext::for_test();
+
+        // WHEN ctx.log is called with each valid level
+        // THEN no error is returned
+        assert!(ctx.log("debug", "debug message").is_ok());
+        assert!(ctx.log("info", "info message").is_ok());
+        assert!(ctx.log("warn", "warn message").is_ok());
+        assert!(ctx.log("error", "error message").is_ok());
+    }
+
+    // FC01 — ctx.log with invalid level raises ValueError
+    #[tokio::test]
+    async fn test_log_invalid_level_raises_value_error() {
+        // GIVEN a minimal RuntimeContext
+        let ctx = RuntimeContext::for_test();
+
+        // WHEN ctx.log is called with an unknown level
+        let result = ctx.log("critical", "should fail");
+
+        // THEN a PyValueError is returned
+        assert!(result.is_err());
+        pyo3::Python::with_gil(|py| {
+            let err = result.unwrap_err();
+            assert!(
+                err.is_instance_of::<pyo3::exceptions::PyValueError>(py),
+                "expected PyValueError, got: {err}"
+            );
+        });
+    }
+
+    // FC02 — ctx.step_budget returns None when no budget is configured
+    #[tokio::test]
+    async fn test_step_budget_none_when_not_configured() {
+        // GIVEN a for_test context with no step_budget
+        let ctx = RuntimeContext::for_test();
+
+        // WHEN step_budget getter is called
+        let result = pyo3::Python::with_gil(|py| ctx.step_budget(py));
+
+        // THEN Ok(None Python) is returned
+        assert!(result.is_ok());
+        pyo3::Python::with_gil(|py| {
+            assert!(result.unwrap().is_none(py));
+        });
+    }
+
+    // FC02 — steps_remaining reflects step_count atomically
+    #[test]
+    fn test_steps_remaining_reflects_count() {
+        // GIVEN a StepBudgetView with limit 5 and 3 steps consumed
+        use std::sync::atomic::{AtomicU32, Ordering};
+        let count = Arc::new(AtomicU32::new(3));
+        let view = Arc::new(StepBudgetView::new(count.clone(), 5));
+
+        // WHEN steps_remaining is called
+        // THEN result is 5 - 3 = 2
+        assert_eq!(view.steps_remaining(), 2);
+
+        // WHEN budget is exhausted (count >= limit)
+        count.store(5, Ordering::Relaxed);
+        assert_eq!(view.steps_remaining(), 0);
+
+        // AND does not go negative even when over-consumed
+        count.store(7, Ordering::Relaxed);
+        assert_eq!(view.steps_remaining(), 0);
     }
 }
 
@@ -1914,6 +2064,7 @@ mod a2a_tests {
             event_bus: None,
             chat_session_id: None,
             chat_message_id: None,
+            step_budget: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1955,6 +2106,7 @@ mod a2a_tests {
             event_bus: None,
             chat_session_id: None,
             chat_message_id: None,
+            step_budget: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1985,6 +2137,7 @@ mod a2a_tests {
             event_bus: None,
             chat_session_id: None,
             chat_message_id: None,
+            step_budget: None,
         };
 
         // THEN user_context is None

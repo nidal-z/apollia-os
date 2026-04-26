@@ -45,6 +45,15 @@ impl StepBudgetView {
     pub fn is_exhausted(&self) -> bool {
         self.step_count.load(Ordering::Relaxed) >= self.step_limit
     }
+
+    /// Steps restants avant d'atteindre la limite.
+    ///
+    /// Retourne 0 si le budget est déjà épuisé (pas de valeur négative).
+    pub fn steps_remaining(&self) -> i64 {
+        let used = self.step_count.load(Ordering::Relaxed) as i64;
+        let limit = self.step_limit as i64;
+        (limit - used).max(0)
+    }
 }
 
 // ─────────────────────────────────────────────

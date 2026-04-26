@@ -13,6 +13,7 @@ apollia-llm       = { workspace = true, features = ["cloud"] }
 apollia-runtime   = { workspace = true }
 apollia-workspace = { path = "../apollia-workspace" }
 tokio          = { workspace = true }
+chrono         = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 toml           = { workspace = true }

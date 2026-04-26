@@ -113,7 +113,7 @@ Agent piloté par ORIA (mode orchestré). Hérite de `ABC`.
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | `run()` | `async (task, ctx) -> AIPResult` | `task`: AIP task; `ctx`: RuntimeContext | — | **`RuntimeError`** (toujours) | ORIA gère l'exécution — `run()` ne doit pas être appelée |
-| `on_plan_complete` | `(step_results: dict[str, Any]) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}` (overridable) | `{"text": "...",...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
+| `on_plan_complete` | `(self, step_results: dict[str, Any], ctx) -> dict[str, Any]` | `step_results`: `{step_id: result_dict}`; `ctx`: RuntimeContext (overridable) | `{"text": "...",...}` | — | Post-traitement après plan ORIA (défaut : concatène les textes) |
 | `format_step_results` | `(results: dict[str, Any]) -> str` | `results`: step results dict | Texte formaté multi-ligne | — | Helper statique pour formatter les résultats |
 
 ---
@@ -303,13 +303,28 @@ Injecté par le runtime Rust ; type stub PEP 561.
 | `llm` | `LlmProxy` | ✓ | Proxy pour LLM backend (Claude, etc.) |
 | `tools` | `ToolProxy` | ✓ | Proxy pour outils natifs (bash, file_io, etc.) |
 | `memory` | `MemoryInterface` | ✓ | Mémoire sémantique persistante |
+| `step_budget` | `StepBudgetView` | ✓ | Budget d'exécution restant (lecture seule) |
+| `workspace` | `WorkspaceContext` | ✓ | Contexte workspace collecté au démarrage |
+| `user_context` | `dict[str, list[tuple[str,str]]]` | ✓ | Contexte utilisateur injecté en mode chat |
 | `delegate()` | callable | — | Fonction A2A pour déléguer à autres agents |
 
-**Méthode** :
+**Méthodes** :
 
-| Méthode | Signature | Paramètres | Retour | Notes |
-|---|---|---|---|---|
-| `delegate()` | `async (skill_id: str, payload: dict, timeout_secs: int = 120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | Lève `RuntimeError` si skill absent |
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| `log()` | `(level: str, message: str) -> None` | `level`: `"debug"\|"info"\|"warn"\|"error"`; `message`: str | — | `ValueError` si niveau invalide | Émet via `tracing::` du runtime (traces structurées) |
+| `emit_token()` | `(token: str) -> None` | `token`: str | — | — | Streaming SSE en mode chat ; no-op en mode task |
+| `delegate()` | `async (skill_id: str, payload: dict, timeout_secs: int = 120) -> dict[str, Any]` | `skill_id`: str; `payload`: dict; `timeout_secs`: int | Résultat A2A (dict) | `RuntimeError` si skill absent | — |
+| `send()` | `async (agent_name: str, message: dict) -> None` | `agent_name`: str; `message`: dict JSON | — | `RuntimeError` si `supports_a2a` false | Messagerie inter-agents |
+| `receive()` | `async (timeout_seconds: float \| None = None) -> dict \| None` | `timeout_seconds`: délai max | Message dict ou `None` | `RuntimeError` si `supports_a2a` false | — |
+
+**`StepBudgetView`** — retourné par `ctx.step_budget` :
+
+| Propriété | Type | Description |
+|---|---|---|
+| `steps_remaining` | `int` | Steps restants avant limite (0 si épuisé) |
+| `tool_calls_remaining` | `int` | Appels outils restants (`-1` = non tracké dans cette vue) |
+| `elapsed_seconds` | `float` | Secondes écoulées (`0.0` = non tracké dans cette vue) |
 
 ---
 
@@ -354,13 +369,16 @@ Stub pour mémoire persistante.
 
 **Méthodes** :
 
-| Méthode | Signature | Paramètres | Retour | Notes |
-|---|---|---|---|---|
-| `record()` | `async (key: str, content: str, importance: float \| None = None,...) -> None` | `key`: str identifier; `content`: str; `importance`: 0–1 float; kwargs pour metadata | — | Persiste en mémoire sémantique |
-| `remember` | `async (key: str, value: str, source: str \| None = None) -> None` | `key`: str; `value`: str; `source`: optional | — | Alias pour `record()` |
-| `recall()` | `async (key: str) -> list[dict[str, object]] \| None` | `key`: str | Liste d'entrées avec metadata ou None | Retourne tous les matches pour clé |
-| `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | Résultats sémantiques (list[dict]) | Recherche full-text + vectorielle |
-| `forget` | `async (key: str) -> None` | `key`: str | — | Supprime la clé |
+| Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
+|---|---|---|---|---|---|
+| `record()` | `async (content: str, importance: float \| None = 0.5, task_id: str \| None = None, metadata: dict \| None = None, expires_in: int \| None = None) -> None` | `content`: texte; `importance`: 0–1; `task_id`: tâche courante; `metadata`: dict arbitraire; `expires_in`: TTL en secondes | — | `RuntimeError` si espace namespace épuisé | Persiste en mémoire épisodique |
+| `remember()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str; `source`: optional; `confidence`: 0–1 | — | — | Mémoire sémantique clé/valeur |
+| `recall()` | `async (key: str) -> str \| None` | `key`: str | Valeur ou `None` | — | Lecture sémantique exacte |
+| `recall_entry()` | `async (key: str, injection_reason: str \| None = None) -> dict \| None` | `key`: str | `{key, value, confidence, source, updated_at, expires_at}` ou `None` | — | Retourne entrée avec metadata complète |
+| `recall_all()` | `async (limit: int \| None = 100, injection_reason: str \| None = None) -> list[dict]` | `limit`: max résultats | `list[dict]` — même structure que `recall_entry()` | — | Liste toutes les entrées du namespace |
+| `recall_procedure()` | `async (trigger: str) -> list[dict]` | `trigger`: déclencheur exact | `[{id, trigger, steps, success_count, last_used_at, created_at}]` ou `[]` | — | Mémoire procédurale — workflows appris |
+| `search()` | `async (query: str, limit: int \| None = None) -> list[dict[str, object]]` | `query`: str texte; `limit`: int max results | `[{content, score, source, timestamp}]` | — | Recherche full-text (FTS5) |
+| `forget()` | `async (key: str) -> None` | `key`: str | — | — | Supprime entrée sémantique |
 
 ---
 
