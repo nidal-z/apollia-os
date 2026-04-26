@@ -166,7 +166,7 @@ TOUTES LES COMMANDES
   agent    list | start | stop | restart | info | logs | validate | new
   task     list | status | result | cancel | retry | resume | inspect
   pipeline list | run | runs | status
-  tools    list | describe | register | unregister | test | reset-circuit
+  tools    list | enable | disable | config | reload | credentials | describe
   memory   inspect | search | get | forget | purge | export | import
   audit    [list] | stats | export
   notify   test | list | logs

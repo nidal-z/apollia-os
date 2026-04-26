@@ -303,15 +303,48 @@ $ apollia-os task inspect t-abc123 --json
 
 ### `apollia-os tools <verb>`
 
+Gouvernance locale des outils natifs. Les commandes `list()`, `enable`, `disable`, `config`, `reload()` et `credentials` opèrent directement sur `governance.db` et `apollia.toml` — sans nécessiter un runtime démarré. `describe()` seule interroge le runtime via `GET /api/v1/tools/<name>`.
+
 ```bash
+# État de chaque outil (actif, backend configuré, credentials)
 $ apollia-os tools list
+  NOM              ACTIF   BACKEND                CREDENTIALS
+  web_search       ✓       DuckDuckGo (auto)      —
+  web_read         ✓       dom_smoothie           —
+  bash_executor    ✓       —                      —
+  python_executor  ✗       —                      —
+
+$ apollia-os tools list --json
+
+# Activer / désactiver un outil (écrit dans governance.db)
+$ apollia-os tools enable python_executor
+  ✔ python_executor activé
+$ apollia-os tools disable bash_executor
+  ✔ bash_executor désactivé
+
+# Lire / modifier la config d'un outil dans apollia.toml
+$ apollia-os tools config get web_search
+$ apollia-os tools config set web_search.backend brave
+  ✔ apollia.toml mis à jour (tools.web_search.backend = "brave")
+$ apollia-os tools config set web_search.brave.timeout_secs 10
+
+# Recharger le snapshot de gouvernance et afficher l'état effectif
+$ apollia-os tools reload
+  ✔ Snapshot rechargé (3 outils actifs)
+
+# Credentials chiffrées associées à un outil
+$ apollia-os tools credentials list
+$ apollia-os tools credentials list web_search
+$ apollia-os tools credentials set web_search brave.api_key
+  Valeur (masquée) : ****
+  ✔ Credential stockée
+$ apollia-os tools credentials delete web_search brave.api_key
+  ✔ Credential supprimée
+$ apollia-os tools credentials test web_search
+  ✔ brave.api_key — valide (réponse 187ms)
+
+# Descripteur d'un outil enregistré dans le runtime (nécessite runtime démarré)
 $ apollia-os tools describe bash_executor
-$ apollia-os tools register ./tools/erp_connector.py
-$ apollia-os tools unregister erp_acme
-$ apollia-os tools test bash_executor --input '{"command": "echo hello"}'
-  stdout: hello  ·  exit_code: 0  ·  duration: 12ms
-$ apollia-os tools reset-circuit mcp_erp_acme
-  ✔ Circuit breaker réinitialisé (→ CLOSED)
 ```
 
 ### `apollia-os memory <verb>`
@@ -675,7 +708,7 @@ $ apollia-os
     agent    list | start | stop | restart | info | logs | validate | new
     task     list | status | result | cancel | retry | resume | inspect
     pipeline list | run | runs | status
-    tools    list | describe | register | unregister | test | reset-circuit
+    tools    list | enable | disable | config | reload | credentials | describe
     memory   inspect | search | get | forget | purge | export | import
     audit    [list] | stats | export
     notify   test | list | logs
