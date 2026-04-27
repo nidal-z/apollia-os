@@ -149,7 +149,10 @@ echo "==> Building Tauri app (ARM64)"
 cd "${PROJECT_ROOT}/crates/apollia-desktop"
 
 export PYO3_PYTHON
+# python-build-standalone has hardcoded /install/lib LIBDIR — override for PyO3 link
+export RUSTFLAGS="${RUSTFLAGS:-} -L ${PYTHON_BUNDLE_DIR}/python/lib"
 echo "    PYO3_PYTHON=$PYO3_PYTHON"
+echo "    RUSTFLAGS=$RUSTFLAGS"
 
 cargo tauri build --target "$TARGET_TRIPLE"
 echo "    ✓ Tauri build completed"

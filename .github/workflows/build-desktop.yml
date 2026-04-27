@@ -53,6 +53,8 @@ jobs:
           # a safety net — if something bypasses bundle-cli.sh, PyO3 still links
           # against the bundled interpreter.
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13
+          # python-build-standalone has hardcoded /install/lib LIBDIR — override for PyO3 link
+          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/lib
         run: cargo tauri build --target aarch64-apple-darwin
 
       - name: Post-bundle — patch install_names + ad-hoc sign (ADR-073)
