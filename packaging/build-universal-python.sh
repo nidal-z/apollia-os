@@ -24,6 +24,7 @@ echo "==> Fetching x86_64-apple-darwin bundle"
 "${SCRIPT_DIR}/fetch-python-standalone.sh" x86_64-apple-darwin "${TMP_DIR}/x86_64"
 
 PYTHON_DIR="${OUT_DIR}/python"
+mkdir -p "$OUT_DIR"
 rm -rf "$PYTHON_DIR"
 # Start from the arm64 tree (full file structure), then lipo-merge binaries.
 cp -R "${TMP_DIR}/arm64/python" "$PYTHON_DIR"
