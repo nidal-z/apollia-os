@@ -37,7 +37,11 @@ cp -R "${REPO_ROOT}/target/python-bundle/${TARGET}/python" "${STAGING}/python"
 
 export PYO3_PYTHON="${STAGING}/python/bin/python3.13"
 export PYTHONHOME="${STAGING}/python"
+# python-build-standalone has a hardcoded /install/lib LIBDIR that PyO3 picks up.
+# Override the library search path to point at the actual bundled libpython.
+export RUSTFLAGS="${RUSTFLAGS:-} -L ${STAGING}/python/lib"
 echo "==> PYO3_PYTHON=${PYO3_PYTHON}"
+echo "==> RUSTFLAGS=${RUSTFLAGS}"
 
 # ── Step 2 — CLI binary (apollia-os) ──────────────────────────────────────────
 
