@@ -10,8 +10,8 @@
 # Exits 0 on success, leaves the extracted `python/` tree in <output-dir>/python/.
 #
 # Pinned version (update deliberately, not automatically):
-#   - cpython: 3.13.1
-#   - pbs release tag: 20250205
+#   - cpython: 3.13.13
+#   - pbs release tag: 20260414
 #
 # Sources: https://github.com/astral-sh/python-build-standalone/releases
 set -euo pipefail
@@ -19,8 +19,8 @@ set -euo pipefail
 TARGET="${1:?usage: fetch-python-standalone.sh <target-triple> <output-dir>}"
 OUT_DIR="${2:?usage: fetch-python-standalone.sh <target-triple> <output-dir>}"
 
-PBS_TAG="20250205"
-CPYTHON_VERSION="3.13.1"
+PBS_TAG="20260414"
+CPYTHON_VERSION="3.13.13"
 
 # Map Rust target triple → python-build-standalone archive name.
 # `install_only` variant is the slimmed-down tarball (no debug symbols, no tests).
