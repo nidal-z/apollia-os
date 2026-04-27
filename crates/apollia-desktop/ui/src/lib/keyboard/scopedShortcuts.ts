@@ -2,7 +2,7 @@
  * Scoped keyboard shortcuts — registered globally but only active while
  * the application's current route matches a given predicate.
  *
- * Introduced for US-SP42-074 (Cmd+S / Ctrl+S inside `/settings/*`).
+ * Introduced for (Cmd+S / Ctrl+S inside `/settings/*`).
  */
 
 import { get } from "svelte/store";

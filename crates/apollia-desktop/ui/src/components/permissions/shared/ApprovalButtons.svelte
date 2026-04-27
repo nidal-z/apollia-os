@@ -1,7 +1,6 @@
 <script lang="ts">
   /**
-   * Reusable approval actions cluster (US-SP42-054, finding B.30 —
-   * shared with Chantier 3 ApprovalCard).
+   * Reusable approval actions cluster.
    *
    * Three variants: Accept (primary), Refuse (ghost + destructive tint),
    * and "Always allow" (outline secondary) with an optional scope

@@ -12,7 +12,7 @@ Un agent est limité simultanément sur trois axes indépendants :
 |---|---|---|---|
 | `max_steps` | 30 | Oui, via manifest | Boucles infinies de raisonnement |
 | `max_tool_calls` | 60 | Oui, via manifest | Spam d'appels d'outils |
-| `wall_clock_timeout_secs` | 600 (10 min) | Oui, via manifest | Tâches bloquées indéfiniment |
+| `wall_clock_secs` | 600 (10 min) | Oui, via manifest | Tâches bloquées indéfiniment |
 
 Les trois limites s'appliquent en parallèle. La première atteinte déclenche l'arrêt.
 
@@ -44,7 +44,7 @@ def manifest(self):
         "step_budget": {
             "max_steps": 25,
             "max_tool_calls": 60,      # inclure les retries éventuels
-            "wall_clock_timeout_secs": 180
+            "wall_clock_secs": 180
         }
     }
 ```
@@ -83,14 +83,14 @@ Un agent qui déclare `max_steps: 100` avec un plafond runtime à 50 obtient eff
 
 ## Comportement quand le budget est épuisé
 
-La tâche passe immédiatement en `failed` avec `error.code = "BUDGET_EXCEEDED"` :
+La tâche passe immédiatement en `failed` avec `error.code = "STEP_BUDGET_EXCEEDED"` :
 
 ```json
 {
   "task_id": "t-abc123",
   "status": "failed",
   "error": {
-    "code": "BUDGET_EXCEEDED",
+    "code": "STEP_BUDGET_EXCEEDED",
     "message": "Step budget exhausted: 10/10 steps used"
   }
 }
@@ -102,7 +102,9 @@ Il n'y a pas de mécanisme de graceful shutdown automatique. C'est à l'agent d'
 
 ## Lire le budget depuis l'agent
 
-`ctx.step_budget` expose l'état courant du budget. Utilisez-le pour adapter le comportement de votre agent proactivement, avant d'atteindre la limite :
+`ctx.step_budget` expose l'état courant du budget. Utilisez-le pour adapter le comportement de votre agent proactivement, avant d'atteindre la limite.
+
+> **Note :** `ctx.step_budget.tool_calls_remaining` retourne toujours `-1` dans la version actuelle — ce n'est pas un compteur live. Pour connaître le nombre d'appels d'outils effectués, utilisez `ctx.tools.tool_call_count()` à la place.
 
 ```python
 async def run(self, task, ctx):

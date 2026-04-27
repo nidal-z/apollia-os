@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Sidebar — Apollia OS main navigation (US-SP42-079 refonte).
+   * Sidebar — Apollia OS main navigation (refonte).
    *
    * Structure:
    *   [Logo + ModeChip]      ← identity + mode switch
@@ -8,9 +8,9 @@
    *   [Bottom actions fixed]  ← settings / running tasks / onboarding
    *
    * Removed in this revision:
-   *   - Connection status block  → relocated to Topbar (US-SP42-077)
-   *   - Companion toggle         → relocated to Topbar (US-SP42-077)
-   *   - Inline search            → replaced by Cmd+K (US-SP42-078)
+   * - Connection status block → relocated to Topbar
+   * - Companion toggle → relocated to Topbar
+   * - Inline search → replaced by Cmd+K
    */
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";

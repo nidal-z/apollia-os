@@ -2,7 +2,7 @@
  * Accessibility strings — icon-only aria-labels and screen-reader hints.
  *
  * Any `aria-label`, `title`, or `alt` attribute on an icon-only control must
- * pull from this catalog (finding E.48 of the sprint 42 audit). Adding an
+ * pull from this catalog. Adding an
  * icon-only button? Add its key here first, then reference `$t(...)`.
  */
 export const A11Y_KEYS = {

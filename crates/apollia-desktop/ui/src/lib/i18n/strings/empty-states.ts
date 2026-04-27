@@ -1,5 +1,5 @@
 /**
- * Empty-state string catalogue (US-SP42-006).
+ * Empty-state string catalogue.
  *
  * Each variant describes how to build a canonical `<EmptyState>` for a given
  * scope: the i18n keys to pull, the Lucide icon to render in the default

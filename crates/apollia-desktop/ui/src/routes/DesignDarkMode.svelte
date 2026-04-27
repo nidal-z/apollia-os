@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Dark-mode showcase — US-SP42-010.
+   * Dark-mode showcase.
    *
    * Dev-only page (not linked from the sidebar). Reached via the URL hash
    * `#design-dark-mode`. Exposes the key primitives — badges, surfaces,

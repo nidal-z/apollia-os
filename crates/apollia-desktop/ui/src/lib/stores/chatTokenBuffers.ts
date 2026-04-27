@@ -1,7 +1,7 @@
 /**
  * Per-session chat token buffers with LRU eviction and TTL cleanup.
  *
- * Rationale — US-SP42-035 (B.35, B.57):
+ * Rationale:
  *  - A single global buffer caused token leaks across sessions and re-renders
  *    on every append of every conversation.
  *  - A per-session Map avoids cross-talk.  LRU caps memory (max 50 active

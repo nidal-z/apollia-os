@@ -84,7 +84,7 @@ export interface A2ASkillListing {
   description: string;
 }
 
-/** Télémétrie agrégée d'un skill A2A sur la fenêtre glissante (US-SP42-044). */
+/** Télémétrie agrégée d'un skill A2A sur la fenêtre glissante. */
 export interface A2ASkillTelemetry {
   skill_name: string;
   version: string;
@@ -680,7 +680,7 @@ export interface TimelineParams {
 }
 
 // ─────────────────────────────────────────────
-// Session meta-layer (US-SP42-048 — Pattern P12)
+// Session meta-layer
 // ─────────────────────────────────────────────
 
 /** Catégorie d'événement session affichée dans le scrubber. */
@@ -848,13 +848,13 @@ export interface ToolCallView {
   duration_ms?: number | null;
   /** Process exit code, available when the tool produces one (e.g. bash_executor). */
   exit_code?: number | null;
-  /** Meta-LLM narration generated before execution (US-SP42-038, opt-in). */
+  /** Meta-LLM narration generated before execution (opt-in). */
   rationale?: ToolCallRationale | null;
-  /** Retry chain captured for this invocation (US-SP42-040, Pattern P4). */
+  /** Retry chain captured for this invocation. */
   retry_attempts?: RetryAttempt[];
 }
 
-/** Outcome of a single attempt in a retry / fallback chain (US-SP42-040). */
+/** Outcome of a single attempt in a retry / fallback chain. */
 export type AttemptOutcome =
   | { kind: "success" }
   | { kind: "failed" }
@@ -877,7 +877,7 @@ export interface LlmFallback {
   reason: string;
 }
 
-/** Structured meta-LLM narration attached to a tool call (US-SP42-038). */
+/** Structured meta-LLM narration attached to a tool call. */
 export interface ToolCallRationale {
   /** One short sentence (<= 25 words) on WHY the agent calls this tool. */
   summary: string;
@@ -1071,7 +1071,7 @@ export interface InsightEntry {
   extraction_reasoning?: string;
 }
 
-/** Outcome of a memory-write proposal (US-SP42-042). */
+/** Outcome of a memory-write proposal. */
 export type MemoryWriteOutcome =
   | { kind: "accepted" }
   | { kind: "rejected"; reason: string };
@@ -1576,7 +1576,7 @@ export interface CliStatus {
   needs_privilege: boolean;
 }
 
-// ── US-SP42-037 — Thinking / Reasoning transparency ────────────────────────
+// ── Thinking / Reasoning transparency ────────────────────────
 
 /** Payload of the `ThinkingStarted` runtime event. */
 export interface ThinkingStartedEvent {
@@ -1640,7 +1640,7 @@ export interface ThinkingState {
   summary: ThinkingSummary | null;
 }
 
-// ── US-SP42-041 — Decision branches (Pattern P5) ───────────────────────────
+// ── Decision branches ───────────────────────────
 
 /** Coarse kind of significant decision the agent made this turn. */
 export type DecisionKind =
@@ -1670,7 +1670,7 @@ export interface DecisionPointRecordedEvent {
   point: DecisionPoint;
 }
 
-// ── US-SP42-043 — Memory injection visibility (Pattern P7) ─────────────────
+// ── Memory injection visibility ─────────────────
 
 /**
  * Memory entry the agent injected into a specific turn.
@@ -1687,7 +1687,7 @@ export interface InjectedEntry {
   relevance_score: number;
 }
 
-// ── Session metrics (US-SP42-047 Pattern P11) ────────────────────────────────
+// ── Session metrics ────────────────────────────────
 
 /** Timing d'un appel outil avec delta par rapport au hint statique. */
 export interface ToolTiming {

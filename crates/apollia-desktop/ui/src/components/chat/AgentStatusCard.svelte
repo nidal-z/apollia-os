@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Single agent card with avatar, skill chips and a live status dot
-   * (US-SP42-024). Rendered inside the QuickPicker agents grid.
+   * Rendered inside the QuickPicker agents grid.
    */
   import { t } from "svelte-i18n";
   import { Bot } from "lucide-svelte";

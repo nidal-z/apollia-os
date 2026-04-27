@@ -86,7 +86,7 @@ async fn test_ac5_timeout_watcher_cancels_expired_task() {
     // Use a 1ms scan_interval so the watcher fires on the very first tick.
     let watcher = TimeoutWatcher::new(
         TimeoutWatcherConfig {
-            input_required_timeout: Duration::from_secs(24 * 3600),
+            input_required_timeout: Some(Duration::from_secs(24 * 3600)),
             scan_interval: Duration::from_millis(1),
         },
         Arc::new(repo),

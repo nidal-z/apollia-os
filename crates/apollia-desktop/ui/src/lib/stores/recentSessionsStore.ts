@@ -1,5 +1,5 @@
 /**
- * Recently-opened chat sessions (US-SP42-078).
+ * Recently-opened chat sessions.
  *
  * Tracks the last 10 chat session ids the user opened so the command
  * palette can list them under the "Sessions" group. Persisted to

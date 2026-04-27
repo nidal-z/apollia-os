@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Right-side sheet showing the full template detail (US-SP42-058).
+   * Right-side sheet showing the full template detail.
    *
    * Loads the full body via `templates_get` on open (never imported eagerly
    * — the body can be non-trivial). Builder mode gets an extra "Show code"

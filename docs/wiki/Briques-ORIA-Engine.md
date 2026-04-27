@@ -34,15 +34,16 @@ L'Observer est le premier composant activé à réception d'une `AIPTask`. Son r
 pub struct ContextBundle {
     pub task: AIPTask,
     pub memory_snapshot: Option<MemorySnapshot>,
-    pub agent_state: AgentState,
-    pub recent_history: Vec<TaskSummary>,    // 5 dernières tâches du context_id
-    pub runtime_metrics: RuntimeMetrics,
+    pub execution_mode: ExecutionMode,           // mode sélectionné par le scoring
+    pub available_tools: Vec<String>,             // outils résolus au démarrage
+    pub manifest_system_prompt: Option<String>,   // system_prompt du manifest
+    pub llm_backend_names: Vec<String>,           // backends LLM disponibles
 }
 
 pub struct MemorySnapshot {
     pub episodic_recent: Vec<EpisodicEntry>,
     pub semantic_relevant: Vec<SemanticEntry>,
-    pub procedures: Vec<ProceduralEntry>,
+    // Note : procedures non exposé dans MemorySnapshot (accès via ctx.memory.recall_procedure)
 }
 ```
 
@@ -140,6 +141,7 @@ En Mode Orchestré, ORIA instancie un `Reasoner` qui appelle un `Arc<dyn Complet
 ```rust
 pub struct ExecutionPlan {
     pub plan_id: String,
+    pub task_id: String,    // tâche origine du plan
     pub steps: Vec<PlanStep>,
 }
 
@@ -271,7 +273,7 @@ Après chaque step complété, l'`ActorLoop` enregistre automatiquement un épis
 
 ```rust
 const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
-const STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
+const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 ```
 
 **Principe #6 relaxé en Orchestré (ADR-035) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict — aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
@@ -485,9 +487,12 @@ ActorLoop.execute() :
 
 ### 5.4 TimeoutWatcher — Annulation automatique des suspensions
 
-Le `TimeoutWatcher` est un acteur Tokio démarré en position 9 dans le `Supervisor`. Il scanne toutes les **60 secondes** les tâches en état `input_required` et annule celles qui dépassent le délai configuré.
+> **⚠️ Non implémenté** — Le `TimeoutWatcher` est documenté dans la spec mais absent du code (`crates/apollia-oria/src/`). Les tâches en état `input_required` ne sont pas annulées automatiquement dans la version actuelle.
+
+La spec prévoit un acteur Tokio (position 9 dans le Supervisor) qui scanne périodiquement les tâches `input_required` et annule celles qui dépassent un délai configurable. Cette feature est planifiée pour une version future.
 
 ```rust
+// Spec (non implémentée)
 pub struct TimeoutWatcherConfig {
     /// Délai max avant annulation — défaut : 24 heures.
     pub input_required_timeout: Duration,
@@ -495,25 +500,6 @@ pub struct TimeoutWatcherConfig {
     pub scan_interval: Duration,
 }
 ```
-
-**Pipeline d'annulation :**
-```
-TimeoutWatcher.scan_and_cancel() :
-  ├── TaskRepository.find_input_required_older_than(input_required_timeout)
-  ├── Pour chaque tâche expirée :
-  │   ├── TaskRouter.cancel_task(task_id, "input_required_timeout")
-  │   │     └── TaskStatus → Canceled
-  │   └── EventBus.broadcast(RuntimeEvent::TaskApprovalTimeout { task_id, after_secs })
-  └── Retourne le nombre de tâches annulées
-```
-
-**Configuration dans `apollia.toml` :**
-```toml
-[runtime]
-input_required_timeout_hours = 24    # défaut : 24h
-```
-
-**Robustesse :** Si `scan_and_cancel` échoue (ex. SQLite indisponible), l'erreur est loguée et le `TimeoutWatcher` continue son cycle sans propager ni paniquer.
 
 ---
 
@@ -523,36 +509,37 @@ Le StepBudget est le mécanisme le plus important pour la robustesse en producti
 
 ```rust
 pub struct StepBudget {
-    pub max: u32,                      // Nombre max de steps (défaut: 10)
-    pub current: u32,                  // Steps actuellement utilisés
-    pub tool_calls: u32,               // Appels outils actuels
-    pub max_tool_calls: u32,           // Max appels outils (défaut: 20)
+    pub max_steps: u32,                        // Nombre max de steps (défaut: 30)
+    pub max_tool_calls: u32,                   // Max appels outils (défaut: 60)
+    pub wall_clock_limit: Duration,            // Durée max (défaut: 10 minutes)
     pub started_at: Instant,
-    pub wall_clock_limit: Duration,    // Durée max (défaut: 5 minutes)
+    // Compteurs internes thread-safe — non exposés en pub direct
+    // current_steps: AtomicU32
+    // current_tool_calls: AtomicU32
 }
 
 impl StepBudget {
     pub fn is_exhausted(&self) -> bool {
-        self.current >= self.max
-            || self.tool_calls >= self.max_tool_calls
-            || self.started_at.elapsed() > self.wall_clock_limit
+        self.current_steps() >= self.max_steps
+            || self.current_tool_calls() >= self.max_tool_calls
+            || self.started_at.elapsed() >= self.wall_clock_limit    // >= intentionnel
     }
 
     pub fn steps_left(&self) -> u32 {
-        self.max.saturating_sub(self.current)
+        self.max_steps.saturating_sub(self.current_steps())
     }
 }
 ```
 
-**Valeurs par défaut (configurables) :**
+**Valeurs par défaut (déclarées dans `StepBudgetConfig::default()`) :**
 
-```toml
-[oria]
-max_steps           = 10
-max_tool_calls      = 20
-wall_clock_timeout  = 300    # 5 minutes
-max_replans         = 2
-```
+| Champ | Défaut | Notes |
+|---|---|---|
+| `max_steps` | `30` | Override possible dans `AgentManifest.step_budget` |
+| `max_tool_calls` | `60` | Override possible dans `AgentManifest.step_budget` |
+| `wall_clock_secs` | `600` (10 min) | Override possible dans `AgentManifest.step_budget` |
+
+> Ces valeurs ne sont **pas** dans `apollia.toml [oria]` — elles sont dans `StepBudgetConfig` (apollia-core). L'opérateur les surcharge par agent via le manifest Python.
 
 **Override par agent via manifest :**
 
@@ -562,7 +549,7 @@ AgentManifest(
     step_budget=StepBudgetConfig(
         max_steps=30,
         max_tool_calls=60,
-        wall_clock_timeout=900    # 15 minutes pour les analyses longues
+        wall_clock_secs=900    # 15 minutes pour les analyses longues
     )
 )
 ```
@@ -606,9 +593,9 @@ pub struct RetryPolicy {
 pub struct CircuitBreaker {
     state: CircuitState,
     failure_count: u32,
-    failure_threshold: u32,  // Défaut : 3 échecs consécutifs
-    cooldown: Duration,      // Défaut : 30s
-    pub last_failure: Option<Instant>,
+    failure_threshold: u32,   // Défaut : 3 échecs consécutifs
+    cooldown: Duration,       // Défaut : 30s
+    pub last_failure_at: Option<Instant>,
 }
 
 pub enum CircuitState {
@@ -708,9 +695,7 @@ pub fn compute_cache_key(
 La clé est un hash SHA-256 de `{agent_name}:{agent_version}:{sorted_tools}:{normalized_text_500chars}`. La normalisation du texte inclut : minuscules, collapse espaces multiples, troncature à 500 caractères.
 
 **Stratégie (ADR-036) :**
-- **TTL :** 7 jours
-- **Capacité max :** 1000 entrées
-- **Éviction :** LRU (Least Recently Used) via `last_used_at`
+- **TTL :** 7 jours (via `evict_expired(max_age_days)`)
 - **Persistance :** `~/.apollia/plan_cache.db` (SQLite)
 - **Cache hit :** émet `RuntimeEvent::PlanCacheHit` sur l'EventBus
 - **Cache miss :** fallback transparent vers le Reasoner LLM, puis stockage du plan produit
@@ -792,19 +777,22 @@ Exemples (sans jitter) : tentative 1 → 500ms, tentative 2 → 1000ms, tentativ
 
 **ORIA Engine (`engine.rs`) :**
 
-| Constante | Valeur | Description |
+| Valeur | Valeur | Description |
 |---|---|---|
-| `MAX_REPLANS` | `2` | Nombre maximum de replanifications LLM par tâche Orchestrée |
 | `ORCHESTRATED_THRESHOLD` | `0.40` | Score de complexité au-delà duquel le Mode Orchestré est sélectionné |
+| `max_replans` (ORIAConfig) | `2` | Défaut via `default_max_replans()` — configurable via `apollia.toml [oria]` |
 
-**StepBudget (défauts configurables via `apollia.toml` section `[oria]`) :**
+> Note : `max_replans` n'est pas une constante Rust file-level — c'est la valeur par défaut de `ORIAConfig::max_replans` retournée par `default_max_replans()` dans `apollia-core/src/config.rs`.
 
-| Paramètre TOML | Valeur par défaut | Description |
+**StepBudget (défauts dans `StepBudgetConfig::default()` — `apollia-core`) :**
+
+> Les champs `max_steps`, `max_tool_calls`, `wall_clock_secs` ne font **pas** partie de `apollia.toml [oria]`. Ils sont déclarés par l'agent dans son manifest Python.
+
+| Champ `StepBudgetConfig` | Valeur par défaut | Override |
 |---|---|---|
-| `max_steps` | `10` | Nombre de steps maximum par tâche |
-| `max_tool_calls` | `20` | Appels d'outils maximum par tâche |
-| `wall_clock_timeout` | `300s` | Durée maximale d'une tâche (5 minutes) |
-| `max_replans` | `2` | Identique à `MAX_REPLANS` — configurable par déploiement |
+| `max_steps` | `30` | Via `AgentManifest.step_budget` |
+| `max_tool_calls` | `60` | Via `AgentManifest.step_budget` |
+| `wall_clock_secs` | `600s` (10 min) | Via `AgentManifest.step_budget` |
 
 ---
 
@@ -890,7 +878,7 @@ Mode Orchestré
   └── PlanRepository.complete_plan() / fail_plan()
   └── EventBus: PlanCompleted / PlanFailed
 
-TimeoutWatcher (toutes les 60s —)
+TimeoutWatcher (⚠️ non implémenté — spec uniquement)
   └── Scan TaskRepository.find_input_required_older_than(timeout)
   └── Pour chaque tâche expirée :
       ├── TaskRouter.cancel_task()         → TaskStatus::Canceled

@@ -1,11 +1,11 @@
-//! Runtime error analyzers (US-SP42-039 — Pattern P3).
+//! Runtime error analyzers.
 //!
 //! - [`error_analyzer`] — maps a raw error string into a structured
 //!   [`apollia_core::ErrorAnalysis`] using a static lookup table. Always-on,
 //!   zero LLM cost.
 //! - [`hallucination_detector`] — heuristic + schema-driven detector for
 //!   suspicious tool outputs (null, empty, malformed JSON). Always-on,
-//!   shared with US-SP42-048 (session-level meta-layer).
+//! (session-level meta-layer).
 //!
 //! When the static classifier returns [`apollia_core::ErrorCategory::Unknown`]
 //! and the user has opted in to `routines.error_explanation`, the runtime

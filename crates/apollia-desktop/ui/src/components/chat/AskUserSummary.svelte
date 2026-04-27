@@ -1,11 +1,11 @@
 <script lang="ts">
   /**
    * Read-only summary of an `ask_user` exchange, rendered after the
-   * `AskUserCard` submits. Findings covered:
+   * `AskUserCard` submits.
    *
-   *   - B.50.b — optional `requestId` prop to anchor a deep-link to the
+   *   - optional `requestId` prop to anchor a deep-link to the
    *     Reasoning trace (consumer responsibility, see ReasoningCard).
-   *   - B.50.d — `aria-expanded` + `aria-controls` are synchronised with the
+   *   - `aria-expanded` + `aria-controls` are synchronised with the
    *     collapsed/expanded state.
    */
 

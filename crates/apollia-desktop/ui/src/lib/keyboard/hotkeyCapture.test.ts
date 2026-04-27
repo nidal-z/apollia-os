@@ -1,5 +1,5 @@
 /**
- * Unit tests for the hotkey capture parser (US-SP42-075).
+ * Unit tests for the hotkey capture parser.
  *
  * Covers: `KeyboardEvent` → canonical combo string, missing-modifier
  * detection, and collision detection against reserved OS/app shortcuts.

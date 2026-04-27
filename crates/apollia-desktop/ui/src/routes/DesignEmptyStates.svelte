@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Empty-state showcase — US-SP42-006.
+   * Empty-state showcase.
    *
    * Dev-only page (not linked from the sidebar). Reached via the URL hash
    * `#design-empty-states`. Renders the 7 canonical empty-state variants from

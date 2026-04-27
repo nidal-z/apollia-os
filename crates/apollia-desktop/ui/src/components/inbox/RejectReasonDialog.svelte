@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Shared reject-reason dialog (US-SP42-053, finding E.33).
+   * Shared reject-reason dialog.
    *
    * Enforces a 5–500 character reason with live counter and disabled submit.
    */

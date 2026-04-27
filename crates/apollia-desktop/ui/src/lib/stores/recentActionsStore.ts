@@ -1,5 +1,5 @@
 /**
- * Recently-used command palette actions (US-SP42-078).
+ * Recently-used command palette actions.
  *
  * Persists the last 10 action ids executed from the palette so the
  * "Recently used" header can surface them when the input is empty.

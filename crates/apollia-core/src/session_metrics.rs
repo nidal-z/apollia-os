@@ -1,4 +1,4 @@
-//! Métriques de session agrégées (US-SP42-047 Pattern P11).
+//! Métriques de session agrégées.
 //!
 //! [`SessionMetrics`] agrège tokens, contexte, timings d'outils et événements
 //! de summarization sur la durée d'une session. Calculé par
@@ -57,21 +57,16 @@ pub struct SummarizationEvent {
 }
 
 /// Niveau d'alerte budget en fonction des seuils configurés.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum BudgetAlertLevel {
     /// Sous le seuil de warning — RAS.
+    #[default]
     Ok,
     /// Au-dessus de `token_warn_pct`, affichage toast warning.
     Warning,
     /// Au-dessus de `token_block_pct`, approach bloquante.
     Block,
-}
-
-impl Default for BudgetAlertLevel {
-    fn default() -> Self {
-        Self::Ok
-    }
 }
 
 /// Seuils configurables depuis `apollia.toml [session]`.

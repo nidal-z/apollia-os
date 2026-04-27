@@ -1,5 +1,5 @@
 /**
- * Pending chat attachments (US-SP42-026, B.4).
+ * Pending chat attachments (B.4).
  *
  * v1: small files (< 512 kB) are read as base64 and sent inline; larger
  * files are sent as an absolute path reference (validated by the

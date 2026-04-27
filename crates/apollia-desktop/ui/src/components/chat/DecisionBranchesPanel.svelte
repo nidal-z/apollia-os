@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Decision branches panel (US-SP42-041 — Pattern P5).
+   * Decision branches panel.
    *
    * Renders a significant decision point (tool choice, agent delegate, memory
    * write/no-write) as a collapsible panel: the chosen option in green, and

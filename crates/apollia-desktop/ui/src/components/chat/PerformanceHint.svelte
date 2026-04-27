@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Inline performance hint (US-SP42-038).
+   * Inline performance hint.
    *
    * Lightbulb icon + short sentence ("Durée attendue: 400ms" or a faster
    * alternative suggestion). Tooltip provides the full text when the visual

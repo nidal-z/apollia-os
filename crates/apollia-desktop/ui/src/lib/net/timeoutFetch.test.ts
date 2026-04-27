@@ -1,6 +1,6 @@
 /**
  * Tests for {@link timeoutFetch} — covers happy-path resolution and the
- * timeout branch. See US-SP42-055.
+ * timeout branch. See.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { timeoutFetch, TimeoutError } from "./timeoutFetch";

@@ -73,7 +73,7 @@
       openNewTaskRequested.set(Date.now());
       return;
     }
-    // US-SP42-031 — Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
+    // Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
     if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "a") {
       event.preventDefault();
       void (async () => {
@@ -138,7 +138,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={200}>
-  <!-- Keyboard-first entry points (US-SP42-007 F.77 / E.45) — visible on
+  <!-- Keyboard-first entry points (F.77 / E.45) — visible on
        focus only. Wait until svelte-i18n has loaded before rendering,
        otherwise `$t(...)` throws "Cannot format a message without
        first setting the initial locale." -->

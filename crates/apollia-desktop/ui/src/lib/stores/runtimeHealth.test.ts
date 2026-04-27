@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { classifySessionError } from "./runtimeHealth";
 
 /**
- * Unit tests for the session-error classifier (US-SP42-034).
+ * Unit tests for the session-error classifier.
  *
  * The classifier powers the SessionNotFound vs session-corrupted routing
  * in `ChatConversation.svelte` — a regression here silently downgrades

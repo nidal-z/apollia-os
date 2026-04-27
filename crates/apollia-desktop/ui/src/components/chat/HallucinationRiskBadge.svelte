@@ -4,7 +4,7 @@
   import type { HallucinationRisk } from "$lib/types";
 
   interface Props {
-    /** Score agrégé + facteurs (US-SP42-048, toujours-on). */
+    /** Score agrégé + facteurs (toujours-on). */
     risk: HallucinationRisk;
   }
 

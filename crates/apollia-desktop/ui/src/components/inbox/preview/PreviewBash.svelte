@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Bash command preview (US-SP42-054). Shows dry-run output when the
+   * Bash command preview. Shows dry-run output when the
    * command supports `--dry-run`; otherwise falls back to static analysis
    * (detected commands + shellcheck warnings) and warns the operator
    * that real execution is required.

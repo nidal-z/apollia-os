@@ -1,5 +1,5 @@
 /**
- * Navigation module tests (US-SP42-079).
+ * Navigation module tests.
  *
  * Verifies the structural invariants the sidebar relies on:
  *   - Both mode navigations share the same `NavGroup[]` shape.

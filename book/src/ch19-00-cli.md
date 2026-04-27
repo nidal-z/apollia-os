@@ -69,7 +69,7 @@ $ apollia-os run analyse-contrat "Analyse ce contrat et extrait les clauses clé
   ✔ Tâche complétée en 4.1s
 ```
 
-Flags utiles : `--stream` (streaming token par token), `--no-wait` (fire and forget), `--timeout 60`.
+Flags utiles : `--stream` (streaming token par token), `--detach` (fire and forget).
 
 ### `apollia-os status`
 
@@ -141,11 +141,11 @@ $ apollia-os task resume t-042 --reject --reason "Budget insuffisant"
 | Flag | Description |
 |---|---|
 | `--json` | Sortie JSON sur stdout — désactive couleurs et progress bars |
-| `-q, --quiet` | Succès/erreur seulement, aucun détail |
-| `-v, --verbose` | Détails supplémentaires |
-| `--debug` | Logs internes + traces ORIA |
-| `--no-color` | Désactive les couleurs (TTY auto-détecté si absent) |
 | `--socket PATH` | Socket Unix alternatif (défaut: `/tmp/apollia.sock`) |
+| `-q` / `--quiet` | Affiche uniquement succès/erreur — aucun détail (`--json` prioritaire) |
+| `-v` / `--verbose` | Affiche les détails supplémentaires (durées, steps count) |
+| `--debug` | Logs internes + traces ORIA sur stderr (équivalent `RUST_LOG=debug`) |
+| `--no-color` | Désactive les couleurs ANSI même si stdout est un TTY |
 
 Les sorties humaines (tableaux, progress bars, couleurs) sont activées uniquement si stdout est un terminal — désactivées automatiquement dans les pipes et les scripts CI.
 
@@ -158,8 +158,8 @@ Les sorties humaines (tableaux, progress bars, couleurs) sont activées uniqueme
 1   Erreur générale (usage, input invalide)
 2   Erreur runtime (runtime non démarré, connexion refusée)
 3   Tâche échouée (run --wait avec tâche en échec)
-4   Timeout (--timeout dépassé)
-5   Annulé par l'utilisateur (Ctrl+C)
+4   Timeout ⚠️ (flag --timeout non implémenté dans la version actuelle)
+5   Interrompu (Ctrl+C / SIGINT — le shutdown gracieux s'exécute, puis exit 5)
 ```
 
 Usage en script bash :
@@ -193,7 +193,7 @@ TOUTES LES COMMANDES
   pipeline    list | run | runs | status
   tools       list | enable | disable | config | reload | credentials | describe
   permissions list | revoke | audit
-  memory      inspect | search | get | forget | purge | export | import
+  memory      inspect | list | clear | purge | learn-procedure | export | import
   audit       [list] | stats | export
   notify      test | list | logs
   stt         status | transcribe | transcriptions list | model list | model download

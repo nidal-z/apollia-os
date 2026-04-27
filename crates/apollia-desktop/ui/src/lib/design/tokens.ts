@@ -60,7 +60,7 @@ export const primaryGradient = {
   css: "linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)))",
 } as const;
 
-/** Canonical gradients (US-SP42-005) — full `var()` references. */
+/** Canonical gradients — full `var()` references. */
 export const gradient = {
   /** Primary → secondary, 135° — hero CTAs, promoted cards. */
   primary: "var(--gradient-primary)",
@@ -75,7 +75,7 @@ export type PrimaryShadowKey = keyof typeof primaryShadow;
 export type SurfaceKey = keyof typeof surface;
 
 /**
- * Chat shell layout bounds (US-SP42-022).
+ * Chat shell layout bounds.
  *
  * Canonical widths for the 3-column chat shell — Sessions, Conversation,
  * ContextDrawer. Values are in CSS pixels; keep in sync with the story AC:

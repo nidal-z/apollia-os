@@ -39,6 +39,16 @@ pub use meta_orchestrator::{
     ThinkingContradiction, ThinkingQuality, ThinkingSummary, DEFAULT_SESSION_BUDGET_TOKENS,
 };
 
+#[cfg(feature = "cloud")]
+pub use downloader::{
+    DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
+};
+pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
+#[cfg(feature = "cloud")]
+pub use hf_registry::{
+    CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
+    HfRegistryClient, HfSearchFilter, SearchPage,
+};
 pub use repository::{
     spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
     LlmDailyCostSummary, LlmRepositoryError,
@@ -51,14 +61,4 @@ pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,
     FinishReason, LlmError, MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
-};
-pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
-#[cfg(feature = "cloud")]
-pub use hf_registry::{
-    CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
-    HfRegistryClient, HfSearchFilter, SearchPage,
-};
-#[cfg(feature = "cloud")]
-pub use downloader::{
-    DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
 };

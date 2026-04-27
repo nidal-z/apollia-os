@@ -27,8 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    A2AConfig, ApiConfig, HitlConfig, ORIAConfig, PipelinesConfig, RegistryConfig, RuntimeConfig,
-    ToolsConfig,
+    A2AConfig, ApiConfig, FilesystemConfig, HitlConfig, McpConfig, ORIAConfig, PermissionsConfig,
+    PipelinesConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -108,6 +108,21 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si absente ; les valeurs par défaut de [`ToolsConfig`] s'appliquent.
     pub tools: Option<ToolsConfig>,
+
+    /// Section `[mcp]` — configuration du module MCP (TTL des approbations HITL).
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`McpConfig`] s'appliquent.
+    pub mcp: Option<McpConfig>,
+
+    /// Section `[permissions]` — moteur de permissions (SafeList, détection d'injection).
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`PermissionsConfig`] s'appliquent.
+    pub permissions: Option<PermissionsConfig>,
+
+    /// Section `[filesystem]` — journal réversible et configuration filesystem.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`FilesystemConfig`] s'appliquent.
+    pub filesystem: Option<FilesystemConfig>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.
@@ -168,7 +183,19 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
         for key in &[
-            "llm", "runtime", "memory", "tools", "budget", "api", "hitl", "a2a", "oria", "registry",
+            "llm",
+            "runtime",
+            "memory",
+            "tools",
+            "budget",
+            "api",
+            "hitl",
+            "a2a",
+            "oria",
+            "registry",
+            "mcp",
+            "permissions",
+            "filesystem",
         ] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
@@ -614,9 +641,60 @@ input = "x"
         );
     }
 
+    // GIVEN apollia.toml contient [mcp], [permissions] et [filesystem.journal]
+    // WHEN parse_apollia_toml est appelé
+    // THEN les valeurs custom sont désérialisées correctement
+    #[test]
+    fn test_mcp_permissions_filesystem_sections_deserialized() {
+        // GIVEN
+        let toml = r#"
+[mcp]
+approval_ttl_hours = 48
+
+[permissions]
+injection_detection = false
+safe_commands = ["bash_executor(git status)"]
+
+[filesystem.journal]
+max_sessions = 100
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        let mcp = config.mcp.expect("mcp should be present");
+        assert_eq!(mcp.approval_ttl_hours, 48);
+
+        let perms = config.permissions.expect("permissions should be present");
+        assert!(!perms.injection_detection);
+        assert_eq!(perms.safe_commands, vec!["bash_executor(git status)"]);
+
+        let fs = config.filesystem.expect("filesystem should be present");
+        assert_eq!(fs.journal.max_sessions, 100);
+    }
+
+    // GIVEN apollia.toml sans [mcp]/[permissions]/[filesystem]
+    // WHEN parse_apollia_toml est appelé
+    // THEN les champs sont None — pas de régression
+    #[test]
+    fn test_mcp_permissions_filesystem_absent_is_none() {
+        // GIVEN — empty TOML
+        let file = write_toml("");
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+
+        // THEN
+        assert!(config.mcp.is_none());
+        assert!(config.permissions.is_none());
+        assert!(config.filesystem.is_none());
+    }
+
     // GIVEN le struct ApolliaCConfig
     // WHEN on vérifie sa structure
-    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a, oria, pipelines, registry)
+    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a, oria, pipelines, registry, mcp, permissions, filesystem)
     #[test]
     fn test_config_struct_has_expected_fields() {
         let config = ApolliaCConfig {
@@ -629,11 +707,17 @@ input = "x"
             pipelines: None,
             registry: None,
             tools: None,
+            mcp: None,
+            permissions: None,
+            filesystem: None,
         };
         assert!(config.llm.is_none());
         assert!(config.runtime.is_none());
         assert!(config.hitl.is_none());
         assert!(config.a2a.is_none());
         assert!(config.registry.is_none());
+        assert!(config.mcp.is_none());
+        assert!(config.permissions.is_none());
+        assert!(config.filesystem.is_none());
     }
 }

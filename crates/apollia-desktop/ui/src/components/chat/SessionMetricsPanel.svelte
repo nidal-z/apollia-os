@@ -255,7 +255,7 @@
     {/if}
   </section>
 
-  <!-- P11 — Context window bar (US-SP42-047) -->
+  <!-- P11 — Context window bar -->
   {#if p11.context_window_max > 0}
     <section
       class="glass-card glass-border rounded-lg p-3"
@@ -304,7 +304,7 @@
     <SummarizedMessagesBanner events={p11.summarization_events} />
   {/if}
 
-  <!-- Mini context pill (replaces header ContextIndicator - B.13) -->
+  <!-- Mini context pill (replaces header ContextIndicator) -->
   <div
     class="flex items-center justify-center gap-1.5 rounded-full bg-muted/20 px-3 py-1 text-[10px] text-muted-foreground/70"
     data-testid="metrics-context-pill"

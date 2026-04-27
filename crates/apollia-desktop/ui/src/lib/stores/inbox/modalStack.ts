@@ -1,5 +1,5 @@
 /**
- * Modal stack tracker for nested inbox dialogs (US-SP42-053, finding E.35).
+ * Modal stack tracker for nested inbox dialogs.
  *
  * When multiple approval dialogs are open at once, we need to (a) render a
  * "Dialog N of M" hint and (b) compute an incremental z-index so deeper

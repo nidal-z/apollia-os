@@ -1,5 +1,5 @@
 /**
- * Slash-command registry for the chat input (US-SP42-026).
+ * Slash-command registry for the chat input.
  *
  * Commands are declarative — the input matches the current prefix against
  * `name` (and optional `aliases`), the menu component renders them, and

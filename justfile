@@ -7,12 +7,12 @@
 # Générer tous les SVGs depuis les fichiers .puml
 diagrams:
     @echo "→ Génération des diagrammes PlantUML..."
-    @mkdir -p book/src/architecture/diagrams
+    @mkdir -p book/src/appendix-a-diagrams
     @if command -v plantuml > /dev/null 2>&1; then \
-        plantuml -tsvg -o "$(pwd)/book/src/architecture/diagrams/" docs/diagrams/*.puml && \
-        echo "✅ SVGs générés dans book/src/architecture/diagrams/"; \
+        plantuml -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
+        echo "✅ SVGs générés dans book/src/appendix-a-diagrams/"; \
     elif [ -f ~/.local/bin/plantuml.jar ]; then \
-        java -jar ~/.local/bin/plantuml.jar -tsvg -o "$(pwd)/book/src/architecture/diagrams/" docs/diagrams/*.puml && \
+        java -jar ~/.local/bin/plantuml.jar -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
         echo "✅ SVGs générés depuis plantuml.jar"; \
     else \
         echo "⚠️  plantuml non trouvé — installez-le avec: brew install plantuml"; \
@@ -109,5 +109,5 @@ clean:
 
 # Nettoyage complet incluant les SVGs générés
 clean-all: clean
-    rm -f book/src/architecture/diagrams/*.svg
+    rm -f book/src/appendix-a-diagrams/*.svg
     @echo "✅ Nettoyage complet"

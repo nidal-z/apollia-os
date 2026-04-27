@@ -362,7 +362,9 @@ class MemoryInterface(Protocol):
 
     async def recall_procedure(
         self, trigger: str
-    ) -> list[str] | None: ...
+    ) -> list[dict]: ...
+    # Retourne liste de dicts {id, trigger, steps, success_count, …}
+    # Retourne [] si aucune procédure trouvée (jamais None)
 
     # ── GESTION ──
     async def stats(self) -> MemoryStats: ...

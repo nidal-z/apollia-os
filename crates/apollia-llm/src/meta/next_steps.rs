@@ -1,6 +1,6 @@
 //! `GenerateNextSteps` — meta-LLM routine producing up to 3 actionable
 //! "next steps" cards for the operator Dashboard and for end-of-session
-//! debriefs (US-SP42-059, Chantier 4 P12, finding H.20).
+//! debriefs.
 //!
 //! # Principles
 //!
@@ -599,7 +599,10 @@ mod tests {
         let steps = parse_steps(raw).expect("parse");
         assert_eq!(steps.len(), 3);
         assert_eq!(steps[0].id, "enregistrer-conclusions");
-        assert!(matches!(steps[0].action_button.action, NextStepAction::Invoke));
+        assert!(matches!(
+            steps[0].action_button.action,
+            NextStepAction::Invoke
+        ));
     }
 
     #[test]
@@ -658,12 +661,17 @@ mod tests {
             ..Default::default()
         };
         let steps = heuristic_fallback(&req);
-        assert!(steps.iter().any(|s| s.id == "view-logs" || s.id == "ask-apollia"));
+        assert!(steps
+            .iter()
+            .any(|s| s.id == "view-logs" || s.id == "ask-apollia"));
     }
 
     #[test]
     fn slugify_is_ascii_and_hyphenated() {
-        assert_eq!(slugify("Enregistrer les conclusions !"), "enregistrer-les-conclusions");
+        assert_eq!(
+            slugify("Enregistrer les conclusions !"),
+            "enregistrer-les-conclusions"
+        );
         assert_eq!(slugify(""), "next-step");
     }
 

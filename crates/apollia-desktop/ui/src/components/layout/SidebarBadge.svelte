@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SidebarBadge — counter badge for a nav entry (US-SP42-079).
+   * SidebarBadge — counter badge for a nav entry.
    *
    * Unified variants + required symbol + required aria-label so badges
    * are never color-only. Extracted as a leaf component so its reactive

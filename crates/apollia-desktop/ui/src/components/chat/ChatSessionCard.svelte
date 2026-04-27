@@ -284,7 +284,7 @@
 
       {#if !editing}
         <span class="text-[10px] text-muted-foreground/60 shrink-0 tabular-nums">{relativeTime}</span>
-        <!-- Kebab menu (always rendered, B.21) -->
+        <!-- Kebab menu (always rendered) -->
         <div data-action class="shrink-0">
           <Popover bind:open={menuOpen} side="bottom" align="end">
             {#snippet trigger(triggerProps: Record<string, unknown>)}

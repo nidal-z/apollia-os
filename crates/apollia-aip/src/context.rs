@@ -149,7 +149,6 @@ impl ToolProxy {
         let input_value: serde_json::Value = serde_json::from_str(&input_str)
             .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
 
-        // Increment counter unconditionally
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
         // A2A path: intercept before registry lookup
@@ -813,6 +812,12 @@ pub struct RuntimeContext {
     chat_message_id: Option<String>,
     /// Vue partagée du budget de steps — `None` en dehors d'une exécution budgétée.
     step_budget: Option<Arc<StepBudgetView>>,
+    /// Interface de notification exposée à l'agent Python via `ctx.notify`.
+    /// `None` si aucun canal de notification n'est configuré (opt-in).
+    notify: Option<pyo3::Py<crate::notify::PyNotifyInterface>>,
+    /// Interface STT exposée à l'agent Python via `ctx.stt`.
+    /// `None` si aucun backend STT n'est configuré.
+    stt: Option<pyo3::Py<crate::stt::PySttInterface>>,
 }
 
 impl RuntimeContext {
@@ -905,6 +910,8 @@ impl RuntimeContext {
             chat_session_id: None,
             chat_message_id: None,
             step_budget: Some(step_budget_arc),
+            notify: None,
+            stt: None,
         }
     }
 
@@ -932,6 +939,8 @@ impl RuntimeContext {
             chat_session_id: None,
             chat_message_id: None,
             step_budget: None,
+            notify: None,
+            stt: None,
         }
     }
 
@@ -955,6 +964,27 @@ impl RuntimeContext {
     pub fn with_empty_workspace(mut self) -> Self {
         let workspace_py = WorkspaceContextPy::empty();
         self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
+        self
+    }
+
+    /// Attache une interface de notification à ce contexte.
+    ///
+    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
+    /// `NotificationEngineHandle` est disponible. Si non appelé, `ctx.notify`
+    /// est `None` (no-op silencieux côté Python).
+    pub fn with_notify(mut self, notify: crate::notify::PyNotifyInterface) -> Self {
+        self.notify =
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, notify).ok());
+        self
+    }
+
+    /// Attache une interface STT à ce contexte.
+    ///
+    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
+    /// backend STT est disponible. Si non appelé, `ctx.stt` est `None`.
+    pub fn with_stt(mut self, stt: crate::stt::PySttInterface) -> Self {
+        self.stt =
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
         self
     }
 
@@ -1023,6 +1053,29 @@ impl RuntimeContext {
     fn workspace(&self, py: Python<'_>) -> PyObject {
         match &self.workspace {
             Some(ws) => ws.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Interface de notification exposée à l'agent Python via `ctx.notify`.
+    ///
+    /// Propriété Python `ctx.notify`. Retourne `None` Python si aucun canal
+    /// de notification n'est configuré (canaux opt-in par conception).
+    #[getter]
+    fn notify(&self, py: Python<'_>) -> PyObject {
+        match &self.notify {
+            Some(n) => n.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Interface STT exposée à l'agent Python via `ctx.stt`.
+    ///
+    /// Propriété Python `ctx.stt`. Retourne `None` Python si le STT n'est pas configuré.
+    #[getter]
+    fn stt(&self, py: Python<'_>) -> PyObject {
+        match &self.stt {
+            Some(s) => s.clone_ref(py).into_any(),
             None => py.None(),
         }
     }
@@ -2064,6 +2117,8 @@ mod a2a_tests {
             chat_session_id: None,
             chat_message_id: None,
             step_budget: None,
+            notify: None,
+            stt: None,
         };
 
         // THEN les vérifications internes échouent
@@ -2106,6 +2161,8 @@ mod a2a_tests {
             chat_session_id: None,
             chat_message_id: None,
             step_budget: None,
+            notify: None,
+            stt: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -2137,6 +2194,8 @@ mod a2a_tests {
             chat_session_id: None,
             chat_message_id: None,
             step_budget: None,
+            notify: None,
+            stt: None,
         };
 
         // THEN user_context is None

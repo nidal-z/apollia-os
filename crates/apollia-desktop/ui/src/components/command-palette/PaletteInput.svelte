@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * App-level palette input (US-SP42-078). The existing `<Command>`
+   * App-level palette input. The existing `<Command>`
    * primitive owns its own input for accessibility/focus-trap reasons,
    * so this wrapper exists as a stable surface for future decoupling
    * (e.g. if the palette moves to a custom renderer that does not embed

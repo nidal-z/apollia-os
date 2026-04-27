@@ -6,7 +6,7 @@
   interface Props {
     events: SessionEvent[];
     state: ReplayState;
-    /** Vitesses autorisées — fournies par US-SP42-048 : 1x / 2x / 5x. */
+    /** Vitesses autorisées — fournies par : 1x / 2x / 5x. */
     onStateChange?: (next: ReplayState) => void;
     onSeek?: (cursor: number) => void;
   }

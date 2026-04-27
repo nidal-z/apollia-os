@@ -1,5 +1,5 @@
 /**
- * j/k message navigation helper (US-SP42-033).
+ * j/k message navigation helper.
  *
  * Used by `Chat.svelte` to step focus across rendered chat messages.
  * Selectors are resolved lazily — the active conversation may not be

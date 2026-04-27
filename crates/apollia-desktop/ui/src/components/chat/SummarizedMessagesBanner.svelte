@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Banner affichant les événements de summarization accumulés pour une session
-   * (US-SP42-047 Pattern P11 — refactor).
+   *
    *
    * Deux modes supportés pour rester rétro-compatible :
    * - `events` : liste structurée venant de `SessionMetrics.summarization_events`.

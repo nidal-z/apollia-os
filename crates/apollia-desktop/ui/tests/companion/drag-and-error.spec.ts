@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * US-SP42-080 — Companion drag/snap + error recovery + restore pulse.
+ * Companion drag/snap + error recovery + restore pulse.
  *
  * Stubs Tauri IPC so the companion can be enabled and rendered entirely from
  * the UI bundle. Exercised scenarios mirror the story acceptance criteria:

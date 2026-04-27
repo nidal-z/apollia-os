@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Confirmation dialog shown before deleting an automation (US-SP42-050, C.T.9).
+   * Confirmation dialog shown before deleting an automation (C.T.9).
    *
    * Surfaces the fire count so the operator understands the side-effect of
    * losing the automation ; offers a "don't ask again" opt-out that the caller

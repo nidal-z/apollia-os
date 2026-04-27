@@ -500,7 +500,7 @@ mod tests {
         assert_eq!(expanded, path);
     }
 
-    // ── STORY-442 : patterns d'exclusion ──────────────────────────────────
+    // ── patterns d'exclusion ──────────────────────────────────
 
     #[test]
     fn test_default_exclude_patterns_applied() {
@@ -611,7 +611,7 @@ mod tests {
         );
     }
 
-    // ── STORY-442 : symlinks ───────────────────────────────────────────────
+    // ── symlinks ───────────────────────────────────────────────
 
     #[cfg(unix)]
     #[test]
@@ -722,7 +722,7 @@ mod tests {
         );
     }
 
-    // ── STORY-442 : déduplication loggée en debug ──────────────────────────
+    // ── déduplication loggée en debug ──────────────────────────
 
     #[tokio::test]
     async fn test_deduplicated_events_logged_debug() {

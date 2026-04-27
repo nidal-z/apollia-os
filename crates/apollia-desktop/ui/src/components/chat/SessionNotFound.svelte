@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * SessionNotFound — shown when a `/chat/:id` selection points at a
-   * session id that no longer exists (US-SP42-034, B.28).
+   * session id that no longer exists.
    *
    * Offers two paths forward: back to the session list, or start a new
    * chat. Fails fast but gracefully — principe 4.

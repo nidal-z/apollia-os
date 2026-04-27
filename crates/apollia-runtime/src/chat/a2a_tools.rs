@@ -161,7 +161,6 @@ impl ToolInvoker for CompositeToolInvoker {
                     ))
                 }
                 Err(e) => {
-                    // Increment circuit breaker counter.
                     {
                         let mut failures =
                             self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());

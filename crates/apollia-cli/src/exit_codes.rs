@@ -14,3 +14,6 @@ pub const TASK_FAILED: i32 = 3;
 
 /// Timeout — operation exceeded its deadline.
 pub const TIMEOUT: i32 = 4;
+
+/// Interrupted — runtime was stopped by Ctrl+C (SIGINT).
+pub const INTERRUPTED: i32 = 5;

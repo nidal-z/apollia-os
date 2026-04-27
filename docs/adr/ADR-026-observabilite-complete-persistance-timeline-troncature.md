@@ -200,5 +200,5 @@ explicitement la perte sans silencer le problème.
 
 - Stories associées : STORY-125 à STORY-134
 - ADR précédents : ADR-002 (SQLite seul moteur), ADR-020 (apollia-llm EventBus),
-  ADR-021 (triggers TOML persistence), ADR-023 (HITL task_approvals)
+  ADR-033 (triggers SQLite + HMAC), ADR-023 (HITL task_approvals)
 - Spec détaillée : `docs/specs/sprint-13-spec.md`

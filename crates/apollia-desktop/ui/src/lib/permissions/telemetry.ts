@@ -1,5 +1,5 @@
 /**
- * Local telemetry sink for permission-related UX events (US-SP42-054).
+ * Local telemetry sink for permission-related UX events.
  *
  * Events never leave the device. They are posted to the `telemetry_emit`
  * Tauri command when available and silently dropped otherwise — the UI

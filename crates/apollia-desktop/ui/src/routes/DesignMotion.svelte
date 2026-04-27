@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Motion showcase — US-SP42-005.
+   * Motion showcase.
    *
    * Dev-only page (not linked from the sidebar). Reached via the URL hash
    * `#motion`. Demonstrates every motion primitive shipped by the sprint:
@@ -40,7 +40,7 @@
     <div>
       <h1 class="text-2xl font-semibold tracking-tight">Motion &amp; gradients</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        Spring presets, canonical gradients, loading states &mdash; US-SP42-005.
+        Spring presets, canonical gradients, loading states.
       </p>
       {#if reduced}
         <p class="mt-2 text-xs font-medium text-warning-foreground">

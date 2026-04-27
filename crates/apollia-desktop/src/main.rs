@@ -436,7 +436,7 @@ fn main() {
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
-            // Session metrics aggregator (US-SP42-047 Pattern P11).
+            // Session metrics aggregator.
             // .setup() runs outside any Tokio context; enter the Tauri async
             // runtime before calling spawn_detached so tokio::spawn is valid.
             let metrics_store = {
@@ -746,6 +746,8 @@ fn main() {
             // Memory
             commands::memory::clear_memory,
             commands::memory::purge_memory,
+            commands::memory::memory_export_namespace,
+            commands::memory::memory_import_namespace,
             // Observability
             commands::observability::get_audit_stats,
             // Agents
@@ -784,7 +786,7 @@ fn main() {
             // Pipelines (registry)
             commands::pipelines::install_pipeline,
             commands::pipelines::list_pipeline_registry,
-            // Templates gallery (US-SP42-058)
+            // Templates gallery
             commands::templates::templates_list,
             commands::templates::templates_get,
             commands::templates::templates_instantiate,

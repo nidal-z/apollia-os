@@ -1,5 +1,5 @@
 /**
- * Session metrics store (US-SP42-047 Pattern P11).
+ * Session metrics store.
  *
  * Agrège les événements `SessionMetricsUpdated` reçus via le pont Tauri
  * dans un index `session_id -> { metrics, alert }`. Les composants

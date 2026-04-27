@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Back/forward controls for the Topbar (US-SP42-077). Tooltips show
+   * Back/forward controls for the Topbar. Tooltips show
    * the label of the route you would land on (e.g. "Back to Agents").
    */
   import { t } from "svelte-i18n";

@@ -273,7 +273,10 @@ mod tests {
             },
             memory_budget_gb: 24.0,
         };
-        assert_eq!(CompatibilityBadge::compute(10.0, &profile), CompatibilityBadge::Fits);
+        assert_eq!(
+            CompatibilityBadge::compute(10.0, &profile),
+            CompatibilityBadge::Fits
+        );
     }
 
     // GIVEN un profil avec 24 GB de budget
@@ -293,7 +296,10 @@ mod tests {
             },
             memory_budget_gb: 24.0,
         };
-        assert_eq!(CompatibilityBadge::compute(19.0, &profile), CompatibilityBadge::MightFit);
+        assert_eq!(
+            CompatibilityBadge::compute(19.0, &profile),
+            CompatibilityBadge::MightFit
+        );
     }
 
     // GIVEN un profil avec 24 GB de budget
@@ -313,7 +319,10 @@ mod tests {
             },
             memory_budget_gb: 24.0,
         };
-        assert_eq!(CompatibilityBadge::compute(25.0, &profile), CompatibilityBadge::TooLarge);
+        assert_eq!(
+            CompatibilityBadge::compute(25.0, &profile),
+            CompatibilityBadge::TooLarge
+        );
     }
 
     // GIVEN detect() appelé sur la machine de test

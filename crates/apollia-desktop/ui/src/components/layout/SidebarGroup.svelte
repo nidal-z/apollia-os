@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SidebarGroup — labelled section header + item container (US-SP42-079).
+   * SidebarGroup — labelled section header + item container.
    *
    * The header is visually rendered as a tiny uppercase caption when the
    * sidebar is expanded, and collapses to a screen-reader-only <h2> when

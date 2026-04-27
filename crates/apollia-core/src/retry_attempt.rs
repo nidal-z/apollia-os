@@ -1,4 +1,4 @@
-//! Structured retry and fallback tracking (US-SP42-040 — Pattern P4).
+//! Structured retry and fallback tracking.
 //!
 //! Captures each attempt of a tool invocation so the UI can render a timeline
 //! (retry badge + horizontal lane) instead of hiding retries behind a single

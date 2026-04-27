@@ -1,5 +1,5 @@
 /**
- * Shiki-based syntax-highlight hydrator (US-SP42-035, B.35).
+ * Shiki-based syntax-highlight hydrator.
  *
  * `renderMarkdown()` emits every code block as a hydration placeholder:
  *   <pre><code class="apollia-code-raw" data-shiki-lang="ts" data-shiki-code="…">escaped</code></pre>

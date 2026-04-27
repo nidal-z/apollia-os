@@ -1,4 +1,4 @@
-//! Telemetry A2A par skill — US-SP42-044 (Pattern P8).
+//! Telemetry A2A par skill.
 //!
 //! Agrégation in-memory (rolling window de 100 invocations par skill) des métriques
 //! d'invocations A2A : latence moyenne, taux de succès, tokens consommés. Trace
@@ -52,7 +52,7 @@ pub struct A2ASkillTelemetry {
 }
 
 /// Provenance d'un step dans une chaîne A2A — clé partagée avec TimelineGlobal
-/// pour le drill-down (voir US-SP42-048).
+/// pour le drill-down.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2AStepProvenance {
     /// Identifiant unique du step (clé partagée avec la timeline conversation).

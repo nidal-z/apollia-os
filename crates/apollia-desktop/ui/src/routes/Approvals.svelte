@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Legacy `/approvals` surface — replaced by the unified `/inbox`
-   * (US-SP42-053). Retained as a redirect so that deep links, sidebar
+   * Retained as a redirect so that deep links, sidebar
    * entries registered before the rewrite, and external references
    * continue to work without a hard error.
    */

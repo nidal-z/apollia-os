@@ -1,5 +1,5 @@
 /**
- * Client-side chat send rate-limiter (US-SP42-026, B.67).
+ * Client-side chat send rate-limiter.
  *
  * Enforces two thresholds:
  * - Min interval between sends: 500 ms (debounce against accidental double-Enter).

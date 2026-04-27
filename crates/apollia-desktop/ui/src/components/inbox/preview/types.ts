@@ -1,5 +1,5 @@
 /**
- * Shared types for permission preview payloads (US-SP42-054).
+ * Shared types for permission preview payloads.
  *
  * Each preview kind has its own shape; a dispatcher picks the right
  * renderer based on `kind`. Payloads are produced by the backend

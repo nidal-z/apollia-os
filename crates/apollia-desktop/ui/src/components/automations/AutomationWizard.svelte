@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Natural-language automation wizard (US-SP42-050).
+   * Natural-language automation wizard.
    *
    * Four steps :
    *   1. Describe — free-form textarea + templates shortcut.
@@ -32,7 +32,7 @@
     open: boolean;
     onclose: () => void;
     oncreated: (triggerId: string) => void;
-    /** Opens the advanced builder dialog (US-SP42 operator/builder bridge). */
+    /** Opens the advanced builder dialog (operator/builder bridge). */
     onswitchadvanced?: () => void;
   }
 
@@ -229,7 +229,7 @@
 
   function handleBrowseTemplates() {
     usedTemplate = true;
-    // The gallery lives in US-SP42-058 — surface the hand-off via a window
+    // The gallery lives in surface the hand-off via a window
     // event so the parent route (Automations.svelte) can open it without
     // coupling the wizard to route-level state.
     window.dispatchEvent(new CustomEvent("automation_wizard_browse_templates"));

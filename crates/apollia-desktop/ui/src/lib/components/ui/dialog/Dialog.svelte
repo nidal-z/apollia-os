@@ -28,7 +28,7 @@
   }: Props = $props();
 
   // `w-[min(Xpx,90vw)]` keeps the panel ≤ viewport on small screens while
-  // locking a comfortable max width on desktop (US-SP42-012).
+  // locking a comfortable max width on desktop.
   const sizeClasses: Record<NonNullable<Props["size"]>, string> = {
     sm: "w-[min(440px,90vw)]",
     md: "w-[min(560px,90vw)]",
@@ -74,7 +74,7 @@
   }
 
   // Spring scale entrance — swaps to plain fade when the user requests
-  // reduced motion (US-SP42-005 § prefers-reduced-motion).
+  // reduced motion (§ prefers-reduced-motion).
   function dialogTransition(node: Element): TransitionConfig {
     if (prefersReducedMotion()) {
       return fade(node, { duration: 300 });

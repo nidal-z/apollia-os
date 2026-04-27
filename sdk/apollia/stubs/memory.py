@@ -82,8 +82,8 @@ class MemoryInterface:
         updated_at, expires_at. Returns None if the key does not exist
         or is expired.
 
-        ``injection_reason`` is surfaced to the operator UI (Sprint 42
-        Pattern P7 — memory injection visibility). When omitted, the
+        ``injection_reason`` is surfaced to the operator UI (memory injection
+        visibility). When omitted, the
         runtime falls back to ``"Matched query: <key>"``.
         """
         ...
@@ -108,6 +108,20 @@ class MemoryInterface:
 
         Returns a list of dicts with keys: ``trigger``, ``steps``, ``created_at``.
         Returns ``[]`` if no procedure matches.
+        """
+        ...
+
+    def learn_procedure(
+        self,
+        trigger: str,
+        steps: list[str],
+    ) -> Awaitable[str]:
+        """Record a procedure in procedural memory.
+
+        ``trigger`` is the exact match key used later by ``recall_procedure()``.
+        ``steps`` is a non-empty ordered list of procedure steps.
+        Raises ``ValueError`` if ``steps`` is empty.
+        Returns the UUID of the stored procedure.
         """
         ...
 

@@ -20,7 +20,7 @@
     children,
   }: Props = $props();
 
-  // Pixel widths mirror Dialog scale (US-SP42-012). `min(…, 90vw)` keeps
+  // Pixel widths mirror Dialog scale. `min(…, 90vw)` keeps
   // the panel from overflowing narrow viewports.
   const widthClasses: Record<NonNullable<Props["width"]>, string> = {
     sm: "w-full md:w-[min(360px,90vw)]",

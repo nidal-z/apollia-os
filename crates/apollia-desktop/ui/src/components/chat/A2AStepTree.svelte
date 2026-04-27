@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * US-SP42-044 — Step-level drill-down for A2A invocations.
+   * Step-level drill-down for A2A invocations.
    *
    * Renders each [`A2AStepProvenance`] entry scrollable to the matching item in
    * TimelineGlobal. The `step_id` is the shared correlation key.

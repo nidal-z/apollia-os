@@ -1,13 +1,13 @@
 //! Tauri IPC command — post-install coaching examples for a freshly added
-//! MCP connection (US-SP42-052, finding C.I.14).
+//! MCP connection.
 //!
 //! Returns 2–3 ready-to-send prompts the operator can click to try the newly
 //! connected service immediately. Implemented as a heuristic for now: the
 //! skill contract (same `Vec<CoachingExample>` shape) matches what the
-//! Meta-LLM `GenerateCapabilityCoaching` routine (US-SP42-057) will produce,
+//! Meta-LLM `GenerateCapabilityCoaching` routine will produce,
 //! so the frontend will not need to change when the LLM path is wired.
 //!
-//! Cache is not implemented yet (US-SP42-057 owns the 7-day file cache keyed
+//! Cache is not implemented yet (owns the 7-day file cache keyed
 //! by `integration_id + version`) — the heuristic is deterministic and cheap.
 use serde::{Deserialize, Serialize};
 

@@ -1,5 +1,5 @@
 /**
- * Runtime index for the command palette (US-SP42-078).
+ * Runtime index for the command palette.
  *
  * Builds the groups that feed the `<CommandPalette>` component:
  *   - Recently used  (MRU, when the input is empty)

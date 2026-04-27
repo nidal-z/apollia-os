@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Lightweight 4-step spotlight tour launched after the first successful
-   * connection (US-SP42-052 — C.I.14). Reuses `TourSpotlight` + `TourStepCard`
+   * connection (C.I.14). Reuses `TourSpotlight` + `TourStepCard`
    * primitives from the onboarding framework but does NOT touch the onboarding
    * phase machine. Skippable via Esc or the Skip button.
    */

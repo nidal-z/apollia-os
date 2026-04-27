@@ -1,5 +1,5 @@
 /**
- * Chat sessions sidebar state (US-SP42-023).
+ * Chat sessions sidebar state.
  *
  * Owns the UI-level state for the refonted sessions sidebar: search query,
  * filter segment, sort order, density, and the per-session flags (pinned,

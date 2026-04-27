@@ -79,7 +79,7 @@ pub enum MetaRoutine {
     GenerateRiskAssessment,
     /// Vérification de possibles hallucinations.
     GenerateHallucinationCheck,
-    /// Score de risque d'hallucination agrégé au niveau session (US-SP42-048).
+    /// Score de risque d'hallucination agrégé au niveau session.
     GenerateHallucinationRisk,
 }
 
@@ -174,7 +174,7 @@ impl MetaLlmSettings {
     ///
     /// Certaines routines sont opt-in strict même avec master `enabled = true` —
     /// elles coûtent un appel LLM par occurrence (ex. `GenerateAlternativeBranches`,
-    /// US-SP42-041) et doivent être activées explicitement via `per_routine`.
+    ///) et doivent être activées explicitement via `per_routine`.
     pub fn is_routine_enabled(&self, routine: MetaRoutine) -> bool {
         if !self.enabled {
             return false;
@@ -291,7 +291,7 @@ fn canonical_json(value: &serde_json::Value) -> String {
 }
 
 // ─────────────────────────────────────────────
-// Thinking summary (US-SP42-037)
+// Thinking summary
 // ─────────────────────────────────────────────
 
 /// Niveau de qualité estimé d'une trace de thinking par [`MetaRoutine::GenerateThinkingSummary`].
@@ -499,7 +499,10 @@ impl MetaOrchestratorHandle {
     }
 
     /// Retourne un snapshot du budget de la session.
-    pub async fn get_budget(&self, session_id: impl Into<String>) -> Result<MetaLlmBudget, LlmError> {
+    pub async fn get_budget(
+        &self,
+        session_id: impl Into<String>,
+    ) -> Result<MetaLlmBudget, LlmError> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(MetaCmd::GetBudget {
@@ -539,8 +542,7 @@ impl MetaLlmOrchestrator {
         settings: MetaLlmSettings,
     ) -> MetaOrchestratorHandle {
         let (tx, rx) = mpsc::channel::<MetaCmd>(64);
-        let cache_cap = NonZeroUsize::new(CACHE_CAPACITY)
-            .expect("CACHE_CAPACITY > 0");
+        let cache_cap = NonZeroUsize::new(CACHE_CAPACITY).expect("CACHE_CAPACITY > 0");
         let actor = MetaLlmOrchestrator {
             router,
             bus,
@@ -665,7 +667,9 @@ impl MetaLlmOrchestrator {
         // Update budget + emit MetaLlmBudgetExceeded once per session.
         let tokens_this_call =
             u64::from(response.usage.prompt_tokens + response.usage.completion_tokens);
-        let total = counter.tokens_used.fetch_add(tokens_this_call, Ordering::Relaxed)
+        let total = counter
+            .tokens_used
+            .fetch_add(tokens_this_call, Ordering::Relaxed)
             + tokens_this_call;
         if total >= counter.budget
             && counter
@@ -709,9 +713,7 @@ mod tests {
     use futures::Stream;
     use tokio::sync::broadcast;
 
-    use crate::types::{
-        CompletionResponse, FinishReason, StreamChunk, TokenUsage,
-    };
+    use crate::types::{CompletionResponse, FinishReason, StreamChunk, TokenUsage};
     use crate::{CompletionModel, CompletionRequest};
 
     // ── Mock backend avec compteur d'appels et délai configurable ─────────
@@ -772,10 +774,8 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<
-            Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
-            LlmError,
-        > {
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+        {
             Ok(Box::pin(futures::stream::empty()))
         }
 
@@ -824,7 +824,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(r1, r2);
-        assert_eq!(calls.load(AtomicOrdering::SeqCst), 1, "second call must hit the cache");
+        assert_eq!(
+            calls.load(AtomicOrdering::SeqCst),
+            1,
+            "second call must hit the cache"
+        );
     }
 
     // GIVEN orchestrator + settings disabled (master toggle off)
@@ -917,10 +921,8 @@ mod tests {
             async fn stream(
                 &self,
                 _req: CompletionRequest,
-            ) -> Result<
-                Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
-                LlmError,
-            > {
+            ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+            {
                 Ok(Box::pin(futures::stream::empty()))
             }
             fn is_available(&self) -> bool {
@@ -1009,7 +1011,7 @@ mod tests {
         }
     }
 
-    // ─── US-SP42-041 — DecisionPoint extraction ───
+    // ─── DecisionPoint extraction ───
 
     /// GIVEN un orchestrator avec `GenerateAlternativeBranches` désactivée
     ///   (opt-in par défaut off, même avec master=on)
@@ -1073,10 +1075,8 @@ mod tests {
             async fn stream(
                 &self,
                 _req: CompletionRequest,
-            ) -> Result<
-                Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
-                LlmError,
-            > {
+            ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+            {
                 Ok(Box::pin(futures::stream::empty()))
             }
             fn is_available(&self) -> bool {
@@ -1121,7 +1121,7 @@ mod tests {
         assert_eq!(calls.load(AtomicOrdering::SeqCst), 1);
     }
 
-    // ─── US-SP42-037 — ThinkingSummary parsing ───
+    // ─── ThinkingSummary parsing ───
 
     /// GIVEN une réponse JSON valide avec tous les champs
     /// WHEN ThinkingSummary::parse()

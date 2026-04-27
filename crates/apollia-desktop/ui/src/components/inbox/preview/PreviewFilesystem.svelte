@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Filesystem diff preview with create/update/delete/chmod support
-   * (US-SP42-054). Diff lines render git-style: red for removals, green
+   * Diff lines render git-style: red for removals, green
    * for additions; neutral for context.
    */
   import { t } from "svelte-i18n";

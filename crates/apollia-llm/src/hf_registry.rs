@@ -242,15 +242,15 @@ fn compat_from_model_type(model_type: &str) -> Option<CompatIssue> {
     Some(CompatIssue::UnknownArchitecture)
 }
 
-async fn extract_model_type(
-    resp: Result<reqwest::Response, reqwest::Error>,
-) -> Option<String> {
+async fn extract_model_type(resp: Result<reqwest::Response, reqwest::Error>) -> Option<String> {
     let r = resp.ok()?;
     if !r.status().is_success() {
         return None;
     }
     let json = r.json::<serde_json::Value>().await.ok()?;
-    json.get("model_type").and_then(|v| v.as_str()).map(String::from)
+    json.get("model_type")
+        .and_then(|v| v.as_str())
+        .map(String::from)
 }
 
 // ─────────────────────────────────────────────
@@ -371,9 +371,8 @@ impl HfRegistryClient {
             let tag = filter.filter.as_deref().unwrap_or("gguf");
             let limit = filter.limit.unwrap_or(50);
 
-            let mut u = format!(
-                "{HF_API_BASE}/models?filter={tag}&sort={sort}&limit={limit}&full=false"
-            );
+            let mut u =
+                format!("{HF_API_BASE}/models?filter={tag}&sort={sort}&limit={limit}&full=false");
             if !query.is_empty() {
                 // URL-encode the query to handle spaces and special chars.
                 let encoded: String = query
@@ -417,7 +416,10 @@ impl HfRegistryClient {
             }
         }
 
-        Ok(SearchPage { models: cards, next_cursor })
+        Ok(SearchPage {
+            models: cards,
+            next_cursor,
+        })
     }
 
     /// Récupère les métadonnées complètes d'un modèle (y compris la liste des fichiers GGUF).
@@ -448,8 +450,14 @@ impl HfRegistryClient {
 
         // Fire meta + tree always; config.json only on cache miss.
         let (meta_resp, tree_resp, config_resp) = tokio::join!(
-            self.client.get(&meta_url).headers(self.auth_headers()).send(),
-            self.client.get(&tree_url).headers(self.auth_headers()).send(),
+            self.client
+                .get(&meta_url)
+                .headers(self.auth_headers())
+                .send(),
+            self.client
+                .get(&tree_url)
+                .headers(self.auth_headers())
+                .send(),
             async {
                 if cached_model_type.is_some() {
                     return Ok(None::<reqwest::Response>);
@@ -541,10 +549,7 @@ impl HfRegistryClient {
     /// Récupère les paramètres de génération recommandés depuis `generation_config.json`.
     ///
     /// Retourne `None` si le fichier est absent (modèle sans config de génération explicite).
-    pub async fn get_generation_config(
-        &self,
-        repo_id: &str,
-    ) -> Option<GenerationConfig> {
+    pub async fn get_generation_config(&self, repo_id: &str) -> Option<GenerationConfig> {
         let url = format!("{HF_CDN_BASE}/{repo_id}/resolve/main/generation_config.json");
         let resp = self
             .client
@@ -563,9 +568,7 @@ impl HfRegistryClient {
             temperature: json.get("temperature").and_then(|v| v.as_f64()),
             top_p: json.get("top_p").and_then(|v| v.as_f64()),
             top_k: json.get("top_k").and_then(|v| v.as_u64()).map(|v| v as u32),
-            repetition_penalty: json
-                .get("repetition_penalty")
-                .and_then(|v| v.as_f64()),
+            repetition_penalty: json.get("repetition_penalty").and_then(|v| v.as_f64()),
             max_new_tokens: json
                 .get("max_new_tokens")
                 .and_then(|v| v.as_u64())
@@ -604,14 +607,21 @@ fn parse_model_list_item(
     json: &serde_json::Value,
     _hardware: Option<&HardwareProfile>,
 ) -> Option<HfModelCard> {
-    let repo_id = json["modelId"].as_str().or_else(|| json["id"].as_str())?.to_string();
+    let repo_id = json["modelId"]
+        .as_str()
+        .or_else(|| json["id"].as_str())?
+        .to_string();
     let author = json["author"].as_str().map(String::from);
     let downloads = json["downloads"].as_u64().unwrap_or(0);
     let likes = json["likes"].as_u64().unwrap_or(0);
     let gated = json["gated"].as_bool().unwrap_or(false);
     let tags: Vec<String> = json["tags"]
         .as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let pipeline_tag = json.get("pipeline_tag").and_then(|v| v.as_str());
 

@@ -1,6 +1,6 @@
 # Les outils natifs
 
-Apollia OS embarque 10 outils natifs disponibles sans configuration : 6 outils fichiers, 1 shell, 1 Python, 1 HTTP, 1 mémoire. Tous s'appellent de la même façon depuis `run()` :
+Apollia OS embarque 13 outils natifs disponibles sans configuration : 6 outils fichiers, 1 shell, 1 Python, 3 réseau/web, 1 mémoire, 1 interaction utilisateur, 2 notebooks. Tous s'appellent de la même façon depuis `run()` :
 
 ```python
 result = await ctx.tools.call("nom_outil", { ...paramètres... })
@@ -12,7 +12,7 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 
 ---
 
-## Les 12 outils en un coup d'œil
+## Les 13 outils en un coup d'œil
 
 | Catégorie | Outil | Usage typique |
 |---|---|---|
@@ -28,6 +28,9 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 | | `web_search` | Recherche web — DuckDuckGo par défaut, Brave opt-in |
 | | `web_read` | Extraction texte d'une URL publique |
 | **Mémoire** | `memory_search` | Recherche FTS5/BM25 dans la mémoire persistante |
+| **Interaction** | `ask_user` | Demander une information à l'utilisateur (HITL léger) |
+| **Notebooks** | `notebook_read` | Lire un notebook Jupyter (.ipynb) cellule par cellule |
+| | `notebook_edit` | Modifier une cellule de notebook Jupyter |
 
 Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque. `web_search` et `web_read` nécessitent les feature flags `web-search` et `web-read` à la compilation.
 
@@ -167,6 +170,9 @@ await ctx.tools.call("http_fetch",       {"url": "https://..."})
 await ctx.tools.call("web_search",       {"query": "...", "max_results": 10})
 await ctx.tools.call("web_read",         {"url": "https://..."})
 await ctx.tools.call("memory_search",    {"query": "..."})
+await ctx.tools.call("ask_user",         {"prompt": "..."})
+await ctx.tools.call("notebook_read",    {"path": "...", "cell_index": 0})
+await ctx.tools.call("notebook_edit",    {"path": "...", "cell_index": 0, "new_source": "..."})
 ```
 
 > **Référence complète :** [Outils-Reference](https://github.com/nidal-z/apollia-os/wiki/Outils-Reference) — pour chaque outil : signature complète, tous les paramètres optionnels, structure de retour JSON, codes d'erreur, et contraintes sandbox.

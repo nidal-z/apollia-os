@@ -204,7 +204,7 @@ l'opérateur le coût de la généralité.
 
 - Story associée : STORY-515, STORY-516, STORY-517, STORY-518, STORY-519
 - Sprint : [sprint-41/plan.md](../internal/STORIES/sprint-41/plan.md)
-- Décision parente : ADR-042 — Remplacement `mistral-rs` par `llama.cpp` statique
+- Décision parente : ADR-020 — apollia-llm moteur embarqué (llama.cpp, feature flags, backends cloud)
 - Décision parente : ADR-047 — Multi-LLM Backend Registry (SQLite)
 - Référence upstream llama.cpp : `llama.cpp/include/llama.h` —
   `llama_load_model_from_file` + `llama_model_load_from_splits`

@@ -1,5 +1,5 @@
 /**
- * Selection store for the inbox bulk actions (US-SP42-053, finding E.58).
+ * Selection store for the inbox bulk actions.
  *
  * Holds the set of selected inbox item ids. Helpers cover toggle, clear,
  * and bulk select/deselect on a provided visible-ids list.

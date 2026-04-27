@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Top-level command palette orchestrator (US-SP42-078).
+   * Top-level command palette orchestrator.
    *
    * Composes:
    *   - `paletteMode`            — all vs. actions-only

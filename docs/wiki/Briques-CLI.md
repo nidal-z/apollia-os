@@ -56,9 +56,7 @@ $ apollia-os start
   ─────────────────────────────────────────────────
   ✔ Runtime prêt en 0.8s
 
-$ apollia-os start --foreground      # Logs en direct, pas de daemonisation
-$ apollia-os start --config ./dev.toml
-$ apollia-os start --log-level debug
+# ⚠️ Non implémentés (prévu) : --foreground, --config <path>, --log-level <level>
 
 # Si déjà démarré :
   ⚠ Apollia OS tourne déjà (PID 12345)
@@ -76,8 +74,7 @@ $ apollia-os stop
   → Fermeture connexions MCP · Flush SQLite
   ✔ Arrêt propre en 3.2s
 
-$ apollia-os stop --force            # Annule les tâches en cours immédiatement
-$ apollia-os restart
+# ⚠️ Non implémentés (prévu) : stop --force, restart
 ```
 
 ### `apollia-os status`
@@ -148,9 +145,9 @@ $ apollia-os run devis-generator "Génère un devis pour Dupont SA, 5 jours, 850
 
 $ apollia-os run devis-generator --input ./tâche.json
 $ apollia-os run devis-generator "..." --stream    # Streaming en temps réel
-$ apollia-os run devis-generator "..." --no-wait   # Fire and forget
+$ apollia-os run devis-generator "..." --detach     # Fire and forget (flag réel : --detach)
   → Tâche t-010 soumise. Suivi : apollia-os task status t-010
-$ apollia-os run devis-generator "..." --timeout 60 --wait
+# ⚠️ Non implémenté (prévu) : --timeout 60
 ```
 
 ---
@@ -194,10 +191,15 @@ $ apollia-os agent info devis-generator
   Tâches      : 47 terminées, 0 échouées
   Mémoire     : 847 épisodes, 234 clés sémantiques (2.3MB)
 
-# Logs
-$ apollia-os agent logs devis-generator
-$ apollia-os agent logs devis-generator --last 50
-$ apollia-os agent logs devis-generator --follow
+$ apollia-os agent logs rapport-hebdo
+  2026-04-26T10:00:01Z [INFO] Task t-0042 started
+  2026-04-26T10:00:02Z [INFO] Step 1/3 — file_io read
+  2026-04-26T10:00:04Z [INFO] Step 2/3 — llm summarize
+  2026-04-26T10:00:06Z [INFO] Task t-0042 completed
+
+$ apollia-os agent logs rapport-hebdo --last 20
+$ apollia-os agent logs rapport-hebdo --follow    # live stream SSE jusqu'à Ctrl+C
+$ apollia-os --json agent logs rapport-hebdo       # JSON: { "logs": ["..."] }
 
 # Créer un agent depuis un template SDK
 $ apollia-os agent new mon-agent --type react
@@ -211,12 +213,21 @@ $ apollia-os agent new mon-agent --type react
 $ apollia-os agent new assistant --type conversational
 $ apollia-os agent new analyseur --type orchestrated
 
-# Valider sans démarrer
-$ apollia-os agent validate ./agents/mon-agent.py
+$ apollia-os agent validate ./mon-agent.py
   ✔ Manifest valide
-  ✔ Outils requis disponibles : file_io, python_executor
-  ⚠ Outil optionnel absent : mcp_erp_acme (démarrera en DEGRADED)
-  ✔ Namespace "crm-dupont" accessible
+  Name        : mon-agent
+  Version     : 0.1.0
+  Required tools : file_io, python_executor
+  Optional tools : http_client
+  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent
+
+# Manifest invalide → exit 1 avec erreur précise
+$ apollia-os agent validate ./broken-agent.py
+  Error: manifest invalid: missing required field 'name'
+
+# JSON mode
+$ apollia-os --json agent validate ./mon-agent.py
+  { "valid": true, "name": "mon-agent", "version": "0.1.0", "tools_required": [...], ... }
 
 # Installer un agent communautaire
 $ apollia-os agent install agents/community/sql-worker.py
@@ -441,12 +452,21 @@ $ apollia-os memory clear --agent agent-crm --confirm    # sans prompt
 $ apollia-os memory clear --agent agent-crm --type episodic --confirm  # type: episodic | semantic | procedural | all
 3 entree(s) supprimee(s) (episodic).
 
-# Commandes héritées (lecture fine)
-$ apollia-os memory search crm-dupont "devis refusé client"
-$ apollia-os memory get crm-dupont client.dupont_sa.preferences
-$ apollia-os memory forget crm-dupont client.dupont_sa.old_email
-$ apollia-os memory export crm-dupont --format json > backup.json
-$ apollia-os memory import crm-dupont backup.json
+# Enregistrer une procédure
+$ apollia-os memory learn-procedure --namespace agent-x \
+    --trigger "analyser un rapport financier" \
+    --steps "1. Ouvrir le PDF, 2. Extraire le CA, 3. Générer le résumé"
+
+# Exporter la mémoire d'un namespace
+$ apollia-os memory export --namespace agent-x --output ./backup.apollia-memory
+
+# Importer (fusionner ou remplacer)
+$ apollia-os memory import --namespace agent-x --input ./backup.apollia-memory --replace
+
+# ⚠️ Non implémentés (prévu) :
+# apollia-os memory search <namespace> <query>
+# apollia-os memory get <namespace> <key>
+# apollia-os memory forget <namespace> <key>
 ```
 
 ### `apollia-os audit`
@@ -727,11 +747,11 @@ $ apollia-os health
 
 ```
 --json          Sortie JSON sur stdout (désactive couleurs et progress)
--q, --quiet     Succès/erreur seulement — aucun détail
--v, --verbose   Détails supplémentaires
---debug         Logs internes + traces ORIA
---no-color      Désactive les couleurs (TTY auto-détecté si absent)
 --socket PATH   Socket Unix alternatif (défaut: /tmp/apollia.sock)
+-q / --quiet    Affiche uniquement succès/erreur — aucun détail (--json prioritaire)
+-v / --verbose  Affiche les détails supplémentaires (durées, steps count)
+--debug         Logs internes + traces ORIA sur stderr (équivalent RUST_LOG=debug)
+--no-color      Désactive les couleurs ANSI même si stdout est un TTY
 ```
 
 ---
@@ -744,7 +764,7 @@ $ apollia-os health
 2   Erreur runtime (runtime non démarré, connexion refusée)
 3   Tâche échouée (run --wait avec tâche en échec)
 4   Timeout (--timeout dépassé)
-5   Annulé par l'utilisateur (Ctrl+C)
+5   Interrompu (Ctrl+C / SIGINT — le shutdown gracieux s'exécute, puis exit 5)
 ```
 
 Usage en script :
@@ -776,7 +796,7 @@ $ apollia-os
     pipeline    list | run | runs | status
     tools       list | enable | disable | config | reload | credentials | describe
     permissions list | revoke | audit
-    memory      inspect | search | get | forget | purge | export | import
+    memory      inspect | list | clear | purge | learn-procedure | export | import
     audit       [list] | stats | export
     notify      test | list | logs
     stt         status | transcribe | transcriptions list | model list | model download
@@ -1039,3 +1059,79 @@ Usage dans le REPL :
 ```
 
 **Priorité :** `.apollia/commands/` (CWD) > `~/.apollia/commands/` (home). Hot reload via `FileTimestampCache` si les fichiers `.md` sont modifiés.
+
+---
+
+## 12. Commandes de résilience et cache
+
+### `apollia-os resilience <verb>`
+
+Expose les circuit breakers de la `ResilienceLayer` (ORIA engine). Requiert le runtime démarré.
+
+```bash
+# Lister tous les circuit breakers
+$ apollia-os resilience list
+  TOOL                           STATE      FAILURES COOLDOWN
+  file_io                        CLOSED     0        -
+  mcp_erp                        OPEN       3        15s
+  python_executor                HALF_OPEN  1        -
+
+# Détail d'un circuit breaker
+$ apollia-os resilience show mcp_erp
+  Tool          : mcp_erp
+  State         : OPEN
+  Failures      : 3
+  Cooldown left : 15s
+
+# Réinitialiser manuellement un circuit (sans redémarrer le runtime)
+$ apollia-os resilience reset mcp_erp
+  Circuit breaker for 'mcp_erp' reset to CLOSED
+
+# Outil inexistant → exit 1
+$ apollia-os resilience reset unknown_tool
+  Error: Tool 'unknown_tool' not found in Tool Registry
+
+# JSON mode
+$ apollia-os --json resilience list
+  { "circuit_breakers": [ { "tool_name": "mcp_erp", "state": "OPEN", "failure_count": 3, "cooldown_remaining_secs": 15 } ] }
+```
+
+**Endpoints runtime :** `GET /api/v1/resilience/status`, `GET /api/v1/resilience/status/{tool}`, `POST /api/v1/resilience/reset/{tool}`.
+
+---
+
+### `apollia-os plan-cache <verb>`
+
+Gère le cache de plans d'exécution ORIA (`~/.apollia/plan_cache.db`). Ne requiert **pas** le runtime.
+
+```bash
+# Statistiques du cache
+$ apollia-os plan-cache stats
+  Plan cache statistics:
+    Total entries : 47
+    Cache hits    : 312
+    Oldest entry  : 2026-04-19T08:00:00
+    Newest entry  : 2026-04-26T09:58:12
+
+# Vider le cache (confirmation interactive)
+$ apollia-os plan-cache clear
+  This will delete all cached plans. Continue? [y/N] y
+  Plan cache cleared: 47 entries removed.
+
+# Vider sans confirmation (scripts / CI)
+$ apollia-os plan-cache clear --force
+  Plan cache cleared: 47 entries removed.
+
+# Expulser les entrées expirées (défaut 7 jours)
+$ apollia-os plan-cache evict
+  Evicted 12 entries older than 7 days.
+
+$ apollia-os plan-cache evict --max-age-days 3
+  Evicted 28 entries older than 3 days.
+
+# JSON mode
+$ apollia-os --json plan-cache stats
+  { "total_entries": 47, "cache_hits": 312, "oldest_entry_at": "...", "newest_entry_at": "..." }
+```
+
+**Accès direct SQLite :** lit `~/.apollia/plan_cache.db` sans passer par le socket Unix.

@@ -1,5 +1,5 @@
 /**
- * Confidence + citation markup parser (US-SP42-046 — Pattern P10, always-on).
+ * Confidence + citation markup parser (always-on).
  *
  * Mirrors `apollia-runtime::analyzers::confidence_parser`. Pure, zero deps.
  * Handles: `[conf:high|medium|low]…[/conf]` spans, nested, with inline

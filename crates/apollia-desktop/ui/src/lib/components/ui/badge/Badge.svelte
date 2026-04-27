@@ -4,7 +4,7 @@
   import type { Snippet } from "svelte";
 
   /**
-   * Badge — unified variants (US-SP42-010 + US-SP42-011).
+   * Badge — unified variants (+).
    *
    * Canonical variants: `neutral | primary | success | warning | danger | info`.
    * Premium variants: `gradient-primary | gradient-success | gradient-warning | gradient-destructive`.

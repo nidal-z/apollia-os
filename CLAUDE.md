@@ -10,8 +10,8 @@
 **Apollia OS** est un runtime Rust open-source pour l'exécution souveraine d'agents IA autonomes. Il permet à n'importe quel agent Python (LangGraph, CrewAI, custom) de s'exécuter de manière isolée, locale, et outillée — sans dépendance cloud.
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
-**Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint book-rewrite livré (20/20 stories — réécriture complète du book mdBook, structure pédagogique "The Rust Book", chapitres ch01–ch19 + annexes A-F). Sprint 32 livré précédemment (A2A complet + Distribution locale + Worker Agents communautaires, 8/8 stories, ADR-050).
+**Développement :** 8-10h/jour jusqu'au 19 mai 2026 (phase release publique)  
+**Phase actuelle :** Release publique v0.1.0 — plan jour par jour dans `docs/internal/WEEK-PLAN.md`. Tous les sprints feature (jusqu'au 43 inclus) et le sprint fact-checking sont livrés. Aucun nouveau sprint feature avant le 19 mai.
 
 ---
 
@@ -20,13 +20,18 @@
 | Composant | Technologie |
 |---|---|
 | Runtime async | Rust + Tokio 1.x |
-| Bridge Python | PyO3 + pyo3-async-runtimes |
+| Bridge Python | PyO3 0.24 + pyo3-async-runtimes |
+| LLM local | llama-cpp-2 (GGUF, Metal, CUDA) |
+| STT local | whisper-rs (GGML) |
 | Persistance | SQLite + rusqlite + FTS5 |
 | API locale | axum (Unix socket + TCP 7771) |
 | CLI | clap v4 derive |
 | Sérialisation | serde + serde_json |
 | Erreurs | thiserror (libs) — anyhow INTERDIT dans le workspace |
 | Logging | tracing + tracing-subscriber |
+| Desktop | Tauri v2 + Svelte 5 + Tailwind 3.4 |
+| Design tokens | CSS custom properties HSL + ADR-077 |
+| i18n | svelte-i18n v4 (FR/EN, JSON namespaces) |
 
 ---
 
@@ -34,20 +39,23 @@
 
 ```
 crates/
-├── apollia-core/          ← types partagés, dépendance de tout le reste
-├── apollia-runtime/       ← Runtime Core (acteurs Tokio, API, EventBus, Supervisor)
-├── apollia-oria/          ← ORIA Engine (Observer-Reasoner-Actor, StepBudget, ResilienceLayer)
-├── apollia-tools/         ← Tool Registry + outils natifs + sandbox + audit trail
-├── apollia-memory/        ← Memory Engine (SQLite, FTS5, épisodique/sémantique/procédurale)
-├── apollia-aip/           ← Bridge PyO3 (Rust ↔ Python async, RuntimeContext)
-├── apollia-llm/           ← LLM Backend (llama.cpp local, Anthropic, OpenAI, Ollama, LlmRouter)
+├── apollia-aip/           ← Bridge PyO3 (Rust ↔ Python async, RuntimeContext exposé via stubs SDK)
+├── apollia-auth/          ← OAuth2 PKCE, token keyring, auto-refresh (ADR-064)
+├── apollia-cli/           ← Binaire final (clap v4, 13+ sous-commandes, codes de sortie 0-5)
+├── apollia-core/          ← Types partagés (AgentId, TaskId, StepBudget) — dépendance de tout le reste
+├── apollia-desktop/       ← Application Desktop (Tauri v2 + Svelte 5, ~114 commandes IPC, 15 routes)
+├── apollia-llm/           ← LLM Backend (llama.cpp, Anthropic, OpenAI, Ollama, Bedrock, Vertex, LlmRouter)
 ├── apollia-mcp/           ← Client MCP natif (JSON-RPC 2.0, stdio/HTTP/SSE, McpClientManager)
-├── apollia-triggers/      ← Trigger Engine (cron, interval, filewatch, webhook, hot reload)
+├── apollia-memory/        ← Memory Engine (SQLite FTS5, épisodique/sémantique/procédurale, export/import)
 ├── apollia-notifications/ ← Notification Engine (desktop notify-rust, webhook reqwest)
+├── apollia-oria/          ← ORIA Engine (Observer-Reasoner-Actor, StepBudget, ResilienceLayer, plan cache)
+├── apollia-permissions/   ← Permission rules engine (prefix-scoped, 3 scopes : session/project/global)
 ├── apollia-pipelines/     ← Pipeline Engine (topologie DAG, fan-out/fan-in, HITL, fallback)
+├── apollia-runtime/       ← Runtime Core (acteurs Tokio, API axum, EventBus, Supervisor)
 ├── apollia-stt/           ← Speech-to-Text (trait SttBackend, whisper-rs, audio pipeline)
-├── apollia-desktop/       ← Application Desktop (Tauri v2 + Svelte 5, 114 commandes IPC, 15 routes)
-└── apollia-cli/           ← Binaire final (clap, 13 sous-commandes)
+├── apollia-tools/         ← Tool Registry (13 outils natifs, sandbox, audit trail, governance.db)
+├── apollia-triggers/      ← Trigger Engine (cron, interval, filewatch, webhook, hot reload SQLite)
+└── apollia-workspace/     ← Workspace isolation, agent registry, project scoping, ContextProvider
 ```
 
 ---
@@ -91,7 +99,7 @@ Ces principes ne peuvent pas être violés sans créer un ADR explicite.
 - `cargo test -p apollia-XXX` doit passer avant chaque commit sur cette crate
 
 ### Documentation
-- Décision architecturale significative → ADR dans `docs/Decisions-Log.md`
+- Décision architecturale significative → ADR dans `docs/adr/ADR-NNN.md` + entrée dans `docs/wiki/Decisions-Log.md`
 - Déviation par rapport à la spec → note dans la story concernée
 - Jamais de TODO/FIXME dans le code — créer une story ou corriger maintenant
 
@@ -113,6 +121,7 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 - **apollia-adr** : Documenter une décision architecturale → `docs/adr/ADR-NNN.md`
 - **apollia-doc-setup** : Initialiser docs/ + book/ mdBook (usage unique, première fois)
 - **apollia-doc-sync** : Mettre à jour la doc après sprint/story/changement architectural/diagramme
+- **apollia-doc-sync-diff** : Synchroniser book/wiki/help depuis une plage de commits git (via table de routage)
 - **apollia-doc-research** : Veille technologique interne (MCP/A2A, concurrents, signaux pivot)
 
 ---
@@ -121,26 +130,49 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 | Besoin | Fichier |
 |---|---|
-| Architecture complète | `docs/Architecture-Vue-Ensemble.md` |
-| Principes détaillés | `docs/Architecture-Principes.md` |
-| Spec Tool Registry | `docs/Briques-Tool-Registry.md` |
-| Spec Memory Engine | `docs/Briques-Memory-Engine.md` |
-| Spec ORIA Engine | `docs/Briques-ORIA-Engine.md` |
-| Spec Runtime Core | `docs/Briques-Runtime-Core.md` |
-| Spec CLI | `docs/Briques-CLI.md` |
+| Architecture complète | `docs/wiki/Architecture-Vue-Ensemble.md` |
+| Principes détaillés | `docs/wiki/Architecture-Principes.md` |
+| Spec Tool Registry | `docs/wiki/Briques-Tool-Registry.md` |
+| Spec Memory Engine | `docs/wiki/Briques-Memory-Engine.md` |
+| Spec ORIA Engine | `docs/wiki/Briques-ORIA-Engine.md` |
+| Spec Runtime Core | `docs/wiki/Briques-Runtime-Core.md` |
+| Spec CLI | `docs/wiki/Briques-CLI.md` |
 | Stories et sprints | `docs/internal/STORIES/sprint-index.md` |
-| Décisions (ADR) | `docs/Decisions-Log.md` |
+| Décisions (ADR) | `docs/wiki/Decisions-Log.md` · fichiers : `docs/adr/` |
+| Planning launch v0.1.0 | `docs/internal/RELEASE-MOSCOW.md` (MoSCoW) · `docs/internal/WEEK-PLAN.md` (plan jour par jour) |
+| Design system frontend | `docs/wiki/DESIGN-SYSTEM.md` |
 
 ---
 
-## État courant
+## État courant — Phase release publique
 
-**Dernier sprint livré :** Sprint 40 — Context Bootstrapping & SDK 0.3.0 : protocole ContextBootstrap (classe abstraite SDK), ProjectContextBootstrap partagé, adoption dans les 4 assistants (spec/dev/review/document), recall_entry()/recall_all() exposés en Python, AgentManifestDict v2, ConversationalAgent stub, tests d'intégration bootstrap (6/6 stories, ADR-070, ADR-071). ✅
-**Sprint précédent :** Sprint 39 — Agents qui travaillent : 4 assistants opérationnels (spec/dev/review/document), memory namespace project-scoped, restructuration agents/, smoke tests (7/7 stories, ADR-070). ✅
-**Avant :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
-**MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-072 — Outils web natifs : architecture 2-étages `web_search` (trait `SearchBackend` pluggable, DuckDuckGo default + Brave feature-gated) et `web_read` (fetch + extraction `dom_smoothie`, SSRF-guarded). Opt-in via `apollia.toml`. Bloc 1.3 du LAUNCH-BACKLOG livré.
+**Mode :** Semaine de release publique — 28 avril au 19 mai 2026.
+**Référence journalière :** `docs/internal/WEEK-PLAN.md` (plan jour par jour, source de vérité).
+**Release :** dimanche 18 mai (repo public + tag v0.1.0) · **Annonce :** lundi 19 mai.
 
-**Book mdBook :** structure pédagogique complète dans `book/src/` — ch01 (Premiers pas) → ch19 (CLI) + annexes A-F. Build propre : `mdbook build book`. Sources des chapitres : `docs/wiki/`. Convention : book = apprendre, wiki = référence (voir règle Documentation ci-dessus).
+**Pas de nouveau sprint feature avant la release.** Toutes les sessions suivent le WEEK-PLAN.
 
-Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.
+**Tâches release en cours (MoSCoW) :**
+- M1 Distribution .dmg — CI prête, jamais testée
+- M2 Updater in-app — Tauri plugin + Svelte (à implémenter)
+- M3 Onboarding agent — mise à jour system prompt
+- M4 Apollia Guide — réécriture knowledge base
+- M5 Agents démo — veille-ia (nettoyage) + veille-rse (création) + email-triage (création)
+- M6 Commentaires inline — nettoyage AI slop + références internes
+- M7 Relecture corpus — gate non délégable (Jour 12)
+- M8 Site vitrine — repasse UX/design
+- M9 Cloudflare Pages — setup apollia.fr + docs.apollia.fr
+- M10 Desktop UX/UI — Claude Design (asynchrone, par batch crédit) + Claude Code
+- M11 Screenshots — pour corpus Help (post M10)
+
+**Sprint fact-checking :** terminé (cargo test --workspace ✅, corpus book/wiki corrigés, Help délégué).
+**Dernier sprint feature :** Sprint 40 ✅ — Context Bootstrapping & SDK 0.3.0 (2026-04-15).
+**Dernière décision :** ADR-082 — Tool Governance : `governance.db` unifié, 3 scopes HITL.
+
+**Documentation :** 3 corpus synchronisés
+- `book/src/` : ch01–ch19 + annexes A-F (pédagogique, build : `mdbook build book/`)
+- `docs/wiki/` : référence exhaustive — Architecture, Briques, API, Specs, ADRs (ADR-001–082)
+- `docs/help/` : aide opérateur desktop (34 articles)
+- SDK Python : `sdk/apollia/stubs/` (synchronized post-fact-checking FC12/FC13)
+
+**Référence de travail quotidien :** `docs/internal/WEEK-PLAN.md` — source de vérité jusqu'au 19 mai.

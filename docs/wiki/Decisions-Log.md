@@ -91,22 +91,20 @@
 
 ---
 
-## ADR-005 — Sandbox sans Docker (Linux namespaces)
+## ADR-005 — Sandbox multi-plateforme : Linux namespaces, macOS DevMode, Windows 3-couches Chromium
 
-**Date :** 2026-03
+**Date :** 2026-03 (Linux + macOS) / 2026-04-03 (Windows)
 **Statut :** Accepté
 
-**Contexte :** Docker est une dépendance lourde interdite par le principe #2. Linux namespaces fournissent l'isolation nécessaire sans Docker.
+**Contexte :** Isolation d'exécution des outils natifs (bash, python) sans Docker (Principe #2). Le runtime doit fonctionner sur Linux/macOS/Windows sans installation préalable. Les APIs d'isolation natives diffèrent par plateforme.
 
-**Décision :** MVP avec `subprocess` + `unshare(1)` (PID + mount namespaces). Roadmap v0.2 → `nsjail`. Roadmap v1.0 → gVisor optionnel.
+**Décision :** (1) **Linux :** `unshare --pid --mount --fork` (PID + mount namespaces). Roadmap v0.2 → nsjail, v1.0 → gVisor optionnel. (2) **macOS :** `SandboxMode::Dev` — pas de sandbox réel (`sandbox-exec` deprecated depuis macOS 10.15, API privée non documentée). Exécution directe avec `tracing::warn!` à **chaque invocation**. Détecté à la compilation via `#[cfg(target_os = "linux")]`. CI Linux valide le chemin réel. (3) **Windows :** 3 couches Chromium — Job Object (terminaison auto + pas de dialog), Restricted Token (`CreateRestrictedToken`, suppression `SeDebugPrivilege` etc.), AppContainer (`apollia-sandbox-<agent_id>`, nettoyé après exécution). Dégradation gracieuse vers couches 1+2 si AppContainer échoue. Implémenté dans `sandbox_windows.rs` sous `#[cfg(target_os = "windows")]`.
 
-**Alternatives considérées :**
-- Docker obligatoire : Viole le principe #2, bloque les déploiements sans Docker daemon.
-- Firecracker microVM : Complexité excessive pour un MVP.
-- WebAssembly : Écosystème Python Wasm immature.
-- Rien : Inacceptable pour un runtime de production.
+**Alternatives considérées :** Docker (viole Principe #2), `sandbox-exec` macOS (deprecated — dette technique garantie), Warning au démarrage seulement (trop discret), WSL/Docker Windows (dépendances externes), Job Object seul sur Windows (insuffisant — ne couvre pas filesystem/réseau).
 
-**Conséquences :** User namespaces doivent être activés sur l'OS hôte (standard sur Linux moderne).
+**Conséquences :** Isolation native sans dépendance externe. Pas d'isolation sur macOS dev (code de confiance — acceptable). AppContainer crée un profil persistant à nettoyer en cas de crash. User namespaces doivent être activés sur Linux (standard Linux 3.8+).
+
+**Principes impactés :** Principe #2 — Zéro dépendance externe, Principe #4 — Fail fast (mode Dev visible), Principe #7 — Garde-fous non-négociables (sandbox toujours actif en production Linux).
 
 ---
 
@@ -215,25 +213,6 @@
 
 ---
 
-## ADR-012 — Mode DevSandbox sur macOS : pas de sandbox réel en développement
-
-**Date :** 2026-03-06
-**Statut :** Accepté
-
-**Contexte :** `unshare(1)` n'existe pas sur macOS. `sandbox-exec` (Seatbelt/SBPL), l'alternative native macOS, est deprecated depuis macOS 10.15 et basé sur une API privée non documentée. Docker viole le Principe #2.
-
-**Décision :** Deux modes compilés via `#[cfg(target_os = "linux")]` : `SandboxMode::LinuxNamespaces` en production (Linux), `SandboxMode::Dev` sur macOS avec `tracing::warn!` à chaque invocation. La CI tourne sur Linux et valide le chemin sandbox réel.
-
-**Alternatives considérées :**
-- `sandbox-exec` macOS : API deprecated depuis macOS 10.15, syntaxe SBPL propriétaire, retrait possible sans préavis. Rejetée — dette technique garantie.
-- Docker en dev : Viole Principe #2, commercial pour orgs > 250 personnes. Rejeté.
-- Warning uniquement au démarrage : Trop discret — un dev peut oublier l'absence de sandbox. Rejeté.
-
-**Conséquences :** Pas d'isolation réelle sur macOS dev (acceptable : code de confiance du développeur). Zero dépendance ajoutée. Parity prod garantie par CI Linux. Le warning par invocation rend l'absence de sandbox impossible à ignorer.
-
-[Détail → docs/adr/ADR-012-sandbox-devmode-macos.md](adr/ADR-012-sandbox-devmode-macos.md)
-
----
 
 ## ADR-013 — Configuration PyO3 Python sur macOS via PYO3_PYTHON
 
@@ -368,58 +347,25 @@
 
 ---
 
-## ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags
+## ADR-020 — apollia-llm : moteur d'inférence embarqué (llama.cpp), backends cloud, feature flags
 
-**Date :** 2026-03-08
+**Date :** 2026-03-08 (architecture) / 2026-03-26 (llama.cpp) / 2026-04-04 (Bedrock + Vertex)
 **Statut :** Accepté
 
-**Contexte :** Sprint 8 introduit `ctx.llm` pour les agents Python. Trois contraintes encadrent le choix : inférence locale offline (Principe #1), zéro daemon tiers requis (Principe #2), et fail fast si le modèle est absent (Principe #4). Certains utilisateurs préfèrent les backends cloud (Anthropic, OpenAI) — la solution doit couvrir les deux cas sans imposer la compilation du moteur d'inférence à tous.
+**Contexte :** Sprint 8 introduit `ctx.llm`. Trois contraintes : inférence locale offline (Principe #1), zéro daemon tiers requis (Principe #2), fail fast si modèle absent (Principe #4). Sprint 25 : `mistralrs` v0.7 bloquant — 16 architectures GGUF seulement, crash Metal sur MoE, streaming non-`'static`. Sprint 37 : intégration Bedrock (AWS) et Vertex AI (Google).
 
-**Décision :** Crate `apollia-llm` avec deux feature flags Cargo : `cloud` (défaut, clients HTTP purs via `async-openai` + `reqwest`) et `local` (compile `EmbeddedBackend` via `mistral-rs-core` in-process). Le modèle `.gguf` est toujours un fichier externe dans `~/.apollia/models/` — jamais dans le binaire. `LlmRouter` dispatche au runtime selon `apollia.toml`. Backend absent → warning, pas de crash. Aucun backend disponible → `ctx.llm = None`, agent en `DEGRADED`.
+**Décision :** Crate `apollia-llm` avec feature flags : `cloud` (défaut, clients HTTP via `async-openai` + `reqwest`) et `local` (compile `EmbeddedBackend` via `llama-cpp-2`, lié statiquement — 30+ architectures GGUF, Metal MoE natif, streaming token-by-token). Le modèle `.gguf` est toujours un fichier externe dans `~/.apollia/models/`. Backend absent → warning. Aucun backend → `ctx.llm = None`, agent `DEGRADED`. **Bedrock :** signature SigV4 native via `aws-sigv4` + `reqwest` (aws-sdk-rust complet rejeté — +50 crates, +8 MB, 2% des fonctionnalités utilisées). **Vertex AI :** Application Default Credentials via `gcp-auth` (clé de service JSON rejetée — secret statique exfiltrable, pas d'expiration).
 
-**Alternatives considérées :**
-- Daemon externe géré par Supervisor (rejetée : viole Principe #2 — suppose llama.cpp/ollama installé, gestion PID complexe, pas de single-binary réel)
-- Modèle GGUF embarqué dans le binaire (rejetée : ~2 Go inutilisables, impossible de changer de modèle sans recompiler)
+**Alternatives considérées :** Daemon externe (viole Principe #2), GGUF dans le binaire (~2 Go inutilisables), attendre mistral.rs 0.8+ (délai inconnu, pas de garantie Metal MoE), llama-server externe (viole Principe #2), aws-sdk-rust complet (dépendances excessives), clé de service JSON primaire Vertex (risque sécurité).
 
-**Conséquences :**
-- `feature = "local"` : inférence offline complète, binaire plus lourd (mistral-rs-core).
-- `feature = "cloud"` (défaut) : binaire léger, aucun moteur compilé.
-- `LlmCallCompleted` émis sur EventBus après chaque appel (tokens, latence, coût estimatif).
-- `run_tools()` intègre `StepBudget` — garde-fou Principe #7 respecté dans la boucle ReAct.
-- `mistral-rs-core 0.4` à surveiller pour breaking changes.
+**Conséquences :** 30+ architectures GGUF, Metal MoE fonctionnel, streaming natif, Bedrock + Vertex sans SDK lourd. Build chain C++ requis pour `feature = "local"` (déjà présente via apollia-stt). Deux binaires CI (`cloud` + `local`). ADC Vertex requiert `gcloud` installé.
 
-**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance opérationnelle, Principe #4 — Fail fast, Principe #7 — Garde-fous non-négociables
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance (statique + aws-sigv4 minimal), Principe #4 — Fail fast, Principe #7 — Garde-fous (StepBudget dans run_tools)
 
 [Détail complet → docs/adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md](adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
 
 ---
 
-## ADR-021 — apollia-triggers : configuration TOML-only, authentification HMAC-SHA256 webhooks, hot reload sans restart
-
-**Date :** 2026-03-08
-**Statut :** Accepté
-
-**Contexte :** Sprint 9 introduit `apollia-triggers` (cron, interval, file watch, webhooks). Trois décisions structurantes engagent des interfaces difficiles à inverser : (1) format de configuration des triggers, (2) authentification des webhooks entrants, (3) mise à jour des triggers sans redémarrer le runtime.
-
-**Décision :** (1) Configuration TOML-only via `[[triggers]]` dans `apollia.toml` — même source de vérité que les LLM backends. Validation sémantique complète dans `ApolliaConfig::load()` au démarrage (schedule cron via `cron::Schedule::from_str`, secret webhook non vide, path résolvable). Trigger `enabled = false` → source non validée. (2) HMAC-SHA256 avec header `X-Apollia-Signature: sha256=<hex>` (standard GitHub Webhooks) + `constant_time_eq` pour la comparaison — le body est lié cryptographiquement au secret, timing attacks éliminées. Ordre de réponse : 503 → 404 → 401 → 200. (3) Hot reload via `POST /api/v1/triggers/reload` + `apollia-os trigger reload` : timeout 2s sur chaque `JoinHandle<()>` actif avant drop forcé, full-replace des définitions, compteurs SQLite préservés, `TriggersReloaded { count }` sur EventBus. Erreur TOML au reload → 422, triggers actuels inchangés.
-
-**Alternatives considérées :**
-- API REST + stockage SQLite (rejetée : double source de vérité TOML/base, pas de fail fast naturel au démarrage)
-- Fichier `triggers.toml` séparé avec auto-reload inotify (rejetée : fragmentation config, reload implicite = comportement surprenant, viole ADR-008)
-- Token Bearer statique pour les webhooks (rejetée : n'authentifie pas le body — rejoue possible, pas de protection timing attacks)
-- Hot reload via SIGHUP (rejetée : pas de retour sur erreur, incompatible Windows roadmap, rompt le pattern REST `POST /api/v1/shutdown`)
-
-**Conséquences :**
-- `apollia.toml` est la source de vérité unique pour l'ensemble du runtime (runtime, LLM, agents, triggers).
-- Full-replace au reload : sources inchangées stoppées et respawnées (impact minimal en pratique).
-- Trois nouvelles dépendances workspace : `cron = "0.12"`, `notify = "6"`, `chrono = "0.4"`.
-- Risque compatibilité `hmac 0.12` + `sha2 0.10` : vérifier `digest` commun avant STORY-069.
-
-**Principes impactés :** Principe #1 — Local-first, Principe #4 — Fail fast, Principe #5 — Un acteur une responsabilité, Principe #8 — CLI humaine
-
-[Détail complet → docs/adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md](adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md)
-
----
 
 ## ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook `on_plan_complete`
 
@@ -615,20 +561,39 @@
 
 ---
 
-## ADR-033 — Config opérateur SQLite : séparation structurel (TOML) / opérationnel (SQLite)
+## ADR-032 — Agent Install, Bundle Format & Package System
 
-**Date :** 2026-03-20
+**Date :** 2026-03-17 (install) / 2026-04-17 (bundle) / 2026-04-24 (packages)
 **Statut :** Accepté
 
-**Contexte :** `apollia.toml` mélange config structurelle (ports, chemins, LLM) et config opérationnelle (triggers, pipelines, notifications). Un non-développeur ne peut pas configurer ces éléments sans éditer du TOML. Le hot-reload TOML est fragile et sans validation interactive.
+**Contexte :** Les agents Python étaient 100% éphémères (seul composant non-persisté dans `~/.apollia/`). Le lancement v0.1.0 requiert un format de distribution auto-descriptif pour les 4 assistants (avec modules `lib/`). Sprint 43 : installer un groupe d'agents liés (director + workers) requiert N commandes séparées sans concept de package.
 
-**Décision :** Triggers, pipelines et notifications migrent de `apollia.toml` vers SQLite (une DB par sous-système). Le TOML ne contient plus que la config structurelle. Le pattern de modification est : API handler → SQLite write → Handle.reload() synchrone. L'app desktop devient read-write pour la config opérationnelle.
+**Décision :** (1) **Install :** copie du bundle dans `~/.apollia/agents/<name>/`, persistance SQLite `agents.db`, auto-reload au boot. Commandes : `agent install/uninstall/enable/disable/update`. (2) **Bundle format :** dossier standardisé avec `manifest.toml` + `agent.py` (obligatoires), `lib/` (modules), `assets/` (read-only). `manifest.toml` contient métadonnées statiques (name, version, tools_required, permissions). Modules via `from lib import helpers` (jamais `from shared`). Chargement PyO3 : prepend `<install_path>/` à `sys.path`, nettoyé après. (3) **Package system :** dossier avec `agent.toml` décrivant N agents + triggers déclarés — une commande installe l'ensemble. Tables SQLite `installed_packages` + `package_agents`.
 
-**Alternatives considérées :** TOML reste source de vérité avec hot-reload amélioré (rejetée — ne résout pas le problème opérateur), EventBus pour notifier les acteurs (rejetée — complexité sans feedback synchrone), Watch file SQLite (rejetée — fragile avec WAL).
+**Alternatives considérées :** Référence par chemin absolu (fichier peut être supprimé), Python wheel (trop lourd), registry centralisé type npm/cargo (viole Principe #1 + #2), config inline dans manifest Python pour packages (mélange logique / déploiement).
 
-**Conséquences :** CRUD depuis l'API REST et l'app desktop avec validation interactive (422). ADR-029 (Settings lecture seule) reste valide pour le TOML structurel. ADR-021 (triggers TOML-only) partiellement remplacé. `Arc<Mutex<>>` pour les repositories dans AppState (rusqlite Connection non-Sync, mutations rares).
+**Conséquences :** Format auto-descriptif indexable par marketplace futur. Rétrocompatibilité totale (agents `.py` unitaires inchangés). SHA256 bundle pour détection d'updates. Pas d'encryption du bundle v0.1.0.
 
-**Principes impactés :** Principe #1 (Local-first) renforcé, Principe #4 (Fail fast) renforcé, Principe #8 (CLI humaine, API machine) renforcé.
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance, Principe #3 — Contrat minimal (2 fichiers obligatoires), Principe #4 — Fail fast (bundle invalide → rejet install).
+
+[Détail → docs/adr/ADR-032-agent-install-persistence.md](adr/ADR-032-agent-install-persistence.md)
+
+---
+
+## ADR-033 — Config opérateur SQLite, HMAC-SHA256 webhooks, hot reload sans restart
+
+**Date :** 2026-03-08 (HMAC + hot reload) / 2026-03-20 (config SQLite)
+**Statut :** Accepté
+
+**Contexte :** Sprint 9 : authentification des webhooks entrants + hot reload des triggers sans downtime. Sprint 17 : `apollia.toml` mélange config structurelle (ports, LLM) et opérationnelle (triggers, pipelines, notifications) — un non-développeur ne peut pas configurer sans éditer du TOML.
+
+**Décision :** (1) **SQLite opérationnel :** triggers/pipelines/notifications migrent dans SQLite (une DB par sous-système). TOML = config structurelle uniquement. Pattern : API handler → SQLite write → `Handle.reload()` synchrone. (2) **HMAC-SHA256 webhooks :** header `X-Apollia-Signature: sha256=<hex>` (standard GitHub), comparaison via `constant_time_eq` (timing attacks éliminées). Ordre réponse : 503 → 404 → 401 → 200. (3) **Hot reload :** `TriggerEngineHandle::reload()` — timeout 2s par `JoinHandle<()>`, full-replace, compteurs SQLite préservés, `TriggersReloaded` sur EventBus. Erreur au reload → 422, triggers actuels inchangés.
+
+**Alternatives considérées :** TOML source de vérité avec hot-reload amélioré (ne résout pas le problème opérateur), EventBus pour notifier (complexité sans feedback synchrone), Watch file SQLite (fragile avec WAL), Token Bearer webhooks (n'authentifie pas le body), SIGHUP (incompatible Windows, pas de retour erreur).
+
+**Conséquences :** CRUD depuis l'API REST et le desktop avec validation interactive (422). ADR-029 (Settings lecture seule) reste valide pour le TOML structurel. `Arc<Mutex<>>` pour les repositories (rusqlite non-Sync, mutations rares).
+
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance, Principe #4 — Fail fast (422 au write time), Principe #8 — CLI humaine.
 
 [Détail → docs/adr/ADR-033-config-operateur-sqlite.md](adr/ADR-033-config-operateur-sqlite.md)
 
@@ -789,28 +754,6 @@
 
 ---
 
-## ADR-042 — Remplacement de mistral.rs par llama.cpp (lié statiquement) comme moteur d'inférence GGUF
-
-**Date :** 2026-03-26
-**Statut :** Accepté
-
-**Contexte :** mistralrs v0.7 ne supporte que 16 architectures GGUF et ses kernels candle Metal crashent sur les modèles MoE (`indexed_moe_forward not implemented`). Qwen3.5, GLM-4.7, Llama 4 sont inaccessibles. Le streaming est un fallback single-chunk.
-
-**Décision :** Remplacement de `mistralrs` + `mistralrs-core` par `llama-cpp-2` (bindings safe Rust pour llama.cpp, compilation statique). Changement contenu dans `apollia-llm::backends::embedded`. Le trait `CompletionModel`, le `LlmRouter`, le config TOML et l'API publique ne changent pas.
-
-**Alternatives considérées :** Attendre mistral.rs 0.8+ (rejetée — délai inconnu, pas de garantie Metal MoE), llama-server processus externe (rejetée — viole Principe #2), Contribuer les kernels Metal à candle (rejetée — effort 3-6 mois disproportionné).
-
-**Conséquences :**
-- 30+ architectures GGUF supportées immédiatement (Qwen3.5, GLM-4.7, Llama 4...)
-- Metal MoE natif fonctionnel, streaming token-by-token, taille binaire réduite
-- Build chain C++ (cmake) déjà présente via ADR-041 whisper.cpp
-- Surveiller conflit symboles ggml entre whisper.cpp et llama.cpp
-
-**Principes impactés :** Principe #1 — Local-first (renforcé), Principe #2 — Zéro dépendance (respecté, statique), Principe #4 — Fail fast (respecté)
-
-[Détail → docs/adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md](adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md)
-
----
 
 ## ADR-043 — Décomposition atomique des outils natifs
 
@@ -983,24 +926,6 @@
 
 ---
 
-## ADR-052 — Sandbox Windows : modèle Chromium 3 couches
-
-**Date :** 2026-04-03
-**Statut :** Accepté
-
-**Contexte :** La sandbox Linux (`bubblewrap`/namespaces) ne compile pas sur Windows. Le Principe #2 exclut WSL ou Docker. STORY-451 introduit le support Windows natif — une stratégie de sandbox doit être définie. Note : STORY-451 est déférée (pas de PC Windows disponible pour validation), l'ADR est Accepté comme décision de design.
-
-**Décision :** Architecture 3 couches inspirée de Chromium : (1) Job Object (`win32job = "2"`) — terminaison auto à la fermeture du runtime, pas de boîte de dialogue d'erreur ; (2) Restricted Token via `CreateRestrictedToken` — suppression des groupes sensibles, retrait des privilèges dangereux (`SeDebugPrivilege`, etc.) ; (3) AppContainer via `CreateAppContainerProfile` — profil nommé `apollia-sandbox-<agent_id>`, nettoyé après exécution. Dégradation gracieuse vers couches 1+2 si AppContainer échoue (Windows 7 ou erreur API). Implémenté dans `sandbox_windows.rs` sous `#[cfg(target_os = "windows")]`.
-
-**Alternatives considérées :** WSL (dépendance externe, viole Principe #2), Docker (lourd, non portable), aucune sandbox (inacceptable), Hyper-V (latence VM, overhead), Job Object seul (insuffisant — ne couvre pas filesystem/réseau).
-
-**Conséquences :** Sandbox Windows native sans dépendance externe. Patterns Chromium audités depuis 2008. AppContainer crée un profil persistant à nettoyer en cas de crash. Crate `windows = "0.58"` activée uniquement `cfg(windows)`.
-
-**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance externe (Win32 natif), Principe #4 — Fail fast (dégradation explicite avec warning).
-
-[Détail complet → docs/adr/ADR-052-windows-sandbox.md](adr/ADR-052-windows-sandbox.md)
-
----
 
 ## ADR-053 — Pipeline fan-out et boucles conditionnelles
 
@@ -1056,6 +981,215 @@
 **Principes impactés :** Principe #1 — Local-first (clonage local, index optionnel), Principe #2 — Zéro dépendance externe (pas de serveur Apollia requis, fallback `gitoxide`), Principe #4 — Fail fast (validation complète à l'installation).
 
 [Détail complet → docs/adr/ADR-055-community-registry.md](adr/ADR-055-community-registry.md)
+
+---
+
+## ADR-056 — Workspace Context, ContextProvider Trait, Memory Namespace & ContextBootstrap
+
+**Date :** 2026-04-04 (workspace + trait) / 2026-04-15 (namespace + bootstrap)
+**Statut :** Accepté
+
+**Contexte :** (1) Sprint 35 : l'agent ignore le projet dans lequel il opère — il re-découvre branche git, APOLLIA.md, arborescence à chaque session. (2) Le contexte workspace doit être extensible (providers Rust, Python, scripts). (3) Sprint 39 : `dev-assistant` sur deux projets partage le même namespace mémoire — contamination inter-projets. (4) Sprint 40 : pattern bootstrap copié-collé dans 3 agents sans détection de péremption.
+
+**Décision :** (1) Crate `apollia-workspace` avec `WorkspaceAssembler` (timeout 2s, TTL 30s), `GitContextCollector` (subprocess `git`, pas de `libgit2`), `ApolliamdFinder`, `DirectoryTreeBuilder`. (2) Trait `ContextProvider` dans `apollia-core` — 3 niveaux : Rust natif, duck-typing Python, script stdin/stdout JSON. Distingué de la mémoire (Principe #6) : le Context = situation courante, pas accumulation. (3) Namespace effectif = `"{project_id}:{manifest_namespace}"` si `project_id` est `Some(_)`, sinon namespace tel quel. Transparent pour l'agent Python. (4) `ContextBootstrap` : protocole SDK (`sdk/apollia/bootstrap.py`) avec 2 méthodes abstraites (`is_stale`, `run_bootstrap`) + 4 méthodes infrastructure. Opt-in, jamais injecté par le runtime.
+
+**Alternatives considérées :** git2 crate (dépendance dynamique libgit2, Principe #2), WorkspaceAssembler unique (non extensible), namespace déclaré par l'agent (project_id inconnu à l'écriture du manifest), injection automatique bootstrap par le runtime (viole Principe #6).
+
+**Conséquences :** Isolation mémoire complète entre projets. Suppression du pattern bootstrap copié-collé. Économie de tokens (bootstrap payé une fois). Timeout 2s garantit aucun blocage. Données orphelines en mémoire si projet supprimé sans purge.
+
+**Principes impactés :** Principe #2 — Zéro dépendance (pas de libgit2), Principe #3 — Contrat minimal (ContextBootstrap est couche SDK), Principe #6 — Mémoire à initiative de l'agent (renforcé).
+
+[Détail → docs/adr/ADR-056-workspace-context-assembly.md](adr/ADR-056-workspace-context-assembly.md)
+
+---
+
+## ADR-057 — Stratégie de prompt caching
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Activation du prompt caching Anthropic (`cache_control: ephemeral`) sur les sections stables du system prompt (workspace context, APOLLIA.md, tool descriptions). TTL 5 min côté Anthropic. Breakpoints de cache sur les N-1 premiers messages de l'historique en mode chat. Économies estimées : 70-85% sur les re-runs de longues sessions. Cache hits trackés via `LlmCallCompleted.cache_read_tokens`.
+
+[Détail → docs/adr/ADR-057-prompt-caching-strategy.md](adr/ADR-057-prompt-caching-strategy.md)
+
+---
+
+## ADR-058 — Gestion de la fenêtre de contexte
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+`ContextWindowManager` estime les tokens du contexte avant chaque appel LLM et tronque si nécessaire : outils supprimés en premier, historique tronqué par le sliding window (ADR-039), workspace context tronqué en dernier. Limite configurable par backend (`context_window_tokens`). Jamais de crash sur dépassement — dégradation gracieuse avec `tracing::warn!`.
+
+[Détail → docs/adr/ADR-058-context-window-management.md](adr/ADR-058-context-window-management.md)
+
+---
+
+## ADR-059 — Exécution concurrente des outils
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Quand le LLM retourne plusieurs `tool_use` dans une même réponse, les appels sont exécutés en parallèle via `tokio::JoinSet`. Chaque outil s'exécute dans son propre spawn. `StepBudget.tool_calls_remaining` décrémenté atomiquement. Limite `max_concurrent_tools = 8` (configurable). Outil qui échoue → `tool_result` avec `is_error: true`, boucle ReAct continue.
+
+[Détail → docs/adr/ADR-059-concurrent-tool-execution.md](adr/ADR-059-concurrent-tool-execution.md)
+
+---
+
+## ADR-061 — Permission Engine 3 layers
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Trois scopes de permissions stockés dans `~/.apollia/governance.db` : Session (in-memory, durée du runtime), Project (persistant, bound au project_id), Global (persistant, tous projets). Le HITL propose 3 boutons : Approuver cette fois (session), Toujours pour ce projet, Toujours. `ToolRegistry` est scope-aware : avant chaque exécution, consulte governance.db. Révocation via `apollia-os permissions revoke`.
+
+[Détail → docs/adr/ADR-061-permission-engine-3-layers.md](adr/ADR-061-permission-engine-3-layers.md)
+
+---
+
+## ADR-062 — Mode serveur MCP
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Apollia OS peut exposer ses propres outils et agents comme un serveur MCP (en plus de consommer des serveurs externes). Transport stdio. Le runtime expose un `McpServerHandler` via `apollia-mcp`. Permet à Claude Code, Cursor et autres clients MCP d'utiliser les outils Apollia nativement.
+
+[Détail → docs/adr/ADR-062-mcp-server-mode.md](adr/ADR-062-mcp-server-mode.md)
+
+---
+
+## ADR-063 — Feedback binaire RLHF
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Bouton 👍/👎 sur chaque réponse agent dans le desktop. Feedback stocké localement dans `feedback.db`. Pas de télémétrie cloud (Principe #1). Les données sont optionnellement exportables pour fine-tuning. API `POST /api/v1/feedback` pour les intégrations CLI.
+
+[Détail → docs/adr/ADR-063-binary-feedback-rlhf.md](adr/ADR-063-binary-feedback-rlhf.md)
+
+---
+
+## ADR-064 — OAuth2 PKCE + keyring
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Authentification OAuth2 avec PKCE dans `apollia-auth`. Tokens stockés dans le keychain OS (`keyring` crate). Refresh automatique. `apollia-os auth login/logout/status`. Pas de stockage de refresh token en clair. Compatible avec les providers tiers qui utilisent OAuth2 (GitHub, Notion, etc.) via la page Intégrations (ADR-045).
+
+[Détail → docs/adr/ADR-064-oauth2-pkce-keyring.md](adr/ADR-064-oauth2-pkce-keyring.md)
+
+---
+
+## ADR-065 — Auto-updater et distribution binaire
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Auto-updater Tauri v2 (`tauri-plugin-updater`) pour le desktop. CLI : `apollia-os upgrade` via curl du binaire signé depuis GitHub Releases. Signatures Ed25519. Canal stable (défaut) + beta opt-in. Pas de mise à jour automatique sans confirmation (Principe #1 — aucune donnée ne sort sans action explicite).
+
+[Détail → docs/adr/ADR-065-auto-updater-distribution.md](adr/ADR-065-auto-updater-distribution.md)
+
+---
+
+## ADR-066 — Format export/import mémoire
+
+**Date :** 2026-04-04 — **Statut :** Accepté
+
+Export : `apollia-os memory export --format json > backup.json` (tableau JSON d'entrées mémoire sérialisées avec namespace, content, confidence, timestamps). Import : `apollia-os memory import backup.json` avec mode `merge` (défaut) ou `replace`. Pas de format binaire propriétaire — JSON lisible à l'œil nu. Inclus dans la stratégie de backup `~/.apollia/`.
+
+[Détail → docs/adr/ADR-066-memory-export-import-format.md](adr/ADR-066-memory-export-import-format.md)
+
+---
+
+## ADR-069 — Autonomie filesystem : friction graduée et journal réversible
+
+**Date :** 2026-04-15 — **Statut :** Accepté
+
+Avant toute écriture ou suppression filesystem hors sandbox, l'agent évalue l'impact (scope : workspace / home / global). Trois niveaux de friction : immédiat (workspace propre), HITL (home), bloqué (global). Journal des opérations filesystem dans `audit.db` avec `undo_payload` — `apollia-os task undo <id>` restaure l'état précédent pour les opérations réversibles.
+
+[Détail → docs/adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md](adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md)
+
+---
+
+## ADR-072 — Outils web natifs : web_search + web_read
+
+**Date :** 2026-04-15 — **Statut :** Accepté
+
+Architecture 2-étages : `web_search` (trait `SearchBackend` pluggable, DuckDuckGo HTML scraping par défaut, Brave Search API opt-in via feature flag + clé API) + `web_read` (fetch HTTP + extraction lisible via `dom_smoothie`, SSRF-guarded par liste d'adresses privées bloquées). Activation opt-in dans `apollia.toml`. Résultats bornés (max 5 résultats search, 8K chars web_read).
+
+[Détail → docs/adr/ADR-072-web-tools-architecture.md](adr/ADR-072-web-tools-architecture.md)
+
+---
+
+## ADR-073 — Code signing macOS
+
+**Date :** 2026-04-17 — **Statut :** Accepté
+
+Binaire et `.dmg` signés avec un certificat Apple Developer (Developer ID Application). Notarisation Apple via `xcrun notarytool`. Intégré dans le workflow GitHub Actions `release.yml`. PyO3 requiert que les bibliothèques Python liées soient également signées — script de resign inclus. Sans signature, Gatekeeper bloque l'exécution sur macOS 10.15+.
+
+[Détail → docs/adr/ADR-073-macos-code-signing.md](adr/ADR-073-macos-code-signing.md)
+
+---
+
+## ADR-075 — Chargement multi-fichier GGUF
+
+**Date :** 2026-04-17 — **Statut :** Accepté
+
+`llama-cpp-2` supporte les modèles GGUF fragmentés (`model-00001-of-00004.gguf`). `LlamaModel::load_from_file()` accepte le premier fragment, llama.cpp résout les autres automatiquement. Le `ModelHubDownloader` télécharge tous les fragments d'un seul appel (ADR-080). Validation SHA256 par fragment. Stockés dans `~/.apollia/models/<name>/`.
+
+[Détail → docs/adr/ADR-075-gguf-multi-file-loading.md](adr/ADR-075-gguf-multi-file-loading.md)
+
+---
+
+## ADR-076 — Internationalisation frontend (svelte-i18n, FR/EN)
+
+**Date :** 2026-03-16 / spec complète Sprint 42 — **Statut :** Accepté
+
+`svelte-i18n` v4 avec fichiers JSON plats (`en.json`, `fr.json`) organisés en 13 namespaces. ~1700 clés. Détection locale système au premier lancement via `getLocaleFromNavigator()`. Persistance dans `localStorage`. Script `audit-i18n.mjs` vérifie la parité FR/EN en CI. Convention capitalisation : première lettre majuscule uniquement pour les phrases, tout en minuscule pour les labels.
+
+[Détail → docs/adr/ADR-076-i18n-frontend.md](adr/ADR-076-i18n-frontend.md)
+
+---
+
+## ADR-077 — Design tokens v2
+
+**Date :** 2026-04-03 — **Statut :** Accepté
+
+Refonte du système de tokens : variables CSS HSL custom properties (`--background`, `--foreground`, `--primary` etc.) + fichier TypeScript `tokens.ts` pour les composants Svelte. Mode clair : fond crème chaud (`--background: 38 28% 90%`). Mode sombre : charcoal chaud (`--background: 28 8% 9%`). Bleu primaire `#3435f5`. Système d'élévation 5 niveaux. Rim light accents. Glass morphism. Spec complète dans `docs/wiki/DESIGN-SYSTEM.md`.
+
+[Détail → docs/adr/ADR-077-design-tokens-v2.md](adr/ADR-077-design-tokens-v2.md)
+
+---
+
+## ADR-078 — Meta LLM Orchestrator
+
+**Date :** 2026-04-20 — **Statut :** Accepté
+
+`MetaOrchestrator` Rust qui orchestre des appels LLM secondaires pour des tâches d'analyse interne : classification de tâche (Direct vs Orchestré), génération de coaching `ApolliaCoach`, détection d'étapes suivantes `NextStepsAnalyzer`, parsing d'automatisation `ParseAutomation`. Ces appels utilisent les backends cloud (Anthropic par défaut) et sont comptabilisés séparément dans `llm_calls.db`. Opt-in via `meta_orchestrator.enabled = true`.
+
+[Détail → docs/adr/ADR-078-meta-llm-orchestrator.md](adr/ADR-078-meta-llm-orchestrator.md)
+
+---
+
+## ADR-079 — LLM config DB-first, TOML sync
+
+**Date :** 2026-04-20 — **Statut :** Accepté
+
+La configuration LLM backend (models, endpoints, API keys env vars) est migrée de `apollia.toml` vers `~/.apollia/system.db`. `apollia.toml` ne contient plus de section `[llm]`. Au boot, si des sections `[[llm.backends]]` existent dans le TOML, elles sont importées dans SQLite et la section est supprimée (migration one-shot). L'app desktop peut configurer les backends LLM sans éditer de fichier.
+
+[Détail → docs/adr/ADR-079-llm-db-first-toml-sync.md](adr/ADR-079-llm-db-first-toml-sync.md)
+
+---
+
+## ADR-080 — Model Hub : intégration Hugging Face
+
+**Date :** 2026-04-22 — **Statut :** Accepté
+
+`ModelHubDownloader` dans `apollia-llm` : requêtes à l'API HF (liste des fichiers GGUF d'un repo, téléchargement avec barre de progression). Authentification optionnelle via `HF_TOKEN`. Validation SHA256 après téléchargement. `apollia-os model download <repo_id>` ou via le desktop (page LLM). Filtrage automatique des fichiers `.gguf` par quantisation (Q4_K_M par défaut).
+
+[Détail → docs/adr/ADR-080-model-hub-hf-integration.md](adr/ADR-080-model-hub-hf-integration.md)
+
+---
+
+## ADR-082 — Tool Governance Architecture
+
+**Date :** 2026-04-25 — **Statut :** Accepté
+
+Unification de la gouvernance des outils dans `~/.apollia/governance.db`. `ToolRegistry` est scope-aware : lit les permissions avant chaque exécution. Trois scopes HITL (`session`, `project`, `global`) exposés via 3 boutons dans l'UI d'approbation. `apollia-os permissions list/revoke/audit` pour la CLI. Les permissions globales survivent aux restarts. Les permissions session sont perdues au shutdown.
+
+[Détail → docs/adr/ADR-082-tool-governance-architecture.md](adr/ADR-082-tool-governance-architecture.md)
 
 ---
 

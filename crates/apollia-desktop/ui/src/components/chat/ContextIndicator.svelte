@@ -5,7 +5,7 @@
   interface Props {
     /** Current chat session id — required to read live metrics. */
     sessionId: string;
-    /** Variant: `pill` (used in Metrics tab) or `footer` (mini under input, B.13). */
+    /** Variant: `pill` (used in Metrics tab) or `footer` (mini under input). */
     variant?: "pill" | "footer";
     /**
      * Click handler — when supplied, the indicator becomes a button (P7 —

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Single card rendered by `NextStepsPanel` (US-SP42-059).
+   * Single card rendered by `NextStepsPanel`.
    *
    * Keyboard-focusable, `aria-live`-friendly, and delegates dismiss /
    * feedback to the parent panel. The CTA click dispatches `onaction` —

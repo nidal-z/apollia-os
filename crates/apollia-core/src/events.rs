@@ -65,7 +65,7 @@ impl PartialEq<&str> for AgentId {
     }
 }
 
-/// Narration structurée attachée à un appel d'outil (US-SP42-038).
+/// Narration structurée attachée à un appel d'outil.
 ///
 /// Générée par [`MetaRoutine::GenerateToolCallRationale`] *avant* l'exécution
 /// et transportée dans [`RuntimeEvent::ChatToolCallStarted`] pour que le
@@ -637,7 +637,7 @@ pub enum RuntimeEvent {
         tool_name: String,
         /// Aperçu tronqué des arguments d'entrée.
         input_preview: String,
-        /// Narration meta-LLM expliquant l'intention de l'appel (opt-in, US-SP42-038).
+        /// Narration meta-LLM expliquant l'intention de l'appel (opt-in).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rationale: Option<ToolCallRationale>,
     },
@@ -653,13 +653,13 @@ pub enum RuntimeEvent {
         success: bool,
         /// Aperçu tronqué de la sortie (si disponible).
         output_preview: Option<String>,
-        /// Analyse structurée d'erreur (US-SP42-039 Pattern P3) : présent
+        /// Analyse structurée d'erreur : présent
         /// uniquement quand `success = false` ou que le détecteur a flaggé
         /// une hallucination malgré un succès apparent.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         analysis: Option<crate::error_analysis::ErrorAnalysis>,
     },
-    /// Un appel outil est en cours de retry après un échec transient (US-SP42-040).
+    /// Un appel outil est en cours de retry après un échec transient.
     ///
     /// Émis par [`apollia_oria::resilience::ResilienceLayer::execute_with_observability`]
     /// avant chaque nouvelle tentative. Permet à l'UI d'afficher un badge "Retry Nx"
@@ -676,7 +676,7 @@ pub enum RuntimeEvent {
         reason: Option<crate::error_analysis::ErrorAnalysis>,
     },
 
-    /// Le router LLM a basculé vers un backend secondaire (US-SP42-040).
+    /// Le router LLM a basculé vers un backend secondaire.
     ///
     /// Émis par [`crate::events::RuntimeEvent`] via `LlmRouter::complete_with_fallback`
     /// quand le backend primaire échoue de manière non-recoverable et qu'une
@@ -744,7 +744,7 @@ pub enum RuntimeEvent {
         session_id: String,
     },
 
-    // ── HITL rejection (US-SP42-045) ─────────────
+    // ── HITL rejection ─────────────
     /// Le HITL a été rejeté par l'opérateur avec une raison obligatoire.
     ///
     /// Émis par le runtime après `PendingApprovals::resolve` côté refus ;
@@ -820,7 +820,7 @@ pub enum RuntimeEvent {
         detail: String,
     },
 
-    // ── A2A Skill telemetry (US-SP42-044) ─────────
+    // ── A2A Skill telemetry ─────────
     /// Un skill A2A vient d'être invoqué — émis avant la soumission effective.
     ///
     /// Destiné à l'agrégation télémétrique par skill et à l'alimentation de
@@ -988,7 +988,7 @@ pub enum RuntimeEvent {
         threshold_exceeded: bool,
     },
 
-    // ── Thinking / Reasoning transparency events (US-SP42-037) ───
+    // ── Thinking / Reasoning transparency events ───
     /// Émis au début de la phase Reasoner — l'agent commence à "réfléchir".
     ///
     /// Permet au frontend d'afficher un indicateur de thinking en streaming.
@@ -1021,7 +1021,7 @@ pub enum RuntimeEvent {
     /// Un appel LLM a échoué — émis par `complete_with_observability()` quand
     /// la requête au backend retourne une erreur (timeout, auth, quota, etc.).
     /// Porte une [`crate::error_analysis::ErrorAnalysis`] pour humaniser
-    /// l'erreur côté UI (US-SP42-039 Pattern P3).
+    /// l'erreur côté UI.
     LlmCallFailed {
         /// Nom logique du backend qui a échoué.
         backend: String,
@@ -1126,7 +1126,7 @@ pub enum RuntimeEvent {
         choice: crate::plan_alternatives::PlanChoice,
     },
 
-    // ── Decision branches (US-SP42-041 — Pattern P5) ─────────────────────
+    // ── Decision branches ─────────────────────
     /// Un point de décision significatif a été capturé avec ses alternatives.
     ///
     /// Émis après la phase thinking quand la routine méta
@@ -1159,7 +1159,7 @@ pub enum RuntimeEvent {
         preview: FilesystemPreview,
     },
 
-    // ── Session metrics (US-SP42-047 Pattern P11) ───
+    // ── Session metrics ───
     /// Agrégat des métriques de session mis à jour.
     ///
     /// Émis par `SessionMetricsActor` à chaque changement notable — nouvel appel LLM,

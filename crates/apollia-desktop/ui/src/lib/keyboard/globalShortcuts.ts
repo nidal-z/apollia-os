@@ -1,5 +1,5 @@
 /**
- * Global keyboard shortcuts for the command palette (US-SP42-078).
+ * Global keyboard shortcuts for the command palette.
  *
  * Mounts a single `window` keydown listener that understands the two
  * palette entry points:

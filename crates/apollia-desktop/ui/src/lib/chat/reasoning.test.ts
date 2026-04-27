@@ -1,5 +1,5 @@
 /**
- * Tests for the ReasoningItem normalizer (US-SP42-028).
+ * Tests for the ReasoningItem normalizer.
  *
  * Covers the 7 discriminated kinds + the tool-call → web_search/web_read
  * promotion path used by `ReasoningCard.svelte`.

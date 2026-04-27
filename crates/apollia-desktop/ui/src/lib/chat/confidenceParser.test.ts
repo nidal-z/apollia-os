@@ -7,7 +7,7 @@ import {
 } from "./confidenceParser";
 
 /**
- * Unit tests for the frontend confidence parser (US-SP42-046 — Pattern P10).
+ * Unit tests for the frontend confidence parser.
  * Mirrors the Rust test suite in `apollia-runtime::analyzers::confidence_parser`.
  */
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Next Steps panel (US-SP42-059) — renders up to 3 Meta-LLM-generated
+   * Next Steps panel — renders up to 3 Meta-LLM-generated
    * cards for either the operator Dashboard (`context="global_context"`)
    * or the end-of-session debrief (`context="session_end"`).
    *

@@ -226,9 +226,11 @@ Le LLM peut appeler `file_read` plusieurs fois (pour lire par tranches), `file_w
 result = await ctx.llm.run_tools(
     messages=[...],
     tools=[...],
-    max_iterations=8,   # si atteint → PyRuntimeError("MaxIterationsReached")
+    max_iterations=8,   # si atteint → PyRuntimeError
 )
 ```
+
+> ⚠️ Le message exact de la `PyRuntimeError` levée quand `max_iterations` est atteint peut varier selon la version du runtime. Ne testez pas la chaîne `"MaxIterationsReached"` directement — attrapez toutes les exceptions et inspectons `str(e)` si nécessaire.
 
 `max_iterations` limite le nombre d'aller-retours LLM ↔ outils. Pour un agent de résumé de fichier, 5–8 est généralement suffisant. Pour un agent qui peut explorer une arborescence complexe, 15–20 peut être nécessaire.
 

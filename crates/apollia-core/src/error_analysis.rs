@@ -1,4 +1,4 @@
-//! Structured error analysis for tool / LLM failures (US-SP42-039 — Pattern P3).
+//! Structured error analysis for tool / LLM failures.
 //!
 //! Lives in `apollia-core` so that [`crate::RuntimeEvent`] can carry an
 //! [`ErrorAnalysis`] without `apollia-runtime` exposing an unrelated type. The

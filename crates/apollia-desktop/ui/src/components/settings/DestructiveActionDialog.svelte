@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * 2-step confirmation dialog for destructive Settings actions
-   * (US-SP42-082). Step 1 is a classical alertdialog; Step 2 requires the
+   * Step 1 is a classical alertdialog; Step 2 requires the
    * user to type the exact `confirmWord` (RESET / DELETE / FACTORY) before
    * the Confirm button unlocks. Factory-reset-style callers can also set
    * `lockMs` to disable Confirm for N ms after the dialog mounts, a

@@ -321,10 +321,67 @@ pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<
         .map_err(|e| format!("failed to delete entry: {e}"))
 }
 
+/// Exporte la mémoire d'un namespace vers un fichier JSON.
+///
+/// `output_path` : chemin absolu du fichier de sortie.
+/// Retourne un message de confirmation avec les statistiques d'export.
+#[tauri::command]
+pub async fn memory_export_namespace(
+    namespace: String,
+    output_path: String,
+) -> Result<String, String> {
+    let base = memory_base_dir()?;
+
+    let out = std::path::PathBuf::from(&output_path);
+    let export = apollia_memory::export::export_namespace(&base, &namespace)
+        .map_err(|e| format!("export failed: {e}"))?;
+
+    let json_str =
+        serde_json::to_string_pretty(&export).map_err(|e| format!("serialize failed: {e}"))?;
+    std::fs::write(&out, &json_str).map_err(|e| format!("write failed: {e}"))?;
+
+    Ok(format!(
+        "Exported {} episodic, {} semantic, {} procedural entries to {}",
+        export.episodic.len(),
+        export.semantic.len(),
+        export.procedural.len(),
+        out.display(),
+    ))
+}
+
+/// Importe la mémoire depuis un fichier JSON vers un namespace.
+///
+/// `mode` peut être `"replace"` ou `"merge"` (défaut: `"merge"`).
+/// Retourne le nombre d'entrées importées.
+#[tauri::command]
+pub async fn memory_import_namespace(
+    namespace: String,
+    input_path: String,
+    mode: String,
+) -> Result<String, String> {
+    let base = memory_base_dir()?;
+
+    let content = std::fs::read_to_string(&input_path)
+        .map_err(|e| format!("read failed: {e}"))?;
+    let export: apollia_memory::export::MemoryExport =
+        serde_json::from_str(&content).map_err(|e| format!("parse failed: {e}"))?;
+
+    let import_mode = if mode == "replace" {
+        apollia_memory::export::ImportMode::Replace
+    } else {
+        apollia_memory::export::ImportMode::Merge
+    };
+
+    let count = apollia_memory::export::import_namespace(&base, &namespace, &export, import_mode)
+        .map_err(|e| format!("import failed: {e}"))?;
+
+    Ok(format!("{count} entries imported into namespace '{namespace}' (mode: {mode})"))
+}
+
 /// Returns the memory entries the agent injected into a specific turn.
 ///
-/// Backs the `<InjectedMemorySheet />` panel (Sprint 42 Pattern P7 —
-/// memory injection visibility). Reads from the process-local injection
+/// Backs the `<InjectedMemorySheet />` panel (memory injection visibility).
+/// Reads from the process-local injection
 /// tracker populated by the PyO3 `recall_entry()` / `recall_all()` wrappers.
 #[tauri::command]
 pub async fn get_injected_memory_entries(turn_id: String) -> Result<Vec<InjectedEntry>, String> {
@@ -335,6 +392,13 @@ pub async fn get_injected_memory_entries(turn_id: String) -> Result<Vec<Injected
 mod tests {
     use super::*;
     use apollia_memory::injection_tracker::{global_record, global_tracker_clear, InjectedEntry};
+    use std::sync::{Mutex, OnceLock};
+
+    // Serialises tests that mutate the global injection tracker to prevent races.
+    fn tracker_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn test_memory_entry_serializes() {
@@ -435,6 +499,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_injected_memory_entries_returns_tracked_entries() {
+        let _guard = tracker_lock().lock().unwrap();
         // GIVEN a turn with two injected entries recorded in the global tracker
         global_tracker_clear();
         let turn = "turn-p7-test";
@@ -483,6 +548,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_injected_memory_entries_unknown_turn_is_empty() {
+        let _guard = tracker_lock().lock().unwrap();
         // GIVEN a cleared tracker
         global_tracker_clear();
 

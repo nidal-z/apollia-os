@@ -1,5 +1,5 @@
 /**
- * User preferences for the template gallery (US-SP42-058).
+ * User preferences for the template gallery.
  *
  * Currently a single toggle: whether to surface community templates in the
  * gallery. The MVP ships with the infrastructure (URL/signature/trust level

@@ -1,5 +1,5 @@
 /**
- * Tests for memory-write transparency helpers (US-SP42-042).
+ * Tests for memory-write transparency helpers.
  *
  * `recordRejectedInsight` must move an entry from the pending store into
  * the rejected store together with an explicit reason and a timestamp,
@@ -24,7 +24,7 @@ const insight: InsightEntry = {
   extraction_reasoning: "Stable habit mentioned in first person.",
 };
 
-describe("recordRejectedInsight (US-SP42-042)", () => {
+describe("recordRejectedInsight", () => {
   beforeEach(() => {
     extractedInsights.set([insight]);
     rejectedInsights.set([]);

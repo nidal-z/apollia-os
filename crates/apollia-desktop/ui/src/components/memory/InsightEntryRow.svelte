@@ -2,7 +2,7 @@
   Single insight row with accept/edit/reject actions.
   Shared by InsightsFeedback (Sheet) and RecentExtractions (Memory page).
 
-  US-SP42-042 — exposes `source_quote` (collapsible) and
+  exposes `source_quote` (collapsible) and
   `extraction_reasoning` (info tooltip), and forces a rejection reason
   through an inline textarea before confirming the reject.
 -->

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Filter controls above the template grid (US-SP42-058).
+   * Filter controls above the template grid.
    *
    * Category / difficulty / source chips toggle individually; search is
    * full-text across title + description. All filters are two-way bound

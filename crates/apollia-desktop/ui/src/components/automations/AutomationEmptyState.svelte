@@ -2,8 +2,8 @@
   /**
    * Empty state for `/automations`.
    *
-   * Primary CTA wires the creation wizard (US-SP42-050).
-   * Secondary CTA browses the template gallery (US-SP42-058).
+   * Primary CTA wires the creation wizard.
+   * Secondary CTA browses the template gallery.
    */
   import { t } from "svelte-i18n";
   import { Sparkles } from "lucide-svelte";

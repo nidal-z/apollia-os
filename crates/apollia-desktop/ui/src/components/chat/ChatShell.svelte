@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * 3-column chat shell (US-SP42-022).
+   * 3-column chat shell.
    *
    * Slots:
    *   - `sessions`: list of chat sessions (rail @ md+, drawer overlay @ sm)
@@ -78,7 +78,7 @@
 
 <div class="flex h-full min-h-0 w-full" data-testid="chat-shell">
   <!-- Sessions rail — inline @ md+ (sticky @ md, full column @ lg+).
-       Collapsed via Cmd+B (US-SP42-033) on `lg` only — collapsing on
+       Collapsed via Cmd+B on `lg` only — collapsing on
        narrower viewports is meaningless because the rail is sticky/drawer. -->
   {#if $sessionsPaneMode !== "drawer" && !($sessionsPaneMode === "column" && $sessionsSidebarCollapsed)}
     <aside

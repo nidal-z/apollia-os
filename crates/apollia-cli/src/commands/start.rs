@@ -799,7 +799,11 @@ fn socket_is_in_use(path: &std::path::Path) -> bool {
 /// Uses the Supervisor for ordered startup with timeout and rollback.
 /// Blocks until Ctrl+C, SIGTERM, or `POST /api/v1/shutdown` is received.
 /// Graceful shutdown drains in-progress tasks (30s default).
-pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), StartError> {
+///
+/// Returns `Ok(true)` when shutdown was triggered by SIGINT (Ctrl+C), so the
+/// caller can exit with code 5 to distinguish voluntary interruption from
+/// success (0) or error (1–4).
+pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
@@ -1055,15 +1059,17 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
 
     // Wait for shutdown signal (Ctrl+C, SIGTERM, or ShutdownRequested via API)
     let mut shutdown_rx = handles.event_sender.subscribe();
-    tokio::select! {
+    let interrupted = tokio::select! {
         signal = apollia_runtime::shutdown::wait_for_shutdown_signal() => {
             println!();
             println!("  {signal} received, draining tasks...");
+            signal == "SIGINT"
         }
         _ = wait_for_shutdown_event(&mut shutdown_rx) => {
             println!("  Shutdown requested via API, draining tasks...");
+            false
         }
-    }
+    };
 
     // Graceful shutdown via ShutdownController (drain + ordered teardown)
     let tool_registry_handle = handles.tool_registry_handle;
@@ -1090,7 +1096,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    Ok(())
+    Ok(interrupted)
 }
 
 /// Wait until a `RuntimeEvent::ShutdownRequested` event is received on the bus.

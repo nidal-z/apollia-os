@@ -143,6 +143,7 @@ fn supervisor_config(
         agent_repository: repo,
         bundled_agents_path,
         pipelines_config: apollia_core::PipelinesConfig::default(),
+        package_repository: None,
     }
 }
 

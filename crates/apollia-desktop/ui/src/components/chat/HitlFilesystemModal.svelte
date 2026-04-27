@@ -1,14 +1,14 @@
 <script lang="ts">
   /**
-   * Filesystem HITL modal — refonte US-SP42-032.
+   * Filesystem HITL modal — refonte.
    *
-   * Findings addressed:
-   *   - B.16.a : progress bar timeout (via ApprovalTimer)
-   *   - B.16.b : toast on auto-deny so the operator sees why the action failed
-   *   - B.16.c : convention "close = deny" conservée, documentée dans DS
-   *   - B.16.d : i18n du mot CONFIRM via `hitl.fs.critical_confirm_word`
-   *   - B.16.f : autofocus sur Deny (destructif par défaut) + trap via Dialog
-   *   - B.51   : scope "always allow" exposé via ApprovalScopeSelect
+   * Behaviour:
+   *   - progress bar timeout (via ApprovalTimer)
+   *   - toast on auto-deny so the operator sees why the action failed
+   *   - convention "close = deny" conservée, documentée dans DS
+   *   - i18n du mot CONFIRM via `hitl.fs.critical_confirm_word`
+   *   - autofocus sur Deny (destructif par défaut) + trap via Dialog
+   *   - scope "always allow" exposé via ApprovalScopeSelect
    *
    * The heavy lifting of the decision is still `respond_hitl_filesystem`
    * on the Rust side ; only the UI shell changes.
@@ -85,7 +85,7 @@
     (pending?.level as ApprovalRiskLevel | undefined) ?? "medium",
   );
 
-  /** i18n-aware CONFIRM comparison (B.16.d). Falls back to literal "CONFIRM". */
+  /** i18n-aware CONFIRM comparison. Falls back to literal "CONFIRM". */
   const confirmWord = $derived(
     ($t("hitl.fs.critical_confirm_word") as string | undefined) ?? "CONFIRM",
   );
@@ -142,7 +142,7 @@
     showRejectReason = false;
     showScope = false;
     startedAt = Date.now();
-    // B.16.f — autofocus Deny (destructive default) once the dialog renders.
+    // autofocus Deny (destructive default) once the dialog renders.
     await tick();
     document
       .querySelector<HTMLButtonElement>("[data-testid='hitl-fs-deny']")
@@ -162,7 +162,7 @@
 
   function handleAutoDeny(): void {
     if (!pending || processing) return;
-    // B.16.b — surface the auto-deny so the operator notices the timeout
+    // surface the auto-deny so the operator notices the timeout
     addToast($t("hitl.fs.auto_denied"), "urgent");
     void sendDecision("deny", null);
   }
@@ -236,7 +236,7 @@
       {/if}
     </div>
 
-    <!-- Timer + progress bar (B.16.a) -->
+    <!-- Timer + progress bar -->
     <div class="mb-3">
       <ApprovalTimer
         startedAt={startedAt}

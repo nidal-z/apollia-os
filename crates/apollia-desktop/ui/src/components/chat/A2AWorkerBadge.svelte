@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * US-SP42-029 — Prominent A2A badge.
+   * Prominent A2A badge.
    *
    * Surfaces the pool of active worker agents that the current conversation can
    * delegate to. Click opens a popover listing each worker with its live status

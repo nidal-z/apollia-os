@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcut registry (US-SP42-082).
+ * Keyboard shortcut registry.
  *
  * The canonical list of user-facing shortcuts shown on the
  * `/settings/shortcuts` page and surfaced in the Command Palette.

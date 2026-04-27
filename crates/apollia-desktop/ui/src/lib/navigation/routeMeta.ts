@@ -1,6 +1,6 @@
 /**
  * Metadata for each top-level route — used by the Topbar breadcrumbs
- * (US-SP42-077) and back/forward tooltips.
+ * and back/forward tooltips.
  *
  * - `labelKey`   : i18n key rendered in the breadcrumb segment.
  * - `parent`     : parent route (null for roots). Walked recursively to

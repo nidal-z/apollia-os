@@ -1,5 +1,4 @@
-//! Tauri IPC command — daily digest narration for the operator Dashboard
-//! (US-SP42-056, finding A.5.4/A.8.2).
+//! Tauri IPC command — daily digest narration for the operator Dashboard.
 //!
 //! Generates a 2-4 sentence narration summarising the user's last N hours of
 //! activity ("Aujourd'hui chez Apollia"). Facts are computed frontend-side
@@ -8,7 +7,7 @@
 //! `(user_id, user_date)`.
 //!
 //! Today the narration is a deterministic template. When the Meta-LLM
-//! `GenerateDailyDigest` routine (US-SP42-057) lands the same
+//! `GenerateDailyDigest` routine lands the same
 //! `DailyDigest { narration, source_facts }` shape will be produced by a
 //! Haiku 4.5 prompt with output cap ≤ 200 tokens — so the frontend will not
 //! need to change. `from_llm` exposes which path produced the current digest.
@@ -82,7 +81,7 @@ pub struct DailyDigest {
     pub generated_at: String,
     /// `true` when the digest was served from cache (no regeneration).
     pub cached: bool,
-    /// `true` when the narration came from the Meta-LLM path (US-SP42-057).
+    /// `true` when the narration came from the Meta-LLM path.
     /// Currently always `false` — placeholder for the upcoming LLM wiring.
     pub from_llm: bool,
 }

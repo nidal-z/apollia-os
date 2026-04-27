@@ -131,11 +131,11 @@ pub struct Reasoner {
     model: Arc<dyn CompletionModel>,
     max_steps: u32,
     /// Optional EventBus pour émettre `ThinkingStarted` / `ThinkingEnded` autour
-    /// de la phase Reasoner (US-SP42-037). Injecté via [`Reasoner::with_event_bus`].
+    /// de la phase Reasoner. Injecté via [`Reasoner::with_event_bus`].
     event_bus: Option<EventBusSender>,
     /// Optional handle vers le `MetaLlmOrchestrator` — utilisé pour extraire
     /// les branches alternatives de la trace de thinking et émettre un
-    /// `DecisionPointRecorded` (US-SP42-041, Pattern P5). Opt-in via le
+    /// `DecisionPointRecorded`. Opt-in via le
     /// toggle `routines.decision_branches`.
     meta_orchestrator: Option<MetaOrchestratorHandle>,
 }
@@ -155,7 +155,7 @@ impl Reasoner {
     }
 
     /// Attache un `EventBusSender` pour émettre les événements de transparence
-    /// `ThinkingStarted` / `ThinkingEnded` (US-SP42-037).
+    /// `ThinkingStarted` / `ThinkingEnded`.
     #[must_use]
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
         self.event_bus = Some(bus);
@@ -163,7 +163,7 @@ impl Reasoner {
     }
 
     /// Attache un `MetaOrchestratorHandle` pour activer l'extraction des
-    /// branches alternatives du thinking (US-SP42-041). Opt-in : la routine
+    /// branches alternatives du thinking. Opt-in : la routine
     /// `GenerateAlternativeBranches` doit être activée dans `MetaLlmSettings`
     /// (par défaut off). Sans ce handle, aucun `DecisionPointRecorded` n'est émis.
     #[must_use]
@@ -996,7 +996,7 @@ mod tests {
         );
     }
 
-    // ─── US-SP42-037 — ThinkingStarted / ThinkingEnded emission ───
+    // ─── ThinkingStarted / ThinkingEnded emission ───
 
     /// GIVEN un Reasoner branché sur un EventBus et un mock qui retourne un plan valide
     /// WHEN reasoner.plan(&ctx).await est appelé

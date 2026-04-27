@@ -1,5 +1,5 @@
 /**
- * Apollia Guide — action button helpers (US-SP42-057).
+ * Apollia Guide — action button helpers.
  *
  * The meta-chat coach (backend `apollia_coach_invoke`) returns structured
  * `action_buttons` alongside its narrative text. The frontend renders them

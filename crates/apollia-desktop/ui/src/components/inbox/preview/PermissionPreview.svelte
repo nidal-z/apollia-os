@@ -1,6 +1,6 @@
 <script lang="ts" module>
   /**
-   * Lazy-loaded permission preview dispatcher (US-SP42-054).
+   * Lazy-loaded permission preview dispatcher.
    *
    * The preview is not calculated until the operator clicks "Load
    * preview" — this avoids paying the dry-run cost for every item they

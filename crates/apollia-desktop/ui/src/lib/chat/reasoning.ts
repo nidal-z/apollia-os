@@ -1,5 +1,5 @@
 /**
- * Unified reasoning item model (US-SP42-028).
+ * Unified reasoning item model.
  *
  * `ReasoningItem` is a discriminated union describing a single step of the
  * assistant's reasoning trace: a tool call, a web search/read, a thinking or
@@ -54,7 +54,7 @@ export type ReasoningItem =
       duration_ms?: number | null;
       exit_code?: number | null;
       rationale?: ToolCallRationale | null;
-      /** Structured retry chain (US-SP42-040). Empty on first-try success. */
+      /** Structured retry chain. Empty on first-try success. */
       retry_attempts?: StructuredRetryAttempt[];
     })
   | (ReasoningItemBase & {
@@ -240,7 +240,7 @@ export function buildReasoningSequence(
   return items;
 }
 
-/** Hard threshold above which the full item list collapses by default (B.10, B.33). */
+/** Hard threshold above which the full item list collapses by default. */
 export const COLLAPSE_ITEM_THRESHOLD = 10;
 
 /** Line threshold above which JSON previews are truncated with a "show all". */

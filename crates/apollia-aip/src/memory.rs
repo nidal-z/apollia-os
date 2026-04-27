@@ -62,7 +62,7 @@ pub struct MemoryInterface {
     user_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Current turn id — set by the runtime before each agent turn so that
     /// `recall_entry()` / `recall_all()` can record their results into the
-    /// global injection tracker (Sprint 42 Pattern P7).
+    /// global injection tracker.
     ///
     /// `None` outside of a turn (e.g. during bootstrap) — injections are then
     /// not tracked.
@@ -373,6 +373,43 @@ impl MemoryInterface {
         })
     }
 
+    /// Enregistre une procédure dans la mémoire procédurale du namespace.
+    ///
+    /// trigger: déclencheur exact (match exact pour le rappel)
+    /// steps: liste d'étapes ordonnées
+    /// Retourne l'UUID de la procédure enregistrée.
+    /// Lève `ValueError` si `steps` est vide.
+    fn learn_procedure<'py>(
+        &self,
+        py: Python<'py>,
+        trigger: String,
+        steps: Vec<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if steps.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "steps must not be empty",
+            ));
+        }
+
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = tokio::task::spawn_blocking(move || {
+                learn_procedure_inner(&manager, &namespace, &trigger, &steps)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            match result {
+                Ok(id) => Ok(Python::with_gil(|py| {
+                    id.into_pyobject(py).unwrap().into_any().unbind()
+                })),
+                Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+            }
+        })
+    }
+
     /// Removes a key/value pair from semantic memory.
     fn forget<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
@@ -437,7 +474,7 @@ impl MemoryInterface {
 }
 
 // ---------------------------------------------------------------------------
-// Injection tracking helpers (Sprint 42 — Pattern P7)
+// Injection tracking helpers
 // ---------------------------------------------------------------------------
 
 /// Extracts `id`, textual `value`/`content`, and relevance fields from a
@@ -780,6 +817,25 @@ fn recall_procedure_inner(
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
     Ok(entry.into_iter().map(procedure_entry_to_json).collect())
+}
+
+/// Enregistre ou met à jour une procédure dans la mémoire procédurale.
+fn learn_procedure_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+    trigger: &str,
+    steps: &[String],
+) -> Result<String, MemoryInterfaceError> {
+    let mut mgr = lock(manager)?;
+    check_write_access(&mgr, namespace)?;
+
+    let store = mgr
+        .store(namespace)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    let proc = ProceduralMemory::new(store);
+    proc.learn(namespace, trigger, steps)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
 /// Converts a [`ProcedureEntry`] to the dict shape exposed to Python.
@@ -1452,6 +1508,21 @@ mod trust_model_tests {
         MemoryManager::new(dir.path(), Some(namespace.to_string()), vec![])
     }
 
+    /// Builds a MemoryInterface for the given namespace (used by procedure tests).
+    fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
+        let dir = TempDir::new().expect("create temp dir");
+        let manager = make_manager(&dir, namespace);
+        let iface = MemoryInterface::new(
+            manager,
+            namespace.to_string(),
+            "test-agent".to_string(),
+            false,
+            None,
+        )
+        .expect("should create interface");
+        (iface, dir)
+    }
+
     /// Stores a key directly in the given manager/namespace using recall_inner helpers.
     fn seed_memory(mgr_arc: &Arc<Mutex<MemoryManager>>, namespace: &str, key: &str, value: &str) {
         remember_inner(mgr_arc, namespace, key, value, None, None).expect("seed memory");
@@ -1632,5 +1703,54 @@ mod trust_model_tests {
 
         // THEN None (graceful — no panic)
         assert_eq!(result.expect("recall"), None);
+    }
+
+    // FC23 — learn_procedure_inner stores a procedure retrievable by recall_procedure_inner
+    #[test]
+    fn test_learn_procedure_round_trip() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-learn");
+
+        // WHEN we learn a procedure
+        let id = learn_procedure_inner(
+            &iface.manager,
+            "agent-learn",
+            "analyse rapport financier",
+            &[
+                "Ouvrir le PDF".to_string(),
+                "Extraire le CA".to_string(),
+                "Calculer la marge".to_string(),
+            ],
+        );
+        assert!(id.is_ok());
+
+        // THEN recall_procedure_inner returns the procedure
+        let results = recall_procedure_inner(
+            &iface.manager,
+            "agent-learn",
+            "analyse rapport financier",
+        );
+        let items = results.expect("recall");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["trigger"], "analyse rapport financier");
+        assert_eq!(items[0]["steps"][0], "Ouvrir le PDF");
+    }
+
+    // FC23 — learn_procedure_inner with empty steps returns error
+    #[test]
+    fn test_learn_procedure_empty_steps_error() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-learn-err");
+
+        // WHEN we learn with empty steps (would be caught by PyO3 layer, but test the Rust layer too)
+        // The ProceduralMemory::learn returns EmptySteps error
+        let result = learn_procedure_inner(
+            &iface.manager,
+            "agent-learn-err",
+            "trigger",
+            &[],
+        );
+        // THEN error
+        assert!(result.is_err());
     }
 }

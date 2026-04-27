@@ -1,4 +1,4 @@
-//! Tauri IPC command — Meta-LLM `GenerateNextSteps` routine (US-SP42-059).
+//! Tauri IPC command — Meta-LLM `GenerateNextSteps` routine.
 //!
 //! Produces up to 3 actionable "next steps" cards for:
 //!   - the operator Dashboard (`context = global_context`),

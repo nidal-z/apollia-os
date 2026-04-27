@@ -1,5 +1,5 @@
 /**
- * Tiny fuzzy subsequence scorer (US-SP42-017).
+ * Tiny fuzzy subsequence scorer.
  *
  * Returns a score in [0, 1] for how well `query` matches `text`, or
  * `null` if the query characters do not appear as a subsequence of

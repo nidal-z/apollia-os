@@ -81,7 +81,7 @@ export const lastAgentMessage = writable<AgentMessage | null>(null);
 export const extractedInsights = writable<InsightEntry[]>([]);
 
 /**
- * Rejected insights kept in-memory for audit (US-SP42-042). Populated when the
+ * Rejected insights kept in-memory for audit. Populated when the
  * user rejects an insight with a reason; surfaced in the "Rejected" tab of
  * InsightsFeedback so the rationale remains visible.
  */
@@ -369,7 +369,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
         const p = inner ?? (event.payload as Record<string, unknown>);
         if (p.session_id) {
           clearGlobalBuffer(String(p.session_id));
-          // US-SP42-030 — refresh SessionMetrics (throttled inside store).
+          // refresh SessionMetrics (throttled inside store).
           void import("./chatMetrics").then((m) =>
             m.refreshSessionMetrics(String(p.session_id)),
           );

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Humanized banner for backend permission errors (US-SP42-054, E.36).
+   * Humanized banner for backend permission errors (E.36).
    *
    * Uses the offline pattern mapper; when the error doesn't match any
    * known pattern, the raw message is shown inside a generic

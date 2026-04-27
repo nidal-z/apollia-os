@@ -663,7 +663,7 @@ impl LlmRouter {
     }
 
     /// Invoque le backend primaire puis, en cas d'échec non récupérable,
-    /// bascule sur le premier backend secondaire disponible (US-SP42-040).
+    /// bascule sur le premier backend secondaire disponible.
     ///
     /// Émet [`RuntimeEvent::LlmFallbackTriggered`] sur le bus à chaque bascule
     /// réussie. Le basculement est silencieux du point de vue fonctionnel —
@@ -1763,7 +1763,7 @@ mod tests {
         );
     }
 
-    // US-SP42-040 — primary fails, secondary succeeds, LlmFallbackTriggered emitted
+    // primary fails, secondary succeeds, LlmFallbackTriggered emitted
     #[tokio::test]
     async fn router_emits_fallback_event_on_primary_failure() {
         use apollia_core::events::RuntimeEvent;
@@ -1843,7 +1843,10 @@ mod tests {
                 saw_fallback = true;
             }
         }
-        assert!(saw_fallback, "LlmFallbackTriggered should have been emitted");
+        assert!(
+            saw_fallback,
+            "LlmFallbackTriggered should have been emitted"
+        );
     }
 
     // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-opus-4-6" }

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * US-SP42-029 — Two-level chat header.
+   * Two-level chat header.
    *
    * Top row: agent avatar, editable title, live status badge, A2A worker badge,
    * primary actions + overflow menu, close button.

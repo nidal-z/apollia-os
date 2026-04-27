@@ -1,5 +1,5 @@
 <!--
-  Keyboard hints line shown under the chat input (US-SP42-026, B.4).
+  Keyboard hints line shown under the chat input (B.4).
 
   Slim, low-contrast row: Enter to send · Shift+Enter for newline · / for
   commands. Visually recedes until the input is focused.

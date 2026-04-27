@@ -1,5 +1,5 @@
 /**
- * Thinking transparency store (US-SP42-037).
+ * Thinking transparency store.
  *
  * Holds one `ThinkingState` per `turn_id` so chat views can render the
  * `ThinkingPanel` and `ContradictionBadge` components as events stream in

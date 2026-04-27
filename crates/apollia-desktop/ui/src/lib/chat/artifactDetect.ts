@@ -1,5 +1,5 @@
 /**
- * Artifact detection heuristics (US-SP42-031).
+ * Artifact detection heuristics.
  *
  * v1: runs over the message list of a session. Any tool-role message whose
  * content is long enough or originates from an artifact-shaped tool becomes

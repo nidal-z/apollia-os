@@ -125,11 +125,7 @@ impl DownloadManager {
     ///
     /// Retourne le `DownloadId` immédiatement.
     /// La progression est reportée via `on_progress` à chaque chunk reçu.
-    pub fn start(
-        &self,
-        request: DownloadRequest,
-        on_progress: ProgressCallback,
-    ) -> DownloadId {
+    pub fn start(&self, request: DownloadRequest, on_progress: ProgressCallback) -> DownloadId {
         let id = Uuid::new_v4().to_string();
         let cancel = CancellationToken::new();
 
@@ -143,7 +139,14 @@ impl DownloadManager {
         let task_id = id.clone();
 
         tokio::spawn(async move {
-            let result = run_download(client, request, task_id.clone(), cancel, on_progress.clone()).await;
+            let result = run_download(
+                client,
+                request,
+                task_id.clone(),
+                cancel,
+                on_progress.clone(),
+            )
+            .await;
 
             // Clean up active map
             {

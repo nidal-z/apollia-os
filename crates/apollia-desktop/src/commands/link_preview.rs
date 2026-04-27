@@ -1,6 +1,6 @@
 //! `link_preview` Tauri command — fetches Open Graph metadata for a URL.
 //!
-//! Rationale (US-SP42-035, B.46):
+//! Rationale:
 //!   - Fetching from the frontend would hit CORS on most servers.
 //!   - Running the fetch in Rust keeps the outbound traffic auditable and
 //!     respects Apollia principle 1 (local-first).

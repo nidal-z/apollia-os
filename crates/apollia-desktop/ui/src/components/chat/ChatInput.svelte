@@ -1,14 +1,14 @@
 <!--
-  Enriched chat input (US-SP42-026).
+  Enriched chat input.
 
   Responsibilities:
   - Multi-line textarea with auto-resize (1 → 12 lines, scroll beyond).
   - Keyboard: Enter = send, Shift+Enter = newline, Cmd/Ctrl+Enter = force send.
   - Slash-command autocomplete (`/clear`, `/export`, `/rename`, `/memory`, `/tools`).
   - Attachments: paperclip button, drag & drop, preview chips above input.
-  - ↑ on empty input re-opens the last user message for editing (B.42).
-  - Client-side rate-limit (1 send / 500 ms, 30 / min) with soft feedback (B.67).
-  - Re-render isolation — parent passes props, input state stays local (B.66).
+  - ↑ on empty input re-opens the last user message for editing.
+  - Client-side rate-limit (1 send / 500 ms, 30 / min) with soft feedback.
+  - Re-render isolation — parent passes props, input state stays local.
 -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
@@ -37,7 +37,7 @@
     disabled: boolean;
     onsend: (content: string, attachments: PendingAttachment[]) => void;
     suggestions?: string[];
-    /** Last user message text — used by ↑ to pre-fill editing (B.42). */
+    /** Last user message text — used by ↑ to pre-fill editing. */
     lastUserMessage?: string | null;
     /** Invoked when the user picks a slash command. */
     oncommand?: (cmdId: SlashCommand["id"]) => void;
@@ -95,7 +95,7 @@
 
   const limiter = new ChatRateLimiter();
 
-  // US-SP42-035 (B.67): reactive rate-limit state so the Send button can be
+  // reactive rate-limit state so the Send button can be
   // pre-disabled and a visible countdown is shown until the cooldown elapses.
   let rateBlockedMs = $state<number>(0);
   let rateBlockedReason = $state<"too_fast" | "too_many" | null>(null);
@@ -277,7 +277,7 @@
       send();
       return;
     }
-    // ↑ on empty input → edit last user message (B.42).
+    // ↑ on empty input → edit last user message.
     if (
       event.key === "ArrowUp" &&
       value === "" &&

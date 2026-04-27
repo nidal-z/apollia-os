@@ -3,11 +3,11 @@
  *
  * Dérive `sidebarState` de la viewport via `window.matchMedia` :
  *   - ≥ `lg` (1024 px) → `expanded` ou `icon` selon la préférence utilisateur
- *   - `md`–`lg`       → `icon` forcé (auto-collapse, US-SP42-003 E.17)
+ * - `md`–`lg` → `icon` forcé (auto-collapse E.17)
  *   - < `md`          → `drawer` overlay (E.37)
  *
  * La préférence `expanded` / `collapsed` à `lg+` est persistée dans
- * `localStorage` sous la clé `apollia.ui.sidebar` (AC US-SP42-003).
+ * `localStorage` sous la clé `apollia.ui.sidebar` (AC).
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
 import { companionStore } from "./companion";
@@ -22,7 +22,7 @@ type Viewport = "sm" | "md" | "lg";
 
 // Legacy single-key storage — migrated on first load.
 const LEGACY_KEY = "apollia.ui.sidebar";
-// Per-breakpoint key prefix (US-SP42-081). Values : `open | collapsed | hidden`.
+// Per-breakpoint key prefix. Values : `open | collapsed | hidden`.
 const STATE_KEY_PREFIX = "apollia.ui.sidebarState_";
 // Breakpoints canoniques — voir `src/lib/design/breakpoints.md`.
 const MD_QUERY = "(min-width: 768px)";

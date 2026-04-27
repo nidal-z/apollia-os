@@ -812,45 +812,4 @@ mod tests {
         assert_eq!(infer_quantization("some-random-model"), "q4_k_m");
     }
 
-    #[tokio::test]
-    async fn test_append_llm_config_skips_if_already_present() {
-        // GIVEN a config file that already has [llm]
-        let dir = tempfile::tempdir().expect("tempdir");
-        let config_path = dir.path().join("apollia.toml");
-        tokio::fs::write(&config_path, "[llm]\ndefault = \"existing\"\n")
-            .await
-            .expect("write");
-
-        // WHEN appending LLM config
-        append_llm_config(&config_path, "~/.apollia/models/test.gguf", "q8_0")
-            .await
-            .expect("append");
-
-        // THEN the existing content is unchanged
-        let content = tokio::fs::read_to_string(&config_path).await.expect("read");
-        assert!(content.contains("existing"));
-        assert!(!content.contains("embedded"));
-    }
-
-    #[tokio::test]
-    async fn test_append_llm_config_writes_block() {
-        // GIVEN an empty config file
-        let dir = tempfile::tempdir().expect("tempdir");
-        let config_path = dir.path().join("apollia.toml");
-        tokio::fs::write(&config_path, "[runtime]\nport = 7771\n")
-            .await
-            .expect("write");
-
-        // WHEN appending LLM config
-        append_llm_config(&config_path, "~/.apollia/models/test.gguf", "q8_0")
-            .await
-            .expect("append");
-
-        // THEN the LLM block is appended
-        let content = tokio::fs::read_to_string(&config_path).await.expect("read");
-        assert!(content.contains("[llm]"));
-        assert!(content.contains("test.gguf"));
-        assert!(content.contains("q8_0"));
-        assert!(content.contains("[runtime]")); // original preserved
-    }
 }

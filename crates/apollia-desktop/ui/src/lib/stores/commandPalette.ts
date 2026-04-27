@@ -1,5 +1,5 @@
 /**
- * Command palette registry (US-SP42-017).
+ * Command palette registry.
  *
  * Components register actions into this store; `Command.svelte` consumes
  * the derived `$commands` list, filters it via fuzzy search, and executes

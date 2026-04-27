@@ -201,6 +201,7 @@ fn test_supervisor_config(
         agent_repository,
         bundled_agents_path: None,
         pipelines_config: apollia_core::PipelinesConfig::default(),
+        package_repository: None,
     }
 }
 

@@ -2,10 +2,10 @@
   /**
    * `OnboardingCoachWidget` — floating, draggable, dismissable coach widget
    * surfaced during onboarding. Backed by the `apollia_coach_invoke` IPC
-   * command (US-SP42-057) which routes through the user's configured LLM
+   * command which routes through the user's configured LLM
    * with a stage-aware `CoachContext`. Never spawns a separate model.
    *
-   * Story: US-SP42-055 + US-SP42-057.
+   * Story: +.
    */
   import { t } from 'svelte-i18n';
   import { invoke } from '@tauri-apps/api/core';

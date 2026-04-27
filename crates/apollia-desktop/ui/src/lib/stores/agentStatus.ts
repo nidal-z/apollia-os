@@ -1,5 +1,5 @@
 /**
- * Live agent status snapshot store (US-SP42-024).
+ * Live agent status snapshot store.
  *
  * Polls `agent_status_snapshot` at a light cadence so the QuickPicker can
  * render accurate `online / busy / offline / error` chips without reloading

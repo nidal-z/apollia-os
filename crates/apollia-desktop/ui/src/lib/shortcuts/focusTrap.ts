@@ -1,5 +1,5 @@
 /**
- * Focus trap action (US-SP42-033, finding B.29).
+ * Focus trap action.
  *
  * Apply with `use:focusTrap` on the root of any modal-like surface.
  * Cycles Tab/Shift+Tab between the first and last tabbable descendants

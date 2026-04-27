@@ -1,4 +1,4 @@
-//! SSRF guard duplicated from `apollia-tools::web_read::ssrf` (US-SP42-035).
+//! SSRF guard duplicated from `apollia-tools::web_read::ssrf`.
 //!
 //! We intentionally duplicate the helper (it is `pub(crate)` in apollia-tools)
 //! instead of widening the public surface of that crate.  Keep the two

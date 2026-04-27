@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Inline 1-click chat creation picker (US-SP42-024).
+   * Inline 1-click chat creation picker.
    *
    * Replaces the multi-step modal flow with an auto-focused textarea plus
    * clickable template and agent cards. Opens inline (no full-screen modal),
@@ -333,7 +333,7 @@
           {/each}
         </div>
       {:else}
-        <!-- Empty state (B.59) — extracted to EmptyAgentsState for reuse. -->
+        <!-- Empty state — extracted to EmptyAgentsState for reuse. -->
         <EmptyAgentsState />
       {/if}
     {/if}

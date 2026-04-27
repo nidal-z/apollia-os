@@ -1,5 +1,5 @@
 /**
- * Central chat keyboard shortcuts (US-SP42-033, finding B.29).
+ * Central chat keyboard shortcuts.
  *
  * One singleton listener replaces the ad-hoc `window.addEventListener`
  * calls scattered across components. Bindings are described declaratively

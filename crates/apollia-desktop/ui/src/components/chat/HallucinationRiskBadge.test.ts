@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import type { HallucinationRisk } from "$lib/types";
 
 /**
- * Unit tests for the `HallucinationRiskBadge` banding contract (US-SP42-048).
+ * Unit tests for the `HallucinationRiskBadge` banding contract.
  *
  * The Svelte rendering itself is exercised through the app; these tests lock
  * the score → band mapping so the visual contract stays in sync with

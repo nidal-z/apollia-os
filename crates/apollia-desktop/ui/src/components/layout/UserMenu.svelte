@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Topbar user menu (US-SP42-077). Avatar/initials trigger → dropdown
+   * Topbar user menu. Avatar/initials trigger → dropdown
    * with Settings, Keyboard shortcuts, Reset Onboarding, About, Quit.
    *
    * NOTE: there is no dedicated `DropdownMenu` primitive in the codebase
@@ -42,7 +42,7 @@
   }
 
   function showAbout() {
-    // Minimal about surface — a full dialog can land later (US-SP42-xxx).
+    // Minimal about surface — a full dialog can land later (-xxx).
     alert(`${$t('userMenu.about_title')}\n\nApollia OS`);
     close();
   }

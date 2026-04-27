@@ -1,4 +1,4 @@
-//! Static risk analyzer (US-SP42-045 — Pattern P9, always-on layer).
+//! Static risk analyzer (always-on layer).
 //!
 //! Maps an `action_type` (e.g. `"tool:bash"`, `"memory_write_bulk"`,
 //! `"a2a:external"`) to a structured [`RiskAnalysis`] with categories,

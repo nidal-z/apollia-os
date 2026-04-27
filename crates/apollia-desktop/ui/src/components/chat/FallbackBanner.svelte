@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Discreet banner announcing an LLM provider fallback (US-SP42-040).
+   * Discreet banner announcing an LLM provider fallback.
    *
    * Rendered in response to `LlmFallbackTriggered` events emitted by the
    * router. Designed to stay out of the way: single line, muted colors, no

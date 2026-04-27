@@ -1,4 +1,4 @@
-//! Tauri IPC commands for the Apollia Guide meta-chat (US-SP42-057).
+//! Tauri IPC commands for the Apollia Guide meta-chat.
 //!
 //! Two entry points exposed to the frontend:
 //!

@@ -1,6 +1,6 @@
 /**
  * Conversation export — formats a chat session as Markdown, JSON, or
- * Markdown-with-tools (US-SP42-026, B.43).
+ * Markdown-with-tools export.
  *
  * Pure functions, no Tauri/IPC coupling — the backend command
  * `export_conversation` reuses the same logic server-side, but the UI

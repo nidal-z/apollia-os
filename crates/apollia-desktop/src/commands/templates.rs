@@ -1,4 +1,4 @@
-//! Tauri IPC commands for the template gallery (US-SP42-058).
+//! Tauri IPC commands for the template gallery.
 //!
 //! The backend is intentionally thin: it reads `agents/templates/registry.toml`
 //! (and the per-template body files) and returns structured data. "Instantiating"

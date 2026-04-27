@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Compact impact / consequences panel (US-SP42-054, findings E.34, P9).
+   * Compact impact / consequences panel.
    *
    * Surfaces `estimated_impact`, `consequence_if_approved`, and
    * `consequence_if_refused` from the permission payload. When those

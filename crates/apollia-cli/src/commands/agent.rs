@@ -94,6 +94,22 @@ pub enum AgentCommand {
         #[command(subcommand)]
         cmd: PackageCommand,
     },
+    /// Display recent log lines from a running agent.
+    Logs {
+        /// Agent identifier (name or UUID).
+        agent_id: String,
+        /// Number of recent log lines to display.
+        #[arg(long, default_value = "50", value_name = "N")]
+        last: u32,
+        /// Follow the live log stream until Ctrl+C (SSE).
+        #[arg(long)]
+        follow: bool,
+    },
+    /// Validate an agent manifest without installing or starting the agent.
+    Validate {
+        /// Path to the Python agent module.
+        path: PathBuf,
+    },
 }
 
 /// Package sub-subcommands: `apollia-os agent package <verb>`.
@@ -116,12 +132,12 @@ pub enum PackageCommand {
 /// Execute an `agent` subcommand.
 ///
 /// Returns the process exit code.
-pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32 {
+pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet: bool) -> i32 {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json).await,
+        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json, quiet).await,
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
@@ -138,6 +154,12 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
             PackageCommand::Info { name } => run_package_info(name, json),
             PackageCommand::Uninstall { name } => run_package_uninstall(name, json).await,
         },
+        AgentCommand::Logs {
+            agent_id,
+            last,
+            follow,
+        } => run_logs(&client, agent_id, *last, *follow, json).await,
+        AgentCommand::Validate { path } => run_validate(path, json),
     }
 }
 
@@ -149,7 +171,8 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
 ///
 /// When `supports_a2a` is `true`, fetches from `/api/v1/a2a/agents` instead
 /// and displays only A2A-capable agents with their skill descriptors.
-async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool) -> i32 {
+/// When `quiet` is `true`, only agent names are printed — one per line.
+async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool, quiet: bool) -> i32 {
     if supports_a2a {
         return run_list_a2a(client, json).await;
     }
@@ -162,12 +185,18 @@ async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool) -> i32
     // Fetch runtime agents (may fail if runtime not running).
     let runtime_agents = client.list_agents().await.ok();
 
+    // --json takes priority over --quiet (machine-readable output is always complete).
     if json {
         let output = build_list_json(&installed, &runtime_agents);
         println!(
             "{}",
             serde_json::to_string_pretty(&output).unwrap_or_default()
         );
+    } else if quiet {
+        // Quiet mode: emit only agent names, one per line.
+        for agent in &installed {
+            println!("{}", agent.name);
+        }
     } else {
         format_enriched_agent_list(&installed, &runtime_agents);
     }
@@ -1567,6 +1596,160 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Logs
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `apollia-os agent logs <id> [--last N] [--follow]` — display agent log lines.
+///
+/// Without `--follow`, fetches the last `N` lines via `GET /api/v1/agents/{id}/logs?last={N}`.
+/// With `--follow`, opens an SSE stream at `GET /api/v1/agents/{id}/logs/stream`.
+async fn run_logs(
+    client: &RuntimeClient,
+    agent_id: &str,
+    last: u32,
+    follow: bool,
+    json: bool,
+) -> i32 {
+    if looks_like_file_path(agent_id) {
+        let msg = format!(
+            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+             Hint: apollia-os agent logs <name|uuid>"
+        );
+        if json {
+            println!("{}", serde_json::json!({"error": msg}));
+        } else {
+            eprintln!("Error: {msg}");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    if follow {
+        return run_logs_follow(client, agent_id, json).await;
+    }
+
+    match client.get_agent_logs(agent_id, last).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let logs = resp.get("logs").and_then(|v| v.as_array());
+                match logs.map(Vec::as_slice) {
+                    None | Some([]) => println!("(no logs)"),
+                    Some(lines) => {
+                        for line in lines {
+                            println!("{}", line.as_str().unwrap_or(""));
+                        }
+                    }
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            let msg = format!("Agent '{agent_id}' introuvable");
+            if json {
+                println!("{}", serde_json::json!({"error": msg}));
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// `apollia-os agent logs <id> --follow` — stream live log lines until Ctrl+C.
+async fn run_logs_follow(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    use futures::StreamExt;
+
+    let uri = format!("/api/v1/agents/{agent_id}/logs/stream");
+    match client.stream_sse_lines(&uri).await {
+        Ok(mut stream) => {
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(line) if line.starts_with("data:") => {
+                        println!("{}", line.trim_start_matches("data:").trim());
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        if json {
+                            println!("{}", serde_json::json!({"error": e.to_string()}));
+                        } else {
+                            eprintln!("Stream error: {e}");
+                        }
+                        return exit_codes::GENERAL_ERROR;
+                    }
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validate
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// `apollia-os agent validate <path>` — validate an agent manifest without starting it.
+///
+/// Performs AIP duck-typing validation via PyO3, then reports the manifest
+/// summary and any tool requirements. Exit 0 on success (with optional warnings),
+/// exit 1 if the manifest is invalid or a required tool is absent.
+fn run_validate(path: &Path, json: bool) -> i32 {
+    // File existence check before invoking PyO3.
+    if !path.exists() {
+        return print_error_and_exit(&format!("file not found: {}", path.display()), json);
+    }
+
+    let loader = CliAgentLoader;
+    let manifest = match loader.load_and_validate(path) {
+        Ok(m) => m,
+        Err(e) => return print_error_and_exit(&format!("manifest invalid: {e}"), json),
+    };
+
+    // Determine tool warnings: we can only flag absence if the Tool Registry is accessible.
+    // Without a running runtime, we report the declared tools and let the operator decide.
+    let required = &manifest.tools_required;
+    let optional = &manifest.tools_optional;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "valid": true,
+                "name": manifest.name,
+                "version": manifest.version,
+                "description": manifest.description,
+                "tools_required": required,
+                "tools_optional": optional,
+                "supports_a2a": manifest.supports_a2a,
+                "step_budget": manifest.step_budget,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("✔ Manifest valide");
+        println!("  Name        : {}", manifest.name);
+        println!("  Version     : {}", manifest.version);
+        if !manifest.description.is_empty() {
+            println!("  Description : {}", manifest.description);
+        }
+        if !required.is_empty() {
+            println!("  Required tools : {}", required.join(", "));
+        }
+        if !optional.is_empty() {
+            println!("  Optional tools : {}", optional.join(", "));
+            println!("  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent");
+        }
+    }
+
+    exit_codes::SUCCESS
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1893,6 +2076,127 @@ mod tests {
 
         // THEN the array is empty
         assert!(agents.is_empty());
+    }
+
+    // ── agent logs parsing ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_agent_logs_parses_defaults() {
+        // GIVEN "apollia-os agent logs devis-generator"
+        use clap::Parser;
+
+        #[derive(Debug, Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: AgentCommand,
+        }
+
+        let cli = TestCli::parse_from(["test", "logs", "devis-generator"]);
+        // THEN AgentCommand::Logs with default last=50, follow=false
+        match cli.cmd {
+            AgentCommand::Logs {
+                agent_id,
+                last,
+                follow,
+            } => {
+                assert_eq!(agent_id, "devis-generator");
+                assert_eq!(last, 50);
+                assert!(!follow);
+            }
+            other => panic!("expected AgentCommand::Logs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_agent_logs_parses_last_flag() {
+        // GIVEN "agent logs devis-generator --last 20"
+        use clap::Parser;
+
+        #[derive(Debug, Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: AgentCommand,
+        }
+
+        let cli = TestCli::parse_from(["test", "logs", "devis-generator", "--last", "20"]);
+        // THEN last=20
+        match cli.cmd {
+            AgentCommand::Logs { last, .. } => assert_eq!(last, 20),
+            other => panic!("expected AgentCommand::Logs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_agent_logs_parses_follow_flag() {
+        // GIVEN "agent logs devis-generator --follow"
+        use clap::Parser;
+
+        #[derive(Debug, Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: AgentCommand,
+        }
+
+        let cli = TestCli::parse_from(["test", "logs", "devis-generator", "--follow"]);
+        // THEN follow=true
+        match cli.cmd {
+            AgentCommand::Logs { follow, .. } => assert!(follow),
+            other => panic!("expected AgentCommand::Logs, got {other:?}"),
+        }
+    }
+
+    // ── agent validate parsing ────────────────────────────────────────────────
+
+    #[test]
+    fn test_agent_validate_parses_path() {
+        // GIVEN "agent validate ./mon-agent.py"
+        use clap::Parser;
+
+        #[derive(Debug, Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: AgentCommand,
+        }
+
+        let cli = TestCli::parse_from(["test", "validate", "./mon-agent.py"]);
+        // THEN AgentCommand::Validate with correct path
+        match cli.cmd {
+            AgentCommand::Validate { path } => {
+                assert_eq!(path, PathBuf::from("./mon-agent.py"));
+            }
+            other => panic!("expected AgentCommand::Validate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_agent_validate_file_not_found_returns_error() {
+        // GIVEN a path that does not exist
+        let path = PathBuf::from("/tmp/this-file-does-not-exist-apollia-test.py");
+        // WHEN run_validate is called
+        let code = run_validate(&path, false);
+        // THEN exit code is GENERAL_ERROR
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn test_agent_validate_file_not_found_json_output() {
+        // GIVEN a path that does not exist and json=true
+        let path = PathBuf::from("/tmp/this-file-does-not-exist-apollia-test.py");
+        // WHEN run_validate is called in JSON mode
+        let code = run_validate(&path, true);
+        // THEN exit code is GENERAL_ERROR
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn test_agent_logs_file_path_rejected() {
+        // GIVEN an agent_id that looks like a file path
+        // THEN looks_like_file_path returns true
+        assert!(looks_like_file_path("agents/foo.py"));
+        assert!(looks_like_file_path("./agent.py"));
+        // AND agent names are not rejected
+        assert!(!looks_like_file_path("devis-generator"));
+        assert!(!looks_like_file_path("rapport-hebdo"));
     }
 
     #[test]

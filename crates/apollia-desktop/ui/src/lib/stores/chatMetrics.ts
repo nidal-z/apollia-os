@@ -1,5 +1,5 @@
 /**
- * Per-session metrics store for US-SP42-030.
+ * Per-session metrics store for.
  *
  * Fetches aggregated metrics from the backend via the `chat_session_metrics`
  * Tauri command and refreshes when relevant chat runtime events fire. Updates

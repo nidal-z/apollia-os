@@ -1,4 +1,4 @@
-"""Confidence and citation markup helpers (US-SP42-046 — Pattern P10).
+"""Confidence and citation markup helpers.
 
 Agents emit assertions with explicit confidence levels and citations by
 wrapping spans of their output in ``[conf:<level>]...[/conf]`` markers and

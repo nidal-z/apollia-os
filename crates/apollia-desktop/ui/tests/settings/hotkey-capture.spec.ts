@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * US-SP42-075 — STT settings refonte + Hotkey capture modal.
+ * STT settings refonte + Hotkey capture modal.
  *
  * Covers the fullscreen hotkey-capture dialog: preview chips while keys are
  * pressed, timeout auto-cancel with a "Capture cancelled" toast, and the

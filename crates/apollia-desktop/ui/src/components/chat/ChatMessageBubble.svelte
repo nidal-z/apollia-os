@@ -93,7 +93,7 @@
   <div
     class="relative {widthClass} px-3.5 py-2.5 text-[13px] leading-relaxed {bubbleClass} {!isUser && message.content ? 'pr-10' : ''}"
   >
-    <!-- Copy button — floating, backdrop-blur, always reachable on touch (B.61). -->
+    <!-- Copy button — floating, backdrop-blur, always reachable on touch. -->
     {#if message.content && !isUser}
       <button
         onclick={handleCopy}

@@ -1,5 +1,5 @@
 /**
- * Builder-mode navigation (US-SP42-079).
+ * Builder-mode navigation.
  *
  * Extracted from the Sidebar inline definition so both modes share the
  * same `NavGroup` shape (see `operatorNav.ts`).

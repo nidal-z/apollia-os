@@ -1,5 +1,5 @@
 /**
- * Unified inbox item model (US-SP42-053, A.6.6).
+ * Unified inbox item model (A.6.6).
  *
  * Discriminated union covering every flavor of pending human action the
  * runtime can surface — HITL task approvals, chat tool approvals, always-
@@ -9,7 +9,7 @@ import type { PendingApproval, PendingChatApproval, PendingUserInputView } from 
 
 export type InboxItemKind = "task" | "tool" | "filesystem" | "bash" | "always_accept" | "ask_user";
 
-/** Optional risk payload (US-SP42-054 / Chantier 4 P9). */
+/** Optional risk payload. */
 export interface InboxRisk {
   level: "low" | "medium" | "high";
   summary: string;

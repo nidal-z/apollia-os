@@ -216,11 +216,11 @@ pub struct ToolCallRecord {
     pub output: Option<String>,
     /// Current status of the tool call.
     pub status: ToolCallStatus,
-    /// Meta-LLM narration of the call (US-SP42-038). Persisted so the UI
+    /// Meta-LLM narration of the call. Persisted so the UI
     /// can re-render rationale when reopening a past session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<apollia_core::ToolCallRationale>,
-    /// Retry chain captured for this invocation (US-SP42-040 — Pattern P4).
+    /// Retry chain captured for this invocation.
     /// Empty on first-try success; each element represents one attempt.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retry_attempts: Vec<apollia_core::RetryAttempt>,
@@ -321,7 +321,7 @@ pub struct ToolStatEntry {
 ///
 /// Accumulated by the [`ChatSessionManager`] on each `ExchangeComplete`.
 /// Backend-local: never persisted in SQLite — rebuilt from memory on restart
-/// (US-SP42-030 minimal slice; persistence is a future concern).
+/// (minimal slice; persistence is a future concern).
 ///
 /// `cost_usd` is `None` when the backend does not report pricing (e.g. local
 /// `EmbeddedBackend`).

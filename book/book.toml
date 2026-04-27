@@ -18,7 +18,7 @@ default-theme = "navy"
 preferred-dark-theme = "coal"
 additional-css = ["theme/apollia.css"]
 git-repository-url = "https://github.com/nidal-z/apollia-os"
-edit-url-template = "https://github.com/nidal-z/apollia-os/edit/main/docs/wiki/{path}"
+edit-url-template = "https://github.com/nidal-z/apollia-os/edit/main/book/src/{path}"
 
 [output.html.fold]
 enable = true

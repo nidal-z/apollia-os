@@ -52,22 +52,22 @@
     /** When true, hide the config button in the header. */
     hideConfig?: boolean;
     /**
-     * When provided (US-SP42-022), the Settings button toggles the shell's
+     * When provided, the Settings button toggles the shell's
      * ContextDrawer instead of opening the internal Sheet. The internal Sheet
      * is suppressed in this mode — the parent owns the config panel.
      */
     onconfigtoggle?: () => void;
     /**
-     * When provided (US-SP42-022 responsive), renders a hamburger button in
+     * When provided (responsive), renders a hamburger button in
      * the header that opens the shell's sessions overlay on small viewports.
      */
     onsessionsopen?: () => void;
     /**
-     * When true (US-SP42-022 B.22), collapses header actions into an overflow
+     * When true, collapses header actions into an overflow
      * menu on narrow viewports (<md).
      */
     collapseActions?: boolean;
-    /** Called when the user confirms deletion from the header menu (US-SP42-029). */
+    /** Called when the user confirms deletion from the header menu. */
     ondelete?: (sessionId: string) => void;
     /**
      * Called when the user triggers "new chat" from an error state
@@ -109,7 +109,7 @@
   );
   let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
   let userScrolledUp = $state(false);
-  /** US-SP42-029 B.8 — floating "jump to latest" button visibility + unread count. */
+  /** B.8 — floating "jump to latest" button visibility + unread count. */
   let showScrollToBottom = $state(false);
   let unreadWhileScrolled = $state(0);
   let tokenBuffer = $state("");
@@ -120,12 +120,12 @@
     injectedSheetOpen = true;
   }
   function handleInjectedEntrySelect(_entry: InjectedEntry) {
-    // InsightsPanel navigation wiring lands with US-SP42-044; until then,
+    // InsightsPanel navigation wiring lands with; until then,
     // opening the sheet + showing the entry is sufficient for P7.
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
 
-  /** US-SP42-029 B.27 — soft-close / archive confirmation modal. */
+  /** soft-close / archive confirmation modal. */
   let closeDialogOpen = $state(false);
   let closeDialogMode = $state<"close" | "archive">("close");
   let closeDialogLoading = $state(false);
@@ -150,14 +150,14 @@
     isProcessing || isStreaming || sessionStatus === "closed",
   );
 
-  // US-SP42-030 — summaryText / summarizedCount derivations removed; the
+  // summaryText / summarizedCount derivations removed; the
   // banner moved to ContextDrawer > Memory tab (MemoryInjectedPanel).
 
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
   );
 
-  // US-SP42-025 — group consecutive same-role messages within 5 minutes.
+  // group consecutive same-role messages within 5 minutes.
   // Memoised by reference: messages array is replaced (not mutated) on every
   // refresh, so $derived recomputes exactly when needed — no thrash during
   // streaming (tokenBuffer changes don't affect the committed messages array).
@@ -185,7 +185,7 @@
     { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
   >([]);
 
-  // Dedup tool-name entries in the live chain (B.52).  Keep the latest status
+  // Dedup tool-name entries in the live chain.  Keep the latest status
   // + cumulative duration, track invocation count so repeat calls surface
   // compactly as "tool_name · ×N".
   const groupedLiveToolChain = $derived.by(() => {
@@ -406,7 +406,7 @@
     );
   });
 
-  // Track new messages that land while the user is scrolled up (US-SP42-029 B.8).
+  // Track new messages that land while the user is scrolled up (B.8).
   let lastSeenMessageCount = $state(0);
   $effect(() => {
     const count = messages.length;
@@ -523,7 +523,7 @@
     });
   }
 
-  /** Scroll observer (US-SP42-029 B.8). Shows floating button when the user
+  /** Scroll observer (B.8). Shows floating button when the user
    *  scrolls more than ~200px above the bottom, resets unread counter on catch-up. */
   function handleScroll(): void {
     if (!messagesContainer) return;
@@ -588,7 +588,7 @@
     }
   }
 
-  // --- Slash-command plumbing (US-SP42-026) --------------------------------
+  // --- Slash-command plumbing --------------------------------
   const lastUserMessageText = $derived.by(() => {
     const msgs = messages ?? [];
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -669,7 +669,7 @@
         catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
         void refreshSession();
       } else {
-        // Archive is client-side (US-SP42-023 deviation — backend persistence pending).
+        // Archive is client-side (deviation — backend persistence pending).
         toggleArchived(sessionId);
       }
     } finally {
@@ -786,7 +786,7 @@
     }
   }
 
-  // ── Next Steps (US-SP42-059) ─────────────────────────────────────────
+  // ── Next Steps ─────────────────────────────────────────
   // Rendered only when the session is closed — acts as a debrief panel.
   const sessionEndScope = $derived(sessionScope(sessionId));
   const nextStepsFacts = $derived<NextStepsFacts>({
@@ -812,7 +812,7 @@
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
-  <!-- US-SP42-029 — Two-level header (hidden in embedded mode). -->
+  <!-- Two-level header (hidden in embedded mode). -->
   {#if !embedded}
     <ChatConversationHeader
       session={sessionDetail}
@@ -833,7 +833,7 @@
     />
   {/if}
 
-  <!-- Context indicator — US-SP42-030: removed from header (B.13). The pill
+  <!-- Context indicator: removed from header. The pill
        now lives in the Metrics tab of the ContextDrawer, and a mini variant
        is rendered below the input (see footer near ChatInput). -->
   {#if sessionId}
@@ -847,7 +847,7 @@
     onentryselect={handleInjectedEntrySelect}
   />
 
-  <!-- Agent disparu inline banner (US-SP42-034). Rendered above the
+  <!-- Agent disparu inline banner. Rendered above the
        messages so the transcript stays readable. -->
   {#if !loading && loadErrorKind === "none" && agentUnavailable && sessionAgentName}
     <AgentUnavailableBanner agentName={sessionAgentName} />
@@ -930,7 +930,7 @@
         </div>
       {:else}
         <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
-             (US-SP42-030) — no longer rendered inline in the message list. -->
+             — no longer rendered inline in the message list. -->
 
         {#each messageGroups as group (group.key)}
           {@const firstMsg = group.messages[0]}
@@ -958,7 +958,7 @@
 
         {#if isStreaming}
           <!-- Streaming bubble is isolated in its own component so only this
-               subtree re-renders per token (US-SP42-035 / B.66). The committed
+               subtree re-renders per token. The committed
                MessageGroup list above depends on the immutable `messages`
                array, so it does NOT re-render on each token. -->
           <StreamingMessage text={tokenBuffer} {sessionMode} />

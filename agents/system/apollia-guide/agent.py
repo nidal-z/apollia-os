@@ -1,4 +1,4 @@
-"""apollia-guide — Conversational product coach for Apollia OS (US-SP42-057).
+"""apollia-guide — Conversational product coach for Apollia OS.
 
 Dedicated meta-chat surface: knows every product capability, tutorials, and
 can suggest actionable deep-links rendered by the frontend as buttons.
@@ -195,7 +195,7 @@ def _strip_action_block(text: str) -> str:
 
 
 class ApolliaGuideAgent(ConversationalAgent):
-    """Apollia Guide — product coach agent (US-SP42-057).
+    """Apollia Guide — product coach agent.
 
     Always uses ``ctx.llm`` (the user's configured backend). Never spawns
     a second LLM, never bypasses the user's consent.

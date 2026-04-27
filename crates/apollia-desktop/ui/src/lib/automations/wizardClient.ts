@@ -1,6 +1,6 @@
 /**
  * Wizard client — thin wrapper around the `meta_parse_automation` Tauri IPC
- * (US-SP42-050).
+ *
  *
  * Keeps the backend contract (`ParsedAutomation`) localized and exposes a
  * `parseAutomationDescription()` function consumed by `AutomationWizard.svelte`.

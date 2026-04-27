@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * EmptyState — canonical empty-state surface (US-SP42-006).
+   * EmptyState — canonical empty-state surface.
    *
    * Narrative, engaging empty state: gradient illustration, display-sm title,
    * body description, primary + optional secondary CTA, optional trailing slot

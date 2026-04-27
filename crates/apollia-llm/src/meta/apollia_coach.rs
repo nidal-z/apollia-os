@@ -1,4 +1,4 @@
-//! `ApolliaCoach` — meta-chat routine for the product guide (US-SP42-057 / ADR-073).
+//! `ApolliaCoach` — meta-chat routine for the product guide (/ ADR-073).
 //!
 //! Always-on, local-first coach invoked by:
 //!   - the dedicated sidebar agent "Apollia Guide" (`/chat?agent=apollia-guide`)
@@ -409,7 +409,8 @@ mod tests {
 
     #[test]
     fn parse_rejects_unknown_action_kind() {
-        let raw = "```apollia-actions\n[{\"label\":\"Del\",\"action\":\"delete\",\"payload\":{}}]\n```";
+        let raw =
+            "```apollia-actions\n[{\"label\":\"Del\",\"action\":\"delete\",\"payload\":{}}]\n```";
         let buttons = parse_action_buttons(raw);
         assert!(buttons.is_empty(), "unknown action kinds must be dropped");
     }

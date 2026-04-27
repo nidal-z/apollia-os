@@ -65,7 +65,6 @@ Que se passe-t-il si le trigger se déclenche alors que l'agent est déjà occup
 |---|---|
 | `"queue"` | La tâche est soumise et mise en file d'attente — elle s'exécutera quand l'agent se libère |
 | `"drop"` | Le fire est ignoré, `TriggerSkipped` est émis, `skip_count` est incrémenté |
-| `"error"` | `TriggerError` est émis, `error_count` est incrémenté |
 
 `"queue"` est adapté aux workflows où chaque déclenchement doit être traité. `"drop"` est adapté aux vérifications périodiques où sauter une occurrence est acceptable.
 

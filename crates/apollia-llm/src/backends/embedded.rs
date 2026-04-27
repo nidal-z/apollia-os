@@ -1389,7 +1389,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────
-    // STORY-517 — custom split tests
+    // custom split tests
     // ─────────────────────────────────────────────
 
     fn cfg_custom(

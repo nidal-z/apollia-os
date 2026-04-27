@@ -26,7 +26,7 @@ const ONBOARDING_AGENT_TOML: &str =
 /// and the `[agent].version` in `manifest.toml`.
 const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
 
-/// Source code of the Apollia Guide agent (US-SP42-057).
+/// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
 
 /// Manifest metadata for the Apollia Guide agent.

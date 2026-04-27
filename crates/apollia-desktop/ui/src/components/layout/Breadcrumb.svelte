@@ -2,7 +2,7 @@
   /**
    * Topbar breadcrumb — derives the trail from `currentRoute` via
    * `routeMeta` and delegates rendering to the shared `Breadcrumbs`
-   * primitive (US-SP42-018).
+   * primitive.
    */
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo, type Route } from "$lib/stores/navigation";

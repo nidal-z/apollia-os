@@ -4,7 +4,7 @@ import type { AgentLiveStatus } from "$lib/stores/agentStatus";
 import { CHAT_TEMPLATES } from "$lib/templates/chatTemplates";
 
 /**
- * Unit tests for the QuickPicker pure logic (US-SP42-024).
+ * Unit tests for the QuickPicker pure logic.
  *
  * The Svelte component itself is exercised through the dev app; these
  * tests cover the data transforms and helper derivations so regressions

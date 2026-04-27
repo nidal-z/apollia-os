@@ -515,10 +515,7 @@ impl PyTokenStream {
         slf
     }
 
-    fn __anext__<'py>(
-        slf: PyRef<'py, Self>,
-        py: Python<'py>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn __anext__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let rx = Arc::clone(&slf.rx);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let mut guard = rx.lock().await;

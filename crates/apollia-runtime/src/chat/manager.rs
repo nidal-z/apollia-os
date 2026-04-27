@@ -224,7 +224,7 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<crate::a2a::SkillListing>>,
     },
-    /// Snapshot A2A skill telemetry — US-SP42-044.
+    /// Snapshot A2A skill telemetry.
     ListA2ASkillTelemetry {
         /// Response channel.
         reply: oneshot::Sender<Vec<crate::a2a::A2ASkillTelemetry>>,
@@ -381,7 +381,7 @@ struct ChatSessionManager {
             tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
         ),
     >,
-    /// Per-session aggregated metrics (US-SP42-030).
+    /// Per-session aggregated metrics.
     ///
     /// In-memory only — rebuilt from history on session resume. Not persisted.
     metrics: HashMap<SessionId, SessionMetrics>,
@@ -1251,7 +1251,7 @@ impl ChatSessionManager {
             "Chat exchange complete"
         );
 
-        // ── US-SP42-030 — accumulate session metrics ─────────────────────
+        // ── accumulate session metrics ─────────────────────
         let entry = self
             .metrics
             .entry(session_id.to_string())
@@ -2535,7 +2535,7 @@ impl ChatSessionManagerHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// List aggregated A2A skill telemetry (US-SP42-044).
+    /// List aggregated A2A skill telemetry.
     pub async fn list_a2a_skill_telemetry(&self) -> Vec<crate::a2a::A2ASkillTelemetry> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self

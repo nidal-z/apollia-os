@@ -152,7 +152,7 @@ pub async fn get_chat_session(
     Ok(session_detail_to_flat(detail))
 }
 
-/// Returns aggregated session metrics for the metrics panel (US-SP42-030).
+/// Returns aggregated session metrics for the metrics panel.
 ///
 /// The backend accumulates metrics in-memory on each exchange. Returns a
 /// zero-filled default when no exchange has yet completed so the UI can
@@ -582,7 +582,7 @@ pub async fn list_a2a_skills(state: State<'_, RuntimeHandle>) -> Result<Vec<A2AS
         .collect())
 }
 
-/// Aggregated A2A skill telemetry returned to the UI (US-SP42-044).
+/// Aggregated A2A skill telemetry returned to the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASkillTelemetryView {
     pub skill_name: String,

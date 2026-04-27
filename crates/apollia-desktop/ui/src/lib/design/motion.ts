@@ -1,5 +1,5 @@
 /**
- * Motion tokens — US-SP42-005.
+ * Motion tokens.
  *
  * Central presets for `svelte/motion` springs and for transition durations.
  * Durations mirror the `--motion-*` CSS custom properties declared in

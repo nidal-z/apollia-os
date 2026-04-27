@@ -1,4 +1,4 @@
-//! Structured HITL request payload (US-SP42-045 — Pattern P9).
+//! Structured HITL request payload.
 //!
 //! Shared in `apollia-core` so that the runtime, the desktop app, and any
 //! frontend payload can refer to the same [`HitlRequest`] contract without

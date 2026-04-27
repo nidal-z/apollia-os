@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * US-SP42-081 — Multi-viewport responsive smoke tests.
+ * Multi-viewport responsive smoke tests.
  *
  * Stubs Tauri IPC so the UI bundle boots self-contained. Covers the
  * behaviour-critical AC of the story:

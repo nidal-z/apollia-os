@@ -1,4 +1,4 @@
-//! Template gallery (US-SP42-058).
+//! Template gallery.
 //!
 //! Parses the on-disk template registry shipped under `agents/templates/`
 //! and exposes a typed list to the desktop layer. The registry is a

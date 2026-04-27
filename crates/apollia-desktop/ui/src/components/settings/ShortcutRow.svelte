@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * A single shortcut row (US-SP42-082): description + scope hint on the
+   * A single shortcut row : description + scope hint on the
    * left, keycap(s) on the right. Rendered inside `/settings/shortcuts`.
    */
   import { t } from "svelte-i18n";

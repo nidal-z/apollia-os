@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Chat shortcuts help dialog (US-SP42-033, B.29).
+   * Chat shortcuts help dialog.
    *
    * Lists every binding currently registered in `$shortcuts`, grouped
    * by `group`. Opened by `Cmd+/` from the central chat handler — the

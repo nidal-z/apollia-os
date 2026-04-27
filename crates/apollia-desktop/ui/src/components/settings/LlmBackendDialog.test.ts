@@ -1,5 +1,5 @@
 /**
- * Unit tests for the LLM backend dialog validator (US-SP42-076).
+ * Unit tests for the LLM backend dialog validator.
  *
  * Covers: required fields, URL format, provider-specific rules, JSON
  * validation, and the config_json shaping used by the Save handler.

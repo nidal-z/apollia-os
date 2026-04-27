@@ -1,5 +1,5 @@
 /**
- * Chat session templates (US-SP42-024).
+ * Chat session templates.
  *
  * Seeded, typed list of predefined prompts rendered as clickable cards in the
  * QuickPicker. A future community-templates sprint can extend this list via a

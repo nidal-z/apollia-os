@@ -445,7 +445,7 @@ pub async fn delete_user_memory_entry(
 /// Deletes every user memory entry across all categories.
 ///
 /// Returns the count of removed entries. Destructive — called from the
-/// Settings/Danger page (US-SP42-082).
+/// Settings/Danger page.
 #[tauri::command]
 pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
     let repo = get_repo(&state)?;

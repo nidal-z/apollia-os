@@ -1409,6 +1409,80 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    // ─── Agent Logs ───────────────────────────────────────────────────────────
+
+    /// Fetch recent log lines for an agent via `GET /api/v1/agents/{id}/logs?last={n}`.
+    ///
+    /// Returns a JSON value with a `"logs"` array of log line strings.
+    pub async fn get_agent_logs(
+        &self,
+        agent_id: &str,
+        last: u32,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/agents/{agent_id}/logs?last={last}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Resilience ───────────────────────────────────────────────────────────
+
+    /// List all circuit breakers via `GET /api/v1/resilience/status`.
+    ///
+    /// Returns `{ "circuit_breakers": [ { tool_name, state, failure_count,
+    /// cooldown_remaining_secs } ] }`.
+    pub async fn resilience_list(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/resilience/status").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Show the circuit breaker state for one tool via `GET /api/v1/resilience/status/{tool}`.
+    ///
+    /// Returns 404 if the tool is not registered in the Tool Registry.
+    pub async fn resilience_show(&self, tool_name: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/resilience/status/{tool_name}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Reset a circuit breaker to CLOSED via `POST /api/v1/resilience/reset/{tool}`.
+    ///
+    /// Returns 404 if the tool is not registered in the Tool Registry.
+    pub async fn resilience_reset(
+        &self,
+        tool_name: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/resilience/reset/{tool_name}"), None)
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Add a permission prefix rule via `POST /api/v1/permissions/prefix`.
     pub async fn add_permission_prefix_rule(
         &self,

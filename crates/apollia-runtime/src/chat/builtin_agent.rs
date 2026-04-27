@@ -677,7 +677,7 @@ pub struct BuiltInChatAgent {
     /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
     context_manager: ContextManager,
     /// Handle optionnel vers le `MetaLlmOrchestrator` — utilisé pour produire la
-    /// `ToolCallRationale` narrée avant chaque exécution d'outil (US-SP42-038).
+    /// `ToolCallRationale` narrée avant chaque exécution d'outil.
     /// Absent par défaut pour compatibilité descendante ; injecté par le manager
     /// lorsque le master-toggle "Explain tool calls" est actif.
     meta_handle: Option<MetaOrchestratorHandle>,
@@ -716,7 +716,7 @@ impl BuiltInChatAgent {
     }
 
     /// Attache un `MetaOrchestratorHandle` pour générer les `ToolCallRationale`
-    /// (US-SP42-038). Noop si `None`.
+    ///. Noop si `None`.
     pub fn with_meta_handle(mut self, handle: Option<MetaOrchestratorHandle>) -> Self {
         self.meta_handle = handle;
         self
@@ -1293,7 +1293,7 @@ impl BuiltInChatAgent {
         }
 
         // Success path: only flag if heuristic fires (no schema validators
-        // wired up yet — that comes with US-SP42-048 / per-tool registry).
+        // wired up yet — that comes with / per-tool registry).
         let report = detect_hallucination(output, None);
         if report.is_suspect() {
             Some(analysis_from_report(&report, output))
@@ -1355,7 +1355,7 @@ impl BuiltInChatAgent {
 
         let output_preview = truncate_preview(&output);
 
-        // ── US-SP42-039 Pattern P3 ─────────────────────────────────────
+        // ── Static analysis (always-on) ─────────────────────────────────────
         // Always-on : run the static error classifier (on failure) and the
         // hallucination heuristic (on every output). Opt-in: when the
         // analysis falls back to `Unknown`, ask the meta-LLM to humanise

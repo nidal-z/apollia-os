@@ -1,5 +1,5 @@
 /**
- * Markdown renderer for chat content (US-SP42-035).
+ * Markdown renderer for chat content.
  *
  * Code blocks are emitted as *hydration placeholders*: the first render
  * returns the escaped source text, and `hydrateCodeBlocks` (driven from

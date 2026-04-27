@@ -55,5 +55,5 @@ export function goForward() {
   currentRoute.set(next);
 }
 
-// Sidebar state is owned by `./layout.ts` since US-SP42-003 (breakpoint-derived
+// Sidebar state is owned by `./layout.ts` since (breakpoint-derived
 // three-way state `expanded | icon | drawer`, persisted under `apollia.ui.sidebar`).

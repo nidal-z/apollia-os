@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Coloured badge for a template category / difficulty / source chip
-   * (US-SP42-058).
+   *
    *
    * Keeps the palette centralised so the detail sheet and the card stay
    * visually consistent.

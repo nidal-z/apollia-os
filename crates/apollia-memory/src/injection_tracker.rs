@@ -1,6 +1,6 @@
 //! Injection tracker — tracks memory entries injected into agent turns.
 //!
-//! Supports Sprint 42 Pattern P7 (memory injection visibility). Each time an
+//! Supports memory injection visibility. Each time an
 //! agent calls `recall_entry()` / `recall_all()` and surfaces the result into a
 //! turn, the wrapper records an [`InjectedEntry`] under the corresponding
 //! `TurnId`. The desktop frontend reads the tracker via the Tauri command

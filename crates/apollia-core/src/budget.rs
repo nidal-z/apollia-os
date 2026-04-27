@@ -12,6 +12,8 @@ pub struct StepBudgetConfig {
     /// Nombre maximum d'appels d'outils au total sur la tâche. Défaut: 60.
     pub max_tool_calls: u32,
     /// Durée maximum wall-clock en secondes. Défaut: 600 (10 minutes).
+    /// L'alias `wall_clock_timeout_secs` est accepté pour compatibilité avec la doc.
+    #[serde(alias = "wall_clock_timeout_secs")]
     pub wall_clock_secs: u64,
 }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Headless command palette dialog (US-SP42-017).
+   * Headless command palette dialog.
    *
    * Bind `open`, feed `groups`, and handle `onexecute` for telemetry.
    * The caller owns registration; this component only filters + renders

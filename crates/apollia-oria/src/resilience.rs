@@ -78,17 +78,14 @@ impl CircuitBreaker {
         }
     }
 
-    /// Returns the current state of the circuit breaker.
     pub fn state(&self) -> &CircuitState {
         &self.state
     }
 
-    /// Returns the tool name this circuit breaker is associated with.
     pub fn tool_name(&self) -> &str {
         &self.tool_name
     }
 
-    /// Returns the current failure count.
     pub fn failure_count(&self) -> u32 {
         self.failure_count
     }
@@ -341,7 +338,7 @@ impl ResilienceLayer {
 
     /// Variant of [`execute`](Self::execute) that captures each attempt as a
     /// [`RetryAttempt`] and emits [`RuntimeEvent::ToolCallRetrying`] before
-    /// every new attempt (US-SP42-040 — Pattern P4).
+    /// every new attempt.
     ///
     /// Returns the final outcome together with the chain of attempts. The
     /// chain always ends with either [`AttemptOutcome::Success`] or
@@ -965,7 +962,7 @@ mod tests {
         assert_eq!(layer.get("t").unwrap().failure_count(), 0);
     }
 
-    // US-SP42-040 — fail twice then succeed, attempts captured with outcomes + event emitted
+    // fail twice then succeed, attempts captured with outcomes + event emitted
     #[tokio::test]
     async fn test_execute_with_observability_fail_twice_then_success() {
         use apollia_core::events::RuntimeEvent;

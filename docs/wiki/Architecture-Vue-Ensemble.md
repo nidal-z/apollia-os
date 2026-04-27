@@ -411,23 +411,20 @@ class DataPart:
 **AIPResult — ce que l'agent retourne au runtime :**
 
 ```python
-@dataclass
 class AIPResult:
-    task_id: str
-    status: TaskStatus               # completed | failed | input_required | canceled
-    output: list[AIPPart] = field(default_factory=list)
-    error: AIPError | None = None
-    input_request: InputRequest | None = None  # si input_required
-    artifacts: list[AIPArtifact] = field(default_factory=list)
-    metadata: ExecutionMetadata | None = None
+    """Classe utilitaire — factory methods retournant des dicts Python purs."""
 
-    # Constructeurs de convenance
-    @classmethod
-    def completed(cls, text: str, task_id: str = "") -> "AIPResult": ...
+    @staticmethod
+    def completed(text: str, task_id: str = "") -> dict: ...
 
-    @classmethod
-    def failed(cls, code: str, message: str, task_id: str = "") -> "AIPResult": ...
+    @staticmethod
+    def failed(code: str, message: str, details: str = "", task_id: str = "") -> dict: ...
+
+    @staticmethod
+    def input_required(prompt: str, context: dict | None = None) -> dict: ...
 ```
+
+> Le pont Rust désérialise le dict retourné par `run()` directement en `apollia_core::AIPResult`. `AIPResult` n'est pas un dataclass avec instances — c'est une classe utilitaire avec 3 static methods. Il n'y a pas de hiérarchie d'héritage.
 
 #### Composant 4 : RuntimeContext — services injectés
 

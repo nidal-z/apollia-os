@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Unified reasoning item renderer (US-SP42-028).
+   * Unified reasoning item renderer.
    *
    * Replaces `ToolCallCard`, `BuilderToolCard`, `OperatorToolCard`,
    * `WebSearchResultsCard`, `WebReadCard`, `ReasoningTraceCard`, and
@@ -97,7 +97,7 @@
     }
   }
 
-  // ---- JSON preview with 600-line threshold (B.32) ----
+  // ---- JSON preview with 600-line threshold ----
   let showFullJson = $state(false);
 
   function formatJson(value: unknown): string {
@@ -157,13 +157,13 @@
   );
   const argsPreview = $derived(truncateJson(argsJson));
 
-  // Structured rationale (US-SP42-038). Opt-in — `null` when the user has
+  // Structured rationale. Opt-in — `null` when the user has
   // disabled "Explain tool calls" or the meta-LLM fallback kicked in.
   const rationale = $derived(
     item.kind === "tool_call" ? formatRationale(item.rationale) : null,
   );
 
-  // Structured retry chain (US-SP42-040). Non-empty only when the resilience
+  // Structured retry chain. Non-empty only when the resilience
   // layer recorded at least one attempt for this invocation.
   const retryAttempts = $derived(
     item.kind === "tool_call" ? (item.retry_attempts ?? []) : [],

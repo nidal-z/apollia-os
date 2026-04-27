@@ -503,17 +503,16 @@ mod tests {
         with_fake_home(|home| {
             fs::create_dir_all(home.join("Apollia")).expect("mkdir");
 
-            // WHEN suggest_workspace_path("demo") est appelée
-            // On appelle suggest_workspace_path directement (logique pure).
-            let h = dirs::home_dir().expect("home_dir");
+            // Use `home` directly (it IS the HOME dir set by with_fake_home)
+            // to avoid racing with other tests that mutate HOME via dirs::home_dir().
             let slug = slugify("demo");
 
-            let suggestion = if h.join("Apollia").is_dir() {
-                h.join("Apollia").join(&slug)
-            } else if h.join("Documents").is_dir() {
-                h.join("Documents").join("Apollia").join(&slug)
+            let suggestion = if home.join("Apollia").is_dir() {
+                home.join("Apollia").join(&slug)
+            } else if home.join("Documents").is_dir() {
+                home.join("Documents").join("Apollia").join(&slug)
             } else {
-                h.join(&slug)
+                home.join(&slug)
             };
 
             // THEN retourne $HOME/Apollia/demo

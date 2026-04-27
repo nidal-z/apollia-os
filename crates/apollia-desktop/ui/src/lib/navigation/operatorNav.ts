@@ -1,5 +1,5 @@
 /**
- * Operator-mode navigation (US-SP42-079).
+ * Operator-mode navigation.
  *
  * Grouped in two semantic sections so the sidebar reads as a task list,
  * not a catalogue of features:

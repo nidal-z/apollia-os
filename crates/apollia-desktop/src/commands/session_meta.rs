@@ -1,4 +1,4 @@
-//! Tauri IPC commands for the session meta-layer (US-SP42-048 — Pattern P12).
+//! Tauri IPC commands for the session meta-layer.
 //!
 //! Exposes :
 //! - `compute_session_hallucination_risk` — heuristic score (toujours-on, no LLM).

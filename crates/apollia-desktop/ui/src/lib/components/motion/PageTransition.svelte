@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * PageTransition — fade + translate-y entrance wrapper (US-SP42-005).
+   * PageTransition — fade + translate-y entrance wrapper.
    *
    * Drop this around the active route content so page changes get a polished
    * entrance. Honours `prefers-reduced-motion` automatically.

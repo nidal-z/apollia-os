@@ -1,4 +1,4 @@
-//! Hints statiques de performance par outil (US-SP42-038).
+//! Hints statiques de performance par outil.
 //!
 //! Table embarquée depuis `tool_performance_hints.toml` : durée attendue en ms
 //! et éventuelle suggestion d'alternative plus rapide. Consultée avant l'exec

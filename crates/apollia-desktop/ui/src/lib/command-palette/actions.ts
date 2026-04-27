@@ -1,5 +1,5 @@
 /**
- * Command palette action catalogue (US-SP42-078).
+ * Command palette action catalogue.
  *
  * Builds the static list of navigation and command actions offered by
  * the palette. Actions carry an optional `persona` tag so the palette

@@ -1,5 +1,5 @@
 /**
- * Session artifacts store (US-SP42-031).
+ * Session artifacts store.
  *
  * Mirrors the backend `chat_artifacts` table for a single active session.
  * The detection helper in `$lib/chat/artifactDetect.ts` is responsible for

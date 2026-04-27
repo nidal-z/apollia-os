@@ -1,7 +1,7 @@
-//! Hallucination heuristics for tool outputs (US-SP42-039 — Pattern P3).
+//! Hallucination heuristics for tool outputs.
 //!
 //! Always-on, schema-driven where possible, with a fallback heuristic for
-//! tools that do not declare a JSON schema. Shared with US-SP42-048
+//! tools that do not declare a JSON schema.
 //! (session-level meta-layer) — this module is the single source of truth.
 //!
 //! # Heuristic
@@ -119,7 +119,7 @@ pub fn analysis_from_report(report: &HeuristicReport, raw_output: &str) -> Error
 }
 
 // ─────────────────────────────────────────────
-// Session-level aggregation (US-SP42-048 — Pattern P12)
+// Session-level aggregation
 // ─────────────────────────────────────────────
 
 /// Inputs agrégés au niveau session pour calculer un score de risque global.

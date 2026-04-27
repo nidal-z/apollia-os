@@ -14,6 +14,7 @@
 //! The `unicode61` tokenizer is mandatory (ADR-009): "réunion" must match "reunion".
 
 pub mod episodic;
+pub mod export;
 pub mod file_timestamp_cache;
 pub mod injection_tracker;
 pub mod manager;

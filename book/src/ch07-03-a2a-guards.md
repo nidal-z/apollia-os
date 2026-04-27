@@ -123,7 +123,7 @@ Director (budget: 10 steps, 20 tool_calls)
   └── Step 3 : traitement du résultat    (-1 step)
 ```
 
-Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A (`invocation_timeout_secs`).
+Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `STEP_BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A (`invocation_timeout_secs`).
 
 **Règle pratique** : pour chaque `ctx.delegate` dans votre agent, comptez au minimum 2 steps (avant et après la délégation) et ajustez `max_steps` dans votre manifest en conséquence.
 

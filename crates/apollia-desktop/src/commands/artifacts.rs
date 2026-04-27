@@ -1,4 +1,4 @@
-//! Tauri IPC commands for session artifacts (US-SP42-031).
+//! Tauri IPC commands for session artifacts.
 //!
 //! Artifacts are snapshots of agent tool outputs (file contents, code blocks,
 //! specs, diagrams, bash logs) captured per chat session. They live in a

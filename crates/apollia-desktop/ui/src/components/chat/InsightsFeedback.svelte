@@ -3,7 +3,7 @@
   Allows the user to accept, edit, or reject each insight individually,
   or batch-process all at once.
 
-  US-SP42-042 — adds a "Rejected" tab that keeps the rejection reason
+  adds a "Rejected" tab that keeps the rejection reason
   visible for audit.
 -->
 <script lang="ts">
@@ -128,7 +128,7 @@
           </p>
         </div>
       {:else}
-        <!-- Batch actions — only Accept-all; reject requires a reason per entry (US-SP42-042). -->
+        <!-- Batch actions — only Accept-all; reject requires a reason per entry. -->
         {#if $extractedInsights.length >= 2}
           <div class="flex items-center gap-2">
             <button

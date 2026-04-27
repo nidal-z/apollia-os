@@ -1,4 +1,4 @@
-/** Command palette keys (US-SP42-017 + US-SP42-078). */
+/** Command palette keys (+). */
 export const COMMAND_KEYS = {
   placeholder: "command.placeholder",
   empty: "command.empty",
@@ -22,7 +22,7 @@ export const COMMAND_KEYS = {
   },
 } as const;
 
-/** Command palette v2 keys (US-SP42-078). */
+/** Command palette v2 keys. */
 export const COMMAND_PALETTE_KEYS = {
   placeholder: {
     all: "commandPalette.placeholder.all",

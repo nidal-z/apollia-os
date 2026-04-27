@@ -6,12 +6,15 @@ description = "Apollia OS — Agent Interface Protocol bridge (PyO3, Rust <-> Py
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-apollia-core      = { workspace = true }
-apollia-tools     = { workspace = true }
-apollia-memory    = { workspace = true }
-apollia-llm       = { workspace = true, features = ["cloud"] }
-apollia-runtime   = { workspace = true }
-apollia-workspace = { path = "../apollia-workspace" }
+apollia-core          = { workspace = true }
+apollia-tools         = { workspace = true }
+apollia-memory        = { workspace = true }
+apollia-llm           = { workspace = true, features = ["cloud"] }
+apollia-runtime       = { workspace = true }
+apollia-workspace     = { path = "../apollia-workspace" }
+apollia-notifications = { workspace = true }
+apollia-stt           = { workspace = true, default-features = false }
+hound                 = { workspace = true }
 tokio          = { workspace = true }
 chrono         = { workspace = true }
 serde          = { workspace = true }

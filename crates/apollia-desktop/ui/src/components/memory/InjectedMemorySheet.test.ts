@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import type { InjectedEntry } from "$lib/types";
 
 /**
- * Unit tests for InjectedMemorySheet (US-SP42-043).
+ * Unit tests for InjectedMemorySheet.
  *
  * The component is a thin Sheet renderer on top of the
  * `get_injected_memory_entries` Tauri command. These tests lock the shape

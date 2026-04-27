@@ -1,5 +1,5 @@
 /**
- * Decision branches store (US-SP42-041 — Pattern P5).
+ * Decision branches store.
  *
  * Holds one `DecisionPoint` per `turn_id` so chat views can render the
  * `<DecisionBranchesPanel />` as `DecisionPointRecorded` runtime events

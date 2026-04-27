@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Topbar connection chip (US-SP42-077). Invisible when the runtime
+   * Topbar connection chip. Invisible when the runtime
    * is connected — the sidebar already shows a dot. Visible (pulsing
    * amber / static red) when the connection degrades, with a popover
    * that exposes a Retry action.

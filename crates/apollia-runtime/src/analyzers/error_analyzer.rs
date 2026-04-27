@@ -1,4 +1,4 @@
-//! Static error classifier (US-SP42-039 — Pattern P3, always-on layer).
+//! Static error classifier (always-on layer).
 //!
 //! Maps a raw error string (typically the `Display` of a `thiserror` enum)
 //! to an [`ErrorAnalysis`] with a stable category and an i18n-ready human

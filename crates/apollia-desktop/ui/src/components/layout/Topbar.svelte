@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Persistent application topbar (US-SP42-077).
+   * Persistent application topbar.
    *
    *   [Logo] [Back/Forward] [Breadcrumb] ··· [Search] [Connection] [Companion] [User]
    *

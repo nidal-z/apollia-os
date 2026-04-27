@@ -1,5 +1,5 @@
 /**
- * Rich link preview client (US-SP42-035, B.46).
+ * Rich link preview client.
  *
  * Delegates the actual HTTP fetch to the Rust `link_preview` Tauri command
  * (keeps us CORS-free + respects the local-first principle), and layers an

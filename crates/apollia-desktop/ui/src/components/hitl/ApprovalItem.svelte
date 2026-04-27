@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Generic approval item wrapper (US-SP42-053, finding A.6.6).
+   * Generic approval item wrapper.
    *
    * Bridges the legacy `<ApprovalCard>` (HITL) and the chat tool approval
    * renderer under a single `InboxItem` surface. Keeps the thin kind-branch

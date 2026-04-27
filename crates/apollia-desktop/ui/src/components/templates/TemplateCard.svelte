@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Card rendered in the template gallery grid (US-SP42-058).
+   * Card rendered in the template gallery grid.
    *
    * Shows the user-facing title, a 1-2 sentence description, and three
    * chips (category / difficulty / source). The hover preview surfaces

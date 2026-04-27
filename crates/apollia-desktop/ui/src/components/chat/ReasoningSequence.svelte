@@ -4,9 +4,9 @@
    *
    * Combines thinking trace + normalized tool calls into a vertical stream of
    * `ReasoningCard`s. Pending tool calls still render the dedicated approval
-   * cards (unchanged by US-SP42-028 — their refonte is tracked in
-   * US-SP42-032). Collapses into an accordion when more than
-   * `COLLAPSE_ITEM_THRESHOLD` items are present (B.10, B.33).
+   * cards (unchanged by their refonte is tracked in
+   *). Collapses into an accordion when more than
+   * `COLLAPSE_ITEM_THRESHOLD` items are present.
    */
 
   import type { ChatMessageView, ToolCallView } from "$lib/types";
@@ -46,7 +46,7 @@
   });
   const items = $derived(buildReasoningSequence(nonPendingMessage, content));
 
-  // US-SP42-035 (B.55): cap visible reasoning items, paginate by 30 on demand.
+  // cap visible reasoning items, paginate by 30 on demand.
   // Persist `visibleCount` per-message in sessionStorage so scroll-back through
   // a conversation preserves the user's pagination state within the tab.
   const PAGE_SIZE = 30;
@@ -127,7 +127,7 @@
       </button>
     {/if}
 
-    <!-- Pending approvals keep the dedicated cards (kept for US-SP42-032) -->
+    <!-- Pending approvals keep the dedicated cards (kept for) -->
     {#each pendingCalls as toolCall, i (toolCall.tool_name + "-pending-" + i)}
       <div transition:slide={{ duration: 150 }}>
         {#if isOperator}

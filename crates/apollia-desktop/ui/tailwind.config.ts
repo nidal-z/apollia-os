@@ -20,7 +20,7 @@ const config: Config = {
       fontFamily: {
         sans: ["Inter", ...defaultTheme.fontFamily.sans],
       },
-      // Display type scale (US-SP42-006) — hero titles & empty-state headlines.
+      // Display type scale — hero titles & empty-state headlines.
       // Values use `clamp(min, preferred, max)` so the scale breathes between the
       // xs (375 px) and xl (1280 px) breakpoints without extra media queries.
       fontSize: {

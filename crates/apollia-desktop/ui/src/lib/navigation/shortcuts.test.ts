@@ -1,5 +1,5 @@
 /**
- * Keyboard shortcut registry tests (US-SP42-082).
+ * Keyboard shortcut registry tests.
  *
  * These tests lock in the structural invariants consumed by
  * `routes/settings/Shortcuts.svelte` and the Command Palette:

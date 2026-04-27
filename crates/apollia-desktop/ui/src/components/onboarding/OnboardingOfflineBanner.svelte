@@ -3,7 +3,7 @@
    * Offline banner rendered when the initial onboarding asset fetch
    * times out (8 s) or fails. Local i18n + SVGs remain functional, so
    * the flow never blocks — the banner just surfaces the degraded
-   * network condition and offers a manual retry (US-SP42-081).
+   * network condition and offers a manual retry.
    */
   import { t } from "svelte-i18n";
   import { WifiOff, RefreshCw } from "lucide-svelte";

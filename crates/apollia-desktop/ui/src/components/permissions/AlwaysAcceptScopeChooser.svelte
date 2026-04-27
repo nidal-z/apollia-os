@@ -11,7 +11,7 @@
 
 <script lang="ts">
   /**
-   * Scope chooser for "always allow" rules (US-SP42-054, B.51).
+   * Scope chooser for "always allow" rules.
    *
    * Four scopes, from safest default (session_only) to most dangerous
    * (all_always — gated by a confirm modal).

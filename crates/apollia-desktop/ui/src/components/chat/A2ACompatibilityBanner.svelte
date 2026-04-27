@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * US-SP42-044 — Compatibility banner.
+   * Compatibility banner.
    *
    * Surfaces a semver mismatch between the director's `required_skill_version`
    * and the worker's `worker_advertised_version`. Offers a one-click action to

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Recrée les symlinks des sites VitePress après ajout/suppression de fichiers
-# dans docs/wiki/ ou help/.
+# dans docs/wiki/ ou docs/help/.
 #
 # Usage : ./scripts/refresh-symlinks.sh [wiki|help|all]
 
@@ -23,12 +23,12 @@ refresh_help() {
   local content="$ROOT/web/help-site/content"
   rm -rf "$content"
   mkdir -p "$content"
-  for d in "$ROOT/help"/*/; do
+  for d in "$ROOT/docs/help"/*/; do
     [ -d "$d" ] || continue
     ln -sfn "$d" "$content/$(basename "$d")"
   done
-  if [ -f "$ROOT/help/index.md" ]; then
-    ln -sfn "$ROOT/help/index.md" "$content/index.md"
+  if [ -f "$ROOT/docs/help/index.md" ]; then
+    ln -sfn "$ROOT/docs/help/index.md" "$content/index.md"
   fi
   echo "help : $(ls "$content" | wc -l) entries (dossiers + index)"
 }

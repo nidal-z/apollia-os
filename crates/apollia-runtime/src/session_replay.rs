@@ -1,4 +1,4 @@
-//! Session replay (US-SP42-048 — Pattern P12).
+//! Session replay.
 //!
 //! Stocke en mémoire (et, à terme, en SQLite `session_events (session_id, ts,
 //! kind, payload_json)`) les événements d'une session pour permettre un

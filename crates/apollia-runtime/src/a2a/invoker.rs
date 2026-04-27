@@ -244,7 +244,7 @@ impl A2AInvoker {
         self
     }
 
-    /// Attache un [`TelemetryHandle`] pour agréger la télémétrie par skill (US-SP42-044).
+    /// Attache un [`TelemetryHandle`] pour agréger la télémétrie par skill.
     pub fn with_telemetry(mut self, telemetry: TelemetryHandle) -> Self {
         self.telemetry = Some(telemetry);
         self
@@ -478,7 +478,7 @@ impl A2AInvoker {
             skill_id: skill_id.to_string(),
         });
 
-        // Step-level telemetry & provenance (US-SP42-044).
+        // Step-level telemetry & provenance.
         let step_id = format!(
             "a2a-{skill_id}-{}-{}",
             agent_name,
@@ -519,7 +519,7 @@ impl A2AInvoker {
             duration_ms,
         });
 
-        // Step telemetry / provenance emission (US-SP42-044).
+        // Step telemetry / provenance emission.
         let (success, output_excerpt) = match &delegate_result {
             Ok(r) => (true, Some(make_excerpt(&r.output))),
             Err(_) => (false, None),

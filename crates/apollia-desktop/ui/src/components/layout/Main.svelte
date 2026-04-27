@@ -53,7 +53,7 @@
 >
   <Topbar />
 
-  <!-- Route content : padding responsive + conteneur centré (US-SP42-081). -->
+  <!-- Route content : padding responsive + conteneur centré. -->
   <div class="mx-auto w-full max-w-6xl flex-1 px-4 sm:px-6 md:px-8 lg:px-10 py-6">
     {#key $currentRoute}
       <PageTransition>

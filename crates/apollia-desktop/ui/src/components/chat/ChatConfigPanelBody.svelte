@@ -44,7 +44,7 @@
 
   const selectedTools = $derived(Array.from(enabledTools));
 
-  // Validation — US-SP42-035 (B.65).
+  // Validation.
   // step_budget is persisted client-side (per-session localStorage) until
   // backend enforcement lands in a follow-up story; validation still applies.
   const systemPromptError = $derived.by(() => {
@@ -233,7 +233,7 @@
       {/if}
     </div>
 
-    <!-- Step budget (B.65) — client-side persistence until runtime wiring lands. -->
+    <!-- Step budget — client-side persistence until runtime wiring lands. -->
     <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
       <label class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" for="config-step-budget">
         {$t("chat.step_budget_label")}

@@ -37,10 +37,11 @@ L'Observer est le premier composant activé à réception d'une tâche. Il const
 ```rust
 pub struct ContextBundle {
     pub task: AIPTask,
-    pub memory_snapshot: Option<MemorySnapshot>,   // si memory_namespace déclaré
-    pub agent_state: AgentState,
-    pub recent_history: Vec<TaskSummary>,          // 5 dernières tâches du context_id
-    pub runtime_metrics: RuntimeMetrics,
+    pub memory_snapshot: Option<MemorySnapshot>,     // si memory_namespace déclaré
+    pub execution_mode: ExecutionMode,               // mode sélectionné par le scoring
+    pub available_tools: Vec<String>,                // outils résolus au démarrage
+    pub manifest_system_prompt: Option<String>,
+    pub llm_backend_names: Vec<String>,
 }
 ```
 

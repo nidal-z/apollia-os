@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Template gallery route (US-SP42-058).
+   * Template gallery route.
    *
    * Three tabs scope the grid to automations / agents / pipelines. A
    * dedicated filters column on the left persists to the URL query so the

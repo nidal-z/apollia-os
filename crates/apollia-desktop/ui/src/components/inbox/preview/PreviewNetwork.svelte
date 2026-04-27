@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * HTTP/network call preview (US-SP42-054). Shows method, URL, headers,
+   * HTTP/network call preview. Shows method, URL, headers,
    * and an estimate of the request body size.
    */
   import { t } from "svelte-i18n";

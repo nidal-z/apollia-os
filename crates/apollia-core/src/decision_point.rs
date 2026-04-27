@@ -1,4 +1,4 @@
-//! Structured decision branches (US-SP42-041 — Pattern P5).
+//! Structured decision branches.
 //!
 //! Captures, for a *significant* agent decision (tool choice, agent delegate,
 //! memory write/no-write), the path that was taken *and* the alternatives

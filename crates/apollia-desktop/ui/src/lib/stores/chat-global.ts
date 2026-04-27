@@ -6,7 +6,7 @@
  * component code (consumer) may safely import from here.
  *
  * Token-buffer management was extracted to `./chatTokenBuffers.ts` in
- * US-SP42-035 to add LRU + TTL semantics; we re-export the public surface
+ * to add LRU + TTL semantics; we re-export the public surface
  * unchanged so existing callers keep working.
  */
 import { writable, derived, get } from "svelte/store";

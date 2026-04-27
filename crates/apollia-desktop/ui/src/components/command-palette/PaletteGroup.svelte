@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * App-level palette group header (US-SP42-078). Thin wrapper around the
+   * App-level palette group header. Thin wrapper around the
    * headless `CommandGroup` primitive so app-specific styling or badges
    * (e.g. "Recently used" pill) can be added later without touching the
    * primitive.

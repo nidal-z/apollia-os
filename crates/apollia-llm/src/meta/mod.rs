@@ -2,7 +2,7 @@
 //!
 //! Les routines LLM-backed vivent dans `meta_orchestrator.rs`. Ce module
 //! regroupe les parseurs et heuristiques déterministes appelés par les
-//! commandes Tauri côté desktop (US-SP42-050).
+//! commandes Tauri côté desktop.
 
 pub mod apollia_coach;
 pub mod next_steps;

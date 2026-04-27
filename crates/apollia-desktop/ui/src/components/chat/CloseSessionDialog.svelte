@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * US-SP42-029 — Soft-close confirmation.
+   * Soft-close confirmation.
    *
    * "Close" an active session ends the conversation but keeps the transcript.
    * "Archive" a closed session hides it from the default filter. Distinct from

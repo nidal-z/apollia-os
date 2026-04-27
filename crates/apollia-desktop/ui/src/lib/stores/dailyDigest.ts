@@ -1,10 +1,10 @@
 /**
- * Daily digest store for the operator Dashboard (US-SP42-056).
+ * Daily digest store for the operator Dashboard.
  *
  * Facts are computed frontend-side from existing stores (tasks, approvals).
  * The backend `meta_generate_daily_digest` command caches the narration for
  * 6h; `refresh()` bypasses the cache. Narration will switch to the Meta-LLM
- * path (US-SP42-057) without any contract change here — see the `fromLlm`
+ * path without any contract change here — see the `fromLlm`
  * field on the payload.
  */
 import { writable, get } from "svelte/store";

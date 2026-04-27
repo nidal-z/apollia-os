@@ -7,7 +7,7 @@
  * per-tour in `localStorage` using the same pattern as
  * {@link ../tour/FirstConnectionTour.ts}.
  *
- * Story: US-SP42-055.
+ * Story:.
  */
 import { writable, type Writable } from "svelte/store";
 

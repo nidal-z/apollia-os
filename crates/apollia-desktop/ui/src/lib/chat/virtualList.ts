@@ -1,5 +1,5 @@
 /**
- * Message-list virtualization helpers (US-SP42-035, perf target ≥ 55 fps).
+ * Message-list virtualization helpers (perf target ≥ 55 fps).
  *
  * Wraps `@tanstack/svelte-virtual` behind a small API so `ChatConversation`
  * can opt into windowing when the message count exceeds

@@ -193,7 +193,7 @@ Si disponible, un checkpoint automatique est pris en début de session chat. En 
 **Neutres / À surveiller :**
 - Temps de réaction du HITL filesystem sur des chaînes d'opérations (ex. agent qui écrit 50 fichiers) — prévoir un mode batch ou "always allow for this session/pattern".
 - Classification `RiskLevel` des paths système : la liste hardcodée (`/etc`, `/usr`, etc.) doit rester configurable via `apollia.toml` pour ne pas bloquer des usages légitimes spécifiques.
-- Interaction avec les agents AIP Python existants (qui ont leur propre modèle d'isolation via ADR-005 bubblewrap et ADR-012 devmode macOS) — cet ADR **ne modifie pas** ce modèle, il ne s'applique qu'aux outils natifs invoqués par les chat agents.
+- Interaction avec les agents AIP Python existants (qui ont leur propre modèle d'isolation via ADR-005 sandbox multi-plateforme) — cet ADR **ne modifie pas** ce modèle, il ne s'applique qu'aux outils natifs invoqués par les chat agents.
 
 ---
 
@@ -214,7 +214,7 @@ Cet ADR **complète et généralise ADR-061** sans le remplacer : ADR-061 s'appl
 ## Liens
 
 - ADR complété : [ADR-061 — Permission Engine 3 Couches](ADR-061-permission-engine-3-layers.md) (généralisé aux opérations filesystem)
-- ADR connexes : [ADR-005 — Sandbox sans Docker](ADR-005-sandbox-sans-docker.md), [ADR-012 — Sandbox devmode macOS](ADR-012-sandbox-devmode-macos.md) (sandbox process-level AIP — non impactés)
+- ADR connexes : [ADR-005 — Sandbox multi-plateforme](ADR-005-sandbox-sans-docker.md) (sandbox process-level AIP — non impacté)
 - Story d'implémentation : à créer (Sprint 38, cible)
 - Fichiers impactés identifiés :
   - `crates/apollia-tools/src/sandbox_path.rs`

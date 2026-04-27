@@ -90,6 +90,74 @@ pub enum MemoryCommand {
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
+
+    /// Enregistrer une procédure dans la mémoire procédurale d'un namespace.
+    ///
+    /// Exemple : `apollia memory learn-procedure --namespace agent-x --trigger "analyser un rapport" --steps "1. Ouvrir, 2. Lire, 3. Résumer"`
+    LearnProcedure {
+        /// Namespace cible.
+        #[arg(long, value_name = "NAME")]
+        namespace: String,
+
+        /// Déclencheur exact de la procédure.
+        #[arg(long, value_name = "TEXT")]
+        trigger: String,
+
+        /// Étapes de la procédure (séparées par des virgules ou point-virgules).
+        /// Exemple : "Ouvrir le PDF, Extraire le CA, Générer le résumé"
+        #[arg(long, value_name = "STEPS", required_unless_present = "file")]
+        steps: Option<String>,
+
+        /// Fichier JSON contenant {"trigger": "...", "steps": [...]}.
+        #[arg(long, value_name = "FILE", required_unless_present = "steps")]
+        file: Option<PathBuf>,
+
+        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
+
+    /// Exporter la mémoire d'un namespace vers un fichier JSON.
+    ///
+    /// Exemple : `apollia memory export --namespace agent-x --output ./backup.apollia-memory`
+    Export {
+        /// Namespace à exporter.
+        #[arg(long, value_name = "NAME")]
+        namespace: String,
+
+        /// Fichier de sortie (défaut: `<namespace>.apollia-memory` dans le répertoire courant).
+        #[arg(long, value_name = "FILE")]
+        output: Option<PathBuf>,
+
+        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
+
+    /// Importer la mémoire depuis un fichier JSON vers un namespace.
+    ///
+    /// Exemple : `apollia memory import --namespace agent-x --input ./backup.apollia-memory --replace`
+    Import {
+        /// Namespace cible.
+        #[arg(long, value_name = "NAME")]
+        namespace: String,
+
+        /// Fichier d'entrée exporté par `memory export`.
+        #[arg(long, value_name = "FILE")]
+        input: PathBuf,
+
+        /// Mode : remplacer le namespace existant (défaut: merge).
+        #[arg(long, conflicts_with = "merge")]
+        replace: bool,
+
+        /// Mode : fusionner avec le namespace existant (défaut).
+        #[arg(long, conflicts_with = "replace")]
+        merge: bool,
+
+        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
 }
 
 /// Erreurs de la commande memory.
@@ -123,6 +191,10 @@ pub enum MemoryCommandError {
     /// Contexte non-interactif sans --confirm.
     #[error("use --confirm for non-interactive clear")]
     NonInteractive,
+
+    /// Erreur d'export/import mémoire.
+    #[error("export/import error: {0}")]
+    Export(#[from] apollia_memory::export::ExportError),
 }
 
 /// Resout le repertoire memoire par defaut (`~/.apollia/memory/`).
@@ -423,6 +495,154 @@ pub fn execute_purge(
     ))
 }
 
+/// Execute la commande `memory learn-procedure`.
+///
+/// Enregistre une procédure dans la mémoire procédurale d'un namespace.
+/// Si le trigger existe déjà, incrémente success_count et met à jour les étapes.
+pub fn execute_learn_procedure(
+    namespace: &str,
+    trigger: &str,
+    steps: &[String],
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    if steps.is_empty() {
+        return Err(MemoryCommandError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "steps must not be empty",
+        )));
+    }
+
+    let db_path = data_dir.join(format!("{namespace}.db"));
+
+    if !db_path.exists() {
+        return Err(MemoryCommandError::NamespaceNotFound {
+            namespace: namespace.to_string(),
+            path: db_path.display().to_string(),
+        });
+    }
+
+    let store = apollia_memory::store::MemoryStore::open(&db_path)?;
+    let proc = apollia_memory::procedural::ProceduralMemory::new(&store);
+    let id = proc
+        .learn(namespace, trigger, steps)
+        .map_err(|e| MemoryCommandError::Io(std::io::Error::other(e.to_string())))?;
+
+    tracing::info!(
+        namespace = %namespace,
+        trigger = %trigger,
+        steps = steps.len(),
+        id = %id,
+        "procedure learned"
+    );
+
+    if json {
+        let output = serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "trigger": trigger,
+            "steps": steps,
+            "id": id,
+        }))?;
+        return Ok(output);
+    }
+
+    Ok(format!("Procédure enregistrée (id: {id})."))
+}
+
+/// Execute la commande `memory export`.
+pub fn execute_export(
+    namespace: &str,
+    output: Option<&Path>,
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    let db_path = data_dir.join(format!("{namespace}.db"));
+    if !db_path.exists() {
+        return Err(MemoryCommandError::NamespaceNotFound {
+            namespace: namespace.to_string(),
+            path: db_path.display().to_string(),
+        });
+    }
+
+    let export = apollia_memory::export::export_namespace(data_dir, namespace)?;
+
+    let out_path = output
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from(format!("{namespace}.apollia-memory")));
+
+    let json_str = serde_json::to_string_pretty(&export)?;
+    std::fs::write(&out_path, &json_str)?;
+
+    tracing::info!(
+        namespace = %namespace,
+        path = %out_path.display(),
+        episodic = export.episodic.len(),
+        semantic = export.semantic.len(),
+        procedural = export.procedural.len(),
+        "memory exported"
+    );
+
+    if json {
+        let output_json = serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "path": out_path.display().to_string(),
+            "episodic": export.episodic.len(),
+            "semantic": export.semantic.len(),
+            "procedural": export.procedural.len(),
+        }))?;
+        return Ok(output_json);
+    }
+
+    Ok(format!(
+        "Mémoire exportée vers {} ({} épisodiques, {} sémantiques, {} procédurales).",
+        out_path.display(),
+        export.episodic.len(),
+        export.semantic.len(),
+        export.procedural.len(),
+    ))
+}
+
+/// Execute la commande `memory import`.
+pub fn execute_import(
+    namespace: &str,
+    input: &Path,
+    replace: bool,
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    let content = std::fs::read_to_string(input)?;
+    let export: apollia_memory::export::MemoryExport = serde_json::from_str(&content)?;
+
+    let mode = if replace {
+        apollia_memory::export::ImportMode::Replace
+    } else {
+        apollia_memory::export::ImportMode::Merge
+    };
+
+    let count = apollia_memory::export::import_namespace(data_dir, namespace, &export, mode)?;
+
+    tracing::info!(
+        namespace = %namespace,
+        mode = if replace { "replace" } else { "merge" },
+        imported = count,
+        "memory imported"
+    );
+
+    if json {
+        let output_json = serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "mode": if replace { "replace" } else { "merge" },
+            "imported": count,
+        }))?;
+        return Ok(output_json);
+    }
+
+    Ok(format!(
+        "{count} entrée(s) importée(s) dans le namespace '{namespace}' (mode: {}).",
+        if replace { "replace" } else { "merge" }
+    ))
+}
+
 /// Execute une sous-commande `memory`.
 pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError> {
     match cmd {
@@ -455,6 +675,60 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
         } => {
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
             execute_purge(namespace, *older_than, r#type.as_ref(), &dir, json)
+        }
+        MemoryCommand::LearnProcedure {
+            namespace,
+            trigger,
+            steps,
+            file,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+
+            let parsed_steps = if let Some(f) = file {
+                // Load from JSON file
+                let content = std::fs::read_to_string(f)?;
+                let v: serde_json::Value = serde_json::from_str(&content)?;
+                v["steps"]
+                    .as_array()
+                    .ok_or_else(|| {
+                        MemoryCommandError::Io(std::io::Error::other(
+                            "JSON file must contain a 'steps' array",
+                        ))
+                    })?
+                    .iter()
+                    .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            } else if let Some(s) = steps {
+                s.split([',', ';'])
+                    .map(|step| step.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            } else {
+                return Err(MemoryCommandError::Io(std::io::Error::other(
+                    "either --steps or --file is required",
+                )));
+            };
+
+            execute_learn_procedure(namespace, trigger, &parsed_steps, &dir, json)
+        }
+        MemoryCommand::Export {
+            namespace,
+            output,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+            execute_export(namespace, output.as_deref(), &dir, json)
+        }
+        MemoryCommand::Import {
+            namespace,
+            input,
+            replace,
+            merge: _,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+            execute_import(namespace, input, *replace, &dir, json)
         }
     }
 }
@@ -820,5 +1094,153 @@ mod tests {
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("3 entree(s)"));
+    }
+
+    // learn-procedure stores a procedure and is retrievable
+    #[test]
+    fn test_learn_procedure_stores_and_recalls() {
+        // GIVEN a namespace
+        let dir = temp_dir();
+        let db_path = setup_test_db(&dir, "agent-proc");
+
+        // WHEN learn-procedure
+        let result = execute_learn_procedure(
+            "agent-proc",
+            "analyser rapport",
+            &["étape 1".to_string(), "étape 2".to_string()],
+            &dir,
+            false,
+        );
+
+        // THEN success
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("enregistrée"));
+
+        // AND procedure is in the database
+        let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();
+        let proc = apollia_memory::procedural::ProceduralMemory::new(&store);
+        let entry = proc.recall("agent-proc", "analyser rapport").unwrap();
+        assert!(entry.is_some());
+        let e = entry.unwrap();
+        assert_eq!(e.steps.len(), 2);
+        assert_eq!(e.steps[0], "étape 1");
+    }
+
+    // learn-procedure with missing namespace returns error
+    #[test]
+    fn test_learn_procedure_missing_namespace_error() {
+        // GIVEN a dir with no db
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // WHEN
+        let result = execute_learn_procedure("ghost", "trigger", &["step".to_string()], &dir, false);
+
+        // THEN NamespaceNotFound
+        assert!(matches!(
+            result,
+            Err(MemoryCommandError::NamespaceNotFound { .. })
+        ));
+    }
+
+    // learn-procedure JSON output is valid
+    #[test]
+    fn test_learn_procedure_json_output() {
+        // GIVEN a namespace
+        let dir = temp_dir();
+        setup_test_db(&dir, "agent-j");
+
+        // WHEN learn-procedure with json flag
+        let result = execute_learn_procedure(
+            "agent-j",
+            "mon trigger",
+            &["step1".to_string()],
+            &dir,
+            true,
+        );
+
+        // THEN valid JSON
+        assert!(result.is_ok());
+        let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(parsed["namespace"], "agent-j");
+        assert_eq!(parsed["trigger"], "mon trigger");
+        assert!(parsed["id"].is_string());
+    }
+
+    // export creates a file with expected JSON structure
+    #[test]
+    fn test_export_creates_file() {
+        // GIVEN a namespace with some data
+        let dir = temp_dir();
+        let db_path = setup_test_db(&dir, "agent-exp");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at, metadata)
+             VALUES ('ep1', 'agent-exp', 'a', 'hello', 0.5, '2026-01-01T00:00:00Z', '{}')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let out = dir.join("backup.apollia-memory");
+
+        // WHEN export
+        let result = execute_export("agent-exp", Some(&out), &dir, false);
+
+        // THEN success + file created
+        assert!(result.is_ok());
+        assert!(out.exists());
+        let content = std::fs::read_to_string(&out).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(v["format_version"], 1);
+        assert_eq!(v["namespace"], "agent-exp");
+        assert_eq!(v["episodic"].as_array().unwrap().len(), 1);
+    }
+
+    // import replace round-trip restores entries
+    #[test]
+    fn test_import_replace_round_trip() {
+        // GIVEN a namespace with 1 semantic entry
+        let dir = temp_dir();
+        let db_path = setup_test_db(&dir, "agent-imp");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO semantic_memories (id, namespace, key, value, confidence, created_at, updated_at)
+             VALUES ('s1', 'agent-imp', 'k', '\"v\"', 1.0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        // Export
+        let backup = dir.join("backup.json");
+        execute_export("agent-imp", Some(&backup), &dir, false).expect("export");
+
+        // Clear
+        let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();
+        store.clear_semantic("agent-imp").unwrap();
+        drop(store);
+
+        // Import with replace
+        let result = execute_import("agent-imp", &backup, true, &dir, false);
+        assert!(result.is_ok());
+
+        // Verify restored
+        let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();
+        let stats = store.stats("agent-imp", &db_path).unwrap();
+        assert_eq!(stats.semantic_count, 1);
+    }
+
+    // export missing namespace returns error
+    #[test]
+    fn test_export_missing_namespace_error() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let result = execute_export("ghost", None, &dir, false);
+        assert!(matches!(
+            result,
+            Err(MemoryCommandError::NamespaceNotFound { .. })
+        ));
     }
 }

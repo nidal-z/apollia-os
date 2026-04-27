@@ -3,11 +3,11 @@
  * onboarding answers. Lets the user resume where they left off after a reload
  * without round-tripping to the backend (see TODO below).
  *
- * TODO(US-SP42-055): persist progress server-side via
+ * TODO : persist progress server-side via
  *   GET /settings/onboarding_state and PUT /settings/onboarding_state once
  *   the backend endpoints land. For now this is a client-only fallback.
  *
- * Story: US-SP42-055.
+ * Story:.
  */
 
 /** localStorage key used to persist onboarding progress. */

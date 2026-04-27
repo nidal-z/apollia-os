@@ -1,142 +1,152 @@
-# ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags
+# ADR-020 — apollia-llm : moteur d'inférence embarqué (llama.cpp), modèles fichiers externes, feature flags
 
-**Date :** 2026-03-08
+**Date :** 2026-03-08 (architecture initiale) / 2026-03-26 (migration llama.cpp)
 **Statut :** Accepté
 **Décideur :** Nidal (solo)
-**Sprint :** 8
+**Sprint :** 8 (architecture) → 25 (llama.cpp)
 
 ---
 
 ## Contexte
 
-Sprint 8 introduit la capacité LLM native dans Apollia OS : un agent Python doit pouvoir appeler
-`ctx.llm.chat()` ou `ctx.llm.run_tools()` sans aucun service externe obligatoire.
+Sprint 8 introduit la capacité LLM native dans Apollia OS : un agent Python doit pouvoir appeler `ctx.llm.chat()` sans aucun service externe obligatoire.
 
-Trois contraintes non-négociables encadrent la décision :
+Trois contraintes non-négociables :
 
 1. **Principe #1 — Local-first** : l'inférence doit fonctionner offline, sans API key, sans cloud.
-2. **Principe #2 — Zéro dépendance opérationnelle** : `apollia-os start` ne peut pas supposer qu'un
-   daemon tiers (ollama, llama.cpp-server, vLLM) est déjà lancé sur la machine.
-3. **Principe #4 — Fail fast** : si le modèle est absent ou corrompu, l'erreur doit être signalée au
-   démarrage, pas à la première inférence.
+2. **Principe #2 — Zéro dépendance opérationnelle** : `apollia-os start` ne peut pas supposer qu'un daemon tiers (ollama, llama.cpp-server) est déjà lancé.
+3. **Principe #4 — Fail fast** : si le modèle est absent ou corrompu, l'erreur est signalée au démarrage.
 
-Simultaneously, certains utilisateurs préfèrent déléguer l'inférence à un backend cloud
-(Anthropic, OpenAI). La solution doit couvrir les deux cas sans imposer la compilation du
-moteur d'inférence à ceux qui n'en ont pas besoin (le moteur ajoute ~50–200 Mo au binaire).
+En parallèle, certains utilisateurs préfèrent déléguer l'inférence à un backend cloud (Anthropic, OpenAI). Les deux cas doivent être couverts sans imposer la compilation du moteur d'inférence à ceux qui n'en ont pas besoin.
+
+**Sprint 25 (remplacement mistral.rs → llama.cpp) :** Le moteur `mistralrs` v0.7 présentait trois problèmes bloquants en QA : seulement 16 architectures GGUF supportées (Qwen3.5, GLM-4.7, Llama 4 Scout non reconnus) ; crash Metal sur les modèles MoE (`indexed_moe_forward` absent dans candle-metal) ; streaming limité par un lifetime non-`'static` impossible à passer dans un `tokio::spawn`. `llama.cpp` couvre 30+ architectures, a des kernels Metal natifs pour MoE, et offre un streaming token-by-token natif.
+
+---
 
 ## Décision
 
-Nous introduisons le crate `apollia-llm` avec **deux feature flags Cargo exclusifs** :
+La crate `apollia-llm` utilise **deux feature flags Cargo exclusifs** :
 
-- `cloud` (défaut) — compile les clients HTTP `AnthropicClient` et `OpenAICompatibleClient`
-  via `async-openai` + `reqwest`. Aucun moteur d'inférence, binaire léger.
-- `local` — compile en plus `EmbeddedBackend` via `mistral-rs-core` (inférence GGUF in-process).
+- `cloud` (défaut) — compile les clients HTTP `AnthropicClient`, `OpenAICompatibleClient`, `BedrockClient`, `VertexClient` via `reqwest`. Binaire léger, aucun moteur d'inférence.
+- `local` — compile en plus `EmbeddedBackend` via `llama-cpp-2` (bindings safe Rust pour llama.cpp, lié statiquement).
 
-Le modèle (`.gguf`) n'est **jamais embarqué dans le binaire**. Il réside dans
-`~/.apollia/models/` comme un fichier de données externe, chargeable à chaud — exactement comme
-une base SQLite (cf. ADR-002). Le moteur d'inférence (le code C++/Rust qui fait le calcul) est
-lui compilé statiquement dans le binaire quand `feature = "local"`.
+Le modèle (`.gguf`) n'est **jamais embarqué dans le binaire**. Il réside dans `~/.apollia/models/` comme un fichier de données externe — exactement comme une base SQLite (ADR-002). Le moteur d'inférence est compilé statiquement dans le binaire quand `feature = "local"`.
 
-`LlmRouter` dispatche vers le bon backend au runtime selon la config `apollia.toml`. Si une clé
-API cloud est absente, le backend est ignoré avec un `tracing::warn!` — pas de crash. Si aucun
-backend n'est disponible, `ctx.llm` est `None` et l'agent passe en `DEGRADED`.
+`LlmRouter` dispatche vers le bon backend au runtime selon la config. Si une clé API cloud est absente, le backend est ignoré avec un `tracing::warn!`. Si aucun backend n'est disponible, `ctx.llm` est `None` et l'agent passe en `DEGRADED`.
+
+### Feature flags
+
+```toml
+# Cargo.toml features (apollia-llm)
+cloud        = ["reqwest", "async-openai"]
+local        = ["cloud", "llama-cpp-2"]
+local-metal  = ["local", "llama-cpp-2/metal"]
+local-cuda   = ["local", "llama-cpp-2/cuda"]
+```
+
+### Moteur embarqué (feature `local`)
+
+- **Chargement :** `llama_cpp_2::LlamaModel::load_from_file()`. Configuration GPU Metal via `LlamaModelParams`.
+- **Inférence :** `LlamaContext` + tokenization via `model.str_to_token()` + `llama_decode()`.
+- **Chat templates :** `llama_chat_apply_template()` (support natif Jinja, large couverture).
+- **Streaming :** token-by-token natif via la boucle de décodage llama.cpp, émis comme `StreamChunk::Text`.
+
+### Backends cloud (feature `cloud`)
+
+- **Anthropic / OpenAI-compatible :** via `async-openai` + `reqwest`
+- **AWS Bedrock :** signature SigV4 native via `aws-sigv4` + `reqwest` (l'aws-sdk-rust complet ajouterait ~50 crates et +8 MB pour 2% des fonctionnalités utilisées)
+- **Google Vertex AI :** Application Default Credentials via `gcp-auth` (chaîne ADC standard — GOOGLE_APPLICATION_CREDENTIALS → gcloud credentials → service account métadonnées d'instance)
+
+**Configuration Bedrock :**
+```toml
+[[llm.backends]]
+type = "api"
+provider = "bedrock"
+model = "anthropic.claude-3-sonnet-20241022-v2:0"
+region = "us-east-1"
+# Credentials via AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY ou ~/.aws/credentials
+```
+
+**Configuration Vertex :**
+```toml
+[[llm.backends]]
+type = "api"
+provider = "vertex"
+model = "gemini-2.0-flash-001"
+project_id = "my-gcp-project"
+region = "us-central1"
+# Credentials via ADC (gcloud auth application-default login ou GOOGLE_APPLICATION_CREDENTIALS)
+```
+
+---
 
 ## Alternatives considérées
 
-### Option A — Daemon externe géré par le Supervisor (rejetée)
+### Daemon externe géré par le Supervisor (rejetée)
 
-Lancer un processus `llama.cpp-server` ou `ollama serve` comme enfant du Supervisor Apollia.
-Le Supervisor surveille le PID, le relance si nécessaire, et le runtime communique en HTTP local.
+Lancer un processus `llama-server` ou `ollama serve` comme enfant du Supervisor. **Contre :** viole le Principe #2 (suppose llama.cpp ou ollama installé sur la machine). Gestion PID complexe (race conditions, zombie processes, port conflicts). Pas de déploiement "single binary" réel.
 
-**Pour :**
-- Découplage total runtime / moteur d'inférence.
-- Facilité de mise à jour du moteur sans recompiler `apollia-os`.
-- `llama.cpp-server` est très mature.
+### Modèle GGUF embarqué dans le binaire (rejetée)
 
-**Contre :**
-- Viole le Principe #2 : suppose que `llama.cpp` ou `ollama` est installé sur la machine.
-- STORY-054 (`LlmBackendManager`) était l'implémentation prévue de cette option — sa suppression
-  de la spec confirme le rejet.
-- Latence HTTP interne pour chaque token (overhead pour les appels fréquents).
-- Gestion PID complexe : race conditions au démarrage, zombie processes, port conflicts.
-- Pas de déploiement "single binary" réel : l'utilisateur doit installer et gérer deux binaires.
+Un modèle quantifié 4-bit minimal (Llama 3.2 3B) pèse ~2 Go — binaire inutilisable. Impossible de changer de modèle sans recompiler.
 
-### Option B — Modèle GGUF embarqué dans le binaire (rejetée)
+### Attendre mistral.rs 0.8+ (rejetée, Sprint 25)
 
-Compiler le fichier `.gguf` directement dans le binaire via `include_bytes!()` ou un build
-script, pour un binaire vraiment auto-suffisant.
+Délai inconnu, pas de garantie sur le support Metal MoE (dépend de candle upstream). `mistralrs-core` v0.7.0 publiée le 28/01/2026, aucune version 0.7.1 depuis 2 mois. Le support GGUF `qwen35` absent de tous les commits.
 
-**Pour :**
-- Copier un seul fichier suffit pour distribuer runtime + modèle.
-- Aucune gestion de `~/.apollia/models/`.
+### llama-server comme processus externe (rejetée, Sprint 25)
 
-**Contre :**
-- Un modèle quantifié 4-bit minimal (Llama 3.2 3B) pèse ~2 Go — binaire inutilisable.
-- Impossible de changer de modèle sans recompiler l'intégralité du runtime.
-- Viole Principe #2 dans l'esprit : distribution impossible sans connexion initiale pour
-  télécharger le binaire (~2 Go).
-- Pas de hot-reload de modèle à froid.
+Zéro modification du crate `apollia-llm`, mais viole le Principe #2. Nécessite de distribuer un binaire séparé, gérer son lifecycle (spawn, health check, kill). Incompatible avec le modèle binaire unique.
 
-### Option retenue — Moteur in-process compilé, modèle fichier externe, feature flags
+### aws-sdk-rust complet pour Bedrock (rejetée)
 
-**Pour :**
-- Principe #2 respecté : `apollia-os` (feature `cloud`) est un binaire léger sans moteur.
-- Principe #1 respecté : feature `local` active l'inférence offline complète.
-- Cohérence avec ADR-002 (SQLite) : le modèle est un fichier de données, pas du code.
-- `mistral-rs-core` fournit l'inférence GGUF in-process sans subprocess, sans HTTP interne.
-- Feature flags Cargo standard : pas de magie, le CI contrôle ce qui est compilé.
-- Hot-reload possible : `apollia-os model load` peut charger un nouveau `.gguf` sans redémarrage.
+~50 crates supplémentaires, +45s de compilation, +8 MB binaire pour utiliser ~2% du SDK. `aws-sigv4` seul couvre 100% du besoin (SigV4 est stable depuis 2012).
 
-**Compromis acceptés :**
-- Le binaire `feature = "local"` est plus lourd (mistral-rs-core compile du CUDA/Metal/CPU
-  optionnellement).
-- `mistral-rs-core` est une dépendance nouvelle dans le workspace (version 0.7).
-- L'utilisateur doit télécharger le `.gguf` séparément (`apollia-os model download` en roadmap).
-- Le build `local-metal` nécessite soit Xcode complet, soit `MISTRALRS_METAL_PRECOMPILE=0`
-  (shaders Metal compilés JIT au lieu d'être précompilés, sans impact sur les performances).
+### Clé de service JSON comme mécanisme primaire pour Vertex (rejetée)
+
+Fichier de clé statique exfiltrable avec la config. Pas d'expiration automatique. Les meilleures pratiques Google Cloud recommandent ADC pour les applications locales. La clé de service JSON reste supportée via `GOOGLE_APPLICATION_CREDENTIALS` (premier élément de la chaîne ADC).
+
+---
 
 ## Conséquences
 
 **Positives :**
-- `apollia-os start` avec un `.gguf` valide → inférence locale zéro-latence réseau.
-- `apollia-os start` sans `.gguf` → warning + backend `local` ignoré, runtime continue.
-- `ctx.llm` est disponible pour tous les agents sans modifier leur contrat (`manifest()` / `run()`).
-- Observabilité native : `LlmCallCompleted` sur EventBus après chaque appel (tokens, latence, coût).
-- La boucle ReAct (`run_tools()`) intègre `StepBudget` — garde-fou Principe #7 respecté.
+- `apollia-os start` avec un `.gguf` valide → inférence locale zéro-latence réseau
+- 30+ architectures GGUF supportées (Qwen3.5, GLM-4.7, Llama 4, etc.)
+- Metal MoE fonctionnel sur Apple Silicon
+- Vrai streaming token-by-token
+- Taille binaire réduite vs mistralrs+candle (~5-8 Mo vs ~15-25 Mo)
+- Bedrock + Vertex intégrés sans dépendances SDK lourdes
+- Observabilité native : `LlmCallCompleted` sur EventBus après chaque appel (tokens, latence, coût)
+- La boucle ReAct intègre `StepBudget` — garde-fou Principe #7 respecté
 
 **Négatives / Compromis :**
-- Deux binaires de distribution à tester en CI (`cloud` + `local`).
-- `mistral-rs-core` augmente le temps de compilation (dépendance C++ sous-jacente).
-- L'utilisateur `feature = "local"` doit gérer ses `.gguf` dans `~/.apollia/models/`.
+- Build chain C++ obligatoire pour `feature = "local"` (cmake + compilateur C++ — déjà présente via apollia-stt/whisper.cpp)
+- Deux binaires de distribution à tester en CI (`cloud` + `local`)
+- Gestion de la tokenization explicite (vs abstraction de mistralrs)
+- ADC Vertex requiert `gcloud` installé ou `GOOGLE_APPLICATION_CREDENTIALS` configuré
 
 **Neutres / À surveiller :**
-- Stabilité de l'API `mistral-rs-core 0.7` — surveiller les breaking changes.
-- Performance de `EmbeddedBackend` sur macOS ARM vs Linux x86 (pas de CI Mac).
-- Migration future vers `candle` (Hugging Face, pure Rust) si `mistral-rs-core` stagne.
+- Conflit de symboles ggml entre whisper.cpp et llama.cpp : validé — les deux se compilent statiquement dans le même binaire sans conflit
+- Montée de version llama.cpp : suivre les releases pour les nouvelles architectures
 
-**Mise à jour (2026-03-11) — Metal fonctionnel :**
-- `objc2-metal 0.3.2` et `candle-metal-kernels 0.9.2` sont désormais publiés sur crates.io.
-- `local-metal = ["local", "mistralrs/metal", "mistralrs-core/metal"]` est activé.
-- `GgufModelBuilder::with_device(Device::new_metal(0))` est utilisé dans `EmbeddedBackend::load()`.
-- Le blocker "objc2-metal absent" mentionné dans les sprints 8/9 est clos.
-- Seule contrainte résiduelle : le build `local-metal` nécessite Xcode complet **ou** `MISTRALRS_METAL_PRECOMPILE=0` (Command Line Tools suffisent dans ce cas).
+---
 
 ## Principes architecturaux impactés
 
-- **Principe #1 — Local-first** : `feature = "local"` offre une inférence 100% offline,
-  zéro donnée vers le cloud sans action explicite de l'utilisateur.
-- **Principe #2 — Zéro dépendance opérationnelle** : aucun daemon externe requis. Le moteur
-  est compilé dans le binaire.
-- **Principe #4 — Fail fast** : modèle absent → `LlmError::ModelNotFound` au démarrage du
-  `LlmRouter`, avant toute tâche agent.
-- **Principe #5 — Un acteur, une responsabilité** : `LlmRouter` est un struct ordinaire
-  (pas un acteur Tokio), car il n'a pas d'état mutable concurrent — cohérent avec le pattern.
-- **Principe #7 — Garde-fous non-négociables** : `run_tools()` consulte `StepBudget.is_exhausted()`
-  à chaque itération ReAct — le runtime contrôle la boucle, pas l'agent.
+- **Principe #1 — Local-first** : `feature = "local"` offre une inférence 100% offline
+- **Principe #2 — Zéro dépendance externe** : compilation statique, binaire unique ; aws-sigv4 minimal, gcp-auth pour ADC
+- **Principe #4 — Fail fast** : modèle absent → `LlmError::ModelNotFound` au démarrage ; credentials manquants → `LlmError::ApiKeyMissing`
+- **Principe #7 — Garde-fous non-négociables** : `run_tools()` consulte `StepBudget.is_exhausted()` à chaque itération ReAct
+
+---
 
 ## Liens
 
-- Stories associées : STORY-051 → STORY-064 (Sprint 8)
-- ADR précédent lié : ADR-001 — Rust comme langage du runtime (mistral-rs-core est une crate Rust, cohérent)
-- ADR précédent lié : ADR-010 — Pivot local-first (l'inférence embarquée concrétise le principe fondateur)
-- ADR précédent lié : ADR-002 — SQLite comme fichier de données (même pattern : code compilé, données externes)
+- Stories Sprint 8 : STORY-051 → STORY-064
+- Stories Sprint 25 : remplacement mistralrs → llama-cpp-2
+- Stories Sprint 37 : STORY-494 (Bedrock), STORY-495 (Vertex)
+- Crate : [llama-cpp-2](https://crates.io/crates/llama-cpp-2)
+- ADR-041 — STT whisper.cpp (même pattern build chain C++)
+- ADR-047 — Multi-LLM backend registry
+- ADR-079 — LLM DB-first config (LLM config migrée de apollia.toml vers system.db)

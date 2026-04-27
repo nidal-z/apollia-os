@@ -13,7 +13,7 @@
   import { dailyDigest, type DigestFacts } from "$lib/stores/dailyDigest";
   import { LayoutDashboard, Zap } from "lucide-svelte";
 
-  // Operator-mode blocks (US-SP42-056).
+  // Operator-mode blocks.
   import DigestHero from "../components/dashboard/DigestHero.svelte";
   import PendingActionsBlock from "../components/dashboard/PendingActionsBlock.svelte";
   import CompletedTodayBlock from "../components/dashboard/CompletedTodayBlock.svelte";
@@ -28,7 +28,7 @@
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
 
-  // Adapters for the unified inbox preview feed (reuses US-SP42-053 types).
+  // Adapters for the unified inbox preview feed (reuses types).
   import type { InboxItem, InboxRisk } from "../components/inbox/types";
   import type { PendingApproval, PendingChatApproval } from "$lib/types";
 
@@ -110,7 +110,7 @@
     tasksCompleted: tasksCompleted24h,
     tasksFailed: tasksFailed24h,
     approvalsPending: $pendingCount + $pendingChatApprovalCount,
-    insightsCreated: 0, // US-SP42-057 will plumb through the real count.
+    insightsCreated: 0, // will plumb through the real count.
     automationsFailed: 0,
     firstFailureLabel: null,
     topAssistant,

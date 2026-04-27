@@ -2,12 +2,10 @@
  * Registration of all named guided tours used by the onboarding and
  * post-onboarding surfaces. Importing this module has a side effect:
  * all tours are added to the {@link ./GuidedTour.ts} registry.
- *
- * Story: US-SP42-055.
  */
 import { registerTour, type TourDefinition } from "./GuidedTour";
 
-// TODO(US-SP42-055): selectors below are best-guesses; validate against the
+// TODO: selectors below are best-guesses; validate against the
 // actual DOM in a follow-up pass once the targets have `data-testid` hooks.
 
 const firstChat: TourDefinition = {
@@ -93,7 +91,7 @@ const firstInbox: TourDefinition = {
     },
     {
       id: "fi-3",
-      // TODO(US-SP42-055): confirm selector once approval buttons are reworked.
+      // TODO: confirm selector once approval buttons are reworked.
       targetSelector: '[data-testid="inbox-approve-button"]',
       titleKey: "tours.first_inbox.step_3_title",
       bodyKey: "tours.first_inbox.step_3_body",

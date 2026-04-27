@@ -1,5 +1,5 @@
 /**
- * Shared tick store for the unified inbox (US-SP42-053, finding E.31).
+ * Shared tick store for the unified inbox.
  *
  * A single `setInterval` ticks every 5 seconds and publishes `Date.now()`.
  * Each inbox card derives its own elapsed display from this shared source,

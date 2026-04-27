@@ -312,16 +312,16 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Workspace / file read ─────────────────────────────────────────
         RuntimeEvent::FileModifiedSinceRead { .. } => "system",
 
-        // ── Thinking / Reasoning transparency (US-SP42-037) ───────────────
+        // ── Thinking / Reasoning transparency ───────────────
         RuntimeEvent::ThinkingStarted { .. } | RuntimeEvent::ThinkingEnded { .. } => "chat-changed",
 
-        // ── Decision branches (US-SP42-041) ───────────────────────────────
+        // ── Decision branches ───────────────────────────────
         RuntimeEvent::DecisionPointRecorded { .. } => "chat-changed",
 
         // ── Meta LLM Orchestrator (ADR-073) ───────────────────────────────
         RuntimeEvent::MetaLlmBudgetExceeded { .. } => "llm-changed",
 
-        // ── Session metrics (US-SP42-047) ─────────────────────────────────
+        // ── Session metrics ─────────────────────────────────
         RuntimeEvent::SessionMetricsUpdated { .. } => "session-metrics",
     }
 }

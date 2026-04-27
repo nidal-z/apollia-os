@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * EmptyAgentsState — shown inside the QuickPicker agents section when
-   * nothing is installed (US-SP42-034, B.59).
+   * nothing is installed.
    *
    * Factored out of `QuickPicker.svelte` so the same surface can be
    * reused elsewhere (context drawer, command palette).

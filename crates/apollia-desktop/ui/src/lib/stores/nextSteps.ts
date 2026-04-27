@@ -1,5 +1,5 @@
 /**
- * Next Steps store (US-SP42-059).
+ * Next Steps store.
  *
  * Powers the `NextStepsPanel` on two surfaces:
  *   - `global` — operator Dashboard, rolling context of the last ~12h.

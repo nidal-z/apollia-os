@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Barre d'occupation de la context window (US-SP42-047 Pattern P11).
+   * Barre d'occupation de la context window.
    *
    * Vert  <70 % — OK
    * Jaune 70-90 % — attention

@@ -178,7 +178,7 @@
   }
 
   // ── A11y — focus management ──────────────────────────────────────────────
-  // Tab cycling is handled by `use:focusTrap` on the root (US-SP42-033).
+  // Tab cycling is handled by `use:focusTrap` on the root.
   // We still explicitly focus the primary action so screen readers
   // announce the approve button right after the card mounts.
   onMount(async () => {

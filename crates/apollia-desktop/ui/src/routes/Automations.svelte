@@ -85,7 +85,7 @@
   }
 
   function handleBrowseTemplates() {
-    // US-SP42-058 — deep-link to the gallery scoped to automations.
+    // deep-link to the gallery scoped to automations.
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.search = "?kind=automation";

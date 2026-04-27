@@ -1,4 +1,4 @@
-"""Tests for apollia.utils.assertion (US-SP42-046 — Pattern P10 SDK helper)."""
+"""Tests for apollia.utils.assertion (confidence and citation markup helper)."""
 
 from __future__ import annotations
 

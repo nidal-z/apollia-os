@@ -1,5 +1,5 @@
 /**
- * Chat layout store (US-SP42-022).
+ * Chat layout store.
  *
  * Drives the 3-column chat shell (Sessions / Conversation / ContextDrawer).
  *
@@ -63,7 +63,7 @@ export const contextDrawerOpen = writable<boolean>(false);
 export const sessionsDrawerOpen = writable<boolean>(false);
 /**
  * Sessions sidebar collapsed state (`lg+` only — `Cmd+B` toggle from
- * US-SP42-033). On smaller viewports the sidebar is a drawer governed by
+ *). On smaller viewports the sidebar is a drawer governed by
  * `sessionsDrawerOpen`; the collapsed flag is ignored.
  */
 export const sessionsSidebarCollapsed = writable<boolean>(false);

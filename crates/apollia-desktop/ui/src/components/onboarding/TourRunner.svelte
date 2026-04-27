@@ -4,7 +4,7 @@
    * from a {@link ../../lib/tour/GuidedTour.ts} controller. Handles the
    * centred-card case when a step has a null `targetSelector`.
    *
-   * Story: US-SP42-055.
+   * Story:.
    */
   import { onMount, onDestroy } from 'svelte';
   import { t } from 'svelte-i18n';

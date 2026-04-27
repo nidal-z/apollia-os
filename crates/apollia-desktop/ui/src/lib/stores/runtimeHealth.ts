@@ -1,5 +1,5 @@
 /**
- * Runtime heartbeat + reconnect store (US-SP42-034).
+ * Runtime heartbeat + reconnect store.
  *
  * The Tauri backend emits `runtime:heartbeat` events at a regular cadence.
  * If no heartbeat arrives within `HEARTBEAT_TIMEOUT_MS`, the runtime is

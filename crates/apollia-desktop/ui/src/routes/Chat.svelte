@@ -53,7 +53,7 @@
   let showNewChatPicker = $state(false);
   let showShortcutsHelp = $state(false);
 
-  // ── Shortcut registry (US-SP42-033, B.29) ──────────────────────────────
+  // ── Shortcut registry ──────────────────────────────
   // One central place declares every chat-route hotkey. Bindings are keyed
   // on `event.code` so AZERTY/QWERTY layouts share the same physical keys.
   const SHORTCUT_BINDINGS: ShortcutBinding[] = [
@@ -191,7 +191,7 @@
   });
 
   // The preset payload is currently informational — QuickPicker has no
-  // preset prop yet (see story US-SP42-024 follow-up). We accept and
+  // preset prop yet (see story follow-up). We accept and
   // ignore it so the palette wiring stays forward-compatible.
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
     showNewChatPicker = true;
@@ -254,7 +254,7 @@
   }
 </script>
 
-<!-- Chat-route command palette enrichment + Help dialog (US-SP42-033). -->
+<!-- Chat-route command palette enrichment + Help dialog. -->
 <CommandPalette
   onselectSession={openSessionFromPalette}
   onnewChat={openNewChatPicker}
@@ -262,7 +262,7 @@
 />
 <ShortcutsHelpDialog bind:open={showShortcutsHelp} />
 
-<!-- Runtime health banner (US-SP42-034) — stays mounted across sub-states. -->
+<!-- Runtime health banner — stays mounted across sub-states. -->
 <RuntimeDisconnectedBanner />
 
 <div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
@@ -306,7 +306,7 @@
     {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0 && !showNewChatPicker && !selectedSessionId}
       <EmptySessionsState onnewChat={() => openNewChatPicker()} />
     {:else if selectedSessionId}
-      <!-- 3-column shell (US-SP42-022): Sessions / Conversation / ContextDrawer. -->
+      <!-- 3-column shell : Sessions / Conversation / ContextDrawer. -->
       <div class="overflow-hidden rounded-lg glass-border border" style="height: calc(100vh - 180px);">
         <ChatShell>
           {#snippet sessions()}

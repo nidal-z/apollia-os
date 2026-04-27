@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Chat-route command palette wrapper (US-SP42-033, B.29).
+   * Chat-route command palette wrapper.
    *
    * The global palette UI lives in `App.svelte` (mounted via the
    * `Command` primitive), which makes it available everywhere. This

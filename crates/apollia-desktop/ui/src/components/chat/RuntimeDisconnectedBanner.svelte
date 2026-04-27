@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * RuntimeDisconnectedBanner — persistent top-of-chat banner shown
-   * whenever the runtime heartbeat times out (US-SP42-034).
+   * whenever the runtime heartbeat times out.
    *
    * Displays current reconnect attempt + a manual retry affordance.
    * Wired to `runtimeHealth` store; mounts/dismounts itself based on

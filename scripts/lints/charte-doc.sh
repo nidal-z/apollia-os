@@ -15,7 +15,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WIKI="$ROOT/docs/wiki"
 BOOK="$ROOT/book/src"
-HELP="$ROOT/help"
+HELP="$ROOT/docs/help"
 STRICT="${1:-}"
 FAIL=0
 

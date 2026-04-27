@@ -30,7 +30,7 @@ Requiert Python 3.10+. Zéro dépendance runtime (ADR-037).
 sdk/apollia/
 ├── agents/           BaseReActAgent, ConversationalAgent, OrchestratedAgent, WorkerAgent
 ├── types.py          AIPResult (dataclass)
-├── bootstrap.py      ContextBootstrap (abstract class)
+├── bootstrap.py      ContextBootstrap (abstract class) ⚠️ non livré encore
 ├── utils/            parsing, formatting, HITL helpers
 ├── tools/            NATIVE_TOOL_SCHEMAS, build_tools_block()
 ├── testing/          mocks, assertions
@@ -66,7 +66,7 @@ Implémente la boucle Reason-Act-Observe avec LLM et outils.
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
-| `get_tool_schemas` | ` -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 10 outils natifs (bash_executor, file_io, python_executor, etc.) |
+| `get_tool_schemas` | ` -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 13 outils natifs (bash_executor, file_io, python_executor, ask_user, notebook_read, notebook_edit, etc.) |
 
 ---
 
@@ -208,7 +208,7 @@ Résultat retourné par `run()` pour le runtime.
 
 | Objet | Type | Description |
 |---|---|---|
-| `NATIVE_TOOL_SCHEMAS` | `dict[str, dict]` | Dict des 10 outils natifs : `bash_executor`, `file_io`, `python_executor`, etc. ; chaque valeur = spec JSON complète |
+| `NATIVE_TOOL_SCHEMAS` | `dict[str, dict]` | Dict des 13 outils natifs : `bash_executor`, `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `ask_user`, `memory_search`, `http_fetch`, `python_executor`, `notebook_read`, `notebook_edit` ; chaque valeur = spec JSON complète |
 
 | Fonction | Signature | Paramètres | Retour | Notes |
 |---|---|---|---|---|
@@ -241,6 +241,8 @@ Résultat retourné par `run()` pour le runtime.
 ---
 
 ## 8. ContextBootstrap (`apollia.bootstrap`)
+
+> ⚠️ **Module non livré** — `sdk/apollia/bootstrap.py` n'existe pas dans la version actuelle du SDK. Cette section documente l'interface prévue ; le module sera ajouté dans un sprint futur.
 
 Classe abstraite pour que les agents explorent et persistent un contexte cross-session.
 

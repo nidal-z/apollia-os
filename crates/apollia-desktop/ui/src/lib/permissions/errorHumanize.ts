@@ -1,6 +1,6 @@
 /**
  * Humanize low-level backend permission errors into operator-friendly
- * guidance (US-SP42-054, finding E.36).
+ * guidance.
  *
  * The mapper is intentionally pattern-based — Meta-LLM fallback happens
  * elsewhere, this module stays fast, offline, and deterministic.

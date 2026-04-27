@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Playwright config for chat performance tests (US-SP42-035, Phase 10).
+ * Playwright config for chat performance tests (Phase 10).
  *
  * These tests run against the *UI bundle only* (no Tauri backend); Tauri
  * commands are stubbed via `window.__TAURI_INTERNALS__` overrides in each

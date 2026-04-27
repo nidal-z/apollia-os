@@ -3,7 +3,7 @@
  * string (`"ctrl+shift+space"`), validates it, and flags collisions against a
  * small list of reserved OS/app shortcuts.
  *
- * Introduced for US-SP42-075 (STT settings refonte + Hotkey capture modal).
+ * Introduced for (STT settings refonte + Hotkey capture modal).
  */
 
 export const MODIFIER_KEYS = new Set(["Control", "Shift", "Alt", "Meta"]);

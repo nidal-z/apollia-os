@@ -7,7 +7,7 @@
 //!   le Director réclame).
 //! - **PATCH mismatch** : purement fixes ; aucun warning.
 //!
-//! US-SP42-044 précise que l'on émet un warning pour les mismatch MINOR (semver
+//! précise que l'on émet un warning pour les mismatch MINOR (semver
 //! minor). Les mismatch MAJOR sont considérés comme incompatibles.
 
 use serde::{Deserialize, Serialize};

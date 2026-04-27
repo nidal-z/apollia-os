@@ -43,7 +43,7 @@ Les contraintes non-négociables qui encadrent ces choix :
   `fallback_for` orphelin — toutes ces erreurs doivent être détectées au parsing, pas à l'exécution.
 - **Principe #5 — Un acteur, une responsabilité** : `PipelineEngine` reçoit les demandes et
   spawne des `PipelineExecutor` indépendants — jamais d'état partagé entre runs concurrents.
-- **ADR-021** — Cohérence avec le pattern TOML-only des triggers.
+- **ADR-033** — Cohérence avec le pattern TOML-only des triggers.
 - **ADR-023** — Le mécanisme HITL (`AIPTask.is_resumed`, `TaskInputRequired`/`TaskResumed`) est
   déjà implémenté au Sprint 11 et doit être réutilisé sans duplication.
 
@@ -135,7 +135,7 @@ Permettre la création de pipelines via `POST /api/v1/pipelines` avec persistanc
 - Cohérence avec l'API agents/tasks.
 
 **Contre :**
-- Double source de vérité (TOML initial + base de données). Même problème qu'en ADR-021 Option A.
+- Double source de vérité (TOML initial + base de données). Même problème qu'en ADR-033 Option A.
 - Pas de fail fast naturel : les erreurs de cycle ou de référence manquante apparaissent à
   l'exécution du premier run, pas au démarrage.
 - Complexité CRUD complète (endpoints create/update/delete/version) disproportionnée pour Sprint 12.
@@ -215,7 +215,7 @@ Utiliser une crate de templates pour `{{steps.x.output}}`.
 ### Option retenue — TOML `[[pipelines]]` + graph `depends_on` + EventBus HITL + TemplateRenderer minimal
 
 **Pour :**
-- **Cohérence** : même pattern que `[[triggers]]` (ADR-021) et `[[llm.backends]]` (ADR-020).
+- **Cohérence** : même pattern que `[[triggers]]` (ADR-033) et `[[llm.backends]]` (ADR-020).
   `apollia.toml` reste la source de vérité unique pour l'ensemble du runtime.
 - **Fail fast** : validation sémantique exhaustive au démarrage — cycles, références manquantes,
   IDs dupliqués détectés avant le premier run.
@@ -314,7 +314,7 @@ Utiliser une crate de templates pour `{{steps.x.output}}`.
 - STORY-114 : HITL dans les pipelines (Décision 3)
 - STORY-118 : parsing config `[[pipelines]]` dans `apollia.toml` (Décision 1)
 - ADR précédents liés :
-  - ADR-021 — apollia-triggers TOML-only : même pattern de configuration pour les pipelines
+  - ADR-033 — apollia-triggers TOML-only : même pattern de configuration pour les pipelines
   - ADR-023 — HITL `is_resumed` + `InputResponse` : les événements `TaskInputRequired`/`TaskResumed`
     réutilisés sans modification par `PipelineExecutor`
   - ADR-024 — apollia-notifications trait+JSON fixe : `PipelineCompleted`/`PipelineFailed`

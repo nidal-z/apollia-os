@@ -71,4 +71,4 @@ Sur Linux (CI et production), aucune configuration supplémentaire n'est nécess
 
 - Story associée : STORY-024
 - PyO3 configuration : https://pyo3.rs/v0.22/building-and-distribution#configuring-the-python-version
-- ADR-012 : Précédent similaire (comportement différencié macOS/Linux)
+- ADR-005 : Précédent similaire (comportement différencié macOS/Linux via `#[cfg(target_os)]`)

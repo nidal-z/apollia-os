@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * EmptySessionsState — canonical "no chats yet" surface (US-SP42-034).
+   * EmptySessionsState — canonical "no chats yet" surface.
    *
    * Wraps the shared `<EmptyState>` with chat-specific copy and a
    * secondary "Premiers pas" link pointing at the getting-started wiki.

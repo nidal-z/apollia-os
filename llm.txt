@@ -1,0 +1,373 @@
+# Apollia OS — Context for AI Agents
+
+> This file is intended for AI coding agents (Claude Code, Cursor, Copilot, etc.) working on the
+> Apollia OS codebase. It provides a dense, accurate description of the project so that context
+> windows are used efficiently and agents make fewer wrong assumptions.
+
+---
+
+## What is Apollia OS?
+
+Apollia OS is an **open-source Rust runtime for executing autonomous AI agents locally and
+sovereignly**. It bridges any Python agent (LangGraph, CrewAI, custom) with a production-grade
+runtime that handles tool execution, memory, permissions, LLM routing, pipelines, HITL approval,
+and observability — without any cloud dependency.
+
+The key differentiator is **ReAct autonomous agents** (not deterministic LLM pipelines): agents
+observe → reason → act in a loop bounded by a StepBudget, with the runtime enforcing guardrails.
+
+**Author:** Nidal (CTO & Co-founder Apollia), solo development, evenings/weekends.
+**Language distribution:** ~70% Rust, ~20% Svelte/TypeScript, ~10% Python (SDK + agents).
+**Current phase:** Beta preparation — fact-checking sprint validating API contracts.
+
+---
+
+## Repository Layout
+
+```
+apollia-v2/
+├── crates/                 ← All Rust crates (workspace)
+│   ├── apollia-aip/        ← PyO3 bridge: exposes RuntimeContext to Python agents
+│   ├── apollia-auth/       ← OAuth2 PKCE, keyring token storage
+│   ├── apollia-cli/        ← CLI binary (clap v4, 13 subcommands)
+│   ├── apollia-core/       ← Shared types: AgentId, TaskId, StepBudget, errors
+│   ├── apollia-desktop/    ← Tauri v2 desktop app (Svelte 5 frontend, ~114 IPC commands)
+│   ├── apollia-llm/        ← LLM router: llama.cpp local + Anthropic/OpenAI/Ollama/Bedrock/Vertex
+│   ├── apollia-mcp/        ← MCP client (JSON-RPC 2.0, stdio + HTTP/SSE)
+│   ├── apollia-memory/     ← Memory engine (SQLite FTS5, episodic/semantic/procedural)
+│   ├── apollia-notifications/ ← Desktop + webhook notifications
+│   ├── apollia-oria/       ← ORIA engine (Observer-Reasoner-Actor loop, plan cache)
+│   ├── apollia-permissions/ ← Permission rules (3 scopes: session/project/global)
+│   ├── apollia-pipelines/  ← DAG pipeline engine (fan-out, fan-in, HITL, fallback)
+│   ├── apollia-runtime/    ← Core runtime (Tokio actors, axum API, EventBus, Supervisor)
+│   ├── apollia-stt/        ← Speech-to-text (whisper-rs, SttBackend trait)
+│   ├── apollia-tools/      ← 13 native tools + sandbox + audit trail + governance.db
+│   ├── apollia-triggers/   ← Trigger engine (cron, interval, filewatch, webhook, SQLite)
+│   └── apollia-workspace/  ← Workspace isolation, ContextProvider trait, project scoping
+│
+├── sdk/apollia/            ← Python SDK (pip-installable, stubs in sdk/apollia/stubs/)
+│   ├── stubs/context.py    ← RuntimeContext stub (StepBudgetView, ToolsProxy, MemoryProxy)
+│   ├── stubs/memory.py     ← MemoryProxy stub (remember, recall, recall_procedure, etc.)
+│   └── apollia/            ← Public package (exports, agent base classes)
+│
+├── book/                   ← mdBook pedagogical documentation (ch01–ch19 + appendices A-F)
+│   ├── book.toml           ← Build config (output: target/book/)
+│   └── src/                ← Markdown chapters + appendix-a-diagrams/ (SVGs)
+│
+├── docs/
+│   ├── wiki/               ← Technical reference (71 files: Architecture, Briques, API, etc.)
+│   ├── help/               ← End-user help (34 articles, desktop app context)
+│   ├── adr/                ← 70 Architecture Decision Records (ADR-001 to ADR-082, non-contiguous)
+│   ├── diagrams/           ← PlantUML sources (46 .puml files)
+│   └── internal/           ← Private: stories, sprints, specs, fact-checking
+│
+├── agents/                 ← Bundled Python agents (spec, dev, review, document assistants)
+├── tests/integration/      ← Rust integration tests (E2E scenarios)
+├── CLAUDE.md               ← Instructions for Claude Code (read this first)
+└── llm.txt                 ← This file
+```
+
+---
+
+## Core Architecture
+
+### The Actor Model
+
+The runtime uses a strict **Tokio actor pattern**:
+- Each subsystem is a separate actor with its own `mpsc::channel`
+- No `Arc<Mutex<T>>` shared across actors — everything goes through message passing
+- The `Supervisor` starts actors in order and monitors them
+
+**Actor startup order:**
+1. EventBus → 2. AgentRegistry → 3. ToolRegistry → 4. MemoryEngine → 5. LlmRouter →
+6. TriggerEngine → 7. TaskRouter → 8. ORIAEngine → 9. APIServer
+
+### The ORIA Loop
+
+Every agent task runs through the ORIA (Observer-Reasoner-Actor) loop:
+
+```
+Observe  → gather context (memory, tools, previous steps)
+Reason   → LLM call produces a plan or next action
+Act      → execute tool calls, emit events
+Iterate  → until StepBudget exhausted, task done, or HITL pause
+```
+
+Two execution modes (ADR-004):
+- **Direct** (atomic): agent handles its own ReAct loop in `run()`
+- **Orchestrated**: ORIA generates a multi-step plan; agent is declarative
+
+### The Python Bridge (AIP)
+
+Python agents are loaded via PyO3. The bridge exposes `RuntimeContext` to agent code:
+
+```python
+async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    await ctx.tools.call("file_read", {"path": "/data/report.txt"})
+    await ctx.memory.remember("finding", "...")
+    result = await ctx.llm.complete("Summarize: ...")
+    return AIPResult(output="done")
+```
+
+Key `RuntimeContext` fields (from `sdk/apollia/stubs/context.py`):
+- `ctx.tools` → ToolsProxy (call, list, tool_call_count)
+- `ctx.memory` → MemoryProxy (remember, recall, recall_procedure, learn_procedure)
+- `ctx.llm` → LlmProxy (complete, with_model)
+- `ctx.log` → Logger (info, warning, error)
+- `ctx.step_budget` → StepBudgetView (max_steps, max_tool_calls, wall_clock_secs, steps_remaining)
+- `ctx.task_id`, `ctx.agent_id`, `ctx.project_id`
+
+**Important:** `ctx.step_budget.tool_calls_remaining` is currently hardcoded to `-1` (stub).
+Use `ctx.tools.tool_call_count()` for actual count.
+
+### StepBudget
+
+Defined in `crates/apollia-core/src/budget.rs`:
+
+```toml
+[step_budget]
+max_steps = 30           # default
+max_tool_calls = 60      # default
+wall_clock_secs = 600    # default (NOT wall_clock_timeout_secs)
+```
+
+The runtime enforces this budget — it cannot be bypassed by agent code.
+
+### Agent Contract (AIP — Agent Interface Protocol)
+
+Minimal duck-typing contract (ADR-003):
+
+```python
+def manifest() -> dict:
+    return {
+        "id": "my-agent",
+        "name": "My Agent",
+        "version": "0.1.0",
+        "description": "...",
+        "step_budget": {"max_steps": 20, "max_tool_calls": 40, "wall_clock_secs": 300},
+        "tools_required": ["file_read", "web_search"],
+    }
+
+async def run(task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    ...
+```
+
+No base class required. `manifest()` + `async run()` are the only contract.
+
+---
+
+## Key Technical Conventions
+
+### Rust
+
+- **Errors:** `thiserror` everywhere — `anyhow` is FORBIDDEN in workspace crates
+- **Unwrap:** zero `unwrap()` in production code — only in `#[cfg(test)]`
+- **Actors:** `mpsc::channel` + clonable handle — never `Arc<Mutex<T>>` cross-actor
+- **Logging:** `tracing::info!(field = %val, "event")` — no format strings in log macros
+- **Docs:** `///` on every public struct, enum, fn
+
+### Python SDK
+
+- Stubs live in `sdk/apollia/stubs/` — these are the source of truth for Python API
+- `AIPTask` fields: `task_id`, `agent_id`, `input`, `project_id`, `message_id`, `timeout_seconds`
+- `AIPResult` fields: `output`, `success`, `error`, `metadata`, `step_count`, `tool_calls`
+- `recall_procedure()` returns `list[dict]` with keys `trigger`, `steps`, `created_at` — never `None`
+
+### Git Commits
+
+Conventional commits required:
+```
+feat(apollia-core): add AgentManifest type
+fix(apollia-tools): handle missing tool gracefully
+docs(wiki): update StepBudget reference
+```
+Scope = crate name or `wiki`/`book`/`cli`. One commit = one logical task.
+
+### Testing
+
+- `#[tokio::test]` for all async tests
+- GIVEN / WHEN / THEN comment structure
+- `cargo test -p apollia-XXX` must pass before committing to that crate
+
+---
+
+## 13 Native Tools
+
+Available via `ctx.tools.call(name, params)`:
+
+| Tool | Purpose |
+|---|---|
+| `bash_executor` | Execute shell commands (sandbox-gated) |
+| `python_executor` | Execute Python scripts |
+| `file_read` | Read file contents |
+| `file_write` | Write/create files |
+| `file_edit` | Patch file with old→new string replacement |
+| `file_list` | List directory contents |
+| `file_glob` | Glob pattern file search |
+| `file_grep` | Search file contents with regex |
+| `http_fetch` | HTTP GET/POST requests |
+| `web_search` | Web search (DuckDuckGo default, Brave opt-in) |
+| `web_read` | Fetch and extract readable text from URL |
+| `ask_user` | HITL prompt — pauses task for human input |
+| `notebook_read` | Read Jupyter notebook cells |
+| `notebook_edit` | Edit a specific notebook cell |
+| `memory_search` | Search agent memory (shortcut for `ctx.memory.recall`) |
+
+---
+
+## Memory System
+
+Three layers (all in SQLite FTS5):
+- **Episodic:** timestamped events from agent runs
+- **Semantic:** searchable knowledge fragments
+- **Procedural:** `learn_procedure(trigger, steps)` / `recall_procedure(trigger)`
+
+Memory is **always at agent initiative** (ADR-007) — the runtime never auto-injects.
+Namespace convention: `{project_id}:{manifest_namespace}` (ADR-056).
+
+---
+
+## Permission Model
+
+Three scope layers (ADR-061, ADR-082), stored in `~/.apollia/governance.db`:
+
+| Scope | Storage | Lifetime |
+|---|---|---|
+| Session | In-memory | Until runtime stops |
+| Project | `governance.db` | Persistent, project-bound |
+| Global | `governance.db` | Persistent, all projects |
+
+HITL approval prompts pause task execution and emit a `TaskPaused` event. The desktop app
+shows an approval card; CLI uses `apollia task resume <id> --approve|--reject`.
+
+---
+
+## CLI Reference
+
+Pattern: `apollia-os <noun> <verb>` (ADR-008)
+
+```
+apollia-os start                    # boot runtime
+apollia-os status                   # overview: agents, tools, health
+apollia-os run <agent> "<task>"     # submit task (--wait, --stream, --detach)
+apollia-os agent list|start|stop|info|logs|validate|new
+apollia-os task list|status|result|cancel|retry|resume|inspect
+apollia-os memory inspect|list|clear|purge|learn-procedure|export|import
+apollia-os tools list|enable|disable|config|reload|credentials|describe
+apollia-os permissions list|revoke|audit
+apollia-os pipeline list|run|runs|status
+apollia-os trigger list|status
+```
+
+Exit codes: 0 success · 1 input error · 2 runtime error · 3 task failed · 4 timeout (⚠️ not yet implemented) · 5 SIGINT
+
+Global flags: `--json` · `--socket PATH` · `-q/--quiet` · `-v/--verbose` · `--debug` · `--no-color`
+
+---
+
+## Desktop Application
+
+**Stack:** Tauri v2 + Svelte 5 (runes) + Tailwind 3.4 + lucide-svelte + bits-ui
+
+**Key paths:**
+- `crates/apollia-desktop/ui/src/` — Svelte frontend
+- `crates/apollia-desktop/ui/src/app.css` — all CSS custom properties (HSL tokens, dark mode)
+- `crates/apollia-desktop/ui/src/lib/design/tokens.ts` — TypeScript design tokens
+- `crates/apollia-desktop/src/commands/` — Tauri IPC command handlers (Rust)
+- `crates/apollia-desktop/src/main.rs` — Tauri app entry point
+
+**Design system:** Warm cream light mode (`--background: 38 28% 90%`) + warm charcoal dark mode
+(`--background: 28 8% 9%`). Primary blue `#3435f5`. Glass morphism layers. Rim light accents.
+Full spec: `docs/wiki/DESIGN-SYSTEM.md`.
+
+**i18n:** svelte-i18n v4, FR/EN JSON namespaces in `ui/src/lib/i18n/`. ~1700 keys.
+Default locale: system → FR fallback.
+
+---
+
+## Database Layout
+
+| File | Contents |
+|---|---|
+| `~/.apollia/system.db` | LLM backends, runtime config |
+| `~/.apollia/memory.db` | All agent memory (FTS5) |
+| `~/.apollia/governance.db` | Permission rules (project + global scopes) |
+| `~/.apollia/agents.db` | Registered agents |
+| `~/.apollia/tasks.db` | Task history and state |
+| `~/.apollia/triggers_def.db` | Trigger definitions |
+| `~/.apollia/plan_cache.db` | ORIA plan cache (SHA-256, 7-day TTL) |
+| `~/.apollia/audit.db` | Tool call audit trail |
+
+---
+
+## Documentation Map
+
+| Need | Location |
+|---|---|
+| Architecture overview | `docs/wiki/Architecture-Vue-Ensemble.md` |
+| ORIA engine spec | `docs/wiki/Briques-ORIA-Engine.md` |
+| Memory engine spec | `docs/wiki/Briques-Memory-Engine.md` |
+| Tool Registry spec | `docs/wiki/Briques-Tool-Registry.md` |
+| Runtime Core spec | `docs/wiki/Briques-Runtime-Core.md` |
+| AIP bridge spec | `docs/wiki/Briques-AIP-Specification.md` |
+| CLI spec (all flags) | `docs/wiki/Briques-CLI.md` |
+| LLM backend spec | `docs/wiki/Briques-LLM-Backend.md` |
+| Desktop spec | `docs/wiki/Briques-Desktop.md` |
+| API HTTP reference | `docs/wiki/API-HTTP-Reference.md` |
+| Config `apollia.toml` | `docs/wiki/Config-apollia-toml.md` |
+| SDK guide | `docs/wiki/Agents-SDK-Guide.md` |
+| RuntimeContext reference | `docs/wiki/Agents-RuntimeContext-Guide.md` |
+| Design system | `docs/wiki/DESIGN-SYSTEM.md` |
+| All ADRs | `docs/adr/` (ADR-001 to ADR-082) |
+| ADR summary | `docs/wiki/Decisions-Log.md` |
+| Pedagogical book | `book/src/` (build: `mdbook build book/`) |
+| Sprint history | `docs/internal/STORIES/sprint-index.md` |
+| Launch backlog | `docs/internal/LAUNCH-BACKLOG.md` |
+
+---
+
+## Current State (2026-04-27)
+
+**Active work:** Fact-checking sprint (23 stories validating API contracts between Python SDK
+stubs, Rust PyO3 bindings, and Desktop IPC handlers). ~40% complete.
+
+**Last feature sprint:** Sprint 40 — Context Bootstrapping & SDK 0.3.0 ✅
+
+**Next planned:** Sprint 43 — Tool Governance & CLI (apollia tools/permissions subcommands,
+governance.db, 3-button HITL scopes).
+
+**ADR count:** 70 active (82 originaux, 12 fusionnés et supprimés). Last: ADR-082 — Tool Governance Architecture (unified
+governance.db, ToolRegistry scope-aware, 3-scope HITL).
+
+**Known stubs (not yet live):**
+- `ctx.step_budget.tool_calls_remaining` → always returns `-1`
+- `ctx.elapsed_seconds` → always returns `0.0`
+- `sdk/apollia/bootstrap.py` → ContextBootstrap abstract class not yet shipped in SDK package
+
+---
+
+## Working in This Codebase
+
+**Before starting any task:**
+1. Read `CLAUDE.md` — non-negotiable rules (error handling, actor pattern, commits)
+2. Check `docs/internal/STORIES/sprint-index.md` for current work context
+3. For any new architectural decision, create an ADR in `docs/adr/`
+
+**Running things:**
+```bash
+cargo test --workspace             # all tests
+cargo test -p apollia-XXX          # specific crate
+just docs                          # build all documentation
+mdbook serve book/ --open          # local book dev server
+just diagrams                      # regenerate PlantUML SVGs → book/src/appendix-a-diagrams/
+```
+
+**Python SDK testing:**
+```bash
+PYO3_PYTHON=$(which python3) cargo test --features python-tests
+```
+
+**Desktop:**
+```bash
+cd crates/apollia-desktop && cargo tauri dev
+```

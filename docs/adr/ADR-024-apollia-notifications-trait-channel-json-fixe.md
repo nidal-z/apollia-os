@@ -158,5 +158,5 @@ Header `X-Apollia-Event: task.input_required` inclus. Les intégrateurs (Slack, 
 - Stories associées : STORY-099, STORY-100, STORY-101, STORY-102, STORY-104, STORY-106 (Sprint 11)
 - ADR précédents liés :
   - ADR-015, ADR-016, ADR-019 — pattern trait testable réutilisé pour `NotificationChannel`
-  - ADR-021 — apollia-triggers : pattern `[[triggers]]` TOML réutilisé pour `[[notifications.channels]]`
+  - ADR-033 — config opérateur SQLite : pattern réutilisé pour `[[notifications.channels]]`
   - ADR-023 — HITL : `TaskInputRequired` est le déclencheur principal de notification

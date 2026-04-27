@@ -1,4 +1,4 @@
-//! Commande IPC Tauri pour le wizard natural-language → schedule (US-SP42-050).
+//! Commande IPC Tauri pour le wizard natural-language → schedule.
 //!
 //! Point unique : `meta_parse_automation` — prend une description libre et la
 //! liste des agents installés, retourne une `ParsedAutomation` que l'UI mappe

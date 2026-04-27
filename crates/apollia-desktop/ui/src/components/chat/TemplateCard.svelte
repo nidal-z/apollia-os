@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Clickable template card for the QuickPicker (US-SP42-024).
+   * Clickable template card for the QuickPicker.
    */
   import { t } from "svelte-i18n";
   import type { ChatTemplate } from "$lib/templates/chatTemplates";

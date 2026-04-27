@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Inline retry timeline (US-SP42-040 — Pattern P4).
+   * Inline retry timeline.
    *
    * Horizontal mini-lane where each attempt is a colored segment:
    * - green = success

@@ -1,6 +1,6 @@
 /**
  * Thin facade over `$lib/stores/navigation` for topbar consumers
- * (US-SP42-077). The core history state (past/future stacks, bounded
+ * The core history state (past/future stacks, bounded
  * to 10) still lives in the navigation store — this module only adds
  * derived labels used by the back/forward tooltips.
  */

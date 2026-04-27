@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * AskUserCard v2 (US-SP42-032)
+   * AskUserCard v2
    * ============================
    * Compact, a11y-first ask-user surface:
    *   - header = prompt (1 line, click-to-expand when overflowing)
@@ -43,7 +43,7 @@
   }
 
   /**
-   * Structured HITL context surfaced on the card (US-SP42-045).
+   * Structured HITL context surfaced on the card.
    * When provided, the card renders Why / Risk / If-approved / If-rejected
    * blocks on top of the question list. When omitted, the legacy v2 layout
    * is preserved.
@@ -277,7 +277,7 @@
       <p class="mt-1 text-[11px] italic text-muted-foreground">{context}</p>
     {/if}
 
-    <!-- HITL structured context (US-SP42-045) -->
+    <!-- HITL structured context -->
     {#if hitl}
       <div class="mt-2 space-y-1.5" data-testid="ask-user-hitl-context">
         <!-- Why + Risk badge row -->

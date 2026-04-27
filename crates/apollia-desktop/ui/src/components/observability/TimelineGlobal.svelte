@@ -71,7 +71,7 @@
     events.filter((e) => enabledTypes.has(e.event_type as EventTypeFilter)),
   );
 
-  // Extract correlation id from event.detail for drill-down (US-SP42-048).
+  // Extract correlation id from event.detail for drill-down.
   function correlationIdFor(event: GlobalTimelineEvent): string | null {
     const detail = event.detail as Record<string, unknown>;
     const candidates = ["step_id", "tool_call_id", "hitl_id", "correlation_id"];
@@ -192,7 +192,7 @@
     </div>
   </div>
 
-  <!-- Horizontal scrubber with event markers (US-SP42-048) -->
+  <!-- Horizontal scrubber with event markers -->
   {#if !loading && !error && filteredEvents.length > 0}
     <div class="scrubber" data-testid="timeline-scrubber">
       <div class="scrubber-track">

@@ -19,14 +19,14 @@ Un agent passe par ces états depuis son déploiement jusqu'à son arrêt :
                ┌────────────┴────────────┐
                │ succès                  │ outil requis manquant
                ▼                         ▼
-          ┌─────────┐             ┌─────────────┐
-          │  ACTIVE │             │   STOPPED   │
-          └────┬────┘             └─────────────┘
-               │
-          ┌────┴────────────────────┐
-          │ outil optionnel absent  │
-          ▼                         │
-     ┌──────────┐                   │
+          ┌─────────┐             ┌──────────┐
+          │  ACTIVE │             │ STOPPING │  Drain (aucune tâche active)
+          └────┬────┘             └────┬─────┘
+               │                      │
+          ┌────┴────────────────────┐  ▼
+          │ outil optionnel absent  │ ┌─────────────┐
+          ▼                         │ │   STOPPED   │
+     ┌──────────┐                   │ └─────────────┘
      │ DEGRADED │                   │
      └────┬─────┘                   │
           │                         │
@@ -52,7 +52,7 @@ L'état transitoire de démarrage. Le runtime :
 4. Ouvre le namespace mémoire si `memory_namespace` est défini
 5. Crée le sémaphore de concurrence
 
-Si tout se passe bien → `ACTIVE`. Si un outil requis est absent → `STOPPED`.
+Si tout se passe bien → `ACTIVE`. Si un outil requis est absent → `STOPPING` (drain immédiat, aucune tâche active) puis `STOPPED`.
 
 ### ACTIVE
 

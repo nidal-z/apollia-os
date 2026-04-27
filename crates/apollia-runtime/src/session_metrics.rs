@@ -1,4 +1,4 @@
-//! Acteur d'agrégation des métriques de session (US-SP42-047 Pattern P11).
+//! Acteur d'agrégation des métriques de session.
 //!
 //! `SessionMetricsActor` souscrit à l'`EventBus` et maintient une map
 //! `session_id -> SessionMetrics`. Il réagit aux événements suivants :
@@ -157,7 +157,7 @@ fn process_event(
             // Pas de session_id dans l'événement : on utilise task_id comme clé
             // par défaut. Si task_id est absent, on retombe sur la session globale.
             let session_id = task_id.clone().unwrap_or_else(|| "global".to_string());
-            let mut guard = store.lock().expect("SessionMetrics store poisoned");
+            let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let m = guard
                 .entry(session_id.clone())
                 .or_insert_with(|| default_metrics(context_window_max, token_budget));
@@ -192,7 +192,7 @@ fn process_event(
                 .map(|h| h.expected_duration_ms);
             let timing = ToolTiming::new(&call.tool_name, expected_ms, actual_ms);
 
-            let mut guard = store.lock().expect("SessionMetrics store poisoned");
+            let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let m = guard
                 .entry(call.session_id.clone())
                 .or_insert_with(|| default_metrics(context_window_max, token_budget));
@@ -207,7 +207,7 @@ fn process_event(
         } => {
             // `ContextCompacted` ne porte pas de session_id — on applique à toutes
             // les sessions actives (cas courant : une session active à la fois).
-            let mut guard = store.lock().expect("SessionMetrics store poisoned");
+            let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let mut updates = Vec::new();
             // Estimation grossière : 1 token ≈ 4 caractères.
             let summary_tokens = (*summary_chars as u64) / 4;
@@ -231,7 +231,7 @@ fn process_event(
             tokens_used,
             budget,
         } => {
-            let mut guard = store.lock().expect("SessionMetrics store poisoned");
+            let mut guard = store.lock().unwrap_or_else(|e| e.into_inner());
             let m = guard
                 .entry(session_id.clone())
                 .or_insert_with(|| default_metrics(context_window_max, token_budget));
@@ -530,5 +530,47 @@ mod tests {
         assert!(saw_alert, "expected Warning or Block alert");
 
         actor.abort();
+    }
+
+    #[test]
+    fn poisoned_mutex_does_not_panic() {
+        // GIVEN un store dont le mutex est empoisonné par un thread qui paniqua pendant le lock
+        let store: SessionMetricsStore = Arc::new(Mutex::new(HashMap::new()));
+        let store_clone = Arc::clone(&store);
+        let _ = std::panic::catch_unwind(move || {
+            let _guard = store_clone.lock().unwrap();
+            panic!("deliberate panic to poison the mutex");
+        });
+        assert!(
+            store.is_poisoned(),
+            "mutex should be poisoned after the thread panic"
+        );
+
+        // WHEN process_event est appelé sur le store empoisonné
+        let event = RuntimeEvent::LlmCallCompleted {
+            backend: "b".into(),
+            model: "m".into(),
+            task_id: Some("poison-sess".into()),
+            step_id: None,
+            prompt_tokens: 10,
+            completion_tokens: 5,
+            latency_ms: 1,
+            cost_usd: None,
+        };
+        let mut in_flight = HashMap::new();
+        // THEN aucune panique — process_event se termine normalement
+        let updates = process_event(
+            &event,
+            &store,
+            &mut in_flight,
+            SessionThresholds::default(),
+            0,
+            0,
+        );
+        assert_eq!(
+            updates.len(),
+            1,
+            "update should succeed even on a poisoned mutex"
+        );
     }
 }

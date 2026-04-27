@@ -20,7 +20,7 @@ export { extractedInsights, rejectedInsights } from "./sse";
 
 /**
  * Move an insight from the pending list into the rejected list with an
- * explicit reason (US-SP42-042). The entry remains browseable in the
+ * explicit reason. The entry remains browseable in the
  * "Rejected" tab for audit.
  */
 export function recordRejectedInsight(

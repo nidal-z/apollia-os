@@ -197,11 +197,13 @@ await ctx.memory.learn_procedure(
 
 ```python
 steps = await ctx.memory.recall_procedure("résumer un rapport financier")
-# steps : list[str] | None
+# steps : list[dict] — chaque dict contient trigger, steps, created_at
+# retourne [] si aucune procédure ne correspond (jamais None)
 
 if steps:
-    # Guider le LLM avec les étapes apprises
-    guidance = "\n".join(f"{i+1}. {s}" for i, s in enumerate(steps))
+    # steps est une list[dict] — extraire les étapes de la procédure la plus récente
+    proc_steps = steps[0]["steps"]   # list[str]
+    guidance = "\n".join(f"{i+1}. {s}" for i, s in enumerate(proc_steps))
     response = await ctx.llm.chat(
         system=f"Suis cette procédure :\n{guidance}",
         user=file_content,

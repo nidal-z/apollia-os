@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * US-SP42-082 — Danger Zone 2-step confirm + Shortcuts search.
+ * Danger Zone 2-step confirm + Shortcuts search.
  *
  * Covers:
  *   - Reset Onboarding card opens the 2-step dialog; step 1 Cancel closes it;

@@ -1,5 +1,5 @@
 /**
- * Tick store guarantees (US-SP42-053, finding E.31).
+ * Tick store guarantees.
  *
  * Even with many subscribers (each inbox card subscribes on mount), the
  * underlying setInterval must be instantiated exactly once — and cleared

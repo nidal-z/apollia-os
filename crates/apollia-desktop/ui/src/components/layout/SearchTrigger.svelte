@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * Topbar search pill (US-SP42-077). Click — or `⌘K` globally — opens
-   * the command palette (US-SP42-078). Collapses to an icon-only button
+   * Topbar search pill. Click — or `⌘K` globally — opens
+   * the command palette. Collapses to an icon-only button
    * below `sm`.
    */
   import { t } from "svelte-i18n";

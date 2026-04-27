@@ -12,6 +12,8 @@ from typing import Awaitable
 
 from apollia.stubs.llm import LlmProxy
 from apollia.stubs.memory import MemoryInterface
+from apollia.stubs.notify import NotifyInterface
+from apollia.stubs.stt import SttInterface
 from apollia.stubs.tools import ToolProxy
 
 
@@ -86,6 +88,16 @@ class RuntimeContext:
     @property
     def workspace(self) -> WorkspaceContextPy | None:
         """Workspace context (rules, Git, custom sections) — ``None`` if not collected."""
+        ...
+
+    @property
+    def notify(self) -> NotifyInterface | None:
+        """Notification interface — ``None`` if no notification channels configured."""
+        ...
+
+    @property
+    def stt(self) -> SttInterface | None:
+        """STT interface — ``None`` if no STT backend configured."""
         ...
 
     @property

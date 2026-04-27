@@ -1,4 +1,4 @@
-//! Commandes IPC Tauri exposant l'état de `SessionMetrics` (US-SP42-047 Pattern P11).
+//! Commandes IPC Tauri exposant l'état de `SessionMetrics`.
 //!
 //! Le panel frontend écoute l'événement `runtime-event`/`SessionMetricsUpdated`
 //! pour les mises à jour temps-réel, et utilise `get_session_metrics` pour

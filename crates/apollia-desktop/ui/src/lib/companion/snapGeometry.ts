@@ -2,7 +2,7 @@
  * Companion geometry helpers — snap-to-edge, clamping, viewport validation.
  *
  * Pure functions only: no DOM reads, all inputs passed explicitly so the
- * module is trivially unit-testable (US-SP42-080).
+ * module is trivially unit-testable.
  */
 
 export interface Position {

@@ -6,7 +6,7 @@
  * flaky networks. Throws a typed `TimeoutError` so callers can discriminate
  * a timeout from a generic network failure.
  *
- * Story: US-SP42-055.
+ * Story:.
  */
 
 /** Default timeout in milliseconds applied when no `ms` argument is given. */

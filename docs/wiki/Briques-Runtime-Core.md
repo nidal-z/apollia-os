@@ -44,31 +44,38 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 ### 2.1 Séquence de démarrage (ordre strict)
 
 ```
-1.  EventBus            → bus interne (premier, tout le monde en dépend)
-2.  AgentRegistry       → registre d'état
-3.  Tool Registry       → catalogue outils + résolution MCP
-4.  Memory Engine       → ouverture connexions SQLite
-5.  LlmRouter           → backends LLM (embedded + cloud)
-6.  TriggerEngine       → moteur de déclenchement automatique
-    └── ouvre TriggerDefinitionRepository (triggers_def.db)
-7.  PipelineEngine      → orchestration multi-agent
-    └── ouvre PipelineDefinitionRepository (pipelines_def.db)
-8.  APIServer           → accepte les connexions externes
-9.  NotificationEngine  → alertes desktop / webhook
-    └── ouvre NotificationConfigRepository (notifications.db)
-10. AgentMailbox        → messagerie inter-agents
-    └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
-11. ChatSessionManager  → sessions de chat interactif
-    └── ouvre ChatSessionRepository (chat.db), restaure autorisations
-12. SttEngine           → moteur Speech-to-Text embarqué
-    └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
-13. BundledAgents        → auto-installation des agents bundled
-    └── lit agents/bundled/manifest.json, installe les 4 agents si absents de la DB
+1.   EventBus               → bus interne (premier, tout le monde en dépend)
+2.   AgentRegistry          → registre d'état
+3.   ToolRegistry           → catalogue outils + résolution outils natifs
+     └── MCPClientManager   → connexions MCP (démarré juste après ToolRegistry)
+4.   LlmRouter              → backends LLM (embedded + cloud)
+     └── LlmBackendRepository → persistence des backends
+     └── LlmCallRepository  → subscriber EventBus pour logging des coûts LLM
+5.   TaskRouter             → dispatch des tâches vers les agents
+6.   TriggerEngine          → moteur de déclenchement automatique
+     └── ouvre TriggerDefinitionRepository (triggers_def.db)
+7.   PipelineEngine         → orchestration multi-agent
+     └── ouvre PipelineDefinitionRepository (pipelines_def.db)
+8.   AuditTrail             → log d'audit (write-only, append)
+9.   Repositories Phase 9   → NotificationEngine, PlanCacheRepository, AgentMailbox,
+                               UserMemoryRepository, TaskRepository, PendingApprovals,
+                               ProjectRepository
+10.  ChatSessionManager     → sessions de chat interactif
+     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
+11.  SttEngine              → moteur Speech-to-Text embarqué
+     └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
+12.  APIServer              → accepte les connexions externes (démarré en DERNIER)
+     └── construit AppState avec tous les repositories → bind TCP 7771 + Unix socket
+13.  TimeoutWatcher         → surveille les timeouts des tâches en cours
+14.  BundledAgents          → auto-installation des agents bundled
+     └── lit agents/bundled/manifest.json, installe les 4 agents si absents de la DB
 ```
+
+> **Note :** Il n'existe pas d'acteur `MemoryEngine` distinct. Les accès mémoire passent par des repositories SQLite directs (`Arc<Mutex<T>>` dans `AppState`), conformément à ADR-033. L'`APIServer` est démarré en position 12 (dernier acteur de service) afin que toutes les routes soient disponibles seulement une fois tous les composants prêts.
 
 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
-Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
+Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances. Le timeout est **global** (pas par acteur) : 10s en mode CLI, 300s en mode embarqué (`EmbeddedConfig`).
 
 ### 2.2 Mode embarqué (Desktop — ADR-027)
 
@@ -78,7 +85,7 @@ L'application desktop Tauri utilise `init_embedded` pour démarrer le runtime da
 pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError>
 ```
 
-`init_embedded` spawn un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor`, et attend `AllReady` (timeout configurable, défaut 30s). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — réutilisables directement par les commandes Tauri `#[tauri::command]` sans sérialisation HTTP.
+`init_embedded` spawn un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor`, et attend `AllReady` (timeout configurable, défaut 300s — `DEFAULT_STARTUP_TIMEOUT_SECS`). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — réutilisables directement par les commandes Tauri `#[tauri::command]` sans sérialisation HTTP.
 
 Le socket Unix et l'API TCP restent actifs : la CLI fonctionne en parallèle du desktop.
 
@@ -116,24 +123,18 @@ Source de vérité pour l'état de tous les agents actifs.
 | `UpdateState(agent_id, state)` | Transition de `ProcessState` |
 | `GetAgent(agent_id)` | Retourne `AgentEntry` ou `None` |
 | `ListAgents(filter)` | Liste tous les agents (filtrable par `ProcessState`) |
-| `ResolveSkill(skill_id)` | Résout un `skill_id` → `AgentEntry` via `SkillIndex` |
+| `ResolveSkill(skill_id)` | Résout un `skill_id` → `AgentEntry` |
 
-### 3.1 SkillIndex — Résolution A2A par skill_id
+### 3.1 Résolution A2A par skill_id
 
-**Fichier** : `crates/apollia-runtime/src/registry.rs`
+**Fichier** : `crates/apollia-runtime/src/a2a/invoker.rs`
 
-L'`AgentRegistry` intègre un `SkillIndex` — index inversé `skill_id → agent_name` alimenté automatiquement lors des `register` / `unregister` pour les agents avec `supports_a2a: true`.
+La résolution d'un `skill_id` vers un agent est effectuée inline dans `A2AInvoker::invoke_by_skill()` — il n'existe pas de struct `SkillIndex` distincte. L'`AgentRegistry` est consulté via `ListAgents` + filtrage sur les agents avec `supports_a2a: true`.
 
-```rust
-pub enum SkillIndexError {
-    SkillConflict { skill_id: String, existing_agent: String, new_agent: String },
-    SkillNotFound  { skill_id: String, available: Vec<String> },
-}
-```
+Erreur retournée en cas d'échec : `A2AError::SkillNotFound { skill_id }`.
 
-- **Fail-fast** : conflit de `skill_id` détecté au `Register`, pas au runtime (Principe #4)
-- **Unregister propre** : le `SkillIndex` est dépilé lors du `Unregister`
-- **Pas un acteur séparé** : le `SkillIndex` est un composant interne de l'`AgentRegistry` (Principe #5)
+- **Pas un acteur séparé** : la résolution est inline dans l'invoker (Principe #5)
+- **Pas de détection de conflit au Register** : deux agents peuvent exposer le même `skill_id` ; c'est l'invoker qui gère l'ambiguïté (premier agent trouvé)
 
 **Cycle de vie d'enregistrement :**
 
@@ -238,7 +239,7 @@ GET    /api/v1/a2a/agents                   → Lister les AgentCards avec skill
 GET    /api/v1/a2a/agents/{name}            → AgentCard d'un agent par nom
 GET    /api/v1/a2a/skills                   → Lister tous les skills disponibles
 POST   /api/v1/a2a/invoke                   → Invoquer un agent par skill_id
-GET    /.well-known/agent.json              → AgentCard A2A standard (si un agent A2A est actif)
+POST   /api/v1/a2a/delegate                 → Déléguer une tâche à un agent A2A
 
 GET    /api/v1/tools                        → Lister les outils
 GET    /api/v1/health                       → Santé du runtime

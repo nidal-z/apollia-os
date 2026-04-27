@@ -1,5 +1,5 @@
 /**
- * Always-accept permission rules store (US-SP42-054, B.51).
+ * Always-accept permission rules store.
  *
  * Rules are owned by the backend; this store mirrors them locally and
  * exposes a small CRUD surface.

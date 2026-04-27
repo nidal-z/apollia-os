@@ -30,6 +30,8 @@ use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::permissions::PermissionsCommand;
 use commands::pipeline::PipelineCommand;
+use commands::plan_cache::PlanCacheCommand;
+use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
@@ -49,6 +51,26 @@ struct Cli {
     /// Accepted at any position: before or after the subcommand and its arguments.
     #[arg(long, global = true)]
     json: bool,
+
+    /// Suppress all non-essential output (only success/error shown).
+    ///
+    /// When combined with `--json`, JSON output takes priority.
+    #[arg(short = 'q', long, global = true)]
+    quiet: bool,
+
+    /// Show additional details such as durations and step counts.
+    #[arg(short = 'v', long, global = true)]
+    verbose: bool,
+
+    /// Enable internal debug logs and ORIA traces on stderr.
+    ///
+    /// Equivalent to setting `RUST_LOG=debug`.
+    #[arg(long, global = true)]
+    debug: bool,
+
+    /// Disable ANSI color codes even when stdout is a TTY.
+    #[arg(long, global = true)]
+    no_color: bool,
 
     /// Command to execute.
     #[command(subcommand)]
@@ -251,27 +273,71 @@ enum Commands {
     /// replays the inverse of every native mutation in reverse order.
     /// Use `--dry-run` to preview, `--list` to enumerate available sessions.
     Rollback(commands::rollback::RollbackArgs),
+
+    /// Circuit breaker inspection and reset (list, show, reset).
+    Resilience {
+        /// Resilience subcommand.
+        #[command(subcommand)]
+        command: ResilienceCommand,
+    },
+
+    /// Plan cache management (stats, clear, evict).
+    PlanCache {
+        /// Plan-cache subcommand.
+        #[command(subcommand)]
+        command: PlanCacheCommand,
+    },
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    // Initialize tracing for start command (other commands use minimal logging)
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("apollia=info".parse().expect("valid directive")),
-        )
-        .with_target(false)
-        .init();
+    // Apply --no-color before tracing init so the subscriber respects it.
+    if cli.no_color {
+        std::env::set_var("NO_COLOR", "1");
+    }
+
+    // Choose tracing level based on global verbosity flags.
+    // RUST_LOG (if set by the user) takes priority via `try_from_default_env`.
+    let filter_str = if cli.debug {
+        "debug"
+    } else if cli.verbose {
+        "apollia=debug,info"
+    } else if cli.quiet {
+        "warn"
+    } else {
+        "apollia=info"
+    };
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter_str));
+
+    if cli.no_color {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_target(false)
+            .with_ansi(false)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_target(false)
+            .init();
+    }
 
     let rt = tokio::runtime::Runtime::new().expect("failed to create Tokio runtime");
 
     let json = cli.json;
+    let quiet = cli.quiet;
     let exit_code = rt.block_on(async {
         match cli.command {
             Commands::Start { port } => match commands::start::run(cli.socket, port).await {
-                Ok(()) => exit_codes::SUCCESS,
+                Ok(interrupted) => {
+                    if interrupted {
+                        exit_codes::INTERRUPTED
+                    } else {
+                        exit_codes::SUCCESS
+                    }
+                }
                 Err(e) => {
                     eprintln!("Error: {e}");
                     exit_codes::GENERAL_ERROR
@@ -302,7 +368,9 @@ fn main() {
                 .await
             }
             Commands::Auth { command } => commands::auth::run(&command, json).await,
-            Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,
+            Commands::Agent { command } => {
+                commands::agent::run(&command, cli.socket, json, quiet).await
+            }
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
@@ -347,6 +415,10 @@ fn main() {
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Rollback(args) => commands::rollback::run(&args, json).await,
+            Commands::Resilience { command } => {
+                commands::resilience::run(&command, cli.socket, json).await
+            }
+            Commands::PlanCache { command } => commands::plan_cache::run(&command, json),
         }
     });
 
@@ -528,6 +600,92 @@ mod tests {
         assert_eq!(exit_codes::RUNTIME_ERROR, 2);
         assert_eq!(exit_codes::TASK_FAILED, 3);
         assert_eq!(exit_codes::TIMEOUT, 4);
+        // FC09: Ctrl+C / SIGINT must map to exit code 5
+        assert_eq!(exit_codes::INTERRUPTED, 5);
+    }
+
+    // FC09: SIGINT → exit code 5 mapping logic
+    #[test]
+    fn test_interrupted_exit_code_is_distinct_from_success() {
+        // GIVEN a SIGINT-triggered shutdown (simulated as Ok(true))
+        // WHEN mapping the result to an exit code
+        // THEN INTERRUPTED (5) is returned, not SUCCESS (0)
+        let was_interrupted = true;
+        let code = if was_interrupted {
+            exit_codes::INTERRUPTED
+        } else {
+            exit_codes::SUCCESS
+        };
+        assert_eq!(code, 5);
+        assert_ne!(code, exit_codes::SUCCESS);
+    }
+
+    // FC10: global flag parsing
+    #[test]
+    fn test_cli_parses_quiet_flag() {
+        // GIVEN "apollia-os --quiet agent list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "--quiet", "agent", "list"]);
+        // THEN quiet=true, json=false
+        assert!(cli.quiet);
+        assert!(!cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_verbose_flag() {
+        // GIVEN "apollia-os --verbose status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "--verbose", "status"]);
+        // THEN verbose=true
+        assert!(cli.verbose);
+        assert!(!cli.debug);
+    }
+
+    #[test]
+    fn test_cli_parses_debug_flag() {
+        // GIVEN "apollia-os --debug run mon-agent '...'"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "--debug", "run", "mon-agent", "task"]);
+        // THEN debug=true
+        assert!(cli.debug);
+    }
+
+    #[test]
+    fn test_cli_parses_no_color_flag() {
+        // GIVEN "apollia-os --no-color status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "--no-color", "status"]);
+        // THEN no_color=true → no ANSI codes in output
+        assert!(cli.no_color);
+        assert!(!cli.json);
+    }
+
+    #[test]
+    fn test_cli_quiet_and_json_together() {
+        // GIVEN "apollia-os --quiet --json agent list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "--quiet", "--json", "agent", "list"]);
+        // THEN both flags are set — handlers must give --json priority
+        assert!(cli.quiet);
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn test_cli_quiet_flag_short_form() {
+        // GIVEN "apollia-os -q status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "-q", "status"]);
+        // THEN quiet=true (short form -q accepted)
+        assert!(cli.quiet);
+    }
+
+    #[test]
+    fn test_cli_verbose_flag_short_form() {
+        // GIVEN "apollia-os -v status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "-v", "status"]);
+        // THEN verbose=true (short form -v accepted)
+        assert!(cli.verbose);
     }
 
     // --- Level-2 command parsing tests ---

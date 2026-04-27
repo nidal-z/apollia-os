@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * SidebarLink — single nav entry (US-SP42-079).
+   * SidebarLink — single nav entry.
    *
    * Bounded props so Svelte's reactive scope only invalidates this link
    * when its own inputs change. The parent sidebar no longer re-renders

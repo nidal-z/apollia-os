@@ -1,5 +1,5 @@
 /**
- * LLM pricing table used by SessionMetricsPanel (US-SP42-030).
+ * LLM pricing table used by SessionMetricsPanel.
  *
  * Prices are expressed in USD per million tokens. Figures are best-effort
  * snapshots — the backend is the source of truth when `cost_usd` is reported

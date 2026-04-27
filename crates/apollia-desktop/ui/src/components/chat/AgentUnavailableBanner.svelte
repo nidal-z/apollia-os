@@ -2,7 +2,7 @@
   /**
    * AgentUnavailableBanner — inline notice shown when the agent that
    * owns the current session has been uninstalled or is no longer in
-   * the agents store (US-SP42-034).
+   * the agents store.
    *
    * Purely informative — the conversation keeps rendering so history
    * stays accessible; new messages will surface the runtime's own error.

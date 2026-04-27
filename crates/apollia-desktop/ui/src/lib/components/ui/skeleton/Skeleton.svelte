@@ -9,7 +9,7 @@
     width?: string;
     height?: string;
     /**
-     * Canonical skeleton shape (US-SP42-009).
+     * Canonical skeleton shape.
      * - `plain`   — bare pulsing rect (legacy default).
      * - `text`    — single line of text, 1rem tall.
      * - `card`    — block sized like a card header.

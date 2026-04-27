@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * MCP tool call preview (US-SP42-054). Renders the JSON-RPC
+   * MCP tool call preview. Renders the JSON-RPC
    * `input_schema` as a humanized parameter table with descriptions
    * and shows a concrete example call.
    */

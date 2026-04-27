@@ -1,5 +1,5 @@
 /**
- * Tests for per-session chat token buffers (US-SP42-035).
+ * Tests for per-session chat token buffers.
  *
  * Covers LRU eviction, TTL cleanup, streaming-flag lifecycle, and
  * subscriber notification semantics.

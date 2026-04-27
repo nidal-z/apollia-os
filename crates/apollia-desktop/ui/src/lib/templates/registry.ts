@@ -1,5 +1,5 @@
 /**
- * Template gallery — frontend types + invoke wrappers (US-SP42-058).
+ * Template gallery — frontend types + invoke wrappers.
  *
  * The backend lives in `apollia-runtime/src/templates/` and exposes three
  * Tauri commands: `templates_list`, `templates_get`, `templates_instantiate`.

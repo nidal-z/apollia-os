@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Always-accept rules management page (US-SP42-054, B.51).
+   * Always-accept rules management page.
    *
    * Route: `/settings/memories/permissions`. Lists every active
    * auto-approval rule with its scope and owners, exposes per-rule

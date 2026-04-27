@@ -5,14 +5,14 @@ on:
     paths:
       - 'book/src/**'
       - 'docs/wiki/**'
-      - 'help/**'
+      - 'docs/help/**'
       - 'scripts/lints/**'
   push:
     branches: [main]
     paths:
       - 'book/src/**'
       - 'docs/wiki/**'
-      - 'help/**'
+      - 'docs/help/**'
       - 'scripts/lints/**'
 
 jobs:

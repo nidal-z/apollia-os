@@ -7,7 +7,7 @@ import fr from "./fr.json";
 
 /**
  * Validates that switching the active locale via `svelte-i18n`'s `locale`
- * store immediately updates resolved values — the guarantee US-SP42-008
+ * store immediately updates resolved values — the guarantee
  * asks for: changing locale in dev swaps strings without a reload.
  *
  * Uses a handful of spec-called-out keys (Workspace / Thinking / Libre

@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import type { DecisionPoint } from "$lib/types";
 
 /**
- * Unit tests for the DecisionBranchesPanel pure logic (US-SP42-041).
+ * Unit tests for the DecisionBranchesPanel pure logic.
  *
  * The Svelte component renders a DecisionPoint payload: this file exercises
  * the shape contract and the value derivations (delta clamping, kind label

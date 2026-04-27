@@ -1,4 +1,4 @@
-//! Parser natural-language → schedule + agent (US-SP42-050).
+//! Parser natural-language → schedule + agent.
 //!
 //! Fonction pure testable : prend une description en français ou en anglais
 //! ("Tous les matins à 8 h, demande à spec-assistant de résumer mes specs")
@@ -118,11 +118,18 @@ fn extract_time(folded: &str) -> Option<(u32, u32)> {
         let _ = offset;
         if let Some(pos) = folded.find(suffix) {
             let slice = &folded[..pos];
-            if let Some(last) = slice.rsplit(|c: char| !c.is_ascii_digit()).find(|s| !s.is_empty()) {
+            if let Some(last) = slice
+                .rsplit(|c: char| !c.is_ascii_digit())
+                .find(|s| !s.is_empty())
+            {
                 if let Ok(h) = last.parse::<u32>() {
                     if h <= 12 {
                         let hour24 = if suffix.trim() == "am" {
-                            if h == 12 { 0 } else { h }
+                            if h == 12 {
+                                0
+                            } else {
+                                h
+                            }
                         } else if h == 12 {
                             12
                         } else {
@@ -152,7 +159,10 @@ fn extract_time(folded: &str) -> Option<(u32, u32)> {
         if lo == end {
             continue;
         }
-        let h: u32 = match std::str::from_utf8(&bytes[lo..end]).ok().and_then(|s| s.parse().ok()) {
+        let h: u32 = match std::str::from_utf8(&bytes[lo..end])
+            .ok()
+            .and_then(|s| s.parse().ok())
+        {
             Some(h) if h <= 23 => h,
             _ => continue,
         };
@@ -166,7 +176,10 @@ fn extract_time(folded: &str) -> Option<(u32, u32)> {
             mend += 1;
         }
         let m: u32 = if mend > mo {
-            match std::str::from_utf8(&bytes[mo..mend]).ok().and_then(|s| s.parse().ok()) {
+            match std::str::from_utf8(&bytes[mo..mend])
+                .ok()
+                .and_then(|s| s.parse().ok())
+            {
                 Some(m) if m <= 59 => m,
                 _ => continue,
             }
@@ -196,9 +209,8 @@ fn extract_time(folded: &str) -> Option<(u32, u32)> {
 /// "every N minutes / hours".
 fn extract_interval(folded: &str) -> Option<(u64, String)> {
     // Require a trigger verb so "every sunday" doesn't match "day".
-    let has_trigger = folded.contains("toutes les")
-        || folded.contains("chaque")
-        || folded.contains("every ");
+    let has_trigger =
+        folded.contains("toutes les") || folded.contains("chaque") || folded.contains("every ");
     if !has_trigger {
         return None;
     }
@@ -215,8 +227,7 @@ fn extract_interval(folded: &str) -> Option<(u64, String)> {
             let mut start = 0usize;
             while let Some(rel) = folded[start..].find(key) {
                 let abs = start + rel;
-                let before_ok = abs == 0
-                    || !folded.as_bytes()[abs - 1].is_ascii_alphabetic();
+                let before_ok = abs == 0 || !folded.as_bytes()[abs - 1].is_ascii_alphabetic();
                 let after = abs + key.len();
                 let after_ok = after >= folded.len() || {
                     let c = folded.as_bytes()[after];
@@ -230,7 +241,9 @@ fn extract_interval(folded: &str) -> Option<(u64, String)> {
                 // to 1 when preceded by "toutes les"/"chaque"/"every".
                 let window_start = abs.saturating_sub(12);
                 let prefix = &folded[window_start..abs];
-                let last = prefix.rsplit(|c: char| !c.is_ascii_digit()).find(|s| !s.is_empty());
+                let last = prefix
+                    .rsplit(|c: char| !c.is_ascii_digit())
+                    .find(|s| !s.is_empty());
                 let n: u64 = match last.and_then(|s| s.parse().ok()) {
                     Some(0) => {
                         start = abs + 1;
@@ -314,12 +327,7 @@ fn extract_payload(original: &str) -> Option<String> {
 
 /// Calcule la prochaine occurrence d'un cron `min h * * dow?` (parsing limité
 /// à ce que le parseur émet). Retourne `now + 1min` en dernier recours.
-fn next_cron(
-    now: DateTime<Utc>,
-    hour: u32,
-    minute: u32,
-    dow: Option<u32>,
-) -> DateTime<Utc> {
+fn next_cron(now: DateTime<Utc>, hour: u32, minute: u32, dow: Option<u32>) -> DateTime<Utc> {
     let mut date: NaiveDate = now.date_naive();
     let time = NaiveTime::from_hms_opt(hour, minute, 0).unwrap_or(NaiveTime::MIN);
     for _ in 0..14 {
@@ -356,10 +364,7 @@ pub fn parse_automation(
 
     // ─── Schedule ────────────────────────────────────────────────────────
     let schedule = if let Some((every_seconds, every)) = extract_interval(&folded) {
-        if folded.contains("toutes les")
-            || folded.contains("every")
-            || folded.contains("chaque")
-        {
+        if folded.contains("toutes les") || folded.contains("every") || folded.contains("chaque") {
             let label_fr = format!("Toutes les {}", humanize_interval_fr(every_seconds));
             let label_en = format!("Every {}", humanize_interval_en(every_seconds));
             Some(ParsedSchedule::Interval {
@@ -448,15 +453,27 @@ pub fn parse_automation(
 fn humanize_interval_fr(seconds: u64) -> String {
     if seconds % 86400 == 0 {
         let n = seconds / 86400;
-        return if n == 1 { "jour".into() } else { format!("{} jours", n) };
+        return if n == 1 {
+            "jour".into()
+        } else {
+            format!("{} jours", n)
+        };
     }
     if seconds % 3600 == 0 {
         let n = seconds / 3600;
-        return if n == 1 { "heure".into() } else { format!("{} heures", n) };
+        return if n == 1 {
+            "heure".into()
+        } else {
+            format!("{} heures", n)
+        };
     }
     if seconds % 60 == 0 {
         let n = seconds / 60;
-        return if n == 1 { "minute".into() } else { format!("{} minutes", n) };
+        return if n == 1 {
+            "minute".into()
+        } else {
+            format!("{} minutes", n)
+        };
     }
     format!("{} s", seconds)
 }
@@ -464,15 +481,27 @@ fn humanize_interval_fr(seconds: u64) -> String {
 fn humanize_interval_en(seconds: u64) -> String {
     if seconds % 86400 == 0 {
         let n = seconds / 86400;
-        return if n == 1 { "day".into() } else { format!("{} days", n) };
+        return if n == 1 {
+            "day".into()
+        } else {
+            format!("{} days", n)
+        };
     }
     if seconds % 3600 == 0 {
         let n = seconds / 3600;
-        return if n == 1 { "hour".into() } else { format!("{} hours", n) };
+        return if n == 1 {
+            "hour".into()
+        } else {
+            format!("{} hours", n)
+        };
     }
     if seconds % 60 == 0 {
         let n = seconds / 60;
-        return if n == 1 { "minute".into() } else { format!("{} minutes", n) };
+        return if n == 1 {
+            "minute".into()
+        } else {
+            format!("{} minutes", n)
+        };
     }
     format!("{}s", seconds)
 }
@@ -543,7 +572,11 @@ mod tests {
     fn parses_interval_five_minutes_fr() {
         let r = parse_automation("toutes les 5 minutes", now(), &agents());
         match r.schedule.as_ref().unwrap() {
-            ParsedSchedule::Interval { every, every_seconds, .. } => {
+            ParsedSchedule::Interval {
+                every,
+                every_seconds,
+                ..
+            } => {
                 assert_eq!(every, "5m");
                 assert_eq!(*every_seconds, 300);
             }
@@ -661,7 +694,9 @@ mod tests {
     fn human_label_fr_contains_hour() {
         let r = parse_automation("tous les jours à 8 h", now(), &[]);
         match r.schedule.as_ref().unwrap() {
-            ParsedSchedule::Cron { human_label_fr, .. } => assert!(human_label_fr.contains("08:00")),
+            ParsedSchedule::Cron { human_label_fr, .. } => {
+                assert!(human_label_fr.contains("08:00"))
+            }
             _ => panic!(),
         }
     }
@@ -690,11 +725,7 @@ mod tests {
 
     #[test]
     fn high_confidence_requires_schedule_and_agent() {
-        let r = parse_automation(
-            "chaque lundi à 9h, spec-assistant résume",
-            now(),
-            &agents(),
-        );
+        let r = parse_automation("chaque lundi à 9h, spec-assistant résume", now(), &agents());
         assert_eq!(r.confidence, Confidence::High);
     }
 }

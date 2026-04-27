@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * US-SP42-074 — Settings dirty-state tracking, Cmd+S save and nav-guard dialog.
+ * Settings dirty-state tracking, Cmd+S save and nav-guard dialog.
  *
  * These tests run against the production UI bundle with Tauri commands
  * stubbed via `window.__TAURI_INTERNALS__.invoke`. The stubs return deterministic

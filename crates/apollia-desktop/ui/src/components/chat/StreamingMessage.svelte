@@ -1,5 +1,5 @@
 <!--
-  StreamingMessage — isolates the streaming assistant bubble (US-SP42-035 / B.66).
+  StreamingMessage — isolates the streaming assistant bubble.
 
   Thinking blocks are rendered ABOVE the bubble (matching the committed-message
   ReasoningSequence layout) so they are never confused with the response text.

@@ -1,6 +1,6 @@
 <script lang="ts" module>
   /**
-   * Generic risk badge surfaced on HITL cards (US-SP42-045).
+   * Generic risk badge surfaced on HITL cards.
    *
    * Maps an `ImpactLevel` to an icon + color. Kept separate from
    * `ApprovalRiskBadge` so that non-approval HITL surfaces (AskUser,

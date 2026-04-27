@@ -1,12 +1,12 @@
 <script lang="ts">
   /**
-   * US-SP42-044 — A2A skill panel with tabs (Overview, Telemetry, Steps, Logs).
+   * A2A skill panel with tabs (Overview, Telemetry, Steps, Logs).
    *
    * Refactors the former worker panel into a tabbed drill-down surface:
    *   - Overview: worker/skill identity + advertised version
    *   - Telemetry: rolling-window aggregates (invocations, avg latency, success rate, tokens)
    *   - Steps: [`A2AStepProvenance`] entries, clickable to jump to the matching step in
-   *     the TimelineGlobal (step_id is the shared correlation key with US-SP42-048).
+   * the TimelineGlobal (step_id is the shared correlation key with).
    *   - Logs: raw A2A runtime events, filtered by skill.
    *
    * If `requiredVersion` is provided, the component triggers a semver compatibility
