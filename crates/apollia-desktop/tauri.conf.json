@@ -34,8 +34,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/apollia-os",
-      "resources/python/**/*"
+      "apollia-os",
+      "python/**/*"
     ],
     "macOS": {
       "minimumSystemVersion": "13.0",

@@ -21,7 +21,9 @@ TARGET="${TAURI_TARGET_TRIPLE:-$(rustc -vV | grep host | awk '{print $2}')}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DESKTOP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${DESKTOP_DIR}/../.." && pwd)"
-STAGING="${DESKTOP_DIR}/resources"
+# Stage directly in crates/apollia-desktop/ (not resources/) so Tauri copies to
+# Contents/Resources/ (not Contents/Resources/resources/)
+STAGING="${DESKTOP_DIR}"
 
 mkdir -p "$STAGING"
 

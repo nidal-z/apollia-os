@@ -97,8 +97,10 @@ jobs:
           if-no-files-found: warn
 
   # ── Linux AppImage + .deb ────────────────────────────────────────────────────
+  # DISABLED: Focus on ARM64 macOS for v0.1.0, Linux build needs RUSTFLAGS fix
   build-linux:
     name: Build Linux
+    if: false  # Temporarily disabled
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -177,7 +179,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-macos, build-linux]
+    needs: [build-macos]  # build-linux temporarily disabled
     runs-on: ubuntu-latest
     permissions:
       contents: write
