@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Reproduce the GitHub Actions CI build pipeline for macOS universal2.
+# Reproduce the GitHub Actions CI build pipeline for macOS (ARM64).
 #
 # This script mirrors `.github/workflows/build-desktop.yml` (build-macos job)
 # to allow local validation before pushing to CI.
+#
+# NOTE: Intel (x86_64) support is planned for a future release.
 #
 # Usage:
 #   ./scripts/test-build-macos.sh [OPTIONS]
@@ -24,7 +26,7 @@ set -euo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET_TRIPLE="universal-apple-darwin"
+TARGET_TRIPLE="aarch64-apple-darwin"
 PYTHON_BUNDLE_DIR="${PROJECT_ROOT}/target/python-bundle/${TARGET_TRIPLE}"
 PYO3_PYTHON="${PYTHON_BUNDLE_DIR}/python/bin/python3.13"
 
@@ -76,18 +78,16 @@ if ! command -v cargo &>/dev/null; then
     exit 1
 fi
 
-# Check Rust targets (aarch64-apple-darwin, x86_64-apple-darwin)
+# Check Rust target (aarch64-apple-darwin only for now, Intel support planned)
 if command -v rustup &>/dev/null; then
-    for target in aarch64-apple-darwin x86_64-apple-darwin; do
-        if ! rustup target list --installed | grep -q "^${target}$"; then
-            echo "    installing missing target: $target"
-            rustup target add "$target"
-        fi
-    done
+    if ! rustup target list --installed | grep -q "^aarch64-apple-darwin$"; then
+        echo "    installing missing target: aarch64-apple-darwin"
+        rustup target add aarch64-apple-darwin
+    fi
 else
     echo "    ⚠ rustup not found — skipping target verification"
-    echo "      If the build fails, install targets manually or use rustup."
-    echo "      See: https://rustup.rs"
+    echo "      If the build fails, install rustup from https://rustup.rs"
+    echo "      (Homebrew Rust works on native arch only)"
 fi
 
 if ! command -v node &>/dev/null; then
@@ -131,7 +131,7 @@ else
     cd "$PROJECT_ROOT"
 fi
 
-# ── Step 3: Pre-build Python bundle (universal2) ─────────────────────────────
+# ── Step 3: Pre-build Python bundle (ARM64) ──────────────────────────────────
 if $SKIP_PYTHON; then
     echo "==> Skipping Python bundle build (--skip-python)"
     if [[ ! -x "$PYO3_PYTHON" ]]; then
@@ -139,13 +139,13 @@ if $SKIP_PYTHON; then
         exit 1
     fi
 else
-    echo "==> Pre-build Python bundle (universal2)"
+    echo "==> Pre-build Python bundle (ARM64)"
     ./packaging/build-python-bundle.sh "$TARGET_TRIPLE" "$PYTHON_BUNDLE_DIR"
     echo "    ✓ Python bundle ready at $PYTHON_BUNDLE_DIR"
 fi
 
-# ── Step 4: Build Tauri app (universal2) ─────────────────────────────────────
-echo "==> Building Tauri app (universal2)"
+# ── Step 4: Build Tauri app (ARM64) ───────────────────────────────────────────
+echo "==> Building Tauri app (ARM64)"
 cd "${PROJECT_ROOT}/crates/apollia-desktop"
 
 export PYO3_PYTHON

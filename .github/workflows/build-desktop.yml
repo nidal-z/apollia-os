@@ -11,16 +11,17 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ── macOS universal2 DMG ────────────────────────────────────────────────────
+  # ── macOS ARM64 DMG ─────────────────────────────────────────────────────────
+  # NOTE: Intel (x86_64) support planned for future release
   build-macos:
-    name: Build macOS (universal2)
+    name: Build macOS (ARM64)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - uses: actions/setup-node@v4
         with:
@@ -28,7 +29,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: macos-universal2
+          key: macos-arm64
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
@@ -37,30 +38,30 @@ jobs:
         working-directory: crates/apollia-desktop/ui
         run: npm ci
 
-      - name: Pre-build Python bundle (universal2)
+      - name: Pre-build Python bundle (ARM64)
         run: |
-          ./packaging/build-python-bundle.sh universal-apple-darwin \
-            target/python-bundle/universal-apple-darwin
+          ./packaging/build-python-bundle.sh aarch64-apple-darwin \
+            target/python-bundle/aarch64-apple-darwin
         # The bundle is cached across runs by `Swatinem/rust-cache` through the
         # target/python-bundle/ path.
 
-      - name: Build Tauri app (universal2)
+      - name: Build Tauri app (ARM64)
         working-directory: crates/apollia-desktop
         env:
           # bundle-cli.sh re-fetches the bundle into resources/python via build-python-bundle.sh
           # and exports PYO3_PYTHON accordingly. The explicit variable below is
           # a safety net — if something bypasses bundle-cli.sh, PyO3 still links
           # against the bundled interpreter.
-          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/universal-apple-darwin/python/bin/python3.13
-        run: cargo tauri build --target universal-apple-darwin
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13
+        run: cargo tauri build --target aarch64-apple-darwin
 
       - name: Post-bundle — patch install_names + ad-hoc sign (ADR-073)
         working-directory: crates/apollia-desktop
         env:
-          TAURI_TARGET_TRIPLE: universal-apple-darwin
+          TAURI_TARGET_TRIPLE: aarch64-apple-darwin
         run: |
           bash scripts/after-bundle.sh
-          APP="../../target/universal-apple-darwin/release/bundle/macos/Apollia OS.app"
+          APP="../../target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
           codesign --force --deep --sign - \
             --options runtime \
             --entitlements entitlements.plist \
@@ -69,28 +70,28 @@ jobs:
           codesign --verify --verbose=2 "$APP" || true
 
       - name: Generate SHA256SUMS
-        working-directory: target/universal-apple-darwin/release/bundle/dmg
+        working-directory: target/aarch64-apple-darwin/release/bundle/dmg
         run: shasum -a 256 *.dmg > SHA256SUMS
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: apollia-desktop-macos-universal2-dmg
-          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          name: apollia-desktop-macos-arm64-dmg
+          path: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
       - name: Upload SHA256SUMS
         uses: actions/upload-artifact@v4
         with:
-          name: apollia-desktop-macos-universal2-sha256
-          path: target/universal-apple-darwin/release/bundle/dmg/SHA256SUMS
+          name: apollia-desktop-macos-arm64-sha256
+          path: target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS
           if-no-files-found: error
 
       - name: Upload .app bundle
         uses: actions/upload-artifact@v4
         with:
-          name: apollia-desktop-macos-universal2-app
-          path: target/universal-apple-darwin/release/bundle/macos/*.app
+          name: apollia-desktop-macos-arm64-app
+          path: target/aarch64-apple-darwin/release/bundle/macos/*.app
           if-no-files-found: warn
 
   # ── Linux AppImage + .deb ────────────────────────────────────────────────────

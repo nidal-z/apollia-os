@@ -15,42 +15,52 @@ bundle Tauri signé.
 
 ## Version pinnée
 
-- Python : **3.13.1**
-- python-build-standalone release tag : **20250205**
+- Python : **3.13.13**
+- python-build-standalone release tag : **20260414**
 
 Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) — pas d'auto-update.
 
 ## Targets supportées
 
-| Target triple | Plate-forme |
-|---|---|
-| `aarch64-apple-darwin` | macOS Apple Silicon |
-| `x86_64-apple-darwin` | macOS Intel |
-| `universal-apple-darwin` | macOS universal2 (lipo ARM + Intel) |
-| `x86_64-unknown-linux-gnu` | Linux x86_64 |
-| `aarch64-unknown-linux-gnu` | Linux ARM64 |
+| Target triple | Plate-forme | Statut |
+|---|---|---|
+| `aarch64-apple-darwin` | macOS Apple Silicon | ✅ Actif |
+| `x86_64-unknown-linux-gnu` | Linux x86_64 | ✅ Actif |
+| `x86_64-apple-darwin` | macOS Intel | 🔜 Prévu v0.2.0 |
+| `universal-apple-darwin` | macOS universal2 (lipo ARM + Intel) | 🔜 Prévu v0.2.0 |
+| `aarch64-unknown-linux-gnu` | Linux ARM64 | 🔜 Prévu future |
+
+**Note :** Phase release publique v0.1.0 se concentre sur ARM macOS et x86_64 Linux.
+Support Intel macOS prévu pour v0.2.0.
 
 ## Build de release local (macOS)
 
 ```bash
-# 1. Ajouter les toolchains Rust si absent (universal2 only)
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
+# 1. Ajouter la toolchain Rust si absent
+rustup target add aarch64-apple-darwin
 
-# 2. Préparer le bundle Python (~5 min la 1ère fois, cached ensuite)
-./packaging/build-python-bundle.sh universal-apple-darwin target/python-bundle/universal-apple-darwin
+# 2. Préparer le bundle Python (~3 min la 1ère fois, cached ensuite)
+./packaging/build-python-bundle.sh aarch64-apple-darwin target/python-bundle/aarch64-apple-darwin
 
 # 3. Builder l'app Tauri (invoque bundle-cli.sh qui refait le step 2 si besoin)
 cd crates/apollia-desktop
-cargo tauri build --target universal-apple-darwin
+cargo tauri build --target aarch64-apple-darwin
 
 # 4. Post-bundle : patcher install_names + signer ad-hoc
 bash scripts/after-bundle.sh
 codesign --force --deep --sign - \
   --options runtime \
   --entitlements entitlements.plist \
-  "../../target/universal-apple-darwin/release/bundle/macos/Apollia OS.app"
+  "../../target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
 
-# 5. DMG produit dans target/universal-apple-darwin/release/bundle/dmg/
+# 5. DMG produit dans target/aarch64-apple-darwin/release/bundle/dmg/
+```
+
+**Alternative recommandée :** utiliser `scripts/test-build-macos.sh` qui automatise
+les 5 étapes ci-dessus avec validation des prérequis.
+
+```bash
+./scripts/test-build-macos.sh
 ```
 
 ## Build de release local (Linux)
@@ -70,11 +80,13 @@ bash scripts/after-bundle.sh
 
 | Composant | Taille |
 |---|---|
-| Python 3.13.1 stripped (macOS, install_only) | ~40 MB |
-| + site-packages (pandas + openpyxl + pypdf + httpx + bs4 + markdownify) | ~65 MB |
-| Rust binary (apollia-desktop + apollia-os, release, universal2) | ~60 MB |
-| **DMG universal2 total** | **~135 MB** |
+| Python 3.13.13 stripped (macOS ARM64, install_only) | ~17 MB |
+| + site-packages (pandas + openpyxl + pypdf + httpx + bs4 + markdownify) | ~48 MB |
+| Rust binary (apollia-desktop + apollia-os, release, ARM64) | ~35 MB |
+| **DMG ARM64 total** | **~75 MB** |
 | **AppImage Linux x86_64 total** | **~100 MB** |
+
+*Note : Tailles indicatives, peuvent varier selon la version Python et les dépendances.*
 
 ## Ajout d'une nouvelle dépendance Python
 
@@ -87,7 +99,7 @@ bash scripts/after-bundle.sh
 
 ```bash
 # macOS : inspecter les load commands du binaire
-otool -L target/universal-apple-darwin/release/apollia-desktop | grep python
+otool -L target/aarch64-apple-darwin/release/apollia-desktop | grep python
 
 # Doit ressortir : @executable_path/../Resources/python/lib/libpython3.13.dylib
 
