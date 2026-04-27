@@ -10,7 +10,7 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Automatisations**.
+1. Dans la sidebar, cliquez sur **Mes déclencheurs**.
 
 2. Cliquez sur le bouton **Créer une automatisation** en haut à droite.
    `[SCREENSHOT: page Automatisations, bouton "Créer une automatisation" surligné en haut à droite]`
@@ -35,8 +35,8 @@
 
 8. Cliquez sur **Créer**. L'automatisation apparaît dans la liste, prête à se déclencher.
 
-9. Pour vérifier que tout fonctionne, cliquez sur **Déclencher maintenant** sur la ligne de l'automatisation. Une exécution se lance immédiatement.
-   `[SCREENSHOT: liste des automatisations, ligne "Rapport hebdo lundi" avec bouton Déclencher maintenant à droite]`
+9. Pour vérifier que tout fonctionne, cliquez sur **Lancer maintenant** sur la ligne de l'automatisation. Une exécution se lance immédiatement.
+   `[SCREENSHOT: liste des automatisations, ligne "Rapport hebdo lundi" avec bouton Lancer maintenant à droite]`
 
 10. Suivez l'exécution en cliquant sur **Historique**. Vous voyez la durée, le statut et le lien vers les détails en cas de problème.
 
@@ -48,6 +48,6 @@ L'automatisation figure dans la liste avec un voyant vert et un compteur **Proch
 
 - **L'agent cible n'apparaît pas dans la liste** : il n'est pas installé ou pas démarrable, retournez sur la page Mes assistants.
 - **L'expression cron est refusée** : vérifiez la syntaxe (`min heure jour mois jour-semaine`) et utilisez `crontab.guru` pour valider.
-- **Le déclenchement immédiat ne fait rien** : vérifiez que le fournisseur d'IA est connecté (bandeau vert en haut).
+- **Le lancement immédiat ne fait rien** : vérifiez que le fournisseur d'IA est connecté (bandeau vert en haut).
 
 > **Référence technique :** [Briques-Triggers](https://github.com/nidal-z/apollia-os/wiki/Briques-Triggers) — table complète des types et expressions supportées.

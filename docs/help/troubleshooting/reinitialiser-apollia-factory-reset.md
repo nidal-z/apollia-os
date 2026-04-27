@@ -15,27 +15,23 @@ Avant de continuer, demandez-vous :
 
 ## Étape 1 — Sauvegarder ce qui compte (recommandé)
 
-1. **Mémoire :** ouvrez **Mémoire**, cliquez sur **Exporter tout** et conservez le fichier produit dans un endroit sûr.
-2. **Transcriptions :** ouvrez **Transcriptions** et exportez l'historique au format de votre choix (JSON, Markdown, texte).
-3. **Audit trail :** ouvrez **Observabilité → Audit trail** et exportez l'historique pour conserver une trace des actions passées.
-4. **Liste de vos agents et intégrations :** prenez une capture d'écran ou notez les noms : vous devrez les réinstaller manuellement après le reset.
+1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace>` pour exporter la mémoire de chaque agent.
+2. **Transcriptions :** ouvrez **Transcriptions** et notez les transcriptions importantes.
+3. **Liste de vos agents et connexions :** prenez une capture d'écran ou notez les noms : vous devrez les réinstaller manuellement après le reset.
 
 ## Étape 2 — Lancer la réinitialisation
 
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Zone de danger**.
-   `[SCREENSHOT: page Settings Zone de danger, encart rouge "Réinitialisation" avec bouton clairement isolé]`
-2. Repérez le bloc **Réinitialiser Apollia (factory reset)**. Lisez attentivement la liste des données qui vont être supprimées.
-3. Cliquez sur le bouton rouge **Réinitialiser**.
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Zone de danger**.
+   `[SCREENSHOT: page Paramètres Zone de danger, encart rouge "Réinitialisation d'usine" avec bouton clairement isolé]`
+2. Repérez le bloc **Réinitialisation d'usine**. Lisez attentivement la liste des données qui vont être supprimées.
+3. Cliquez sur le bouton rouge **Réinitialisation d'usine**.
 
 ## Étape 3 — Confirmer explicitement
 
 Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques secondes pendant lesquelles le bouton est désactivé.
 
 1. Lisez à nouveau la liste des données concernées.
-2. Dans le champ de confirmation, **tapez exactement** le mot demandé :
-   - `FACTORY RESET` pour la réinitialisation complète (factory reset).
-   - `RESET` pour une réinitialisation partielle (logs uniquement).
-   Aucun copier-coller n'est accepté.
+2. Dans le champ de confirmation, **tapez exactement** `FACTORY RESET` (en majuscules). Aucun copier-coller n'est accepté.
 3. Le bouton **Confirmer la réinitialisation** devient actif uniquement quand le mot est correct et la pause écoulée.
 4. Cliquez sur **Confirmer la réinitialisation**.
 
@@ -44,7 +40,7 @@ Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques se
 1. Apollia redémarre automatiquement et affiche l'écran d'accueil initial (onboarding).
 2. Reconfigurez votre fournisseur d'IA : voir [Connecter un fournisseur d'IA](../installation/connecter-un-fournisseur-d-ia.md).
 3. Réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
-4. Si vous avez sauvegardé votre mémoire, importez-la depuis **Mémoire → Importer**.
+4. Si vous avez exporté votre mémoire via la CLI, réimportez-la avec `apollia-os memory import`.
 
 ## Si quelque chose se passe mal
 

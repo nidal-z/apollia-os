@@ -18,15 +18,15 @@
 
 3. Cliquez sur l'un des trois chiffres pour ouvrir le détail correspondant. Par exemple, un clic sur **En attente** vous emmène dans l'**Inbox**, sur la liste des actions à valider.
 
-4. Pour la vue complète, dans la sidebar cliquez sur **Observabilité**, puis sur l'onglet **Timeline**. Vous voyez tous les événements de la journée, du plus récent au plus ancien.
+4. Pour la vue complète, dans la sidebar cliquez sur **Observabilité**, puis sur l'onglet **Chronologie**. Vous voyez tous les événements de la journée, du plus récent au plus ancien.
 
-5. Filtrez la timeline avec les listes déroulantes en haut : par agent, par type d'événement (tâche, outil, approbation), par statut.
-   `[SCREENSHOT: page Observabilité onglet Timeline, barre de filtres en haut, événements listés en dessous]`
+5. Filtrez la chronologie avec les listes déroulantes en haut : par agent, par type d'événement (tâche, outil, approbation), par statut.
+   `[SCREENSHOT: page Observabilité onglet Chronologie, barre de filtres en haut, événements listés en dessous]`
 
-6. Pour archiver le digest, cliquez sur **Exporter** en haut à droite. Choisissez **JSON**. Le fichier est enregistré dans votre dossier Téléchargements.
+   > **⚠️ Non disponible dans cette version :** l'export du digest n'est pas disponible depuis l'interface.
 
 ## Vérification
-Le bloc Digest affiche des chiffres cohérents avec votre activité. La timeline contient au moins une ligne par exécution récente.
+Le bloc Digest affiche des chiffres cohérents avec votre activité. La chronologie contient au moins une ligne par exécution récente.
 
 ## Si ça ne marche pas
 - **Le digest est entièrement à zéro** : aucun agent n'a tourné depuis 24h. Démarrez un agent ou déclenchez un trigger manuellement pour générer de l'activité.

@@ -13,7 +13,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
 
 ## Visualiser les autorisations actives
 
-1. Dans la sidebar, cliquez sur l'icône **Settings** (engrenage en bas).
+1. Dans la sidebar, cliquez sur **Paramètres**.
 
 2. Dans le menu de gauche, sélectionnez **Autorisations**.
    `[SCREENSHOT: page Settings > Autorisations, liste de cartes d'autorisation (PermissionRuleCard) avec badges de portée]`

@@ -8,7 +8,7 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Coûts**.
+1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Coûts LLM**.
 
 2. La courbe principale affiche votre dépense quotidienne sur les **7 derniers jours**. L'axe vertical est en dollars, l'axe horizontal est la date.
    `[SCREENSHOT: onglet Coûts, courbe sur 7 jours, légende par modèle à droite]`
@@ -22,7 +22,7 @@
 
 6. En bas de la page, des indicateurs résument la période : **Total**, **Moyenne par jour**, **Jour le plus cher**.
 
-   > **⚠️ Non disponible dans cette version :** le seuil d'alerte mensuel configurable dans Settings n'est pas encore disponible.
+   > **⚠️ Non disponible dans cette version :** le seuil d'alerte mensuel configurable dans Paramètres n'est pas encore disponible.
 
 ## Vérification
 La courbe couvre les 7 derniers jours, et les chiffres en bas correspondent à votre intuition de la consommation.

@@ -17,9 +17,9 @@ La plupart des fournisseurs (Anthropic, OpenAI) sont des services en ligne. Une 
 Une clé révoquée, expirée ou copiée avec un espace en trop fait échouer toutes les requêtes.
 
 **Solution :**
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **LLM backends**.
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Backends LLM**.
 2. Repérez le backend marqué en rouge dans la liste, puis cliquez sur **Tester la connexion**.
-   `[SCREENSHOT: page Settings LLM backends, backend en erreur avec bouton Tester en évidence]`
+   `[SCREENSHOT: page Paramètres Backends LLM, backend en erreur avec bouton Tester en évidence]`
 3. Si le voyant reste rouge, ouvrez le backend et collez à nouveau une clé valide depuis la console du fournisseur.
 4. Cliquez sur **Tester** une nouvelle fois : le voyant doit passer au vert.
 
@@ -28,9 +28,9 @@ Une clé révoquée, expirée ou copiée avec un espace en trop fait échouer to
 Les fournisseurs renomment ou retirent régulièrement leurs modèles. Un identifiant obsolète provoque une erreur silencieuse.
 
 **Solution :**
-1. Ouvrez le backend en erreur depuis **Settings → LLM backends**.
+1. Ouvrez le backend en erreur depuis **Paramètres → Backends LLM**.
 2. Vérifiez le champ **Modèle** : il doit correspondre exactement à un identifiant en cours (par exemple `claude-3-5-sonnet-latest` ou `gpt-4o`).
-3. Corrigez la valeur, cliquez sur **Tester**, puis sur **Enregistrer**.
+3. Corrigez la valeur, cliquez sur **Tester la connexion**, puis sur **Enregistrer**.
 
 ### 4. Le service du fournisseur est en panne
 
@@ -38,7 +38,7 @@ Anthropic, OpenAI et les autres fournisseurs publient des incidents sur leur pag
 
 **Solution :**
 1. Consultez la page de statut du fournisseur concerné.
-2. Si un incident est en cours, ajoutez un second backend de secours (un autre fournisseur ou un modèle local) dans **Settings → LLM backends** pour ne pas rester bloqué.
+2. Si un incident est en cours, ajoutez un second backend de secours (un autre fournisseur ou un modèle local) dans **Paramètres → Backends LLM** pour ne pas rester bloqué.
 
 ### 5. Le service local (Ollama, modèle GGUF) n'est plus actif
 
@@ -46,7 +46,7 @@ Si vous utilisez un modèle local, le processus correspondant doit tourner sur v
 
 **Solution :**
 1. Pour Ollama, vérifiez que le service est démarré sur votre poste.
-2. Pour un modèle local Apollia, ouvrez **Settings → Model Hub** et confirmez que le modèle est bien chargé.
+2. Pour un modèle local Apollia, ouvrez **Paramètres → Hub de modèles** et confirmez que le modèle est bien chargé.
 3. Cliquez sur **Tester la connexion** sur le backend correspondant.
 
 ## Si rien ne fonctionne

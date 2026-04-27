@@ -10,12 +10,12 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Intégrations**.
+1. Dans la sidebar, cliquez sur **Connexions**.
 
-2. Cliquez sur le bouton **Catalogue** pour ouvrir l'overlay du catalogue. Filtrez par catégorie (productivité, développement, communication…) ou tapez le nom de l'outil cherché dans la barre de recherche.
-   `[SCREENSHOT: overlay Catalogue plein écran avec filtres latéraux par catégorie et niveau de confiance, recherche "Notion" tapée]`
+2. Cliquez sur le bouton **Ajouter une connexion** en haut à droite pour ouvrir le catalogue. Filtrez par catégorie (productivité, développement, communication…) ou tapez le nom de l'outil cherché dans la barre de recherche.
+   `[SCREENSHOT: overlay catalogue plein écran avec filtres par catégorie et niveau de confiance, recherche "Notion" tapée]`
 
-   > **Note :** le Catalogue s'ouvre en overlay plein écran, pas en onglet — il se superpose à la page Intégrations.
+   > **Note :** le catalogue s'ouvre en overlay plein écran, pas en onglet — il se superpose à la page Connexions.
 
 3. Cliquez sur la carte du serveur souhaité. Vous voyez sa description, son auteur, son niveau de confiance (officiel, vérifié, communautaire), et la liste des outils qu'il expose.
 
@@ -34,13 +34,13 @@
 8. **Étape — Tester la connexion**. Cliquez sur **Tester**. Un voyant vert apparaît avec la liste des outils détectés. Si le voyant est rouge, le message d'erreur indique précisément ce qui manque.
    `[SCREENSHOT: étape Test du wizard, voyant vert "Connecté", latence affichée, liste des outils détectés en dessous]`
 
-9. **Étape — Confirmation**. Lisez le disclaimer (responsabilité du serveur communautaire) et cliquez sur **Activer**. Le connecteur passe en statut **Actif** dans la liste de vos intégrations.
+9. **Étape — Confirmation**. Lisez le disclaimer (responsabilité du serveur communautaire) et cliquez sur **Ajouter la connexion**. Le connecteur passe en statut **Connecté** dans la liste de vos connexions.
 
 10. Pour utiliser le MCP depuis un chat, ouvrez une conversation avec un agent qui a la permission d'utiliser ses outils, et formulez votre demande en langage naturel (par exemple : *Liste mes pages Notion récentes*). L'agent appelle automatiquement les bons outils.
 
 ## Vérification
 
-Dans la liste **Connectés**, votre MCP apparaît avec un voyant vert et la liste de ses outils disponibles. Un agent autorisé peut désormais l'invoquer depuis n'importe quel chat ou pipeline.
+Dans la page **Connexions**, sous le segment **Mes connexions actives**, votre MCP apparaît avec un voyant vert et la liste de ses outils disponibles. Un agent autorisé peut désormais l'invoquer depuis n'importe quel chat ou pipeline.
 
 ## Si ça ne marche pas
 

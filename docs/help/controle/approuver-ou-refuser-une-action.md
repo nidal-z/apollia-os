@@ -32,7 +32,7 @@
 
 6. Cliquez sur **Approuver** ou **Refuser**. L'action se déclenche (ou non) sans délai supplémentaire.
 
-7. Pour voir et gérer les règles de permission existantes, allez dans **Settings → Autorisations**. Vous pouvez modifier ou supprimer une règle à tout moment (voyez la page *Configurer les permissions de fichiers*).
+7. Pour voir et gérer les règles d'autorisation existantes, allez dans **Paramètres → Autorisations**. Vous pouvez modifier ou supprimer une règle à tout moment (voyez la page *Gérer les autorisations d'outils*).
 
 8. Pour consulter l'historique de toutes les approbations passées, ouvrez l'**Inbox**. Tri par date, par agent, par type d'action.
    `[SCREENSHOT: page Inbox avec cartes d'approbation triées par date]`
@@ -45,6 +45,6 @@ Une fois la décision prise, la carte disparaît du chat (ou de l'Inbox) et l'ac
 
 - **Aucune carte n'apparaît alors que l'agent semble bloqué** : vérifiez l'**Inbox**. Les agents qui tournent en arrière-plan y déposent leurs demandes.
 - **L'agent réessaie sans cesse la même action refusée** : ouvrez ses logs depuis la page **Mes assistants**, votre raison de refus y est visible et peut éclairer le comportement.
-- **Une règle crée trop d'actions automatiques** : ouvrez **Settings → Autorisations** et supprimez ou affinez le périmètre de la règle.
+- **Une règle crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et supprimez ou affinez le périmètre de la règle.
 
 > **Concept :** [book ch10 — HITL (Human-In-The-Loop)](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch10-00-hitl.md)

@@ -8,7 +8,7 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Audit trail**.
+1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Piste d'audit**.
 
 2. Le tableau présente toutes les actions tracées, du plus récent au plus ancien. Cinq colonnes : **Horodatage**, **Outil**, **Agent**, **Durée**, **Sortie**.
    `[SCREENSHOT: onglet Audit trail, tableau avec colonnes et menus de filtre en haut]`
@@ -22,7 +22,7 @@
 
 5. En bas du tableau, un bouton **Charger plus** permet d'afficher les entrées suivantes (50 par lot).
 
-   > **⚠️ Non disponible dans cette version :** l'export CSV/JSON de l'audit trail n'est pas encore disponible dans l'interface. Pour archiver l'historique, utilisez la CLI : `apollia-os audit export`.
+   > **⚠️ Non disponible dans cette version :** l'export de l'audit trail n'est pas encore disponible dans l'interface ni via la CLI. Les commandes CLI disponibles sont `apollia-os audit list` et `apollia-os audit stats`.
 
 ## Vérification
 Vous retrouvez dans le tableau les actions que vous savez avoir validées récemment, avec leur statut correct.

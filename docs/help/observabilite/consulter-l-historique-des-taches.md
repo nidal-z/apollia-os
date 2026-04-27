@@ -7,10 +7,10 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Timeline**.
+1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Chronologie**.
 
-2. La timeline liste chaque événement chronologiquement : tâche démarrée, outil appelé, approbation reçue, tâche terminée.
-   `[SCREENSHOT: onglet Timeline, liste d'événements avec icônes, durées et statuts]`
+2. La chronologie liste chaque événement chronologiquement : tâche démarrée, outil appelé, approbation reçue, tâche terminée.
+   `[SCREENSHOT: onglet Chronologie, liste d'événements avec icônes, durées et statuts]`
 
 3. Utilisez les filtres en haut pour resserrer la recherche :
    - Par **agent** pour ne voir qu'un seul exécutant.
@@ -30,6 +30,6 @@ Vous retrouvez l'exécution recherchée et son détail correspond à ce que vous
 ## Si ça ne marche pas
 - **La timeline est vide** : aucune exécution récente n'a eu lieu. Démarrez un agent ou un trigger pour générer une ligne.
 - **Une exécution attendue n'apparaît pas** : vérifiez les filtres actifs. Un filtre par agent ou par statut masque souvent la ligne cherchée.
-- **Le détail d'une étape ne s'ouvre pas** : la donnée a peut-être été purgée par la rétention. Vérifiez la durée de conservation dans **Settings → Données**.
+- **Le détail d'une étape ne s'ouvre pas** : la donnée a peut-être été purgée par la rétention.
 
 > **Concept :** [book ch10 — Observer un agent](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch10-00-observer-un-agent.md)

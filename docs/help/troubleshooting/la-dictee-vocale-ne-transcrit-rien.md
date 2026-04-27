@@ -9,9 +9,9 @@
 Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotlight, capture d'écran) ou avec une autre application.
 
 **Solution :**
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Dictée vocale**.
-2. Repérez le champ **Raccourci** et appuyez sur la combinaison souhaitée pour vérifier qu'elle est bien capturée.
-   `[SCREENSHOT: page Settings Dictée vocale, champ Raccourci en focus avec combinaison affichée]`
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
+2. Repérez le champ **Raccourci global** et appuyez sur la combinaison souhaitée pour vérifier qu'elle est bien capturée.
+   `[SCREENSHOT: page Paramètres Reconnaissance vocale, champ Raccourci global en focus avec combinaison affichée]`
 3. Si elle ne s'affiche pas, choisissez une combinaison différente (par exemple `Cmd+Shift+D`) et enregistrez.
 4. Testez à nouveau : un indicateur rouge **Enregistrement** doit apparaître dès l'appui.
 
@@ -20,9 +20,9 @@ Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotl
 Apollia transcrit en local avec le modèle Whisper. Sans modèle chargé, l'appui sur le raccourci ne produit rien.
 
 **Solution :**
-1. Ouvrez **Settings → Dictée vocale** et regardez l'état du modèle en haut de la page.
-2. Si le modèle est marqué **Non téléchargé**, cliquez sur **Settings → Model Hub** et téléchargez au minimum le modèle **Whisper Small** (suffisant pour le français).
-3. Revenez sur la page **Dictée vocale** : l'état doit afficher **Chargé**.
+1. Ouvrez **Paramètres → Reconnaissance vocale** et regardez l'état du moteur en haut de la page.
+2. Si le modèle est marqué **Modèle non chargé**, cliquez sur **Paramètres → Hub de modèles** et téléchargez au minimum le modèle **Whisper Small** (suffisant pour le français).
+3. Revenez sur la page **Reconnaissance vocale** : l'état doit afficher **Modèle chargé**.
 
 ### 3. Votre microphone système est muet ou mal sélectionné
 
@@ -47,7 +47,7 @@ Au premier usage, le système demande la permission d'accès au micro. Si elle a
 Le modèle Whisper transcrit selon la langue configurée. Une langue erronée produit du texte incohérent ou rien d'utile.
 
 **Solution :**
-1. Dans **Settings → Dictée vocale**, vérifiez le champ **Langue**.
+1. Dans **Paramètres → Reconnaissance vocale**, vérifiez le champ **Langue**.
 2. Sélectionnez **Français** (ou la langue effective de votre dictée).
 3. Refaites un essai court de quelques secondes.
 

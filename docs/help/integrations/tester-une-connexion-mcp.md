@@ -9,10 +9,10 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Intégrations**.
+1. Dans la sidebar, cliquez sur **Connexions**.
 
-2. Allez sur l'onglet **Connectés**. Vous voyez la liste de tous vos MCP installés avec leur statut actuel.
-   `[SCREENSHOT: page Intégrations, onglet Connectés, liste de cartes MCP avec voyant de statut à gauche]`
+2. Sélectionnez le segment **Mes connexions actives**. Vous voyez la liste de toutes vos connexions MCP installées avec leur statut actuel.
+   `[SCREENSHOT: page Connexions, segment Mes connexions actives, liste de cartes MCP avec voyant de statut à gauche]`
 
 3. Cliquez sur la carte du MCP à tester. Le panneau de détail s'ouvre à droite.
 

@@ -5,7 +5,7 @@
 ## Prérequis
 
 - Au moins un agent qui a déjà conversé ou exécuté une tâche.
-- Ou des préférences utilisateur déjà saisies dans **Settings → Mémoire**.
+- Ou des préférences utilisateur déjà saisies dans **Mémoire**.
 
 ## Étapes
 

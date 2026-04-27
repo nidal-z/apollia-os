@@ -22,7 +22,7 @@ Un appel à un serveur MCP (Notion, GitHub, Slack) ou à une API distante peut p
 1. Dans la sidebar, ouvrez **Agents** et sélectionnez l'agent concerné.
 2. Cliquez sur l'onglet **Logs**.
 3. Cherchez la dernière ligne contenant un nom d'outil ("notion", "github", "fetch"). Si elle est figée depuis plusieurs minutes, l'outil ne répond pas.
-4. Ouvrez **Intégrations → MCP** et testez la connexion du serveur concerné.
+4. Ouvrez **Connexions** dans la sidebar et testez la connexion du serveur concerné.
 
 ### 3. Un identifiant ou une autorisation a expiré
 
@@ -31,7 +31,7 @@ Les jetons OAuth (Google, Notion, GitHub) expirent régulièrement. L'agent rest
 **Solution :**
 1. Ouvrez **Agents → [votre agent] → Logs**.
 2. Cherchez les mots **expired**, **unauthorized**, **401** ou **403**.
-3. Si vous en trouvez, allez dans **Intégrations** et reconnectez le service concerné.
+3. Si vous en trouvez, allez dans **Connexions** et reconnectez le service concerné.
 
 ### 4. L'agent tourne en boucle sur la même action
 
@@ -50,7 +50,7 @@ L'agent peut requérir un outil MCP non installé, un fichier introuvable ou un 
 
 **Solution :**
 1. Consultez les **Logs** de l'agent et cherchez les mots **not found**, **missing** ou **unavailable**.
-2. Installez l'outil manquant via **Intégrations**, ou téléchargez le modèle depuis **Settings → Model Hub**.
+2. Installez l'outil manquant via **Connexions**, ou téléchargez le modèle depuis **Paramètres → Hub de modèles**.
 3. Relancez l'agent.
 
 ## Si rien ne fonctionne

@@ -9,7 +9,7 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Automatisations**.
+1. Dans la sidebar, cliquez sur **Mes déclencheurs**.
 
 2. Cliquez sur la ligne du trigger qui vous intéresse pour ouvrir son détail.
    `[SCREENSHOT: liste des triggers avec une ligne sélectionnée et le panneau de détail ouvert à droite]`
@@ -39,7 +39,7 @@ L'historique affiche au moins une ligne avec le statut attendu et la durée de l
 
 ## Si ça ne marche pas
 
-- **L'historique est vide** : aucun déclenchement n'a encore eu lieu, lancez **Déclencher maintenant** depuis la liste.
+- **L'historique est vide** : aucun déclenchement n'a encore eu lieu, lancez **Lancer maintenant** depuis la liste.
 - **Le statut reste sur FIRED indéfiniment** : le déclenchement a eu lieu mais l'agent est peut-être bloqué, voir [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
 - **Toutes les exécutions sont en SKIPPED** : la précédente n'a jamais terminé, arrêtez l'agent puis relancez le trigger.
 

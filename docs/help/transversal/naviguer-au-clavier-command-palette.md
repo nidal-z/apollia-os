@@ -18,13 +18,13 @@
 
 5. Appuyez sur **Échap** à tout moment pour refermer la palette sans rien faire.
 
-6. Pour personnaliser le raccourci d'ouverture ou ajouter d'autres raccourcis, allez dans **Settings → Raccourcis clavier**. Cliquez sur la ligne à modifier, puis appuyez sur la nouvelle combinaison de touches.
-   `[SCREENSHOT: page Raccourcis clavier avec liste de raccourcis et bouton de capture pour chacun]`
+6. Pour personnaliser le raccourci d'ouverture ou ajouter d'autres raccourcis, allez dans **Paramètres → Raccourcis**. Cliquez sur la ligne à modifier, puis appuyez sur la nouvelle combinaison de touches.
+   `[SCREENSHOT: page Raccourcis avec liste de raccourcis et bouton de capture pour chacun]`
 
 ## Vérification
 La palette s'ouvre instantanément avec le raccourci, et l'action choisie s'exécute correctement après pression sur **Entrée**.
 
 ## Si ça ne marche pas
-- **Le raccourci ne fait rien** : un autre logiciel intercepte peut-être **Cmd+K** ou **Ctrl+K**. Choisissez une autre combinaison dans **Settings → Raccourcis clavier**.
+- **Le raccourci ne fait rien** : un autre logiciel intercepte peut-être **Cmd+K** ou **Ctrl+K**. Choisissez une autre combinaison dans **Paramètres → Raccourcis**.
 - **L'action recherchée n'apparaît pas** : la palette ne contient que les actions disponibles dans le contexte courant. Certaines actions n'apparaissent que si vous êtes sur la bonne page (par exemple **Démarrer un agent** depuis la page Agents).
-- **La nouvelle combinaison personnalisée n'est pas enregistrée** : vérifiez qu'elle n'entre pas en conflit avec un raccourci existant. La page **Raccourcis clavier** signale les doublons en orange.
+- **La nouvelle combinaison personnalisée n'est pas enregistrée** : vérifiez qu'elle n'entre pas en conflit avec un raccourci existant. La page **Raccourcis** signale les doublons en orange.

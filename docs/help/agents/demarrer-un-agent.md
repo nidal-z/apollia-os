@@ -18,11 +18,11 @@
    - **Agents workers** pour les agents appelés par les triggers ou les pipelines.
 
 3. Cliquez sur **Démarrer** sur la carte de l'agent. Le statut passe au vert et le bouton se transforme en **Arrêter**.
-   `[SCREENSHOT: carte agent avec statut vert "ACTIF" et bouton "Arrêter" + bouton secondaire "Ouvrir le chat"]`
+   `[SCREENSHOT: carte agent avec statut vert "ACTIF" et bouton "Arrêter" + bouton secondaire "Chat"]`
 
-4. Si c'est un **Assistant**, cliquez sur **Ouvrir le chat**. Une conversation dédiée s'ouvre, prête à recevoir vos missions.
+4. Si c'est un **Assistant**, cliquez sur **Chat** sur sa carte. Une conversation dédiée s'ouvre, prête à recevoir vos missions.
 
-5. Si c'est un **Worker**, l'agent est désormais sélectionnable comme cible dans les pages **Automatisations** et **Pipelines**.
+5. Si c'est un **Worker**, l'agent est désormais sélectionnable comme cible dans les pages **Mes déclencheurs** et **Pipelines**.
 
 6. (Optionnel) Cliquez sur **Logs** pour vérifier que le démarrage s'est bien passé. Une ligne récente *"Agent démarré"* doit apparaître.
 

@@ -35,7 +35,7 @@ L'icône projet est visible dans l'en-tête du chat et le bandeau de contexte af
 
 ## Si ça ne marche pas
 
-- **Le bouton + Nouveau chat lié est grisé** : aucun fournisseur d'IA n'est connecté, ouvrez **Settings → Fournisseurs**.
+- **Le bouton + Nouveau chat lié est grisé** : aucun fournisseur d'IA n'est connecté, ouvrez **Paramètres → Backends LLM** pour en configurer un.
 - **Les blocs de contexte sont vides** : retournez sur la page projet et activez au moins un context provider.
 - **L'IA ne semble rien savoir du projet** : le contexte est probablement plié, dépliez-le ou rechargez le chat.
 

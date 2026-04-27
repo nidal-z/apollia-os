@@ -10,10 +10,10 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Backends LLM**.
-   `[SCREENSHOT: page Settings, onglet Backends LLM actif, liste vide ou avec backends existants]`
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Backends LLM**.
+   `[SCREENSHOT: page Paramètres, section Backends LLM active, liste vide ou avec backends existants]`
 
-2. Cliquez sur le bouton **Ajouter un backend** en haut à droite. Une fenêtre de configuration s'ouvre.
+2. Cliquez sur le bouton **Ajouter un backend LLM** en haut à droite. Une fenêtre de configuration s'ouvre.
 
 3. Donnez un **nom** clair à ce backend (par exemple : *Claude Anthropic* ou *Ollama local*). Ce nom apparaîtra dans le sélecteur de chat.
 

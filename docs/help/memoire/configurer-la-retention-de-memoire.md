@@ -9,7 +9,7 @@
 
 ## Configuration via le manifest agent
 
-La durée de rétention des entrées de mémoire épisodique se configure dans le **manifest de l'agent**, via le champ `episodic_retention_days`. Cette valeur est définie par le développeur de l'agent, pas depuis l'interface Settings.
+La durée de rétention des entrées de mémoire épisodique se configure dans le **manifest de l'agent**, via le champ `episodic_retention_days`. Cette valeur est définie par le développeur de l'agent, pas depuis l'interface Paramètres.
 
 Pour les agents que vous développez ou personnalisez, modifiez ce champ dans votre fichier `manifest()` Python :
 
@@ -24,7 +24,7 @@ def manifest(self) -> dict:
     }
 ```
 
-> **⚠️ Non disponible dans cette version :** la configuration graphique des durées de rétention via des curseurs dans Settings (Épisodique / Sémantique / Procédural) n'est pas encore disponible. L'interface Settings → Mémoire affiche uniquement les préférences utilisateur, sans contrôle de rétention par type.
+> **⚠️ Non disponible dans cette version :** la configuration graphique des durées de rétention via des curseurs dans Paramètres (Épisodique / Sémantique / Procédural) n'est pas encore disponible. La page Mémoire affiche uniquement les préférences utilisateur, sans contrôle de rétention par type.
 
 ## Purge manuelle
 

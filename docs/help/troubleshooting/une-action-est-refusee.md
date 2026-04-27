@@ -19,7 +19,7 @@ Chaque refus manuel envoie un message clair à l'agent, qui s'adapte ou s'arrêt
 Vous avez peut-être créé une règle (ou utilisé "Toujours refuser") qui rejette ce type d'action sans demander.
 
 **Solution :**
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Permissions**.
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Autorisations**.
 2. Parcourez la liste des règles actives et repérez celle qui correspond à l'action (par exemple : *écriture dans `~/Documents`*).
 3. Supprimez la règle ou modifiez-la pour autoriser le cas légitime.
 
@@ -29,7 +29,7 @@ Apollia restreint par défaut l'accès à votre disque et à certains outils sen
 
 **Solution :**
 1. Lisez le message complet de refus : il mentionne le chemin ou l'outil concerné.
-2. Si l'accès est légitime, ouvrez **Settings → Permissions** et ajoutez une règle qui autorise ce dossier ou cet outil pour cet agent.
+2. Si l'accès est légitime, ouvrez **Paramètres → Autorisations** et ajoutez une règle qui autorise ce dossier ou cet outil pour cet agent.
 3. Relancez la tâche depuis le chat.
 
 ### 4. Le même type d'action est refusé en boucle
@@ -44,7 +44,7 @@ Si un agent voit plusieurs refus consécutifs, il peut s'arrêter de lui-même. 
 ## Si rien ne fonctionne
 
 1. Si vous ne comprenez pas l'origine du refus, ouvrez **Observabilité → Audit trail** : chaque refus y est enregistré avec son auteur (vous, une règle, le runtime) et son horodatage.
-2. Réinitialisez les permissions de l'agent depuis **Settings → Permissions → Réinitialiser pour cet agent** si le comportement est devenu incohérent.
+2. Révoquez les règles liées à l'agent depuis **Paramètres → Autorisations** si le comportement est devenu incohérent.
 3. En dernier recours, supprimez l'agent et réinstallez-le pour repartir d'une configuration propre.
 
 > **Concept :** [Securite-Permissions](https://github.com/nidal-z/apollia-os/wiki/Securite-Permissions) — comprendre comment Apollia décide d'approuver, refuser ou demander pour chaque action sensible.

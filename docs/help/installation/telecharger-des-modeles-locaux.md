@@ -10,12 +10,12 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Hub de modèles**.
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Hub de modèles**.
    `[SCREENSHOT: page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État]`
 
 2. Filtrez la liste par type **GGUF** pour les modèles d'IA conversationnelle.
 
-   > **Note :** les modèles Whisper (dictée vocale) sont gérés depuis l'onglet **Reconnaissance vocale** dans Settings, pas depuis le Hub de modèles.
+   > **Note :** les modèles Whisper (dictée vocale) sont gérés depuis la section **Reconnaissance vocale** dans Paramètres, pas depuis le Hub de modèles.
 
 3. Cliquez sur la ligne du modèle qui vous intéresse. Un panneau affiche la taille exacte, la durée estimée de téléchargement et la configuration matérielle recommandée.
 

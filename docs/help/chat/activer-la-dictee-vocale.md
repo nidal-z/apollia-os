@@ -10,8 +10,8 @@
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Settings**, puis sur l'onglet **Reconnaissance vocale**.
-   `[SCREENSHOT: page Settings, onglet Reconnaissance vocale, état du modèle Whisper affiché en haut]`
+1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
+   `[SCREENSHOT: page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut]`
 
 2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
 
