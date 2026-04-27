@@ -21,8 +21,10 @@ __pycache__/
 *.egg-info/
 *.pyc
 
-# Desktop build artifact — CLI binary staged by scripts/bundle-cli.sh
+# Desktop build artifacts — staged by scripts/bundle-cli.sh before Tauri build
 crates/apollia-desktop/resources/
+crates/apollia-desktop/python/
+crates/apollia-desktop/apollia-os
 
 # OS
 .DS_Store
