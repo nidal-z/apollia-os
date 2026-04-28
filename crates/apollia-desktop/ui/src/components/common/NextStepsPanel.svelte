@@ -58,7 +58,6 @@
     "/automations?wizard=open": { route: "automations" },
     "/integrations": { route: "integrations" },
     "/inbox": { route: "inbox" },
-    "/onboarding": { route: "onboarding" },
     "/llm": { route: "llm" },
     "/triggers": { route: "triggers" },
     "/pipelines": { route: "pipelines" },

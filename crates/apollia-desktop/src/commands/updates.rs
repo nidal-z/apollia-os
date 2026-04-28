@@ -2,12 +2,23 @@
 //!
 //! Vérifie les nouvelles versions sur GitHub Releases et déclenche
 //! la mise à jour de l'application Tauri via `tauri-plugin-updater`.
-//!
-//! Note : `tauri-plugin-updater` n'est pas encore dans les dépendances de cette
-//! crate. Ces commandes retournent gracieusement des stubs jusqu'à ce que le
-//! plugin soit activé.
 
 use serde::Serialize;
+use thiserror::Error;
+use tauri_plugin_updater::UpdaterExt;
+
+/// Erreurs possibles lors de l'interrogation du plugin updater.
+#[derive(Debug, Error)]
+pub enum UpdateError {
+    #[error("updater plugin unavailable: {0}")]
+    Plugin(String),
+    #[error("update check failed: {0}")]
+    Check(String),
+    #[error("no update available")]
+    NoUpdate,
+    #[error("install failed: {0}")]
+    Install(String),
+}
 
 /// Résultat de la vérification de mise à jour.
 #[derive(Debug, Serialize)]
@@ -24,28 +35,56 @@ pub struct UpdateCheckResult {
 
 /// Vérifie si une mise à jour est disponible sur GitHub Releases.
 ///
-/// Utilise `tauri-plugin-updater` pour interroger le endpoint de mise à jour
-/// configuré dans `tauri.conf.json`. Retourne une erreur descriptive si le
-/// plugin n'est pas activé dans cette build.
+/// Utilise `tauri-plugin-updater` pour interroger l'endpoint configuré dans
+/// `tauri.conf.json` (section `plugins.updater.endpoints`). Renvoie une
+/// description sérialisable décrivant l'état courant.
 #[tauri::command]
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
-    // tauri-plugin-updater is not yet in the dependency tree for this crate.
-    // Return a graceful stub so the frontend can handle the feature absence.
-    Err(format!(
-        "update check not available in this build (version {current_version})"
-    ))
+
+    let updater = app
+        .updater()
+        .map_err(|e| UpdateError::Plugin(e.to_string()).to_string())?;
+
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateCheckResult {
+            available: true,
+            current_version,
+            new_version: Some(update.version.clone()),
+            release_notes: update.body.clone(),
+        }),
+        Ok(None) => Ok(UpdateCheckResult {
+            available: false,
+            current_version,
+            new_version: None,
+            release_notes: None,
+        }),
+        Err(e) => Err(UpdateError::Check(e.to_string()).to_string()),
+    }
 }
 
-/// Installe la mise à jour disponible et redémarre l'application.
+/// Télécharge et installe la mise à jour disponible, puis redémarre.
 ///
-/// Cette commande doit être appelée après `check_for_update` a confirmé
-/// qu'une mise à jour est disponible. Retourne une erreur si le plugin
-/// `tauri-plugin-updater` n'est pas activé dans cette build.
+/// Doit être appelé après `check_for_update`. Retourne `NoUpdate` si plus
+/// rien n'est disponible (autre instance en concurrence, ou release retirée).
 #[tauri::command]
-pub async fn install_update(_app: tauri::AppHandle) -> Result<(), String> {
-    // tauri-plugin-updater is not yet in the dependency tree for this crate.
-    Err("install_update not available in this build".to_string())
+pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let updater = app
+        .updater()
+        .map_err(|e| UpdateError::Plugin(e.to_string()).to_string())?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| UpdateError::Check(e.to_string()).to_string())?
+        .ok_or_else(|| UpdateError::NoUpdate.to_string())?;
+
+    update
+        .download_and_install(|_chunk, _total| {}, || {})
+        .await
+        .map_err(|e| UpdateError::Install(e.to_string()).to_string())?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -90,5 +129,25 @@ mod tests {
         assert_eq!(json["current_version"], "1.0.0");
         assert!(json["new_version"].is_null());
         assert!(json["release_notes"].is_null());
+    }
+
+    #[tokio::test]
+    async fn test_update_error_messages_are_descriptive() {
+        // GIVEN each variant of UpdateError
+        // WHEN converted to string
+        // THEN messages identify the failure kind for the frontend
+        assert_eq!(
+            UpdateError::NoUpdate.to_string(),
+            "no update available"
+        );
+        assert!(UpdateError::Plugin("boom".into())
+            .to_string()
+            .contains("boom"));
+        assert!(UpdateError::Check("net".into())
+            .to_string()
+            .starts_with("update check failed"));
+        assert!(UpdateError::Install("hash".into())
+            .to_string()
+            .starts_with("install failed"));
     }
 }

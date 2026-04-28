@@ -900,6 +900,58 @@ fn write_profile_to_agent_memory(profile: &str) {
     }
 }
 
+/// Wipes stale onboarding progress before starting a fresh session.
+///
+/// Without this, two sources of stale state cause `get_onboarding_status` to
+/// return 100% on session arrival:
+///   1. `UserMemoryRepository` keeps `onboarding_topic_*` marks across runs.
+///   2. The onboarding agent's semantic DB keeps `user.*` entries from prior
+///      conversations (auto-discovery in `get_onboarding_status_inner` then
+///      re-marks every topic on first poll).
+///
+/// This helper:
+///   - Forgets every `onboarding_topic_{topic}` entry in the user repo.
+///   - Forgets every `user.*` and meta `onboarding.*` key in the agent's
+///     semantic namespace (`onboarding.active_profile` is preserved — the
+///     caller writes it just after this reset).
+fn reset_onboarding_progress(repo: &UserMemoryRepository) {
+    for topic in &ONBOARDING_TOPICS {
+        let key = format!("onboarding_topic_{topic}");
+        let _ = repo.forget(&key);
+    }
+
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let db_path = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("memory")
+        .join("onboarding-agent.db");
+
+    if !db_path.exists() {
+        return;
+    }
+    let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+        tracing::warn!("onboarding agent memory store unreadable — stale entries may persist");
+        return;
+    };
+    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
+        return;
+    };
+
+    for entry in entries {
+        let is_user = entry.key.starts_with("user.");
+        let is_meta_to_clear = entry.key.starts_with("onboarding.")
+            && entry.key != "onboarding.active_profile";
+        if !is_user && !is_meta_to_clear {
+            continue;
+        }
+        if let Err(e) = sem.forget("onboarding-agent", &entry.key) {
+            tracing::warn!(key = %entry.key, error = %e, "failed to wipe stale onboarding entry");
+        }
+    }
+}
+
+
 /// Creates an onboarding chat session.
 ///
 /// When `profile` is provided it is validated, then persisted to the onboarding
@@ -913,6 +965,19 @@ async fn trigger_onboarding_inner(
     if let Some(ref t) = topic {
         if !ONBOARDING_TOPICS.contains(&t.as_str()) {
             return Err(OnboardingError::InvalidTopic(t.clone()));
+        }
+    }
+
+    // Wipe stale progress (topic marks + agent semantic entries from prior
+    // sessions). Without this the progress bar shows 100% before the user
+    // has even sent a single message — see `reset_onboarding_progress`.
+    if topic.is_none() {
+        if let Ok(repo_arc) = get_repo(state) {
+            if let Ok(repo) = repo_arc.lock() {
+                reset_onboarding_progress(&repo);
+            } else {
+                tracing::warn!("user memory repo poisoned — onboarding reset skipped");
+            }
         }
     }
 

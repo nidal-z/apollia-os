@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Sparkles } from "lucide-svelte";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { Spinner } from "$lib/components/ui/progress";
 
@@ -33,9 +32,7 @@
   data-testid="onboarding-welcome"
 >
   <div class="welcome-content">
-    <div class="welcome-logo" aria-hidden="true">
-      <Sparkles size={32} strokeWidth={1.5} class="text-white" />
-    </div>
+    <img src="/logo.svg" alt="Apollia OS" class="welcome-logo" />
 
     <h1 class="welcome-tagline">{$t("onboarding_v2.welcome.tagline")}</h1>
     <p class="welcome-subtitle">{$t("onboarding_v2.welcome.subtitle")}</p>
@@ -89,34 +86,15 @@
   }
 
   .welcome-logo {
-    --logo-shadow-rest:
-      0 0 0 1px hsl(var(--primary) / 0.20),
-      var(--shadow-primary-md),
-      var(--shadow-primary-xl);
-    --logo-shadow-active:
-      0 0 0 1px hsl(var(--primary) / 0.35),
-      var(--shadow-primary-lg),
-      var(--shadow-primary-xl);
-    width: 4.5rem;
-    height: 4.5rem;
-    border-radius: 1.25rem;
-    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--logo-shadow-rest);
-    animation: logo-pulse 3s ease-in-out infinite;
-  }
-
-  @keyframes logo-pulse {
-    0%, 100% { box-shadow: var(--logo-shadow-rest); }
-    50%      { box-shadow: var(--logo-shadow-active); }
+    width: 6rem;
+    height: 6rem;
+    object-fit: contain;
   }
 
   .welcome-tagline {
     font-size: 1.75rem;
     font-weight: 700;
-    color: white;
+    color: hsl(var(--foreground));
     margin: 0;
     line-height: 1.2;
     letter-spacing: -0.02em;

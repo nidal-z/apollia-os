@@ -43,5 +43,14 @@
       "hardenedRuntime": true,
       "entitlements": "entitlements.plist"
     }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/apollia-os/apollia-os/releases/latest/download/latest.json"
+      ],
+      "dialog": false,
+      "pubkey": ""
+    }
   }
 }

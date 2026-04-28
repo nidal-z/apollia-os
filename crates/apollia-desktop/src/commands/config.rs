@@ -265,8 +265,13 @@ pub async fn mark_onboarded() -> Result<(), String> {
 ///
 /// Le flag est stocké dans `~/.apollia/.onboarded`. Sa suppression
 /// déclenche l'affichage de la modale d'onboarding au prochain lancement.
+///
+/// Nettoie aussi toutes les clés `onboarding_*` dans UserMemory pour garantir
+/// un redémarrage complet du flow (phase = welcome, profile = null, stats = 0).
 #[tauri::command]
-pub async fn reset_onboarding() -> Result<(), String> {
+pub async fn reset_onboarding(
+    state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
+) -> Result<(), String> {
     let flag_path = onboarded_flag_path();
 
     if flag_path.exists() {
@@ -274,6 +279,53 @@ pub async fn reset_onboarding() -> Result<(), String> {
             .await
             .map_err(|e| format!("failed to remove onboarding flag: {e}"))?;
     }
+
+    // Clean all onboarding_* keys from UserMemory so the state machine
+    // reverts to phase=welcome on next load.
+    let repo = state
+        .user_memory
+        .as_ref()
+        .cloned()
+        .ok_or_else(|| "user memory repository not initialized".to_string())?;
+
+    tokio::task::spawn_blocking(move || {
+        let repo = repo
+            .lock()
+            .map_err(|e| format!("mutex poisoned: {e}"))?;
+
+        // List of all onboarding state keys persisted in UserMemory.
+        let keys = [
+            "onboarding_phase",
+            "onboarding_profile",
+            "onboarding_llm_configured",
+            "onboarding_stt_configured",
+            "onboarding_topics_covered",
+            "onboarding_mandatory_complete",
+            "onboarding_tour_step_index",
+            "onboarding_tour_total_steps",
+            "onboarding_tour_completed",
+            "onboarding_companion_session_id",
+            "onboarding_voice_enabled",
+            "onboarding_skipped",
+            "onboarding_completed",
+            "onboarding_started_at",
+            "onboarding_completed_at",
+            "onboarding_stats_total_time_sec",
+            "onboarding_stats_actions_completed",
+            "onboarding_stats_companion_questions",
+            "onboarding_stats_voice_commands_used",
+        ];
+
+        for key in &keys {
+            // forget() searches across all categories and deletes the first
+            // match. All onboarding keys are in Context, so this is safe.
+            let _ = repo.forget(key);
+        }
+
+        Ok::<_, String>(())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
     Ok(())
 }
@@ -318,8 +370,16 @@ pub async fn factory_reset() -> Result<(), String> {
 
 /// Redémarre l'application. Appelée après une action destructive
 /// nécessitant un cold-start (reset onboarding, factory reset).
+///
+/// **Important :** Cette fonction ne retourne jamais en cas de succès car
+/// elle tue le process actuel et en lance un nouveau. En mode dev, le restart
+/// peut échouer — dans ce cas, l'utilisateur doit relancer manuellement.
 #[tauri::command]
 pub async fn app_restart(app: tauri::AppHandle) -> Result<(), String> {
+    // app.restart() kills the current process and spawns a new one, so this
+    // function never returns on success. In dev mode, restart may fail silently
+    // (no packaged bundle to relaunch) — the frontend should handle this by
+    // showing a manual reload prompt if the app doesn't actually restart.
     app.restart();
 }
 
@@ -571,8 +631,9 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
             let config = LlmBackendConfig {
                 name: "local".to_string(),
                 provider: LlmProvider::LlamaCpp,
-                model: model_for_db,
+                model: model_for_db.clone(),
                 config_json: serde_json::json!({
+                    "model_path": model_for_db,
                     "device": device,
                     "quantization": quant_for_db,
                 }),

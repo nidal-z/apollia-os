@@ -1939,6 +1939,14 @@
       "refresh_minutes_ago": "{n}m ago",
       "refresh_hours_ago": "{n}h ago",
       "cli_working": "Working…"
+    },
+    "update": {
+      "check": "Check for updates",
+      "checking": "Checking…",
+      "up_to_date": "Apollia OS is up to date",
+      "available": "Version {version} available",
+      "install": "Install and restart",
+      "error": "Unable to check for updates"
     }
   },
   "onboarding": {

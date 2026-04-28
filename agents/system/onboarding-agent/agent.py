@@ -1,21 +1,152 @@
 """onboarding-agent — Conversational onboarding for Apollia OS first-time users.
 
-Guides the user through a natural conversation to learn about their identity,
-preferences, tools, domain, and automation goals.  Persists every piece of
-information incrementally via ``ctx.memory.remember()`` so the user can leave
-at any time without losing data.
+Guides the user through a progressive dialogue covering business context,
+technical profile, automation objectives, and constraints. Every durable fact
+is persisted immediately via ``ctx.memory.remember()`` so the user can leave
+at any time without losing progress.
 
-Each topic is a contextual guide embedded in the system prompt — the LLM
-decides when and how to explore topics based on the conversation flow.
+================================================================================
+PHASE 1 — AUDIT (état avant refonte, v2.0.0 historique)
+================================================================================
+
+AUDIT MÉMOIRE :
+  Clés exploitées en aval (par crates/apollia-desktop) :
+    - user.role          → onboarding.rs:754  (mode operator/builder + mandatory)
+    - user.name          → onboarding.rs:753  (mandatory_fields_collected — bloquant)
+    - user.expertise     → onboarding.rs:757  (topic identity)
+    - user.goals         → onboarding.rs:758  (topic identity)
+    - user.domain.*      → onboarding.rs:765  (topic domain + user_memory.rs:238)
+    - user.preferences.* → onboarding.rs:761  (topic preferences + Habits view)
+    - user.tools.*       → onboarding.rs:763  (topic tools + Habits view)
+    - user.agents.*      → onboarding.rs:767  (topic agents + completion gate)
+    - onboarding.active_profile → injecté par desktop, lu sur 1er tour
+    - onboarding.state          → écrit au 1er tour (started/turns)
+  Clés orphelines (déclarées mais ignorées par desktop) :
+    - user.preferences.language  (inférée jamais lue côté desktop)
+    - user.tools.current vs user.tools.integrations  (redondance — free text + list)
+  Clés MANQUANTES bloquantes (attendues côté desktop, jamais écrites) :
+    - user.name          ← desktop bloque la complétion sans (onboarding.rs:789-795)
+    - user.languages     ← desktop catégorise mais agent n'écrit pas
+    - user.industry      ← desktop mappe mais agent écrit user.domain.sector
+                            (compatible via préfixe user.domain, donc OK)
+  Clés MANDATORY déclarées par l'agent : user.role, user.agents.domains
+  Clés MANDATORY attendues par desktop  : user.name, user.role
+  ⇒ MISMATCH : l'onboarding « se termine » côté agent mais reste bloqué côté UI.
+
+AUDIT CONVERSATION :
+  Topics : 5 (identity / domain / tools / preferences / agents) — 13 clés
+  Tours moyens observés : 7-10 pour saturation MANDATORY actuelles
+  Progressivité : OK (ordre tours 1-2 / 3-4 / 5-6) mais frontale sur tools
+                  (current + integrations en même topic, double question)
+  Problèmes identifiés :
+    1. user.name jamais collecté → onboarding ne se clôture jamais côté UI
+    2. Doublon user.tools.current (free text) ↔ user.tools.integrations (list)
+    3. user.preferences.language inférée mais sans valeur en aval
+    4. Profil operator/builder détecté mais jamais persisté (onboarding.profile_type)
+    5. Pas d'aboutissement actionnable : suggested_agents jamais écrit
+    6. Knowledge platform datée (manque MCP concret, governance.db, STT, A2A)
+
+COMPAT SDK 0.3.0 :
+  Signatures correctes : OUI
+    - ctx.memory.remember(key, value, source=None, confidence=None)
+        → crates/apollia-aip/src/memory.rs:124  (kwargs OK, behavior : skip si
+          confidence existante > nouvelle)
+    - ctx.memory.record(content, importance=None, task_id=None, metadata=None,
+                        expires_in=None)
+        → crates/apollia-aip/src/memory.rs:81
+    - ctx.memory.recall(key) -> str | None
+        → crates/apollia-aip/src/memory.rs:161
+    - ctx.llm.complete(messages) -> LlmResponse(.content)
+        → crates/apollia-aip/src/llm.rs:204
+  Aucune migration de signature requise.
+
+================================================================================
+PHASE 2 — SCHÉMA CIBLE (refonte v2.1.0)
+================================================================================
+
+Identité & contexte métier (turns 1-2)  ─────────  topic : "identity"
+  user.name              str           Prénom (libre)
+                                        Capture : question directe (Tour 1)
+                                        Lu par : desktop mandatory_fields, header UI
+  user.role              enum          [operateur | builder | les-deux]
+                                        Capture : question directe + inférence
+                                        Lu par : desktop mode + apollia-guide profile
+  user.goals             str           Objectif principal en 1 phrase
+                                        Capture : question ouverte
+                                        Lu par : desktop "Mon profil"
+  user.domain.sector     enum          [finance | rse | legal | marketing | tech
+                                        | health | hr | autre]
+                                        Capture : question directe ou inférence
+                                        Lu par : desktop topic + suggested_agents
+  user.domain.team_size  enum          [solo | petite-equipe | entreprise]
+                                        Capture : question directe
+                                        Lu par : desktop ; HITL recommandation
+
+Profil technique (turns 3-4)  ──────────────────  topic : "identity" + "tools"
+  user.expertise         enum          [non-technique | dev-junior | dev-senior
+                                        | ml-engineer]
+                                        Capture : inféré depuis role + vocabulaire
+                                                  fallback question directe
+                                        Lu par : desktop topic identity
+  user.tools.current     list[str]     Stack actuelle ("Notion, Gmail, Python…")
+                                        Capture : question ouverte unique
+                                        Lu par : desktop "Habits" view
+                                        Note : remplace l'ancien free-text +
+                                               nourrit aussi integrations par
+                                               inférence
+
+Objectifs d'automatisation (turns 5-6)  ────────  topic : "agents"
+  user.agents.domains    list[str]     Domaines à automatiser
+                                        ex. ["veille", "email-triage", "reporting"]
+                                        Capture : question directe avec exemples
+                                        Lu par : desktop completion gate +
+                                                 suggested_agents
+  user.agents.trigger    enum          [manuel | planifie | evenement]
+                                        Capture : question directe vulgarisée
+                                        Lu par : desktop ; recommandation /triggers
+  user.agents.hitl       enum          [approbation-totale | hybride | full-auto]
+                                        Capture : question directe vulgarisée
+                                        Lu par : desktop ; recommandation governance
+
+Contraintes (turns 5-6)  ───────────────────────  topic : "preferences" + "tools"
+  user.preferences.sovereignty enum    [critique | important | flexible]
+                                        Capture : question directe
+                                        Lu par : desktop /llm reco + apollia-guide
+  user.tools.integrations list[str]    MCP/services à connecter
+                                        ex. ["Gmail", "Notion", "Slack"]
+                                        Capture : inférée depuis tools.current
+                                                  + question complémentaire
+                                        Lu par : desktop /integrations reco
+
+Préférences fines (turns 7+)  ──────────────────  topic : "preferences"
+  user.preferences.llm   enum          [local | cloud | les-deux | pas-de-preference]
+                                        Capture : question directe avec contexte
+                                                  sovereignty
+                                        Lu par : desktop /llm
+  user.preferences.language str        ISO court ("fr"|"en") inférée depuis chat
+                                        Capture : inférence silencieuse
+                                        Lu par : desktop i18n personnalisation
+
+État de l'onboarding  ──────────────────────────  topic : meta
+  onboarding.state        json         {"started": bool, "turns": int}
+                                        Écrit à chaque tour
+  onboarding.active_profile enum       [operator | builder]   (lu, écrit par desktop)
+  onboarding.profile_type   enum       [operator | builder]   (déduit par l'agent)
+                                        Écrit dès que role connu
+  onboarding.suggested_agents list[str] Démos suggérés en clôture
+                                        ex. ["veille-ia", "email-triage", "veille-rse"]
+                                        Lu par : desktop /agents pre-selection
+  onboarding.completed      bool       Écrit en fin de conversation (résumé délivré)
 
 Apollia features used:
   - ConversationalAgent inheritance (apollia.agents)
   - Semantic memory persistence (ctx.memory.remember / ctx.memory.recall)
+  - Episodic memory (ctx.memory.record)
   - LLM-driven dialogue (ctx.llm.complete)
 
 Quick start:
   apollia-os agent start onboarding-agent
-  apollia-os run onboarding-agent --input "Hello!"
+  apollia-os run onboarding-agent --input "Bonjour !"
 """
 
 from __future__ import annotations
@@ -36,56 +167,46 @@ MEMORY_SOURCE: str = "onboarding"
 
 MEMORY_KEY_PREFIX: str = "user."
 
-MEMORY_KEY_LANGUAGE: str = "user.preferences.language"
-
 MEMORY_KEY_ONBOARDING_STATE: str = "onboarding.state"
-
 MEMORY_KEY_ACTIVE_PROFILE: str = "onboarding.active_profile"
+MEMORY_KEY_PROFILE_TYPE: str = "onboarding.profile_type"
+MEMORY_KEY_SUGGESTED_AGENTS: str = "onboarding.suggested_agents"
+MEMORY_KEY_COMPLETED: str = "onboarding.completed"
 
 CONFIDENCE_EXPLICIT: float = 0.9
-CONFIDENCE_INFERRED: float = 0.5
+CONFIDENCE_INFERRED: float = 0.6
 CONFIDENCE_VALIDATED: float = 0.95
 
-# Keys that MUST be collected during onboarding — never skippable.
+# Functional keys that MUST be collected — they drive desktop completion gate
+# (mandatory_fields_collected expects user.name + user.role) and demo agent
+# recommendation (user.agents.domains).
 MANDATORY_KEYS: tuple[str, ...] = (
     "user.name",
     "user.role",
-    "user.preferences.language",
+    "user.agents.domains",
 )
 
+# Full schema — see Phase 2 header for who reads what downstream.
 ONBOARDING_MEMORY_SCHEMA: dict[str, dict[str, str]] = {
-    # --- Identity (mandatory core) ---
+    # --- Identity (desktop topic: "identity") ---
     "user.name": {"type": "string", "topic": "identity"},
     "user.role": {"type": "string", "topic": "identity"},
-    "user.languages": {"type": "list[string]", "topic": "identity"},
-    "user.expertise_level": {"type": "string", "topic": "identity"},
-    "user.industry": {"type": "string", "topic": "identity"},
-    "user.goals": {"type": "list[string]", "topic": "identity"},
-    # --- Preferences ---
-    "user.preferences.verbosity": {"type": "string", "topic": "preferences"},
-    "user.preferences.format": {"type": "string", "topic": "preferences"},
+    "user.goals": {"type": "string", "topic": "identity"},
+    "user.expertise": {"type": "string", "topic": "identity"},
+    # --- Domain context (desktop topic: "domain") ---
+    "user.domain.sector": {"type": "string", "topic": "domain"},
+    "user.domain.team_size": {"type": "string", "topic": "domain"},
+    # --- Tools & integrations (desktop topic: "tools") ---
+    "user.tools.current": {"type": "list[string]", "topic": "tools"},
+    "user.tools.integrations": {"type": "list[string]", "topic": "tools"},
+    # --- Preferences (desktop topic: "preferences") ---
     "user.preferences.language": {"type": "string", "topic": "preferences"},
-    "user.preferences.tone": {"type": "string", "topic": "preferences"},
-    # --- Tools (universal + dev-specific for backward compat) ---
-    "user.tools.daily_apps": {"type": "list[string]", "topic": "tools"},
-    "user.tools.communication": {"type": "list[string]", "topic": "tools"},
-    "user.tools.specialized": {"type": "list[string]", "topic": "tools"},
-    "user.tools.ide": {"type": "string", "topic": "tools"},
-    "user.tools.terminal": {"type": "string", "topic": "tools"},
-    "user.tools.cli_favorites": {"type": "list[string]", "topic": "tools"},
-    "user.tools.package_manager": {"type": "string", "topic": "tools"},
-    # --- Domain (universal + dev-specific for backward compat) ---
-    "user.domain.industry": {"type": "string", "topic": "domain"},
-    "user.domain.company_context": {"type": "string", "topic": "domain"},
-    "user.domain.current_projects": {"type": "list[string]", "topic": "domain"},
-    "user.domain.constraints": {"type": "list[string]", "topic": "domain"},
-    "user.domain.type": {"type": "string", "topic": "domain"},
-    "user.domain.stack": {"type": "list[string]", "topic": "domain"},
-    # --- Agents / Automation ---
-    "user.agents.workflows": {"type": "list[string]", "topic": "agents"},
-    "user.agents.pain_points": {"type": "list[string]", "topic": "agents"},
-    "user.agents.expectations": {"type": "string", "topic": "agents"},
-    "user.challenges": {"type": "list[string]", "topic": "agents"},
+    "user.preferences.llm": {"type": "string", "topic": "preferences"},
+    "user.preferences.sovereignty": {"type": "string", "topic": "preferences"},
+    # --- Automation objectives (desktop topic: "agents") ---
+    "user.agents.domains": {"type": "list[string]", "topic": "agents"},
+    "user.agents.trigger": {"type": "string", "topic": "agents"},
+    "user.agents.hitl": {"type": "string", "topic": "agents"},
 }
 
 
@@ -95,15 +216,17 @@ ONBOARDING_MEMORY_SCHEMA: dict[str, dict[str, str]] = {
 
 @dataclass(frozen=True)
 class TopicGuide:
-    """Definition of an onboarding topic that the agent explores.
+    """Definition of an onboarding topic the agent explores.
 
-    Each guide provides the LLM with context about what to collect,
-    how to adapt questions, and which memory keys to populate.
+    Order matters: topics listed first are explored earlier in the
+    conversation. Each guide tells the LLM what to collect, when to ask,
+    and which memory keys to populate.
     """
 
     name: str
     domain: str
     objective: str
+    phase: str
     memory_keys: tuple[str, ...]
     example_questions: tuple[str, ...]
     adaptation_rules: tuple[str, ...]
@@ -111,119 +234,183 @@ class TopicGuide:
 
 TOPIC_IDENTITY = TopicGuide(
     name="identity",
-    domain="User identity",
-    objective="Understand who the user is — their name, profession, industry",
+    domain="Identity, role and primary goal",
+    objective=(
+        "Capture the user's first name, their role (operator vs builder), and the "
+        "main objective that brought them to Apollia. These three drive every "
+        "subsequent question and the desktop completion gate."
+    ),
+    phase="turns 1-2",
     memory_keys=(
         "user.name",
         "user.role",
-        "user.languages",
-        "user.expertise_level",
-        "user.industry",
         "user.goals",
     ),
     example_questions=(
-        "What's your name?",
-        "What's your profession or day-to-day role?",
-        "Would you consider yourself a beginner, intermediate, or expert in your field?",
-        "What industry do you work in?",
+        "First, how should I call you?",
+        "What kind of work brings you to Apollia today — automating recurring tasks, "
+        "or building your own AI agents?",
+        "In one sentence, what do you want Apollia to help you with first?",
     ),
     adaptation_rules=(
-        "If the user mentions their role spontaneously, do not ask again.",
-        "If the first name is already known, move on.",
-        "MANDATORY: the first name and profession/role must be collected. Never skip these.",
-    ),
-)
-
-TOPIC_PREFERENCES = TopicGuide(
-    name="preferences",
-    domain="Interaction preferences",
-    objective="Adapt Apollia OS behaviour",
-    memory_keys=(
-        "user.preferences.verbosity",
-        "user.preferences.format",
-        "user.preferences.language",
-    ),
-    example_questions=(
-        "Do you prefer detailed answers or straight to the point?",
-        "Which language would you like me to use?",
-    ),
-    adaptation_rules=(
-        "Observe the user's style: short answers = prefers concise.",
-        "If the language is already detected, offer to confirm rather than ask.",
-    ),
-)
-
-TOPIC_TOOLS = TopicGuide(
-    name="tools",
-    domain="Tools and work environment",
-    objective="Learn the user's daily tools, regardless of profession",
-    memory_keys=(
-        "user.tools.daily_apps",
-        "user.tools.communication",
-        "user.tools.specialized",
-    ),
-    example_questions=(
-        "What tools or apps do you use most in your daily work?",
-        "How do you communicate with your team? (Slack, email, Teams…)",
-        "Do you use any specialized tools for your profession?",
-    ),
-    adaptation_rules=(
-        "If developer → ask about IDE, terminal, package manager (keys user.tools.ide, user.tools.terminal, user.tools.package_manager).",
-        "If marketer → ask about analytics, CRM, marketing automation tools.",
-        "If designer → ask about design tools (Figma, Sketch…) and prototyping.",
-        "If manager → ask about project management and reporting tools.",
-        "Adapt questions to the profession revealed during identity. Never ask about tools from an irrelevant domain.",
+        "MANDATORY: user.name AND user.role MUST be collected before turn 4. "
+        "Without them the desktop UI keeps the onboarding banner blocked.",
+        "Operator signals: 'automate', 'no code', 'recurring', 'no time', 'busy', "
+        "non-technical job title → role=operateur.",
+        "Builder signals: 'build agents', 'Python', 'SDK', 'LangGraph', 'CrewAI', "
+        "'pipeline', 'MCP server' → role=builder.",
+        "Both signals together → role=les-deux.",
+        "user.goals MUST be a single sentence in the user's own words — never invent.",
     ),
 )
 
 TOPIC_DOMAIN = TopicGuide(
     name="domain",
     domain="Professional context",
-    objective="Understand the industry, organization, and current projects",
+    objective=(
+        "Identify the user's industry sector and team size. These drive demo "
+        "agent selection (RSE → veille-rse, finance → reporting…) and HITL "
+        "recommendations (entreprise → tighter governance)."
+    ),
+    phase="turns 1-2",
     memory_keys=(
-        "user.domain.industry",
-        "user.domain.company_context",
-        "user.domain.current_projects",
-        "user.domain.constraints",
+        "user.domain.sector",
+        "user.domain.team_size",
     ),
     example_questions=(
-        "What industry do you work in?",
-        "Do you work solo, in a small team, or in a large organization?",
-        "What are your main projects or responsibilities right now?",
+        "Which field do you work in? (finance, sustainability/RSE, legal, marketing, "
+        "tech, healthcare, HR, other)",
+        "Are you working solo, in a small team, or inside a larger organisation?",
     ),
     adaptation_rules=(
-        "If freelance → ask about client types and specific constraints.",
-        "If large company → ask about team, processes, organizational constraints.",
-        "If technical profile → ask about stack and infrastructure (keys user.domain.type, user.domain.stack).",
-        "If non-technical profile → do not ask technical details, focus on business context.",
+        "If the user mentions their company, role, or industry spontaneously, INFER "
+        "the sector instead of asking a redundant question.",
+        "Sector → demo mapping: rse → veille-rse; finance → reporting + veille-ia; "
+        "legal → contract-review; marketing → veille-ia + content; tech → "
+        "ci-watch + veille-ia; default → veille-ia + email-triage.",
+        "team_size: solo → recommend manual/scheduled triggers and full-auto; "
+        "petite-equipe → hybride HITL; entreprise → mention governance.db and "
+        "approval scopes.",
     ),
 )
 
-TOPIC_AGENTS = TopicGuide(
-    name="agents",
-    domain="Desired automation",
-    objective="Identify workflows to automate",
+TOPIC_TECH = TopicGuide(
+    name="tools",
+    domain="Technical profile and existing stack",
+    objective=(
+        "Determine the user's technical expertise and capture the tools they "
+        "already use daily. The stack feeds MCP integration recommendations on "
+        "the /integrations page; expertise drives vocabulary."
+    ),
+    phase="turns 3-4",
     memory_keys=(
-        "user.agents.workflows",
-        "user.agents.pain_points",
-        "user.agents.expectations",
+        "user.expertise",
+        "user.tools.current",
     ),
     example_questions=(
-        "Do you have repetitive tasks you'd like to automate?",
-        "What kind of things do you imagine an AI agent could do for you?",
+        "Which tools sit at the centre of your daily work? (Gmail, Notion, Slack, "
+        "Excel, VS Code, Python, …)",
+        "On a scale from non-technical to ML engineer, where would you put yourself?",
     ),
     adaptation_rules=(
-        "If the user is unfamiliar with AI agents, explain briefly.",
-        "If they have experience, ask which tools they've tried.",
+        "user.expertise should usually be INFERRED from role + vocabulary, not asked: "
+        "operateur + non-dev tools → non-technique; builder + Python only → "
+        "dev-junior or dev-senior depending on framework mentions; LangGraph/CrewAI/"
+        "PyTorch/HuggingFace → ml-engineer.",
+        "Only ask the expertise question if signals are ambiguous after turn 3.",
+        "user.tools.current is a comma-joined list of normalised service names — "
+        "examples: 'Gmail, Notion, Slack' (NOT 'I use Gmail every day').",
+        "If the user lists tools that map to known MCP servers (Gmail, Notion, "
+        "Slack, GitHub, Linear, Jira), pre-fill user.tools.integrations with the "
+        "matching list via [INFER user.tools.integrations=...].",
+    ),
+)
+
+TOPIC_AUTOMATION = TopicGuide(
+    name="agents",
+    domain="Automation objectives and supervision",
+    objective=(
+        "Identify the workflows the user wants to automate first, the trigger "
+        "mode they prefer, and the level of autonomy they accept. This is the "
+        "core outcome — the demo agents on /agents are pre-selected from "
+        "user.agents.domains."
+    ),
+    phase="turns 5-6",
+    memory_keys=(
+        "user.agents.domains",
+        "user.agents.trigger",
+        "user.agents.hitl",
+    ),
+    example_questions=(
+        "Which recurring task would you like Apollia to handle first? Common "
+        "starting points: automated tech watch, email triage, RSE/ESG reporting, "
+        "meeting summaries, customer-support triage, daily news brief.",
+        "Should agents run on a schedule (e.g. every morning at 9h), react to "
+        "events (new email, file change, webhook), or only when you click run?",
+        "Do you want to approve every agent action before it happens, only review "
+        "the important decisions, or let agents run fully on their own?",
+    ),
+    adaptation_rules=(
+        "MANDATORY: user.agents.domains MUST be collected. If the user is unsure, "
+        "PROPOSE 2 concrete options grounded in their sector and stack.",
+        "agents.domains is a list of slugs: veille | email-triage | reporting | "
+        "meeting-summary | customer-support | content | contract-review | "
+        "ci-watch (free additions allowed but slug-shaped — lowercase-hyphen).",
+        "agents.trigger values: manuel | planifie | evenement.",
+        "agents.hitl values: approbation-totale | hybride | full-auto.",
+        "Operator vocabulary: 'click OK', 'approve', 'review' instead of HITL/step "
+        "budget/governance scope.",
+        "Builder vocabulary: HITL steps, step budget, approval scopes "
+        "(session/project/global), governance.db.",
+    ),
+)
+
+TOPIC_PREFERENCES = TopicGuide(
+    name="preferences",
+    domain="LLM, sovereignty and integrations",
+    objective=(
+        "Capture data sovereignty requirements, LLM backend preference, and any "
+        "integrations the user wants beyond the tools they already use. The "
+        "sovereignty answer determines which LLM backends are recommended on /llm."
+    ),
+    phase="turns 7+",
+    memory_keys=(
+        "user.preferences.sovereignty",
+        "user.preferences.llm",
+        "user.preferences.language",
+        "user.tools.integrations",
+    ),
+    example_questions=(
+        "How important is it that your data never leaves your machine — critical "
+        "(local-first, offline LLM only), important (local by default, cloud OK "
+        "with consent), or flexible?",
+        "Do you prefer a fully local LLM (llama.cpp, Ollama, no API key needed) "
+        "or a cloud model (Claude, GPT-4, Bedrock, Vertex)?",
+        "Beyond the tools you already use, are there services you'd like Apollia "
+        "to connect to via MCP — Gmail, Notion, Slack, GitHub, Linear?",
+    ),
+    adaptation_rules=(
+        "INFER user.preferences.language from the language the user writes in — "
+        "store ISO short code 'fr' or 'en'. Never ask.",
+        "Sovereignty mapping: 'local-first', 'RGPD', 'no cloud', 'private', "
+        "'offline' → critique. 'OK if encrypted/EU' → important. 'whatever works' "
+        "→ flexible.",
+        "If sovereignty=critique and user mentions 'Claude'/'OpenAI', GENTLY "
+        "highlight the conflict and suggest llama.cpp (Llama 3, Qwen, Mistral) as "
+        "default with cloud opt-in.",
+        "If undecided about LLM → llm=pas-de-preference and recommend trying local "
+        "first (zero cost, zero key).",
+        "user.tools.integrations augments the values already inferred from "
+        "user.tools.current — do not duplicate.",
     ),
 )
 
 TOPIC_GUIDES: dict[str, TopicGuide] = {
     "identity": TOPIC_IDENTITY,
-    "preferences": TOPIC_PREFERENCES,
-    "tools": TOPIC_TOOLS,
     "domain": TOPIC_DOMAIN,
-    "agents": TOPIC_AGENTS,
+    "tools": TOPIC_TECH,
+    "agents": TOPIC_AUTOMATION,
+    "preferences": TOPIC_PREFERENCES,
 }
 
 ALL_TOPIC_MEMORY_KEYS: frozenset[str] = frozenset(
@@ -234,11 +421,7 @@ ALL_TOPIC_MEMORY_KEYS: frozenset[str] = frozenset(
 
 
 def topic_for_memory_key(key: str) -> str | None:
-    """Return the topic name a memory key belongs to, or ``None``.
-
-    Matches by checking if the key starts with any of the topic's
-    declared memory key prefixes.
-    """
+    """Return the topic name a memory key belongs to, or ``None``."""
     for topic_name, guide in TOPIC_GUIDES.items():
         for mk in guide.memory_keys:
             if key == mk or key.startswith(mk + "."):
@@ -249,7 +432,7 @@ def topic_for_memory_key(key: str) -> str | None:
 def _build_topic_section(guide: TopicGuide) -> str:
     """Render a single topic guide as a system prompt section."""
     lines = [
-        f"### {guide.domain}",
+        f"### {guide.domain}  [{guide.phase}]",
         f"Objective: {guide.objective}",
         f"Memory keys: {', '.join(guide.memory_keys)}",
         "Example questions:",
@@ -271,64 +454,82 @@ _TOPIC_SECTIONS = "\n\n".join(
 )
 
 _SYSTEM_PROMPT = f"""\
-You are the onboarding assistant for Apollia OS. Your role is to get to know \
-the user in a natural, friendly way. Apollia OS is a tool for all professionals, \
-not just developers — adapt your language and questions to the user's profile.
+You are the onboarding assistant for Apollia OS — a local-first Rust runtime \
+for autonomous AI agents. Apollia lets professionals run agents that perceive, \
+reason, and act on their behalf, entirely on their own machine, without any \
+mandatory cloud dependency.
 
-You explore 5 domains during the conversation. You do NOT follow a fixed \
-order — you choose when and how to address each domain based on what the \
-user tells you. You can revisit a domain if new information warrants it, or \
-skip a domain if the context makes it irrelevant.
+## Apollia capabilities (mention naturally, never invent)
 
-## Mandatory fields (ALWAYS collect first)
+- **Agents**: ReAct autonomous agents, ConversationalAgent, OrchestratedAgent \
+networks (A2A protocol), all written as plain Python (`manifest()` + async \
+`run()`).
+- **Triggers**: cron, interval, file_watch, webhook, oneshot — hot-reloaded \
+from SQLite.
+- **Pipelines**: agent DAGs with fan-out/fan-in and human-in-the-loop (HITL) \
+approval steps.
+- **Memory**: episodic, semantic, procedural — full export/import, agent-scoped \
+namespaces.
+- **Native tools**: web_search, web_read, http_fetch, bash, file_read, \
+file_write, file_list, email_send (13 native tools, sandboxed and audited).
+- **Tool governance**: human approval with scopes session / project / global, \
+unified `governance.db`, audit trail.
+- **STT**: voice dictation and transcription via whisper-rs (fully local).
+- **LLM backends**: Anthropic Claude, OpenAI, Ollama, llama.cpp (Metal/CUDA, \
+GGUF), Bedrock, Vertex — selected via the `/llm` page; LlmRouter picks per \
+agent.
+- **MCP integrations**: native client (stdio / HTTP / SSE) — Gmail, Notion, \
+Slack, GitHub, and any MCP-compatible server.
 
-You MUST obtain this information in the first 2-3 exchanges. NEVER skip them:
-- **First name** (user.name) — ask explicitly if the user doesn't introduce \
-themselves spontaneously.
-- **Profession / role** (user.role) — "What do you do?" or "What's your \
-day-to-day role?"
-- **Preferred language** (user.preferences.language) — auto-detected or \
-confirmed.
+## Progressive disclosure — FOLLOW THIS ORDER, NEVER JUMP AHEAD
 
-## Domains to explore
+Trust builds gradually. Capture light, business-level facts first; capture \
+sensitive or precise preferences only once rapport is established.
+
+  Turns 1-2 : identity (name, role, goals) + domain (sector, team size)
+  Turns 3-4 : tech profile (expertise, current tools) — infer when you can
+  Turns 5-6 : automation (domains to automate, trigger, supervision level)
+  Turns 7+  : constraints & fine preferences (sovereignty, LLM, integrations),
+              then conclude.
+
+## Topics to explore
 
 {_TOPIC_SECTIONS}
 
-## Adaptive strategy
+## Memory rules
 
-After learning the user's name and profession (mandatory), detect their \
-profile type and adapt ALL subsequent questions accordingly:
-- **TECHNICAL** (developer, devops, data engineer, sysadmin…): explore dev \
-tools (IDE, terminal, stack), infrastructure, technical workflows.
-- **CREATIVE** (designer, content creator, videographer…): explore creation \
-tools, creative workflows, delivery constraints.
-- **BUSINESS** (manager, marketer, sales, HR…): explore business tools, team \
-context, processes, KPIs.
-- **OTHER**: ask generic questions about daily work, goals, and challenges.
+- When the user states a durable fact explicitly, emit: `[REMEMBER key=value]`.
+- When you deduce a durable fact from context (vocabulary, sector, language), \
+emit: `[INFER key=value]`.
+- Use the EXACT keys from the schema above (e.g. `user.role`, \
+`user.agents.domains`). Never invent new keys.
+- For list-typed keys (`user.agents.domains`, `user.tools.current`, \
+`user.tools.integrations`), use a comma-joined slug list. Example: \
+`[REMEMBER user.agents.domains=veille,email-triage]`.
+- Emit tags at the END of your message — never inline with the visible text.
+- Only memorise durable facts (still true in 6 months). Never memorise current \
+tasks, mood, or transient details.
+- Each [REMEMBER] must enable a concrete downstream action. Ask: which page or \
+agent will use this value? If none → skip it.
+- As soon as user.role is known, emit \
+`[REMEMBER onboarding.profile_type=operator]` or `=builder` (use `builder` if \
+role is `builder` or `les-deux`, else `operator`).
 
-NEVER ask about tools from an irrelevant domain (e.g. don't ask about IDE \
-to a marketer, don't ask about CRM to a developer unless they bring it up).
+## Conversation rules
 
-## Rules
-
-- NEVER ask a numbered list of questions. Ask ONE question at a time.
-- Build on answers to dig deeper naturally.
-- Adapt your questions to the emerging profile.
-- When you learn something useful stated explicitly by the user, indicate it \
-in brackets [REMEMBER key=value]. \
-When you infer information from context (e.g. the user writes in French so \
-they are likely francophone), use [INFER key=value]. \
-Use the memory keys listed in each domain.
-- Only memorize durable information (role, skills, preferences) — never \
-ephemeral details (current mood, task in progress). \
-A good [REMEMBER] is still true in 6 months.
-- The user can quit at any time. Never force the conversation.
-- Be warm, concise, and professional.
-- Start by briefly introducing yourself and asking the user's first name.
-- When you have sufficiently covered all 5 domains (at least one relevant piece \
-of information per domain), conclude the conversation with a short summary of what \
-you learned and tell the user that onboarding is complete. Do not keep asking \
-questions indefinitely.
+- Open with a warm 2-sentence introduction of Apollia OS, then ask the user's \
+first name AND what they want to automate or build (one combined turn).
+- Ask ONE question at a time after that. Build on the previous answer.
+- Never ask a numbered list of questions.
+- Detect the profile (operator / builder) by turn 2 and adapt vocabulary \
+immediately.
+- When user.name, user.role, AND user.agents.domains are all collected, AND \
+at least one key is populated for each of the 5 topics, conclude with: a 3-4 \
+sentence personalised summary; a `[REMEMBER onboarding.completed=true]` tag; \
+a `[REMEMBER onboarding.suggested_agents=...]` tag listing 2-3 demo agent \
+slugs picked from the user's sector + automation domains; and 1-2 concrete \
+next steps (e.g. "Open /agents — I pre-selected veille-ia and email-triage \
+for you" or "Head to /llm to wire up your local Llama model").
 - Always respond in the same language as the user's message.\
 """
 
@@ -341,35 +542,43 @@ OPERATOR_SECTION = """\
 
 ## Operator profile detected
 
-You are talking to an Operator — someone who wants to use AI agents to
-automate recurring tasks without writing code.
-Focus your questions on:
-- The repetitive tasks they would like to automate
-- Their comfort level with supervising autonomous agents
-- Their preferences for notifications and alerts
-Do not ask technical details (stack, IDE, frameworks).\
+You are talking to an Operator — someone who wants to automate recurring tasks \
+without writing code. Adapt every word:
+- Say "task" not "agent run", "automate" not "deploy", "approve" not "HITL", \
+"connect" not "MCP integration".
+- Never mention SDK, manifest, async/await, DAG, step budget, A2A.
+- Frame demos in terms of outcomes ("get a daily news brief in your inbox") \
+not mechanics ("a ReAct agent calling web_search every morning").
+Focus the remaining turns on:
+- Which repetitive task they'd eliminate first (email triage, weekly RSE \
+report, automated tech watch, meeting summaries…).
+- Whether they prefer to click-approve each action or only key decisions.
+- Which trigger fits — scheduled (every morning at 9h), event-based (new email \
+arrives, file dropped in folder), or manual (click run).\
 """
 
 BUILDER_SECTION = """\
 
 ## Builder profile detected
 
-You are talking to a Builder — a developer who wants to create their own agents.
-Focus your questions on:
-- Their experience with Python and async programming
-- The agent frameworks they know (LangGraph, CrewAI, AutoGen…)
-- Their current tech stack and preferred tools
-You may use technical vocabulary (async/await, SDKs, manifests).\
+You are talking to a Builder — a developer who wants to create their own \
+agents, pipelines, triggers, and MCP integrations. You may use full technical \
+vocabulary:
+ConversationalAgent, OrchestratedAgent, manifest(), async run(), StepBudget, \
+HITL steps, governance scopes, MCP stdio/HTTP/SSE, A2A protocol, fan-out/fan-in, \
+trigger engine (cron/interval/file_watch/webhook/oneshot).
+Focus the remaining turns on:
+- Python/async comfort and any agent framework already used (LangGraph, \
+CrewAI, AutoGen, custom).
+- Whether they want to build standalone agents, pipelines, MCP servers, or \
+all of the above.
+- Preferred LLM backend (local llama.cpp/Ollama vs cloud Anthropic/OpenAI/\
+Bedrock/Vertex) and routing strategy.\
 """
 
 
 def build_system_prompt_with_profile(profile: str | None) -> str:
-    """Build the full system prompt with an optional profile-specific section.
-
-    Returns the base system prompt with an appended profile-specific
-    section when ``profile`` is ``"operator"`` or ``"builder"``.
-    Falls back to the generic prompt for ``None`` or unrecognised values.
-    """
+    """Build the full system prompt with an optional profile-specific section."""
     if profile == "operator":
         return _SYSTEM_PROMPT + OPERATOR_SECTION
     if profile == "builder":
@@ -381,43 +590,46 @@ def build_system_prompt_with_profile(profile: str | None) -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _extract_remember_tags(text: str) -> list[tuple[str, str]]:
-    """Extract ``[REMEMBER key=value]`` pairs from LLM output.
+_REMEMBER_RE = re.compile(r"\[REMEMBER\s+([^\]=]+)=([^\]]+)\]")
+_INFER_RE = re.compile(r"\[INFER\s+([^\]=]+)=([^\]]+)\]")
+_META_KEY_PREFIXES: tuple[str, ...] = ("onboarding.",)
 
-    Returns a list of ``(key, value)`` tuples.  Keys are normalised to
-    lower-case with dots.
+
+def _normalise_key(raw_key: str) -> str:
+    """Lower-case, replace spaces with underscores, ensure namespace prefix.
+
+    Keys belonging to the ``onboarding.*`` meta namespace are preserved as-is.
+    Any other key is forced into the ``user.`` namespace.
     """
-    pairs: list[tuple[str, str]] = []
-    for match in re.finditer(r"\[REMEMBER\s+([^\]=]+)=([^\]]+)\]", text):
-        raw_key = match.group(1).strip().lower().replace(" ", "_")
-        value = match.group(2).strip()
-        if not raw_key.startswith(MEMORY_KEY_PREFIX):
-            raw_key = MEMORY_KEY_PREFIX + raw_key
-        pairs.append((raw_key, value))
-    return pairs
+    key = raw_key.strip().lower().replace(" ", "_")
+    if any(key.startswith(p) for p in _META_KEY_PREFIXES):
+        return key
+    if not key.startswith(MEMORY_KEY_PREFIX):
+        key = MEMORY_KEY_PREFIX + key
+    return key
+
+
+def _extract_remember_tags(text: str) -> list[tuple[str, str]]:
+    """Extract ``[REMEMBER key=value]`` pairs from LLM output."""
+    return [
+        (_normalise_key(m.group(1)), m.group(2).strip())
+        for m in _REMEMBER_RE.finditer(text)
+    ]
 
 
 def _extract_infer_tags(text: str) -> list[tuple[str, str]]:
-    """Extract ``[INFER key=value]`` pairs from LLM output.
-
-    Same format as REMEMBER tags but indicates information deduced
-    from context rather than explicitly stated by the user.
-    """
-    pairs: list[tuple[str, str]] = []
-    for match in re.finditer(r"\[INFER\s+([^\]=]+)=([^\]]+)\]", text):
-        raw_key = match.group(1).strip().lower().replace(" ", "_")
-        value = match.group(2).strip()
-        if not raw_key.startswith(MEMORY_KEY_PREFIX):
-            raw_key = MEMORY_KEY_PREFIX + raw_key
-        pairs.append((raw_key, value))
-    return pairs
+    """Extract ``[INFER key=value]`` pairs from LLM output."""
+    return [
+        (_normalise_key(m.group(1)), m.group(2).strip())
+        for m in _INFER_RE.finditer(text)
+    ]
 
 
 def _strip_remember_tags(text: str) -> str:
-    """Remove ``[REMEMBER ...]`` and ``[INFER ...]`` tags from text shown to the user."""
-    cleaned = re.sub(r"\s*\[REMEMBER\s+[^\]]+\]\s*", " ", text)
-    cleaned = re.sub(r"\s*\[INFER\s+[^\]]+\]\s*", " ", cleaned)
-    return cleaned.strip()
+    """Remove ``[REMEMBER ...]`` and ``[INFER ...]`` tags from user-facing text."""
+    cleaned = _REMEMBER_RE.sub(" ", text)
+    cleaned = _INFER_RE.sub(" ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 async def persist_insight(
@@ -428,12 +640,10 @@ async def persist_insight(
 ) -> None:
     """Persist an onboarding insight with the appropriate confidence score.
 
-    Explicit information (the user stated it directly) gets
-    ``CONFIDENCE_EXPLICIT`` (0.9).  Inferred information (deduced from
-    conversational context) gets ``CONFIDENCE_INFERRED`` (0.5).
-
-    The underlying memory layer skips the write if the key already holds
-    a value with strictly higher confidence.
+    Explicit information (stated directly) gets ``CONFIDENCE_EXPLICIT`` (0.9).
+    Inferred information (deduced from context) gets ``CONFIDENCE_INFERRED`` (0.6).
+    The memory layer skips writes when the existing entry holds strictly
+    higher confidence.
     """
     confidence = CONFIDENCE_EXPLICIT if explicit else CONFIDENCE_INFERRED
     await ctx.memory.remember(
@@ -451,9 +661,9 @@ async def persist_insight(
 class OnboardingAgent(ConversationalAgent):
     """Conversational onboarding agent for Apollia OS.
 
-    Guides new users through a natural dialogue covering identity,
-    preferences, tools, domain, and automation goals.  Each piece
-    of information is persisted immediately via semantic memory.
+    Guides new users through a progressive dialogue covering identity, domain,
+    technical profile, automation objectives, and constraints. Each durable
+    fact is persisted immediately via semantic memory.
     """
 
     SYSTEM_PROMPT = _SYSTEM_PROMPT
@@ -464,10 +674,10 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "1.5.0",
+            "version": "2.1.0",
             "description": (
-                "Conversational onboarding agent — gets to know "
-                "the user in a natural, friendly way."
+                "Conversational onboarding agent — captures identity, role, "
+                "automation goals, and constraints through progressive dialogue."
             ),
             "execution_mode": "auto",
             "agent_type": "system",
@@ -480,7 +690,7 @@ class OnboardingAgent(ConversationalAgent):
         }
 
     def on_response(self, response: str) -> str:
-        """Strip internal REMEMBER tags before showing to the user."""
+        """Strip internal REMEMBER/INFER tags before showing to the user."""
         return _strip_remember_tags(response)
 
     async def converse(
@@ -489,17 +699,10 @@ class OnboardingAgent(ConversationalAgent):
         user_message: str,
         history: list[dict[str, str]] | None = None,
     ) -> tuple[str, list[dict[str, str]]]:
-        """Override to handle profile-aware prompt building and memory extraction.
-
-        On the first message (no history), loads the active profile and
-        builds the system prompt accordingly.  After each LLM response,
-        extracts REMEMBER tags and persists them.
-        """
+        """Drive one turn of profile-aware conversation with memory extraction."""
         is_first_message = not history
 
         if is_first_message:
-            # Read the active profile injected by the runtime before session
-            # creation — None when no profile was set.
             active_profile: str | None = None
             if ctx.memory is not None:
                 try:
@@ -522,7 +725,7 @@ class OnboardingAgent(ConversationalAgent):
         messages.append({"role": "user", "content": user_message})
 
         response = await ctx.llm.complete(messages)
-        # LlmResponse is a PyO3 object with .content attribute (not a dict).
+        # LlmResponse is a PyO3 object exposing .content (see apollia-aip/src/llm.rs).
         raw_text: str = getattr(response, "content", "") or ""
 
         explicit_pairs = _extract_remember_tags(raw_text)
@@ -534,7 +737,6 @@ class OnboardingAgent(ConversationalAgent):
                 await persist_insight(ctx, key, value, explicit=False)
 
         processed_text = self.on_response(raw_text)
-
         messages.append({"role": "assistant", "content": processed_text})
 
         if ctx.memory is not None:
@@ -545,8 +747,8 @@ class OnboardingAgent(ConversationalAgent):
 
         if is_first_message and ctx.memory is not None:
             await ctx.memory.remember(
-                MEMORY_KEY_ONBOARDING_STATE,
-                json.dumps({"started": True, "turns": 1}),
+                key=MEMORY_KEY_ONBOARDING_STATE,
+                value=json.dumps({"started": True, "turns": 1}),
                 source=MEMORY_SOURCE,
                 confidence=CONFIDENCE_EXPLICIT,
             )
@@ -554,23 +756,18 @@ class OnboardingAgent(ConversationalAgent):
         return processed_text, messages
 
     async def run(self, task: Any, ctx: Any) -> AIPResult:
-        """Execute the onboarding agent for a single message turn.
-
-        Extracts user text from task input, delegates to ``converse()``,
-        and returns the response as ``AIPResult.completed()``.
-        """
+        """Execute one onboarding turn from an AIPTask payload."""
         if ctx.llm is None:
             raise RuntimeError(
                 "OnboardingAgent requires ctx.llm — no LLM backend configured"
             )
 
-        # task is a Python dict (serialised from Rust AIPTask via JSON).
-        # task["input"]["parts"][0]["text"] contains the user message.
+        # task is a dict (serialised from Rust AIPTask via JSON).
+        # task["input"]["parts"][0]["text"] holds the user message.
         task_input = task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
         if task_input is None:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        # Extract text from the first TextPart in input.parts
         if isinstance(task_input, dict):
             parts = task_input.get("parts", [])
             input_text = parts[0]["text"] if parts else str(task_input)
@@ -582,8 +779,7 @@ class OnboardingAgent(ConversationalAgent):
         else:
             input_text = str(task_input)
 
-        # Extract conversation history from the task to maintain context.
-        # task["history"] is a list of {"role": "user"|"agent", "parts": [{"text": "..."}]}
+        # task["history"] is a list of {"role": "user"|"agent", "parts": [{"text": ...}]}.
         raw_history = task.get("history", []) if isinstance(task, dict) else getattr(task, "history", [])
         history = []
         for msg in (raw_history or []):

@@ -112,7 +112,9 @@ impl DownloadManager {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent("Apollia-OS/1.0")
-            .timeout(std::time::Duration::from_secs(60))
+            // connect_timeout only — no total-request timeout so large model downloads
+            // (multi-GB) are not killed mid-stream after 60 s.
+            .connect_timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("reqwest client build never fails");
         Self {

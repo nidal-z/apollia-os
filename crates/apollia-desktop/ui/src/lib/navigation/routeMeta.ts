@@ -27,7 +27,6 @@ import {
   Mic,
   FolderOpen,
   LayoutGrid,
-  Sparkles,
   Shield,
   Paintbrush,
 } from "lucide-svelte";
@@ -65,7 +64,6 @@ export const routeMeta: Record<Route, RouteMeta> = {
     parent: "settings",
     icon: Shield,
   },
-  onboarding: { labelKey: "nav.apollia_guide", parent: null, icon: Sparkles },
   design: { labelKey: "topbar.route.design", parent: null, icon: Paintbrush },
   "design-motion": { labelKey: "topbar.route.design_motion", parent: "design", icon: Paintbrush },
   "design-empty-states": { labelKey: "topbar.route.design_empty_states", parent: "design", icon: Paintbrush },

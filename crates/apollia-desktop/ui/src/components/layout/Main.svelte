@@ -19,7 +19,6 @@
   import Chat from "../../routes/Chat.svelte";
   import Settings from "../../routes/Settings.svelte";
   import SettingsPermissionRules from "../../routes/SettingsPermissionRules.svelte";
-  import Onboarding from "../../routes/Onboarding.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
   import Connections from "../../routes/Connections.svelte";
@@ -54,7 +53,7 @@
   <Topbar />
 
   <!-- Route content : padding responsive + conteneur centré. -->
-  <div class="mx-auto w-full max-w-6xl flex-1 px-4 sm:px-6 md:px-8 lg:px-10 py-6">
+  <div class="w-full flex-1 overflow-auto">
     {#key $currentRoute}
       <PageTransition>
         {#if $currentRoute === "dashboard"}
@@ -99,8 +98,6 @@
           <Settings />
         {:else if $currentRoute === "settings-permission-rules"}
           <SettingsPermissionRules />
-        {:else if $currentRoute === "onboarding"}
-          <Onboarding />
         {:else if $currentRoute === "design"}
           <Design />
         {:else if $currentRoute === "design-motion"}

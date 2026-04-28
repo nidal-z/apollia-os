@@ -9,77 +9,69 @@
    ═══════════════════════════════════════════════════════════ */
 @layer base {
   :root {
-    /* ── Brand palette — blue/violet identity ── */
-    --primary: 240 91% 58%;
+    /* ── Brand palette — V4 indigo iris (softer than original blue) ── */
+    --primary: 237 47% 57%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 240 91% 54%;
-    --primary-active: 240 91% 50%;
-    --secondary: 260 60% 61%;
+    --primary-hover: 237 47% 53%;
+    --primary-active: 237 47% 49%;
+    --secondary: 261 36% 61%;
     --secondary-foreground: 0 0% 100%;
-    --accent: 240 91% 58%;
+    --accent: 237 47% 57%;
     --accent-foreground: 0 0% 100%;
 
-    /* ── Primary gradient (fixed hsl values for gradient stops) ── */
-    --primary-gradient-from: 240 91% 58%;
-    --primary-gradient-to: 260 60% 61%;
+    /* ── Primary gradient ── */
+    --primary-gradient-from: 237 47% 57%;
+    --primary-gradient-to: 261 36% 61%;
 
-    /* ── Surfaces — warm sand/parchment in light mode ── */
-    --background: 38 28% 90%;
-    --foreground: 230 15% 14%;
-    --surface-1: 40 35% 96%;       /* card elevated */
-    --surface-2: 38 30% 92%;       /* card resting */
-    --surface-3: 36 22% 86%;       /* recessed / inset */
-    --card: 40 35% 96%;
-    --card-foreground: 230 15% 14%;
-    --popover: 40 35% 96%;
-    --popover-foreground: 230 15% 14%;
-    --muted: 36 20% 85%;
-    --muted-foreground: 220 10% 40%;
+    /* ── Surfaces — V4 warm gray (greige), vibe Vercel/Arc ── */
+    --background: 33 11% 95%;
+    --foreground: 33 13% 9%;
+    --surface-1: 40 14% 98%;
+    --surface-2: 33 12% 93%;
+    --surface-3: 33 12% 86%;
+    --card: 40 14% 98%;
+    --card-foreground: 33 13% 9%;
+    --popover: 40 14% 98%;
+    --popover-foreground: 33 13% 9%;
+    --muted: 33 12% 90%;
+    --muted-foreground: 33 7% 46%;
 
-    /* ── Borders, inputs, ring ── */
-    --border: 36 16% 80%;
-    --input: 36 14% 84%;
-    --ring: 240 91% 58%;
-    --radius: 0.75rem;
+    /* ── Borders ── */
+    --border: 33 10% 84%;
+    --input: 33 10% 84%;
+    --ring: 237 47% 57%;
+    --radius: 0.625rem;
 
-    /* ── Glass borders (F.74/F.75) ── */
-    --glass-border-light: 220 80% 58% / 0.10;
-    --glass-border-light-hover: 220 80% 58% / 0.18;
-    --glass-border-dark: 260 40% 70% / 0.12;
-    --glass-border-dark-hover: 260 40% 70% / 0.22;
-
-    /* ── Canonical glass tokens (US-SP42-010 — F.74, F.75)
-       Resolved per theme. Use `hsl(var(--glass-border))` or
-       `hsl(var(--glass-inset))` directly rather than the
-       paired `-light` / `-dark` variants. */
+    /* ── Glass borders ── */
+    --glass-border-light: 237 47% 57% / 0.10;
+    --glass-border-light-hover: 237 47% 57% / 0.18;
+    --glass-border-dark: 237 47% 70% / 0.12;
+    --glass-border-dark-hover: 237 47% 70% / 0.22;
     --glass-border: var(--glass-border-light);
     --glass-border-hover: var(--glass-border-light-hover);
-    --glass-inset: 220 80% 58% / 0.06;
+    --glass-inset: 237 47% 57% / 0.06;
 
-    /* ── Responsive layout (US-SP42-003) ── */
+    /* ── Layout ── */
     --touch-target-min: 2.75rem;
 
     /* ── Semantic colors ── */
-    --destructive: 0 72% 40%;
+    --destructive: 11 57% 42%;
     --destructive-foreground: 0 0% 98%;
-    --info: 213 94% 47%;
-    --info-foreground: 213 80% 30%;
-    --warning: 38 92% 28%;
-    --warning-foreground: 32 80% 30%;
-    --success: 152 56% 28%;
-    --success-foreground: 152 56% 20%;
+    --info: 212 36% 45%;
+    --info-foreground: 212 36% 30%;
+    --warning: 38 70% 39%;
+    --warning-foreground: 38 70% 25%;
+    --success: 144 33% 37%;
+    --success-foreground: 144 33% 22%;
 
-    /* ── Text tokens (US-SP42-007) — verified ≥ 4.5:1 on surface-1.
-       Status colours are shifted darker than their bg counterparts so
-       a success/warning/danger label stays legible as prose.
-    */
-    --text-muted: 220 10% 34%;
-    --text-success: 152 60% 22%;
-    --text-warning: 30 90% 22%;
-    --text-danger: 0 72% 36%;
+    /* ── Text tokens ── */
+    --text-muted: 33 7% 40%;
+    --text-success: 144 38% 26%;
+    --text-warning: 38 80% 26%;
+    --text-danger: 11 60% 38%;
 
-    /* ── Chart palette — 8 distinguishable colors ── */
-    --chart-1: #7c3aed;
+    /* ── Chart palette ── */
+    --chart-1: #6366f1;
     --chart-2: #3b82f6;
     --chart-3: #10b981;
     --chart-4: #f59e0b;
@@ -88,79 +80,59 @@
     --chart-7: #06b6d4;
     --chart-8: #84cc16;
 
-    /* ═════════════════════════════════════════════════════════
-       Elevation scale (light) — multi-layer shadows + inset
-       rim light for materiality (F.19, F.20, F.55).
-       ═════════════════════════════════════════════════════════ */
+    /* ── Elevation — V4 hairline + subtle warmth ── */
     --shadow-elev-0:
-      0 1px 0 rgba(120, 100, 60, 0.04),
-      inset 0 1px 0 rgba(255, 252, 240, 0.5);
+      0 1px 0 rgba(255,255,255,0.60) inset,
+      0 1px 2px rgba(26,24,20,0.04);
     --shadow-elev-1:
-      0 1px 2px rgba(120, 100, 60, 0.06),
-      0 2px 6px -1px rgba(120, 100, 60, 0.05),
-      inset 0 1px 0 rgba(255, 252, 240, 0.6);
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 1px 2px rgba(26,24,20,0.04),
+      0 2px 6px -1px rgba(26,24,20,0.04);
     --shadow-elev-2:
-      0 1px 2px rgba(120, 100, 60, 0.06),
-      0 4px 12px rgba(120, 100, 60, 0.08),
-      inset 0 1px 0 rgba(255, 252, 240, 0.6);
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 4px 12px -4px rgba(26,24,20,0.08);
     --shadow-elev-3:
-      0 2px 4px rgba(120, 100, 60, 0.07),
-      0 10px 28px -6px rgba(120, 100, 60, 0.12),
-      inset 0 1px 0 rgba(255, 252, 240, 0.7);
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 12px 32px -12px rgba(26,24,20,0.16);
     --shadow-elev-4:
-      0 4px 8px rgba(120, 100, 60, 0.09),
-      0 24px 56px -12px rgba(52, 53, 245, 0.18),
-      inset 0 1px 0 rgba(255, 252, 240, 0.8);
+      0 1px 0 rgba(255,255,255,0.70) inset,
+      0 24px 64px -16px rgba(26,24,20,0.22);
 
-    /* ── Primary-tinted shadows for CTAs ── */
-    --shadow-primary-sm: 0 2px 8px -1px hsl(240 91% 58% / 0.30);
-    --shadow-primary-md: 0 4px 16px -2px hsl(240 91% 58% / 0.35);
-    --shadow-primary-lg: 0 6px 24px -2px hsl(240 91% 58% / 0.40);
-    --shadow-primary-xl: 0 12px 48px -8px hsl(260 60% 61% / 0.35);
+    /* ── Primary-tinted shadows ── */
+    --shadow-primary-sm: 0 2px 8px -1px hsl(237 47% 57% / 0.30);
+    --shadow-primary-md: 0 4px 16px -2px hsl(237 47% 57% / 0.35);
+    --shadow-primary-lg: 0 6px 24px -2px hsl(237 47% 57% / 0.40);
+    --shadow-primary-xl: 0 12px 48px -8px hsl(261 36% 61% / 0.35);
 
     /* ── Semantic shadows ── */
-    --shadow-success-md: 0 4px 16px -2px hsl(152 56% 35% / 0.35);
-    --shadow-destructive-md: 0 4px 16px -2px hsl(0 72% 40% / 0.30);
+    --shadow-success-md: 0 4px 16px -2px hsl(144 33% 37% / 0.35);
+    --shadow-destructive-md: 0 4px 16px -2px hsl(11 57% 42% / 0.30);
 
-    /* ── Backdrop (modal/sheet) ── */
-    --backdrop: rgba(0, 0, 0, 0.40);
-    --backdrop-subtle: rgba(0, 0, 0, 0.25);
+    /* ── Backdrop ── */
+    --backdrop: rgba(26, 24, 20, 0.40);
+    --backdrop-subtle: rgba(26, 24, 20, 0.25);
 
-    /* ═════════════════════════════════════════════════════════
-       Motion tokens (US-SP42-005) — durations + easing curves.
-       JS counterparts live in `lib/design/motion.ts`.
-       ═════════════════════════════════════════════════════════ */
+    /* ── Motion ── */
     --motion-fast: 120ms;
-    --motion-base: 200ms;
-    --motion-slow: 320ms;
-    --ease-apple: cubic-bezier(0.2, 0, 0, 1);
+    --motion-base: 220ms;
+    --motion-slow: 420ms;
+    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
     --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     --ease-accel: cubic-bezier(0.4, 0, 1, 1);
     --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    /* ═════════════════════════════════════════════════════════
-       Z-index stack (US-SP42-012 — F.56) — single source of
-       truth so overlays/tooltips never collide.
-       ═════════════════════════════════════════════════════════ */
+    /* ── Z-index stack ── */
     --z-backdrop: 40;
     --z-toast: 40;
     --z-overlay: 50;
     --z-tooltip: 70;
 
-    /* ═════════════════════════════════════════════════════════
-       Hover tokens (US-SP42-009) — canonical lift/scale/glow.
-       All interactive cards derive their hover from these so
-       behaviour stays uniform across persona surfaces.
-       ═════════════════════════════════════════════════════════ */
+    /* ── Hover ── */
     --hover-surface-lift: -2px;
     --hover-scale: 1.01;
     --hover-glow-primary: 0 8px 24px -6px hsl(var(--primary) / 0.30);
 
-    /* ═════════════════════════════════════════════════════════
-       Canonical gradients (F.35) — reuse across hero, header,
-       accents. Always expressed as `linear-gradient(...)` so
-       they can drop into `background` or `background-image`.
-       ═════════════════════════════════════════════════════════ */
+    /* ── Gradients ── */
     --gradient-primary: linear-gradient(
       135deg,
       hsl(var(--primary-gradient-from)) 0%,
@@ -177,74 +149,67 @@
       hsl(var(--secondary) / 0.05) 100%
     );
 
-    /* ═════════════════════════════════════════════════════════
-       Onboarding surface tokens (US-SP42-081) — the onboarding
-       flow keeps a slightly warmer backdrop than the standard
-       app surface to evoke a welcome. Resolved per theme so the
-       flow tracks `prefers-color-scheme` / `[data-theme]`.
-       ═════════════════════════════════════════════════════════ */
+    /* ── Onboarding ── */
     --onboarding-bg: hsl(var(--background));
     --onboarding-card-bg: hsl(var(--surface-1));
     --onboarding-card-border: hsl(var(--border));
+
+    /* ── V4 grain texture ── */
+    --grain-url: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>");
+
+    /* ── V4 warm accent (terracotta, for HITL / warmth accents) ── */
+    --warm-accent: 15 47% 56%;
+    --warm-accent-bg: 15 47% 56% / 0.10;
   }
 
   .dark {
-    /* ═════════════════════════════════════════════════════════
-       Warm charcoal — measurable warmth decalage vs pure grey.
-       Target: hsl(28 8% 9%) — bruni, pas neutre (F.33, F.34).
-       ═════════════════════════════════════════════════════════ */
-    --background: 28 8% 9%;
-    --foreground: 32 15% 92%;
-    --surface-1: 28 10% 14%;       /* card elevated */
-    --surface-2: 28 11% 13%;       /* card resting — warmer than neutral grey (F.74, F.75) */
-    --surface-3: 28 8% 10%;        /* recessed */
+    --background: 33 13% 9%;
+    --foreground: 33 12% 92%;
+    --surface-1: 33 10% 14%;
+    --surface-2: 33 11% 13%;
+    --surface-3: 33 8% 10%;
 
-    /* Canonical glass tokens — dark resolution (US-SP42-010). */
     --glass-border: var(--glass-border-dark);
     --glass-border-hover: var(--glass-border-dark-hover);
-    /* Dark inset: warm highlight ≥ 12 % so the recess remains
-       visible on surface-1 dark (F.55, F.74). */
-    --glass-inset: 32 40% 78% / 0.14;
-    --card: 28 10% 14%;
-    --card-foreground: 32 15% 92%;
-    --popover: 28 10% 14%;
-    --popover-foreground: 32 15% 92%;
-    --muted: 28 7% 18%;
-    --muted-foreground: 30 8% 62%;
+    --glass-inset: 33 30% 78% / 0.14;
+    --card: 33 10% 14%;
+    --card-foreground: 33 12% 92%;
+    --popover: 33 10% 14%;
+    --popover-foreground: 33 12% 92%;
+    --muted: 33 7% 18%;
+    --muted-foreground: 33 8% 62%;
 
-    --border: 28 8% 22%;
-    --input: 28 7% 18%;
-    --ring: 240 91% 62%;
+    --border: 33 8% 22%;
+    --input: 33 7% 18%;
+    --ring: 237 52% 64%;
 
-    --primary: 240 91% 62%;
+    --primary: 237 52% 64%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 240 91% 66%;
-    --primary-active: 240 91% 58%;
-    --secondary: 260 60% 65%;
+    --primary-hover: 237 52% 68%;
+    --primary-active: 237 52% 60%;
+    --secondary: 261 40% 67%;
     --secondary-foreground: 0 0% 100%;
-    --accent: 240 91% 62%;
+    --accent: 237 52% 64%;
     --accent-foreground: 0 0% 100%;
 
-    --primary-gradient-from: 240 91% 62%;
-    --primary-gradient-to: 260 60% 65%;
+    --primary-gradient-from: 237 52% 64%;
+    --primary-gradient-to: 261 40% 67%;
 
-    --destructive: 0 65% 58%;
+    --destructive: 11 65% 58%;
     --destructive-foreground: 0 0% 98%;
-    --info: 213 94% 60%;
-    --info-foreground: 213 90% 82%;
+    --info: 212 40% 60%;
+    --info-foreground: 212 40% 82%;
     --warning: 38 92% 55%;
-    --warning-foreground: 45 90% 82%;
-    --success: 152 50% 50%;
-    --success-foreground: 152 50% 82%;
+    --warning-foreground: 38 90% 82%;
+    --success: 144 40% 50%;
+    --success-foreground: 144 40% 82%;
 
-    /* Text tokens dark — tuned against surface-1 dark (~hsl(28 10% 14%)).
-       Each combination measured ≥ 4.5:1 with contrast-ratio.com. */
-    --text-muted: 30 8% 72%;
-    --text-success: 152 55% 68%;
-    --text-warning: 40 95% 72%;
-    --text-danger: 0 75% 72%;
+    --text-muted: 33 8% 72%;
+    --text-success: 144 45% 68%;
+    --text-warning: 38 90% 72%;
+    --text-danger: 11 75% 72%;
 
-    --chart-1: #a78bfa;
+    --chart-1: #818cf8;
     --chart-2: #60a5fa;
     --chart-3: #34d399;
     --chart-4: #fbbf24;
@@ -253,44 +218,36 @@
     --chart-7: #22d3ee;
     --chart-8: #a3e635;
 
-    /* ═════════════════════════════════════════════════════════
-       Elevation scale (dark) — rim light warm instead of black
-       on black. F.55 : rim visible in dark (>= 12% opacity).
-       ═════════════════════════════════════════════════════════ */
     --shadow-elev-0:
-      0 1px 0 rgba(0, 0, 0, 0.20),
-      inset 0 1px 0 hsl(32 30% 70% / 0.10);
+      0 1px 0 rgba(255,255,255,0.06) inset,
+      0 1px 0 rgba(0,0,0,0.20);
     --shadow-elev-1:
-      0 1px 2px rgba(0, 0, 0, 0.35),
-      0 2px 6px -1px rgba(0, 0, 0, 0.25),
-      inset 0 1px 0 hsl(32 30% 70% / 0.12);
+      0 1px 0 rgba(255,255,255,0.08) inset,
+      0 1px 2px rgba(0,0,0,0.35),
+      0 2px 6px -1px rgba(0,0,0,0.25);
     --shadow-elev-2:
-      0 2px 4px rgba(0, 0, 0, 0.35),
-      0 6px 16px -2px rgba(0, 0, 0, 0.35),
-      inset 0 1px 0 hsl(32 30% 70% / 0.14);
+      0 1px 0 rgba(255,255,255,0.10) inset,
+      0 4px 12px -4px rgba(0,0,0,0.35);
     --shadow-elev-3:
-      0 4px 8px rgba(0, 0, 0, 0.40),
-      0 14px 36px -8px rgba(0, 0, 0, 0.50),
-      inset 0 1px 0 hsl(32 30% 70% / 0.16);
+      0 1px 0 rgba(255,255,255,0.12) inset,
+      0 12px 32px -12px rgba(0,0,0,0.50);
     --shadow-elev-4:
-      0 8px 16px rgba(0, 0, 0, 0.45),
-      0 28px 72px -16px rgba(52, 53, 245, 0.35),
-      inset 0 1px 0 hsl(32 30% 70% / 0.18);
+      0 1px 0 rgba(255,255,255,0.14) inset,
+      0 24px 64px -16px rgba(52,53,245,0.35);
 
-    --shadow-primary-sm: 0 2px 8px -1px hsl(240 91% 62% / 0.45);
-    --shadow-primary-md: 0 4px 16px -2px hsl(240 91% 62% / 0.50);
-    --shadow-primary-lg: 0 6px 24px -2px hsl(240 91% 62% / 0.55);
-    --shadow-primary-xl: 0 12px 48px -8px hsl(260 60% 65% / 0.50);
+    --shadow-primary-sm: 0 2px 8px -1px hsl(237 52% 64% / 0.45);
+    --shadow-primary-md: 0 4px 16px -2px hsl(237 52% 64% / 0.50);
+    --shadow-primary-lg: 0 6px 24px -2px hsl(237 52% 64% / 0.55);
+    --shadow-primary-xl: 0 12px 48px -8px hsl(261 40% 67% / 0.50);
 
     --hover-glow-primary: 0 8px 24px -6px hsl(var(--primary) / 0.45);
 
-    --shadow-success-md: 0 4px 16px -2px hsl(152 50% 55% / 0.45);
-    --shadow-destructive-md: 0 4px 16px -2px hsl(0 65% 58% / 0.45);
+    --shadow-success-md: 0 4px 16px -2px hsl(144 40% 55% / 0.45);
+    --shadow-destructive-md: 0 4px 16px -2px hsl(11 65% 58% / 0.45);
 
-    --backdrop: hsl(28 10% 5% / 0.70);
-    --backdrop-subtle: hsl(28 10% 5% / 0.50);
+    --backdrop: hsl(33 10% 5% / 0.70);
+    --backdrop-subtle: hsl(33 10% 5% / 0.50);
 
-    /* Dark accent gradient — warmer wash for empty states / backgrounds. */
     --gradient-accent: linear-gradient(
       135deg,
       hsl(var(--primary) / 0.16) 0%,
@@ -318,29 +275,29 @@
   /* ── Panel layer — sidebar, sheets, overlays (heaviest blur) ── */
   .glass-panel {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.02) 0%, rgba(124, 95, 214, 0.01) 100%),
-      rgba(246, 240, 228, 0.90);
+      linear-gradient(135deg, rgba(91,95,199,0.02) 0%, rgba(132,116,196,0.01) 100%),
+      rgba(235,231,225,0.90);
     @apply backdrop-blur-2xl;
   }
   .dark .glass-panel {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.04) 0%, rgba(124, 95, 214, 0.025) 100%),
-      hsl(28 10% 11% / 0.88);
+      linear-gradient(135deg, rgba(91,95,199,0.05) 0%, rgba(132,116,196,0.03) 100%),
+      hsl(33 10% 11% / 0.88);
     @apply backdrop-blur-2xl;
   }
 
   /* ── Card layer — warm cream glass with real depth ── */
   .glass-card {
     background:
-      linear-gradient(145deg, rgba(52, 53, 245, 0.025) 0%, rgba(124, 95, 214, 0.012) 100%),
-      rgba(250, 246, 236, 0.90);
+      linear-gradient(145deg, rgba(91,95,199,0.025) 0%, rgba(132,116,196,0.012) 100%),
+      rgba(251,250,248,0.90);
     @apply backdrop-blur-xl;
     box-shadow: var(--shadow-elev-2);
   }
   .dark .glass-card {
     background:
-      linear-gradient(145deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
-      hsl(28 10% 14% / 0.78);
+      linear-gradient(145deg, rgba(91,95,199,0.05) 0%, rgba(132,116,196,0.03) 100%),
+      hsl(33 10% 14% / 0.78);
     box-shadow: var(--shadow-elev-2);
   }
 
@@ -363,11 +320,11 @@
 
   /* ── Surface layer — frosted containers, tags, table headers ── */
   .glass-surface {
-    background: rgba(240, 234, 220, 0.50);
+    background: rgba(235,231,225,0.50);
     @apply backdrop-blur-md;
   }
   .dark .glass-surface {
-    background: hsl(28 9% 16% / 0.50);
+    background: hsl(33 9% 16% / 0.50);
     @apply backdrop-blur-md;
   }
 
@@ -436,43 +393,43 @@
      ═════════════════════════════════════════════════════════ */
   .glass-level-1 {
     background:
-      linear-gradient(145deg, rgba(52, 53, 245, 0.025) 0%, rgba(124, 95, 214, 0.012) 100%),
-      rgba(250, 246, 236, 0.90);
+      linear-gradient(145deg, rgba(91,95,199,0.025) 0%, rgba(132,116,196,0.012) 100%),
+      rgba(251,250,248,0.90);
     @apply backdrop-blur-[8px];
     box-shadow: var(--shadow-elev-2);
   }
   .dark .glass-level-1 {
     background:
-      linear-gradient(145deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
-      hsl(28 10% 14% / 0.78);
+      linear-gradient(145deg, rgba(91,95,199,0.05) 0%, rgba(132,116,196,0.03) 100%),
+      hsl(33 10% 14% / 0.78);
     box-shadow: var(--shadow-elev-2);
   }
 
   .glass-level-2 {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.03) 0%, rgba(124, 95, 214, 0.015) 100%),
-      rgba(246, 240, 228, 0.92);
+      linear-gradient(135deg, rgba(91,95,199,0.03) 0%, rgba(132,116,196,0.015) 100%),
+      rgba(235,231,225,0.92);
     @apply backdrop-blur-[12px];
     box-shadow: var(--shadow-elev-3);
   }
   .dark .glass-level-2 {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
-      hsl(28 10% 12% / 0.88);
+      linear-gradient(135deg, rgba(91,95,199,0.05) 0%, rgba(132,116,196,0.03) 100%),
+      hsl(33 10% 12% / 0.88);
     box-shadow: var(--shadow-elev-3);
   }
 
   .glass-level-3 {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.035) 0%, rgba(124, 95, 214, 0.02) 100%),
-      rgba(248, 243, 232, 0.95);
+      linear-gradient(135deg, rgba(91,95,199,0.035) 0%, rgba(132,116,196,0.02) 100%),
+      rgba(244,242,239,0.95);
     @apply backdrop-blur-[20px];
     box-shadow: var(--shadow-elev-4);
   }
   .dark .glass-level-3 {
     background:
-      linear-gradient(135deg, rgba(52, 53, 245, 0.06) 0%, rgba(124, 95, 214, 0.035) 100%),
-      hsl(28 10% 13% / 0.92);
+      linear-gradient(135deg, rgba(91,95,199,0.06) 0%, rgba(132,116,196,0.035) 100%),
+      hsl(33 10% 13% / 0.92);
     box-shadow: var(--shadow-elev-4);
   }
 
@@ -889,6 +846,54 @@
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.4; transform: scale(1.08); }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   V4 grain texture overlay — subtle SVG noise on surfaces.
+   ═══════════════════════════════════════════════════════════ */
+.v4-grain-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--grain-url);
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  border-radius: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   V4 hairline border — 0.5px borders for premium density.
+   ═══════════════════════════════════════════════════════════ */
+.v4-hair {
+  border-width: 0.5px;
+}
+
+/* V4 animations */
+@keyframes v4-pulse-soft {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+@keyframes v4-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes v4-pop-in {
+  0%   { opacity: 0; transform: translateY(4px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes v4-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(91,95,199,0.35); }
+  50%       { box-shadow: 0 0 0 6px rgba(91,95,199,0); }
+}
+
+.v4-skel {
+  background: linear-gradient(90deg, rgba(26,24,20,0.04), rgba(26,24,20,0.10), rgba(26,24,20,0.04));
+  background-size: 200% 100%;
+  animation: v4-shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+.v4-pop-in { animation: v4-pop-in 220ms cubic-bezier(0.16,1,0.3,1) both; }
+.v4-pulse  { animation: v4-pulse-soft 2.4s ease-in-out infinite; }
+.v4-glow   { animation: v4-glow 2s ease-in-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════
    Reduced motion (US-SP42-005) — honour OS preference by

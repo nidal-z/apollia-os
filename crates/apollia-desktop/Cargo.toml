@@ -65,6 +65,7 @@ tauri-plugin-dialog = "2"
 dirs = "5"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-updater = "2"
 sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }

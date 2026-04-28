@@ -14,6 +14,7 @@
   import { Copy, RefreshCw, Loader2, CheckCircle2, XCircle, Download } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
+  import UpdateChecker from "./UpdateChecker.svelte";
   import { addToast } from "$lib/components/ui/toast";
   import { systemInfoStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
   import type { CliStatus } from "$lib/types";
@@ -176,6 +177,8 @@
         {$systemInfoStore.error}
       </div>
     {/if}
+
+    <UpdateChecker />
 
     {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
       {@const cliStatus = $cliStatusStore.data as CliStatus}

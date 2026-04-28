@@ -27,16 +27,14 @@
     loading = true;
     try {
       await invoke("reset_onboarding");
-      onboardingStore.setRequired?.();
+      // Refresh the onboarding state from backend — now that UserMemory is
+      // clean, it will load OnboardingState::default() (phase=welcome).
+      // App.svelte will automatically display the onboarding UI.
+      await onboardingStore.refreshState();
       addToast($t("settings.danger.reset_onboarding.success"), "success", {
         "data-testid": "danger-reset-onboarding-toast",
       });
       openAction = null;
-      if (confirm($t("settings.danger.restart_prompt"))) {
-        await invoke("app_restart").catch(() => {});
-      } else {
-        navigateTo("onboarding");
-      }
     } catch (err) {
       addToast(String(err), "error");
     } finally {
@@ -82,8 +80,19 @@
       await invoke("factory_reset");
       openAction = null;
       // Factory reset wipes the config dir — a restart is mandatory to
-      // re-init the runtime.
-      await invoke("app_restart").catch(() => {});
+      // re-init the runtime. In dev mode, app_restart may not work (no
+      // packaged bundle), so we show a fallback message.
+      try {
+        await invoke("app_restart");
+      } catch {
+        // app_restart failed (probably dev mode) — show manual reload prompt.
+        addToast(
+          "La réinitialisation est terminée. Veuillez redémarrer l'application manuellement.",
+          "warning",
+          { duration: 0 }
+        );
+        loading = false;
+      }
     } catch (err) {
       addToast(String(err), "error");
       loading = false;

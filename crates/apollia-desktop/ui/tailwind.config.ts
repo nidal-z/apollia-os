@@ -18,7 +18,9 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", ...defaultTheme.fontFamily.sans],
+        sans: ["Inter Tight", "Inter", ...defaultTheme.fontFamily.sans],
+        serif: ["Instrument Serif", "Cormorant Garamond", "Georgia", "serif"],
+        mono: ["JetBrains Mono", "IBM Plex Mono", "ui-monospace", "monospace"],
       },
       // Display type scale — hero titles & empty-state headlines.
       // Values use `clamp(min, preferred, max)` so the scale breathes between the

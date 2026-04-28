@@ -310,14 +310,7 @@ export function buildPaletteActions(): PaletteAction[] {
         window.dispatchEvent(new CustomEvent("apollia:settings:goto", { detail: "system" }));
       },
     },
-    {
-      id: "help.docs",
-      label: tr("commandPalette.help.docs"),
-      keywords: ["docs", "documentation", "book"],
-      icon: BookOpen,
-      kind: "help",
-      execute: () => navigateTo("onboarding"),
-    },
+    // Removed: help.docs action (was navigating to obsolete onboarding route)
     {
       id: "help.onboarding_reset",
       label: tr("commandPalette.help.resetOnboarding"),

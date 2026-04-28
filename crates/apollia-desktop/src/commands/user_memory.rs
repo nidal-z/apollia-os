@@ -446,6 +446,9 @@ pub async fn delete_user_memory_entry(
 ///
 /// Returns the count of removed entries. Destructive — called from the
 /// Settings/Danger page.
+///
+/// Loops until all entries are removed (handles cases where a category
+/// has more than MAX_RECALL_PER_CATEGORY entries).
 #[tauri::command]
 pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
     let repo = get_repo(&state)?;
@@ -453,17 +456,27 @@ pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize,
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
         let mut removed = 0usize;
+
         for &cat in &[
             UserMemoryCategory::Preferences,
             UserMemoryCategory::Habits,
             UserMemoryCategory::Context,
         ] {
-            let batch = repo
-                .recall(cat, MAX_RECALL_PER_CATEGORY)
-                .map_err(|e| e.to_string())?;
-            for entry in batch {
-                if repo.forget(&entry.key).is_ok() {
-                    removed += 1;
+            // Loop until no more entries are found in this category.
+            // This handles the case where a category has > MAX_RECALL_PER_CATEGORY entries.
+            loop {
+                let batch = repo
+                    .recall(cat, MAX_RECALL_PER_CATEGORY)
+                    .map_err(|e| e.to_string())?;
+
+                if batch.is_empty() {
+                    break;
+                }
+
+                for entry in batch {
+                    if repo.forget(&entry.key).is_ok() {
+                        removed += 1;
+                    }
                 }
             }
         }

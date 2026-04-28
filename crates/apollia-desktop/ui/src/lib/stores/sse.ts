@@ -30,7 +30,6 @@ import type {
   RejectedInsightEntry,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
-import { currentRoute, navigateTo } from "./navigation";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
 import {
   appendGlobalToken,
@@ -428,10 +427,9 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       void refreshTranscriptions();
       break;
     case "onboarding-required":
+      // Refresh onboarding state — App.svelte will automatically display
+      // the onboarding UI based on $onboardingStore.phase.
       onboardingStore.setRequired();
-      if (!get(onboardingStore).completed) {
-        navigateTo("onboarding");
-      }
       break;
     case "system":
       // AllReady / ShutdownRequested / FatalError — refresh everything
