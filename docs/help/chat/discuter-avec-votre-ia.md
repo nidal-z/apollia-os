@@ -29,7 +29,7 @@
 
 8. Si l'IA veut effectuer une action sensible (écrire un fichier, lancer une commande), une carte d'approbation apparaît : voir [Approuver ou refuser une action](../controle/approuver-ou-refuser-une-action.md).
 
-9. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer**, **Lier à un projet**, ou **Archiver**.
+9. Pour organiser vos conversations, cliquez sur le menu en haut de la conversation : **Renommer** ou **Supprimer**.
 
 ## Vérification
 

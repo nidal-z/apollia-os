@@ -271,16 +271,20 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 | `get_config` | — | `ApollaConfigView` |
 | `open_config_in_editor` | — | `` |
 
-### Chat (6)
+### Chat (10)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `create_chat_session` | `request: CreateSessionRequest` | `Result<ChatSessionSummary, String>` |
 | `list_chat_sessions` | `status: Option<String>` | `Result<Vec<ChatSessionSummary>, String>` |
 | `get_chat_session` | `session_id: String` | `Result<ChatSessionDetail, String>` |
-| `close_chat_session` | `session_id: String` | `Result<, String>` |
+| `close_chat_session` | `session_id: String` | `Result<(), String>` |
+| `delete_chat_session` | `session_id: String` | `Result<(), String>` |
+| `rename_chat_session` | `session_id: String, title: String` | `Result<(), String>` |
+| `update_chat_session` | `session_id: String, request: UpdateSessionRequest` | `Result<(), String>` |
+| `generate_chat_session_name` | `session_id: String, first_message: String` | `Result<String, String>` (titre genere) |
 | `send_chat_message` | `session_id: String, content: String` | `Result<String, String>` (message_id) |
-| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<, String>` |
+| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<(), String>` |
 
 ### STT (5)
 

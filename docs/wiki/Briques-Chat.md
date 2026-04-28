@@ -314,14 +314,18 @@ Le flux SSE (`/stream`) emet les `RuntimeEvent` chat filtres par `session_id`. L
 
 ---
 
-## Tauri IPC (6 commandes)
+## Tauri IPC (10 commandes)
 
 | Commande | Parametres | Retour | Description |
 |---|---|---|---|
 | `create_chat_session` | `mode`, `agent_name?`, `tools?`, `system_prompt?` | `ChatSessionResponse` | Cree une session |
 | `list_chat_sessions` | `status?` | `Vec<ChatSessionSummary>` | Liste les sessions |
 | `get_chat_session` | `session_id` | `ChatSessionDetail` | Detail complet (messages, autorisations) |
-| `close_chat_session` | `session_id` | `` | Ferme une session |
+| `close_chat_session` | `session_id` | `` | Ferme une session (conserve le transcript) |
+| `delete_chat_session` | `session_id` | `` | Supprime definitivement une session |
+| `rename_chat_session` | `session_id`, `title` | `` | Renomme (title max 100 caracteres) |
+| `update_chat_session` | `session_id`, `request` | `` | Met a jour les metadonnees (mode, agent, outils) |
+| `generate_chat_session_name` | `session_id`, `first_message` | `String` (titre) | Genere automatiquement un titre court via LLM a partir du premier message utilisateur (max 60 caracteres, compatible reasoning models) |
 | `send_chat_message` | `session_id`, `content` | `{ message_id }` | Envoie un message |
 | `authorize_chat_tool` | `session_id`, `tool_name`, `decision` | `` | Resout une approbation |
 
