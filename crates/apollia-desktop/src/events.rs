@@ -64,6 +64,26 @@ pub struct TauriRuntimeEvent {
     pub payload: serde_json::Value,
 }
 
+/// Spawns a background Tokio task that emits `"runtime:heartbeat"` Tauri events
+/// at a fixed cadence so the frontend `runtimeHealth` watchdog never marks the
+/// runtime as disconnected during idle periods.
+///
+/// Without this, entering or switching chat sessions could trigger the
+/// "Reconnexion au runtime" banner after 15s of inactivity even though the
+/// bridge was perfectly alive — there was simply no `runtime-event` traffic.
+pub fn spawn_heartbeat(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(5));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            ticker.tick().await;
+            if let Err(e) = app.emit("runtime:heartbeat", ()) {
+                tracing::debug!(error = %e, "failed to emit runtime:heartbeat");
+            }
+        }
+    });
+}
+
 /// Spawns a background Tokio task that bridges `EventBus` → Tauri events.
 ///
 /// The task runs for the lifetime of the application.  It terminates when the

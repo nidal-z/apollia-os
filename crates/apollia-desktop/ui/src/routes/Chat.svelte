@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Plus } from "lucide-svelte";
+  import { Plus, Search } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
   import {
     activeChatSessions,
@@ -11,15 +11,10 @@
     openNewChatRequested,
   } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
-  import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
   import { tourOpenChatPicker } from "$lib/stores/tour";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
-  import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
-  import ChatSessionsSidebar from "../components/chat/ChatSessionsSidebar.svelte";
-  import ChatShell from "../components/chat/ChatShell.svelte";
-  import ContextDrawer from "../components/chat/ContextDrawer.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
   import RuntimeDisconnectedBanner from "../components/chat/RuntimeDisconnectedBanner.svelte";
@@ -27,16 +22,15 @@
   import {
     decoratedSessions,
     markSessionRead,
+    type DecoratedSession,
   } from "$lib/stores/chatSessions";
   import {
-    contextDrawerOpen,
-    contextDrawerActiveTab,
-    toggleContextDrawer,
     toggleSessionsSidebar,
     openSessionsDrawer,
     closeSessionsDrawer,
   } from "$lib/stores/chatLayout";
   import { currentSession } from "$lib/stores/chat";
+  import type { ChatMessageView } from "$lib/types";
   import {
     installChatShortcuts,
     describeBinding,
@@ -49,9 +43,21 @@
   import CommandPalette from "../components/chat/CommandPalette.svelte";
   import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
 
+  // Operator design-system primitives — V3 Chat Refonte v2.
+  import {
+    BtnPrimary,
+    ConversationRow,
+    Journal,
+    type JournalEvent,
+    type JournalMode,
+    type ConversationState,
+  } from "$lib/components/operator";
+
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
   let showShortcutsHelp = $state(false);
+  let sessionSearchQuery = $state("");
+  let journalMode = $state<JournalMode>("operator");
 
   // ── Shortcut registry ──────────────────────────────
   // One central place declares every chat-route hotkey. Bindings are keyed
@@ -104,25 +110,6 @@
       descriptionKey: "chat.shortcut.toggle_sidebar",
       keys: [MOD_LABEL, "B"],
       run: () => toggleSessionsSidebar(),
-    },
-    {
-      id: "chat.toggle_context",
-      chord: { code: "KeyD", modifiers: ["mod", "shift"] },
-      group: "chat.shortcut_group.panels",
-      descriptionKey: "chat.shortcut.toggle_context",
-      keys: [MOD_LABEL, "Shift", "D"],
-      run: () => toggleContextDrawer(),
-    },
-    {
-      id: "chat.toggle_artifacts",
-      chord: { code: "KeyA", modifiers: ["mod", "shift"] },
-      group: "chat.shortcut_group.panels",
-      descriptionKey: "chat.shortcut.toggle_artifacts",
-      keys: [MOD_LABEL, "Shift", "A"],
-      run: () => {
-        contextDrawerActiveTab.set("artifacts");
-        contextDrawerOpen.update((o) => !o);
-      },
     },
     {
       id: "chat.help",
@@ -231,27 +218,180 @@
   }
 
   function navigateToSession(sessionId: string) {
+    showNewChatPicker = false;
     selectedSessionId = sessionId;
     markSessionRead(sessionId);
   }
   function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
-    // Optimistic update: remove from store immediately
+    try {
+      await invoke("delete_chat_session", { sessionId });
+    } catch (err: unknown) {
+      console.error("delete_chat_session failed:", err);
+      return;
+    }
     chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
     if (selectedSessionId === sessionId) selectedSessionId = null;
-    try { await invoke("delete_chat_session", { sessionId }); }
-    catch (err: unknown) { console.warn("delete_chat_session failed:", err); }
   }
 
-  async function handleRenameSession(sessionId: string, title: string): Promise<void> {
-    // Optimistic update: patch title in store immediately
-    chatSessions.update((sessions) =>
-      sessions.map((s) => (s.id === sessionId ? { ...s, title } : s))
-    );
-    try { await invoke("rename_chat_session", { sessionId, title }); }
-    catch (err: unknown) { console.warn("rename_chat_session failed:", err); }
+  async function handleRenameSession(sessionId: string, newTitle: string): Promise<void> {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    try {
+      await invoke("rename_chat_session", { sessionId, title: trimmed });
+      // Optimistic update so the row reflects the new title before the next SSE refresh.
+      chatSessions.update((sessions) =>
+        sessions.map((s) => (s.id === sessionId ? { ...s, title: trimmed } : s)),
+      );
+    } catch (err: unknown) {
+      console.warn("rename_chat_session failed:", err);
+    }
   }
+
+  // ─── Sidebar list (V3 Operator) ───────────────────────────────────────────
+  // Re-uses the existing `decoratedSessions` store: the SSE wiring stays
+  // owned by `chatSessions` upstream — this view is purely presentational.
+
+  function relativeTime(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    const d = new Date(iso).getTime();
+    if (Number.isNaN(d)) return "—";
+    const diffSec = Math.max(1, Math.round((Date.now() - d) / 1000));
+    if (diffSec < 60) return `${diffSec}s`;
+    const min = Math.round(diffSec / 60);
+    if (min < 60) return `${min}min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `${h}h`;
+    const day = Math.round(h / 24);
+    return `${day}j`;
+  }
+
+  function rowState(s: DecoratedSession, isSelected: boolean): ConversationState {
+    if (isSelected) return "active";
+    if (s.archived) return "archived";
+    if (s.status === "closed") return "closed";
+    if (s.pinned) return "pinned";
+    if (s.unread) return "unread";
+    return "default";
+  }
+
+  const filteredSessions = $derived(
+    $decoratedSessions
+      .filter((s) => !s.archived)
+      .filter((s) => {
+        if (!sessionSearchQuery.trim()) return true;
+        const q = sessionSearchQuery.toLowerCase();
+        const hay = [
+          s.title ?? "",
+          s.agent_name ?? "",
+          s.last_message_preview ?? "",
+          s.mode,
+        ].join(" ").toLowerCase();
+        return hay.includes(q);
+      }),
+  );
+
+  // Live agent activity events for the right Journal panel.
+  // Source: `currentSession` (set by ChatConversation.applySessionDetail on every
+  // refresh — both initial load and runtime-event-triggered refreshes), so the
+  // Journal updates live as the SSE stream lands new messages.
+  function fmtTime(iso: string): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function previewText(s: string, max = 160): string {
+    const collapsed = s.replace(/\s+/g, " ").trim();
+    return collapsed.length > max ? collapsed.slice(0, max - 1) + "…" : collapsed;
+  }
+
+  function buildJournalFromMessages(
+    messages: ChatMessageView[],
+    mode: JournalMode,
+  ): JournalEvent[] {
+    const isBuilder = mode === "builder";
+    const out: JournalEvent[] = [];
+    for (const m of messages) {
+      const time = fmtTime(m.created_at);
+      // Tool calls — surface each one as a dedicated tool event.
+      const calls = m.tool_calls ?? [];
+      for (const tc of calls) {
+        const status = tc.status;
+        const heading = isBuilder ? tc.tool_name : `Outil — ${tc.tool_name}`;
+        let body: string;
+        if (isBuilder) {
+          const inputJson = (() => {
+            try { return JSON.stringify(tc.input ?? {}); } catch { return "{}"; }
+          })();
+          const outputStr = tc.output ?? "";
+          body = `input=${previewText(inputJson, 240)}${outputStr ? ` · output=${previewText(outputStr, 240)}` : ""}${tc.duration_ms != null ? ` · ${tc.duration_ms}ms` : ""}`;
+        } else {
+          body = status === "executed"
+            ? "Outil exécuté avec succès."
+            : status === "refused"
+              ? "Outil refusé par l'opérateur."
+              : status === "authorized"
+                ? "Outil autorisé, exécution en cours."
+                : "Outil en attente d'approbation.";
+        }
+        const evType: JournalEvent["type"] = status === "pending" || status === "authorized" ? "wait" : "tool";
+        out.push({ type: evType, heading, body, time });
+      }
+
+      // Message body — skip empty content (tool-only assistant turns).
+      const content = (m.content ?? "").trim();
+      if (!content) continue;
+      switch (m.role) {
+        case "user":
+          out.push({
+            type: "msg",
+            heading: isBuilder ? "user" : "Vous",
+            body: previewText(content, isBuilder ? 400 : 200),
+            time,
+          });
+          break;
+        case "assistant": {
+          const meta = m.metadata ?? {};
+          const isHitl = Boolean(meta.hitl) || Boolean(meta.approval);
+          out.push({
+            type: isHitl ? "hitl" : "msg_out",
+            heading: isBuilder ? "assistant" : "Agent",
+            body: previewText(content, isBuilder ? 400 : 200),
+            time,
+          });
+          break;
+        }
+        case "tool":
+          if (isBuilder) {
+            out.push({
+              type: "tool",
+              heading: m.tool_name ?? "tool",
+              body: previewText(content, 400),
+              time,
+            });
+          }
+          // Operator mode already surfaces a friendly tool event from tool_calls above.
+          break;
+        case "system":
+          out.push({
+            type: "err",
+            heading: isBuilder ? "system" : "Système",
+            body: previewText(content, 240),
+            time,
+          });
+          break;
+      }
+    }
+    return out;
+  }
+
+  const journalEvents = $derived<JournalEvent[]>(
+    $currentSession && $currentSession.id === selectedSessionId
+      ? buildJournalFromMessages($currentSession.messages ?? [], journalMode)
+      : [],
+  );
 </script>
 
 <!-- Chat-route command palette enrichment + Help dialog. -->
@@ -265,117 +405,195 @@
 <!-- Runtime health banner — stays mounted across sub-states. -->
 <RuntimeDisconnectedBanner />
 
-<div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
-  <!-- Header -->
-  <div class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1">
-    <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-60" aria-hidden="true"></div>
-    <div class="relative">
-      <h1 class="text-display-lg text-foreground" data-testid="chat-header">{$t("chat.title")}</h1>
-      <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
-    </div>
-    <Button size="sm" onclick={() => openNewChatPicker()} data-testid="new-chat-button" class="relative gap-1.5">
-      <Plus size={13} />
-      {$t("chat.new_chat")}
-    </Button>
-  </div>
+<!--
+  V3 Operator chat layout: left sessions rail / center thread / right journal.
+  PageHeader is intentionally absent — the route fills the panel and the
+  page title lives in the Topbar (per V3 ChatPage).
+-->
+<div
+  class="flex h-full min-h-0 w-full overflow-hidden bg-background"
+  data-testid="chat-page"
+>
+  <!-- ── Left rail: conversations ─────────────────────────────────────── -->
+  <aside
+    class="flex h-full w-[280px] shrink-0 flex-col border-r border-border bg-card"
+    aria-label="Conversations"
+  >
+    <div class="px-3.5 pt-4 pb-2">
+      <h2
+        class="mb-3 text-foreground"
+        style="font-size: 16px; font-weight: 600; letter-spacing: -0.2px;"
+        data-testid="chat-header"
+      >
+        {$t("chat.title")}
+      </h2>
 
-  <!-- New chat picker -->
-  {#if showNewChatPicker}
-    <div class="mt-4" data-testid="new-chat-picker">
-      <QuickPicker
-        oncreated={handleSessionCreated}
-        onclose={closeNewChatPicker}
-      />
-    </div>
-  {/if}
-
-
-  <!-- Main content -->
-  <div class="mt-4">
-    {#if $connectionStatus === "connecting"}
-      <div class="space-y-1">
-        {#each { length: 4 } as _}
-          <div class="flex items-center gap-3 rounded-lg px-3 py-2.5">
-            <Skeleton variant="avatar" class="h-3.5 w-3.5 rounded" />
-            <Skeleton variant="text" class="h-3.5 w-28" />
-            <Skeleton variant="text" class="h-3 flex-1" />
-            <Skeleton variant="text" class="h-3 w-12" />
-          </div>
-        {/each}
+      <div class="relative mb-2.5">
+        <Search
+          size={12}
+          class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          type="search"
+          bind:value={sessionSearchQuery}
+          placeholder="Rechercher…"
+          data-testid="session-search-input"
+          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+        />
       </div>
-    {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0 && !showNewChatPicker && !selectedSessionId}
-      <EmptySessionsState onnewChat={() => openNewChatPicker()} />
-    {:else if selectedSessionId}
-      <!-- 3-column shell : Sessions / Conversation / ContextDrawer. -->
-      <div class="overflow-hidden rounded-lg glass-border border" style="height: calc(100vh - 180px);">
-        <ChatShell>
-          {#snippet sessions()}
-            <ChatSessionsSidebar
-              {selectedSessionId}
-              onNewChat={() => openNewChatPicker()}
-              onSelect={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
-              onDelete={handleDeleteSession}
-              onRename={handleRenameSession}
-            />
-          {/snippet}
 
-          {#snippet conversation()}
-            <div class="flex h-full min-h-0 flex-col glass-card">
-              <ChatConversation
-                sessionId={selectedSessionId!}
-                onclose={closeConversation}
-                onconfigtoggle={toggleContextDrawer}
-                onsessionsopen={openSessionsDrawer}
-                ondelete={handleDeleteSession}
-                onnewChat={() => { closeConversation(); openNewChatPicker(); }}
-              />
+      <BtnPrimary onclick={() => openNewChatPicker()}>
+        {#snippet icon()}<Plus size={12} />{/snippet}
+        Nouvelle conversation
+      </BtnPrimary>
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-active-list">
+      {#if $connectionStatus === "connecting"}
+        <div class="space-y-1 px-3 py-2">
+          {#each { length: 4 } as _}
+            <div class="flex items-center gap-3 rounded-lg px-3 py-2.5">
+              <Skeleton variant="avatar" class="h-3.5 w-3.5 rounded" />
+              <Skeleton variant="text" class="h-3.5 w-28" />
+              <Skeleton variant="text" class="h-3 flex-1" />
             </div>
-          {/snippet}
+          {/each}
+        </div>
+      {:else if filteredSessions.length === 0}
+        <div class="px-4 py-6 text-center text-[11px] text-muted-foreground">
+          {#if sessionSearchQuery.trim()}
+            Aucun résultat
+          {:else}
+            Aucune conversation
+          {/if}
+        </div>
+      {:else}
+        {#each filteredSessions as session (session.id)}
+          <ConversationRow
+            title={session.title ?? session.agent_name ?? $t("chat.untitled_session")}
+            lastMessage={session.last_message_preview ?? undefined}
+            timestamp={relativeTime(session.lastActivityAt)}
+            state={rowState(session, session.id === selectedSessionId)}
+            live={session.status === "processing"}
+            onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
+            onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
+            ondelete={() => void handleDeleteSession(session.id)}
+          />
+        {/each}
+      {/if}
+    </div>
+  </aside>
 
-          {#snippet context()}
-            <ContextDrawer
-              session={$currentSession}
-              onupdated={() => { /* ChatConversation subscribes to runtime events */ }}
-              onclose={() => contextDrawerOpen.set(false)}
-            />
-          {/snippet}
-        </ChatShell>
+  <!-- ── Center: thread + composer ─────────────────────────────────────── -->
+  <main class="relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background">
+    {#if showNewChatPicker}
+      <!-- Picker fills the column and scrolls internally; mutually exclusive
+           with the active conversation so they never stack. -->
+      <div
+        class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4"
+        data-testid="new-chat-picker"
+      >
+        <QuickPicker
+          oncreated={handleSessionCreated}
+          onclose={closeNewChatPicker}
+        />
+      </div>
+    {:else if $connectionStatus === "connecting" && !selectedSessionId}
+      <div class="flex flex-1 items-center justify-center">
+        <div class="flex flex-col items-center gap-3 text-muted-foreground">
+          <Skeleton variant="text" class="h-3 w-32" />
+          <Skeleton variant="text" class="h-3 w-24" />
+        </div>
+      </div>
+    {:else if selectedSessionId}
+      <!--
+        ChatConversation owns the message thread, SSE subscriptions,
+        composer, slash commands, mention handling, and the markdown/code
+        rendering pipeline. We drop it directly into the center column so
+        all that wiring is preserved verbatim.
+      -->
+      <div class="flex h-full min-h-0 flex-1 flex-col">
+        <ChatConversation
+          sessionId={selectedSessionId}
+          onclose={closeConversation}
+          onsessionsopen={openSessionsDrawer}
+          ondelete={handleDeleteSession}
+          onnewChat={() => { closeConversation(); openNewChatPicker(); }}
+        />
+      </div>
+    {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0}
+      <div class="flex flex-1 items-center justify-center px-6 py-10">
+        <EmptySessionsState onnewChat={() => openNewChatPicker()} />
       </div>
     {:else}
-      <!-- Session list (no session selected) — card list style -->
-      {@const activeDecorated = $decoratedSessions.filter((s) => !s.archived && s.status !== "closed")}
-      {@const closedDecorated = $decoratedSessions.filter((s) => !s.archived && s.status === "closed")}
-      {#if activeDecorated.length > 0}
-        <p class="px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-primary/50" data-testid="chat-active-section">
-          {$t("chat.active_sessions")}
-        </p>
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20 shadow-sm" data-testid="chat-active-list">
-          {#each activeDecorated as session (session.id)}
-            <ChatSessionCard
-              {session}
-              onclick={navigateToSession}
-              ondelete={handleDeleteSession}
-              onrename={handleRenameSession}
-            />
-          {/each}
+      <!-- No session selected but list is non-empty: prompt the user. -->
+      <div class="flex flex-1 items-center justify-center px-6 py-10">
+        <div class="max-w-sm text-center">
+          <h3
+            class="mb-3 text-foreground"
+            style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
+          >
+            {$t("chat.subtitle")}
+          </h3>
+          <p class="mb-5 text-[12.5px] text-muted-foreground">
+            Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.
+          </p>
+          <div class="inline-flex">
+            <BtnPrimary onclick={() => openNewChatPicker()}>
+              {#snippet icon()}<Plus size={12} />{/snippet}
+              {$t("chat.new_chat")}
+            </BtnPrimary>
+          </div>
         </div>
-      {/if}
-
-      {#if closedDecorated.length > 0}
-        <p class="px-1 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40" data-testid="chat-closed-section">
-          {$t("chat.closed_sessions")}
-        </p>
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20" data-testid="chat-closed-list">
-          {#each closedDecorated as session (session.id)}
-            <ChatSessionCard
-              {session}
-              onclick={navigateToSession}
-              ondelete={handleDeleteSession}
-              onrename={handleRenameSession}
-            />
-          {/each}
-        </div>
-      {/if}
+      </div>
     {/if}
-  </div>
+  </main>
+
+  <!-- ── Right rail: live journal ──────────────────────────────────────── -->
+  <aside
+    class="flex h-full w-[320px] shrink-0 flex-col border-l border-border bg-card"
+    aria-label="Journal"
+  >
+    <div class="flex items-center justify-between border-b border-border px-4 py-3">
+      <h3
+        class="text-foreground"
+        style="font-size: 14px; font-weight: 600; letter-spacing: -0.2px;"
+      >
+        Journal
+      </h3>
+      <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]">
+        <button
+          type="button"
+          class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => (journalMode = "operator")}
+        >
+          Opérateur
+        </button>
+        <button
+          type="button"
+          class="rounded px-2 py-0.5 transition-colors {journalMode === 'builder'
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground'}"
+          onclick={() => (journalMode = "builder")}
+        >
+          Builder
+        </button>
+      </div>
+    </div>
+
+    <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      {#if journalEvents.length === 0}
+        <div
+          class="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
+        >
+          Activité de l'agent en direct.
+        </div>
+      {:else}
+        <Journal events={journalEvents} mode={journalMode} />
+      {/if}
+    </div>
+
+  </aside>
 </div>

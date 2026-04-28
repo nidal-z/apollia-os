@@ -20,10 +20,8 @@
   import Settings from "../../routes/Settings.svelte";
   import SettingsPermissionRules from "../../routes/SettingsPermissionRules.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
-  import Integrations from "../../routes/Integrations.svelte";
   import Connections from "../../routes/Connections.svelte";
   import Templates from "../../routes/Templates.svelte";
-  import { uiMode } from "$lib/stores/mode";
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
   import DesignMotion from "../../routes/DesignMotion.svelte";
@@ -87,11 +85,7 @@
         {:else if $currentRoute === "observability"}
           <Observability />
         {:else if $currentRoute === "integrations"}
-          {#if $uiMode === "operator"}
-            <Connections />
-          {:else}
-            <Integrations />
-          {/if}
+          <Connections />
         {:else if $currentRoute === "templates"}
           <Templates />
         {:else if $currentRoute === "settings"}

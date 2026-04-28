@@ -7,7 +7,7 @@
  */
 export interface SlashCommand {
   /** Stable id used by the parent dispatcher. */
-  id: "clear" | "export" | "rename" | "memory" | "tools";
+  id: "export" | "rename";
   /** Command name shown in the menu, without leading slash. */
   name: string;
   /** Translation key for the human label. */
@@ -19,11 +19,8 @@ export interface SlashCommand {
 }
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
-  { id: "clear",  name: "clear",  labelKey: "chat.commands.clear.label",  descriptionKey: "chat.commands.clear.description" },
   { id: "export", name: "export", labelKey: "chat.commands.export.label", descriptionKey: "chat.commands.export.description" },
   { id: "rename", name: "rename", labelKey: "chat.commands.rename.label", descriptionKey: "chat.commands.rename.description" },
-  { id: "memory", name: "memory", labelKey: "chat.commands.memory.label", descriptionKey: "chat.commands.memory.description" },
-  { id: "tools",  name: "tools",  labelKey: "chat.commands.tools.label",  descriptionKey: "chat.commands.tools.description" },
 ];
 
 /** Detect a leading slash-command prefix in the input (cursor position ignored). */

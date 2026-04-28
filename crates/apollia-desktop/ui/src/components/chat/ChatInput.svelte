@@ -4,7 +4,7 @@
   Responsibilities:
   - Multi-line textarea with auto-resize (1 → 12 lines, scroll beyond).
   - Keyboard: Enter = send, Shift+Enter = newline, Cmd/Ctrl+Enter = force send.
-  - Slash-command autocomplete (`/clear`, `/export`, `/rename`, `/memory`, `/tools`).
+  - Slash-command autocomplete (`/export`, `/rename`).
   - Attachments: paperclip button, drag & drop, preview chips above input.
   - ↑ on empty input re-opens the last user message for editing.
   - Client-side rate-limit (1 send / 500 ms, 30 / min) with soft feedback.

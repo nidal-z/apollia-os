@@ -1,30 +1,26 @@
 <script lang="ts">
   /**
-   * Topbar V4 — glass command center.
+   * Topbar — V3 Operator cockpit header.
    *
-   *   [Mobile menu] [Logo box] [Breadcrumb] ··· [Command bar] ··· [ModeChip] [ConnectionChip] [Companion] [Bell] [UserMenu]
+   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [ModeChip] [Activity] [Settings] [UserMenu]
+   *
+   * The ModeChip is the single deviation from the V3 mockup — kept here per
+   * product call so the OP/Builder toggle stays in the cockpit.
    */
   import { t } from "svelte-i18n";
-  import { Menu, Search, Bell } from "lucide-svelte";
+  import { Menu, Search, Inbox, Settings as SettingsIcon } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
-  import { uiMode } from "$lib/stores/mode";
-  import { onboardingStore } from "$lib/stores/onboarding";
-  import { homeRouteFor } from "$lib/navigation/routeMeta";
+  import { runningTasks } from "$lib/stores/tasks";
   import Breadcrumb from "./Breadcrumb.svelte";
-  import ConnectionChip from "./ConnectionChip.svelte";
   import UserMenu from "./UserMenu.svelte";
   import ModeChip from "./ModeChip.svelte";
-  import CompanionToggle from "../companion/CompanionToggle.svelte";
-
-  function goHome() {
-    navigateTo(homeRouteFor($uiMode));
-  }
 
   function openSearch() {
-    // Trigger command palette via keyboard event (same as Cmd+K)
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
   }
+
+  const agentsAtWork = $derived($runningTasks.length);
 </script>
 
 <header
@@ -32,8 +28,8 @@
   style="border-bottom-width: 0.5px;"
   data-testid="topbar"
 >
-  <!-- Left: identity -->
-  <div class="flex min-w-0 items-center gap-2.5">
+  <!-- Left: breadcrumb (+ hamburger on drawer breakpoint) -->
+  <div class="flex min-w-0 items-center gap-2">
     {#if $sidebarState === "drawer"}
       <button
         type="button"
@@ -47,24 +43,6 @@
       </button>
     {/if}
 
-    <!-- Logo/home button -->
-    <button
-      type="button"
-      class="inline-flex h-9 items-center gap-2 rounded-md px-1.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      onclick={goHome}
-      aria-label={$t("topbar.home_aria")}
-      data-testid="topbar-logo"
-    >
-      <span
-        class="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-[7px] border bg-surface-1 text-foreground shadow-elev-0"
-        style="border-width: 0.5px;"
-      >
-        <img src="/logo.svg" alt="" width="16" height="16" class="h-4 w-4" />
-      </span>
-      <span class="hidden md:inline" style="letter-spacing: -0.1px;">Apollia OS</span>
-    </button>
-
-    <!-- Breadcrumb chevron + current page -->
     <Breadcrumb />
   </div>
 
@@ -72,14 +50,14 @@
   <div class="flex flex-1 justify-center">
     <button
       type="button"
-      class="command-bar flex h-[30px] w-full max-w-[360px] items-center gap-2 rounded-md border bg-surface-1 px-2.5 text-left text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-1/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      style="border-width: 0.5px; font-size: 11.5px; cursor: text;"
+      class="command-bar flex h-[30px] w-full max-w-[440px] items-center gap-2 rounded-md border bg-surface-1 px-2.5 text-left text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-1/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      style="border-width: 0.5px; font-size: 12px; cursor: text;"
       onclick={openSearch}
-      aria-label={$t("topbar.search_aria") || "Chercher ou lancer une commande"}
+      aria-label={$t("topbar.search_aria") || "Chercher, lancer un agent…"}
       data-testid="topbar-search"
     >
-      <Search size={12} strokeWidth={1.75} class="flex-shrink-0" />
-      <span class="flex-1 truncate">Chercher, lancer une commande…</span>
+      <Search size={13} strokeWidth={1.75} class="flex-shrink-0" />
+      <span class="flex-1 truncate">Rechercher, lancer un agent…</span>
       <kbd class="hidden items-center gap-0.5 text-[10px] sm:flex">
         <span class="rounded border bg-muted px-1 py-px" style="border-width: 0.5px;">⌘</span>
         <span class="rounded border bg-muted px-1 py-px" style="border-width: 0.5px;">K</span>
@@ -87,24 +65,56 @@
     </button>
   </div>
 
-  <!-- Right: controls -->
+  <!-- Right: status + controls -->
   <div class="flex flex-shrink-0 items-center gap-1.5">
-    <ModeChip collapsed={false} />
-    <ConnectionChip />
-    {#if $onboardingStore.completed || $onboardingStore.phase === "done"}
-      <div class="hidden sm:block">
-        <CompanionToggle collapsed />
-      </div>
+    {#if agentsAtWork > 0}
+      <span
+        class="inline-flex items-center gap-1.5 rounded-full border bg-surface-1 px-2.5 py-1 text-muted-foreground"
+        style="border-width: 0.5px; font-size: 11px;"
+        data-testid="topbar-agents-at-work"
+        aria-label="{agentsAtWork} agents au travail"
+      >
+        <span class="agents-dot relative inline-flex h-1.5 w-1.5 rounded-full" style="background: hsl(var(--success));"></span>
+        {agentsAtWork} agents au travail
+      </span>
     {/if}
+
+    <!-- Single deviation from V3: ModeChip kept in header -->
+    <ModeChip collapsed={false} />
+
     <button
       type="button"
-      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border bg-surface-1 text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      style="border-width: 0.5px;"
-      aria-label="Notifications"
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      onclick={() => navigateTo("inbox")}
+      aria-label={$t("nav.inbox_builder")}
+      data-testid="topbar-inbox"
+      title={$t("nav.inbox_builder")}
     >
-      <Bell size={13} strokeWidth={1.5} />
+      <Inbox size={14} strokeWidth={1.5} />
     </button>
+
+    <button
+      type="button"
+      class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      onclick={() => navigateTo("settings")}
+      aria-label={$t("nav.settings")}
+      data-testid="topbar-settings"
+      title={$t("nav.settings")}
+    >
+      <SettingsIcon size={14} strokeWidth={1.5} />
+    </button>
+
     <UserMenu />
   </div>
 </header>
 
+<style>
+  .agents-dot {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0.4);
+    animation: agents-soft-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes agents-soft-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0.45); opacity: 1; }
+    50%      { box-shadow: 0 0 0 4px hsl(var(--success) / 0); opacity: 0.75; }
+  }
+</style>

@@ -242,10 +242,179 @@ pub async fn rename_chat_session(
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        return Err("title must not be empty".to_string());
+    }
+    let cleaned: String = trimmed.chars().take(100).collect();
+
     manager
-        .rename_session(session_id, title)
+        .rename_session(session_id, cleaned)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// System prompt instructing the LLM to produce a short conversation title.
+const TITLE_PROMPT: &str = "Tu génères des titres courts pour des conversations à partir de la \
+requête de l'utilisateur. Le titre doit décrire l'intention de l'utilisateur en 3 à 5 mots. \
+Exemples : « Aide rédaction CV », « Bug import CSV Pandas », « Idée nom d'agent IA ». \
+Réponds UNIQUEMENT avec le titre — pas de guillemets, pas de ponctuation finale, pas \
+d'introduction du type « Voici le titre : ».";
+
+/// Maximum tokens the LLM may produce for a session title.
+///
+/// Generous enough that reasoning models (DeepSeek R1, o1-style, …) can finish
+/// their `<think>` block before emitting the few-word answer; the post-process
+/// step strips the reasoning block.
+const TITLE_MAX_TOKENS: u32 = 1024;
+
+/// Maximum character length of the persisted title.
+const TITLE_MAX_CHARS: usize = 60;
+
+/// Generates a short title for a chat session from its first user message.
+///
+/// Calls the configured LLM router with a dedicated prompt, sanitises the
+/// response (trim, strip surrounding quotes, drop trailing punctuation,
+/// truncate to [`TITLE_MAX_CHARS`]), then persists it via the existing
+/// `rename_session` path.
+///
+/// Returns the generated title.
+#[tauri::command]
+pub async fn generate_chat_session_name(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    first_message: String,
+) -> Result<String, String> {
+    use apollia_llm::types::ChatMessage as LlmChatMessage;
+    use apollia_llm::{CompletionRequest, ObservabilityConfig};
+
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let llm = state
+        .llm_router
+        .as_ref()
+        .ok_or_else(|| "no LLM router configured".to_string())?;
+
+    if first_message.trim().is_empty() {
+        return Err("first_message must not be empty".to_string());
+    }
+
+    let request = CompletionRequest {
+        messages: vec![
+            LlmChatMessage::system(TITLE_PROMPT.to_string()),
+            LlmChatMessage::user(first_message),
+        ],
+        max_tokens: Some(TITLE_MAX_TOKENS),
+        ..CompletionRequest::default()
+    };
+    let obs = ObservabilityConfig::default();
+    let response = llm
+        .complete_with_observability(None, request, None, &obs)
+        .await
+        .map_err(|e| format!("LLM call failed: {e}"))?;
+
+    let title = sanitize_session_title(&response.content);
+    if title.is_empty() {
+        return Err("LLM returned an empty title".to_string());
+    }
+
+    manager
+        .rename_session(session_id, title.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(title)
+}
+
+/// Cleans a raw LLM response into a usable session title.
+///
+/// - Removes `<think>…</think>` and `<reasoning>…</reasoning>` blocks emitted
+///   by reasoning models (DeepSeek R1, o1-style, …) — including unterminated
+///   blocks when the response was truncated by `max_tokens`.
+/// - Drops common preambles like "Voici le titre :" / "Title:".
+/// - Keeps only the first non-empty line (titles are single-line).
+/// - Trims whitespace.
+/// - Strips a single pair of surrounding ASCII or French quotes.
+/// - Removes trailing punctuation (`. , ! ? ; :` and French equivalents).
+/// - Truncates to [`TITLE_MAX_CHARS`] characters (not bytes).
+fn sanitize_session_title(raw: &str) -> String {
+    let stripped = strip_reasoning_blocks(raw);
+    // Take the first non-empty line — titles never span multiple lines.
+    let line = stripped
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("");
+    let mut s = strip_preamble(line).trim().to_string();
+
+    // Strip a single pair of surrounding quotes (ASCII / French / typographic).
+    if let Some(rest) = s
+        .strip_prefix('"')
+        .and_then(|r| r.strip_suffix('"'))
+        .or_else(|| s.strip_prefix('\'').and_then(|r| r.strip_suffix('\'')))
+        .or_else(|| s.strip_prefix('«').and_then(|r| r.strip_suffix('»')))
+        .or_else(|| s.strip_prefix('“').and_then(|r| r.strip_suffix('”')))
+    {
+        s = rest.trim().to_string();
+    }
+
+    let trailing: &[char] = &['.', ',', '!', '?', ';', ':', '。', '…'];
+    while let Some(c) = s.chars().last() {
+        if trailing.contains(&c) || c.is_whitespace() {
+            s.pop();
+        } else {
+            break;
+        }
+    }
+    s.chars().take(TITLE_MAX_CHARS).collect::<String>()
+}
+
+/// Removes `<think>…</think>` and `<reasoning>…</reasoning>` blocks.
+///
+/// Handles the common reasoning-model truncation case: if the response is
+/// cut off inside an unterminated `<think>` block, everything from that tag
+/// onward is dropped (yielding an empty string — caller will reject it).
+fn strip_reasoning_blocks(raw: &str) -> String {
+    fn drop_block(text: &str, open: &str, close: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(start) = rest.find(open) {
+            out.push_str(&rest[..start]);
+            let after_open = &rest[start + open.len()..];
+            match after_open.find(close) {
+                Some(end) => rest = &after_open[end + close.len()..],
+                None => {
+                    // Unterminated block — drop everything from the opening tag.
+                    return out;
+                }
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+    let s = drop_block(raw, "<think>", "</think>");
+    drop_block(&s, "<reasoning>", "</reasoning>")
+}
+
+/// Strips common preambles models add despite the system prompt.
+fn strip_preamble(line: &str) -> &str {
+    let lower = line.to_lowercase();
+    for prefix in [
+        "voici le titre :",
+        "voici le titre:",
+        "titre :",
+        "titre:",
+        "title:",
+        "title :",
+    ] {
+        if let Some(stripped) = lower.strip_prefix(prefix) {
+            let consumed = line.len() - stripped.len();
+            return line[consumed..].trim_start();
+        }
+    }
+    line
 }
 
 /// Sends a user message and launches the async response generation.
@@ -840,6 +1009,65 @@ mod tests {
         assert!(restored.agent_name.is_none());
         assert_eq!(restored.status, "active");
         assert_eq!(restored.message_count, 0);
+    }
+
+    #[test]
+    fn test_sanitize_session_title_strips_quotes_and_punct() {
+        // GIVEN a raw LLM response with surrounding quotes and trailing punctuation
+        // WHEN sanitised
+        // THEN both wrappers are removed
+        assert_eq!(sanitize_session_title("  \"Plan de migration.\"  "), "Plan de migration");
+        assert_eq!(sanitize_session_title("«Idée d'article!»"), "Idée d'article");
+        assert_eq!(sanitize_session_title("Refonte sidebar"), "Refonte sidebar");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_truncates_to_max_chars() {
+        // GIVEN a long response with many chars
+        let long: String = "a".repeat(120);
+        // WHEN sanitised
+        let out = sanitize_session_title(&long);
+        // THEN it is capped at TITLE_MAX_CHARS chars (not bytes)
+        assert_eq!(out.chars().count(), TITLE_MAX_CHARS);
+    }
+
+    #[test]
+    fn test_sanitize_session_title_empty_input() {
+        assert_eq!(sanitize_session_title("   "), "");
+        assert_eq!(sanitize_session_title("…"), "");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_drops_think_block() {
+        // GIVEN a reasoning-model response with a closed <think> block
+        let raw = "<think>Okay, the user wants me to generate a title for a CV \
+                   request, so let me think… Aide rédaction CV is concise.</think>\n\
+                   Aide rédaction CV";
+        // WHEN sanitised
+        // THEN only the post-think title remains
+        assert_eq!(sanitize_session_title(raw), "Aide rédaction CV");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_truncated_unterminated_think() {
+        // GIVEN a response cut off inside an unterminated <think> block
+        let raw = "<think>Okay, the user wants me to generate a short title fo";
+        // WHEN sanitised
+        // THEN the result is empty (caller will reject it and fall back)
+        assert_eq!(sanitize_session_title(raw), "");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_drops_preamble() {
+        assert_eq!(sanitize_session_title("Titre : Aide rédaction CV"), "Aide rédaction CV");
+        assert_eq!(sanitize_session_title("Voici le titre : Bug import CSV"), "Bug import CSV");
+        assert_eq!(sanitize_session_title("Title: Idée nom agent"), "Idée nom agent");
+    }
+
+    #[test]
+    fn test_sanitize_session_title_keeps_only_first_line() {
+        let raw = "<think>blah</think>\nAide rédaction CV\n\nNote: alternative title.";
+        assert_eq!(sanitize_session_title(raw), "Aide rédaction CV");
     }
 
     #[test]

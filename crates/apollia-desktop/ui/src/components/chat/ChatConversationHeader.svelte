@@ -15,12 +15,10 @@
     Bot,
     MessageSquare,
     Settings2,
-    XCircle,
     Menu,
     MoreHorizontal,
     Edit3,
     Download,
-    Archive,
     Trash2,
     FileJson,
     FileText,
@@ -49,8 +47,6 @@
     onsessionsopen?: () => void;
     onrename: (title: string) => void;
     onexport: (format: ExportFormat) => void;
-    oncloseSession: () => void;
-    onarchive: () => void;
     ondelete: () => void;
   }
 
@@ -68,8 +64,6 @@
     onsessionsopen,
     onrename,
     onexport,
-    oncloseSession,
-    onarchive,
     ondelete,
   }: Props = $props();
 
@@ -161,17 +155,11 @@
     }
   }
 
-  function handleMenuAction(action: "rename" | "close" | "archive" | "delete" | "drawer"): void {
+  function handleMenuAction(action: "rename" | "delete" | "drawer"): void {
     menuOpen = false;
     switch (action) {
       case "rename":
         void startEdit();
-        return;
-      case "close":
-        oncloseSession();
-        return;
-      case "archive":
-        onarchive();
         return;
       case "delete":
         ondelete();
@@ -310,30 +298,6 @@
         </button>
       {/if}
 
-      {#if sessionStatus !== "closed"}
-        <button
-          type="button"
-          onclick={oncloseSession}
-          class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
-          aria-label={$t("chat.close_session_active_tooltip")}
-          title={$t("chat.close_session_active_tooltip")}
-          data-testid="chat-close-session-button"
-        >
-          <XCircle size={14} />
-        </button>
-      {:else}
-        <button
-          type="button"
-          onclick={onarchive}
-          class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-          aria-label={$t("chat.close_session_archive_tooltip")}
-          title={$t("chat.close_session_archive_tooltip")}
-          data-testid="chat-archive-session-button"
-        >
-          <Archive size={14} />
-        </button>
-      {/if}
-
       <!-- Overflow / actions menu -->
       <div class="relative">
         <button
@@ -416,26 +380,6 @@
 
             <div class="my-1 border-t border-border/30" aria-hidden="true"></div>
 
-            {#if sessionStatus !== "closed"}
-              <button
-                type="button"
-                role="menuitem"
-                onclick={() => handleMenuAction("close")}
-                class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-warning hover:bg-warning/10"
-                data-testid="chat-header-menu-close"
-              >
-                <XCircle size={12} /> {$t("chat.close_session")}
-              </button>
-            {/if}
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => handleMenuAction("archive")}
-              class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-              data-testid="chat-header-menu-archive"
-            >
-              <Archive size={12} /> {$t("chat.archive_session")}
-            </button>
             <button
               type="button"
               role="menuitem"

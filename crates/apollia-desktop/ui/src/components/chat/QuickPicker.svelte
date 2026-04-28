@@ -31,6 +31,7 @@
     type AgentLiveStatus,
   } from "$lib/stores/agentStatus";
   import { CHAT_TEMPLATES, type ChatTemplate } from "$lib/templates/chatTemplates";
+  import { triggerAutoName } from "$lib/chat/autoName";
   import { projects } from "$lib/stores/projects";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
@@ -126,6 +127,9 @@
         request,
       });
       if (initialPrompt && initialPrompt.trim().length > 0) {
+        // Kick off auto-naming before send_chat_message so the title LLM call
+        // runs concurrently with the agent run — title typically lands first.
+        triggerAutoName(session.id, initialPrompt);
         await invoke("send_chat_message", {
           sessionId: session.id,
           content: initialPrompt.trim(),
@@ -150,6 +154,7 @@
         request,
       });
       if (prompt.trim().length > 0) {
+        triggerAutoName(session.id, prompt);
         await invoke("send_chat_message", {
           sessionId: session.id,
           content: prompt.trim(),

@@ -2,47 +2,59 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { uiMode } from "$lib/stores/mode";
-  import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
-  import { pendingChatApprovals, pendingChatApprovalCount, pendingUserInputs, pendingUserInputCount } from "$lib/stores/chat";
+  import { Inbox as InboxIcon } from "lucide-svelte";
+
   import {
-    selectedIds,
-    selectionCount,
-    toggle as toggleSelection,
-    clear as clearSelection,
-    selectAll,
-  } from "$lib/stores/inbox/selection";
-  import { Sheet } from "$lib/components/ui/sheet";
-  import { Badge } from "$lib/components/ui/badge";
+    pendingApprovals,
+    pendingCount,
+    requestNotificationPermission,
+  } from "$lib/stores/hitl";
+  import {
+    pendingChatApprovals,
+    pendingChatApprovalCount,
+    pendingUserInputs,
+    pendingUserInputCount,
+  } from "$lib/stores/chat";
+
   import { addToast } from "$lib/components/ui/toast/store";
-  import EmptyState from "../components/common/EmptyState.svelte";
-  import { ShieldCheck } from "lucide-svelte";
-  import InboxList from "../components/inbox/InboxList.svelte";
-  import InboxFilters, { type StatusFilter } from "../components/inbox/InboxFilters.svelte";
-  import InboxPreview from "../components/inbox/InboxPreview.svelte";
-  import InboxBulkBar from "../components/inbox/InboxBulkBar.svelte";
   import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
-  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
-  import type { InboxItem, InboxItemKind, InboxRisk } from "../components/inbox/types";
-  import type { PendingApproval, PendingChatApproval, PendingUserInputView } from "$lib/types";
 
-  // ── State ──────────────────────────────────────────────────────────────────
+  import {
+    PageHeader,
+    SectionTitle,
+    InboxRow,
+    HITLCard,
+    EmptyState,
+    Kbd,
+  } from "$lib/components/operator";
+  import type { InboxType } from "$lib/components/operator";
+  import type { RiskLevel } from "$lib/components/operator";
 
+  import type { InboxItem, InboxRisk } from "../components/inbox/types";
+  import type {
+    PendingApproval,
+    PendingChatApproval,
+    PendingUserInputView,
+  } from "$lib/types";
+
+  // ── State ────────────────────────────────────────────────────────────────
   let loading = $state(true);
   let error = $state<string | null>(null);
-  let activeId = $state<string | null>(null);
-  let mobileSheetOpen = $state(false);
-  let isMobile = $state(false);
   let submitting = $state(false);
+  let expandedId = $state<string | null>(null);
+  let rejectTarget = $state<InboxItem | null>(null);
 
-  // Filters (persisted in URL hash for simple cross-session continuity).
-  let search = $state("");
-  let kinds = $state<Set<InboxItemKind>>(new Set());
-  let statusFilter = $state<StatusFilter>("pending");
-  let agentFilter = $state<string | null>(null);
+  type FilterKey =
+    | "all"
+    | "approval"
+    | "deliverable"
+    | "trigger"
+    | "error"
+    | "memory"
+    | "cost";
+  let activeFilter = $state<FilterKey>("all");
 
-  // ── Adapters ───────────────────────────────────────────────────────────────
-
+  // ── Risk extraction ──────────────────────────────────────────────────────
   function extractRisk(ctx: Record<string, unknown> | undefined): InboxRisk | undefined {
     if (!ctx || typeof ctx !== "object") return undefined;
     const r = (ctx as { risk?: unknown }).risk;
@@ -54,12 +66,15 @@
       level,
       summary: typeof rec.summary === "string" ? rec.summary : "",
       impact: typeof rec.impact === "string" ? rec.impact : undefined,
-      consequences: Array.isArray(rec.consequences) ? (rec.consequences as string[]) : undefined,
+      consequences: Array.isArray(rec.consequences)
+        ? (rec.consequences as string[])
+        : undefined,
       rationale: typeof rec.rationale === "string" ? rec.rationale : undefined,
       thinking: typeof rec.thinking === "string" ? rec.thinking : undefined,
     };
   }
 
+  // ── Adapters: stores → InboxItem ─────────────────────────────────────────
   function taskToInbox(p: PendingApproval): InboxItem {
     const risk = extractRisk(p.context);
     return {
@@ -95,8 +110,13 @@
 
   function askUserToInbox(u: PendingUserInputView): InboxItem {
     let questions: unknown[] = [];
-    try { questions = JSON.parse(u.questions_json); } catch { /* ignore */ }
-    const firstQ = (questions[0] as { question?: string } | undefined)?.question ?? "Question";
+    try {
+      questions = JSON.parse(u.questions_json);
+    } catch {
+      /* ignore */
+    }
+    const firstQ =
+      (questions[0] as { question?: string } | undefined)?.question ?? "Question";
     return {
       id: `ask_user:${u.request_id}`,
       kind: "ask_user" as const,
@@ -109,109 +129,128 @@
     };
   }
 
-  // ── Derived inbox stream ───────────────────────────────────────────────────
-
+  // ── Derived inbox stream ─────────────────────────────────────────────────
   const allItems = $derived.by<InboxItem[]>(() => {
     const task = $pendingApprovals.map(taskToInbox);
     const chat = $pendingChatApprovals.map(chatToInbox);
     const askUser = $pendingUserInputs.map(askUserToInbox);
     return [...task, ...chat, ...askUser].sort(
-      (a, b) => new Date(a.suspendedAt).getTime() - new Date(b.suspendedAt).getTime(),
+      (a, b) =>
+        new Date(b.suspendedAt).getTime() - new Date(a.suspendedAt).getTime(),
     );
   });
 
-  const agents = $derived.by(() => Array.from(new Set(allItems.map((i) => i.agentName))).sort());
+  const totalPending = $derived(
+    $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
+  );
+
+  // Map every InboxItem to the V3 InboxRow type.
+  function rowType(item: InboxItem): InboxType {
+    // All current backend kinds surface as approvals in the V3 design.
+    // memory / cost / trigger / error / deliverable categories will be
+    // populated as new event sources land.
+    void item;
+    return "approval";
+  }
+
+  function rowFilterKey(item: InboxItem): FilterKey {
+    return rowType(item) as FilterKey;
+  }
 
   const filteredItems = $derived.by(() => {
-    const q = search.trim().toLowerCase();
-    return allItems.filter((i) => {
-      if (kinds.size > 0 && !kinds.has(i.kind)) return false;
-      if (agentFilter && i.agentName !== agentFilter) return false;
-      if (q) {
-        const hay = `${i.summary} ${i.toolName ?? ""} ${i.agentName}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
+    if (activeFilter === "all") return allItems;
+    return allItems.filter((i) => rowFilterKey(i) === activeFilter);
   });
 
-  const visibleIds = $derived(filteredItems.map((i) => i.id));
-  const activeItem = $derived(filteredItems.find((i) => i.id === activeId) ?? null);
-
-  const highRiskSelectedCount = $derived.by(() => {
-    let n = 0;
-    for (const item of filteredItems) {
-      if ($selectedIds.has(item.id) && item.risk?.level === "high") n += 1;
+  // Counts per filter (for chip labels).
+  const counts = $derived.by(() => {
+    const c: Record<FilterKey, number> = {
+      all: allItems.length,
+      approval: 0,
+      deliverable: 0,
+      trigger: 0,
+      error: 0,
+      memory: 0,
+      cost: 0,
+    };
+    for (const i of allItems) {
+      const k = rowFilterKey(i);
+      if (k in c) c[k] += 1;
     }
-    return n;
+    return c;
   });
 
-  const totalPending = $derived($pendingCount + $pendingChatApprovalCount + $pendingUserInputCount);
+  // ── Date grouping ────────────────────────────────────────────────────────
+  type GroupKey = "today" | "yesterday" | "earlier";
 
-  // Reconcile active id when items change.
-  $effect(() => {
-    if (activeId && !allItems.some((i) => i.id === activeId)) {
-      activeId = null;
-    }
-    if (!activeId && filteredItems.length > 0 && !isMobile) {
-      activeId = filteredItems[0].id;
-    }
-  });
-
-  // ── URL hash persistence ───────────────────────────────────────────────────
-
-  function readHash() {
-    if (typeof window === "undefined") return;
-    const raw = window.location.hash.startsWith("#inbox?")
-      ? window.location.hash.slice("#inbox?".length)
-      : "";
-    if (!raw) return;
-    const params = new URLSearchParams(raw);
-    const type = params.get("type");
-    if (type) kinds = new Set(type.split(",") as InboxItemKind[]);
-    const status = params.get("status");
-    if (status === "pending" || status === "resolved" || status === "all") statusFilter = status;
-    const agent = params.get("agent");
-    if (agent) agentFilter = agent;
-    const q = params.get("q");
-    if (q) search = q;
-    const item = params.get("item");
-    if (item) activeId = item;
+  function groupOf(iso: string): GroupKey {
+    const d = new Date(iso);
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startYesterday = startToday - 24 * 60 * 60 * 1000;
+    const ts = d.getTime();
+    if (ts >= startToday) return "today";
+    if (ts >= startYesterday) return "yesterday";
+    return "earlier";
   }
 
-  function writeHash() {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams();
-    if (kinds.size > 0) params.set("type", Array.from(kinds).join(","));
-    if (statusFilter !== "pending") params.set("status", statusFilter);
-    if (agentFilter) params.set("agent", agentFilter);
-    if (search) params.set("q", search);
-    if (activeId) params.set("item", activeId);
-    const s = params.toString();
-    const next = s ? `#inbox?${s}` : "#inbox";
-    if (window.location.hash !== next) {
-      history.replaceState(null, "", next);
+  const grouped = $derived.by(() => {
+    const g: Record<GroupKey, InboxItem[]> = {
+      today: [],
+      yesterday: [],
+      earlier: [],
+    };
+    for (const i of filteredItems) {
+      g[groupOf(i.suspendedAt)].push(i);
     }
-  }
-
-  $effect(() => {
-    // Re-runs whenever any filter/active changes.
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    [kinds, statusFilter, agentFilter, search, activeId];
-    writeHash();
+    return g;
   });
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
+  const GROUP_ORDER: GroupKey[] = ["today", "yesterday", "earlier"];
+  const GROUP_LABEL: Record<GroupKey, string> = {
+    today: "Aujourd'hui",
+    yesterday: "Hier",
+    earlier: "Plus tôt",
+  };
 
+  // ── Time formatting ──────────────────────────────────────────────────────
+  function relTime(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return "à l'instant";
+    if (min < 60) return `il y a ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `il y a ${h} h`;
+    const days = Math.floor(h / 24);
+    if (days === 1) return "hier";
+    return `il y a ${days} j`;
+  }
+
+  // ── HITL inline card data ────────────────────────────────────────────────
+  function riskLevel(item: InboxItem): RiskLevel {
+    if (item.kind === "task" && item.risk) {
+      if (item.risk.level === "medium") return "medium";
+      if (item.risk.level === "high") return "high";
+      return "low";
+    }
+    if (item.kind === "bash" || item.kind === "filesystem") return "medium";
+    return "low";
+  }
+
+  function actionLabel(item: InboxItem): string {
+    return item.summary || $t("inbox.title_operator");
+  }
+
+  function expiresLabel(item: InboxItem): string | undefined {
+    void item;
+    // Backend doesn't currently expose a deterministic expiry — leave blank.
+    return undefined;
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   onMount(() => {
     requestNotificationPermission();
-    readHash();
-    const mq = window.matchMedia("(max-width: 1023px)");
-    isMobile = mq.matches;
-    const handler = (e: MediaQueryListEvent) => { isMobile = e.matches; };
-    mq.addEventListener("change", handler);
     void loadData();
-    return () => mq.removeEventListener("change", handler);
   });
 
   async function loadData(): Promise<void> {
@@ -223,8 +262,6 @@
         invoke<PendingUserInputView[]>("list_pending_user_inputs").catch(() => []),
       ]);
       pendingApprovals.set(pending);
-      // Seed global store with backend state (idempotent — SSE events may have
-      // already populated some entries, but addPendingUserInput deduplicates).
       for (const u of userInputs) {
         const { addPendingUserInput: add } = await import("$lib/stores/chat");
         add(u);
@@ -236,21 +273,12 @@
     }
   }
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-
-  function handleSelectItem(id: string) {
-    activeId = id;
-    if (isMobile) mobileSheetOpen = true;
-  }
-
-  function handleToggleKind(k: InboxItemKind) {
-    const next = new Set(kinds);
-    if (next.has(k)) next.delete(k);
-    else next.add(k);
-    kinds = next;
-  }
-
-  async function resolveItem(item: InboxItem, approved: boolean, reason?: string) {
+  // ── Resolve handlers (preserved invoke calls) ────────────────────────────
+  async function resolveItem(
+    item: InboxItem,
+    approved: boolean,
+    reason?: string,
+  ): Promise<void> {
     if (item.kind === "task") {
       await invoke("resume_task", {
         taskId: item.source.task_id,
@@ -264,7 +292,6 @@
           reason,
         });
       } else {
-        // Skip all questions (no answers from inbox approve flow)
         await invoke("respond_user_input", {
           requestId: item.source.request_id,
           answers: [],
@@ -280,11 +307,12 @@
     }
   }
 
-  async function handleAccept(item: InboxItem) {
+  async function handleApprove(item: InboxItem): Promise<void> {
     submitting = true;
     try {
       await resolveItem(item, true);
       addToast($t("inbox.toast.accepted"), "success");
+      if (expandedId === item.id) expandedId = null;
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -292,43 +320,17 @@
     }
   }
 
-  async function handleAlwaysAccept(item: InboxItem, scope?: string) {
-    submitting = true;
-    try {
-      if (item.kind === "task") {
-        await resolveItem(item, true);
-      } else {
-        await invoke("authorize_chat_tool", {
-          sessionId: item.source.sessionId,
-          messageId: item.source.messageId,
-          toolName: item.source.toolName,
-          decision: "always_accept",
-          scope: scope ?? "session_only",
-        });
-      }
-      addToast($t("inbox.toast.always_accepted"), "success");
-    } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    } finally {
-      submitting = false;
-    }
-  }
-
-  // Reject flow (single + bulk)
-  let rejectTarget = $state<InboxItem | null>(null);
-  let bulkRejectOpen = $state(false);
-  let bulkApproveConfirmOpen = $state(false);
-
-  function openReject(item: InboxItem) {
+  function openReject(item: InboxItem): void {
     rejectTarget = item;
   }
 
-  async function confirmReject(reason: string) {
+  async function confirmReject(reason: string): Promise<void> {
     if (!rejectTarget) return;
     submitting = true;
     try {
       await resolveItem(rejectTarget, false, reason);
       addToast($t("inbox.toast.rejected"), "success");
+      if (expandedId === rejectTarget.id) expandedId = null;
       rejectTarget = null;
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
@@ -337,175 +339,122 @@
     }
   }
 
-  async function confirmBulkReject(reason: string) {
-    submitting = true;
-    const ids = Array.from($selectedIds);
-    try {
-      for (const id of ids) {
-        const it = allItems.find((x) => x.id === id);
-        if (it) await resolveItem(it, false, reason);
-      }
-      addToast($t("inbox.toast.bulk_rejected", { values: { count: ids.length } }), "success");
-      clearSelection();
-      bulkRejectOpen = false;
-    } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    } finally {
-      submitting = false;
-    }
+  function toggleExpand(item: InboxItem): void {
+    expandedId = expandedId === item.id ? null : item.id;
   }
 
-  async function confirmBulkApprove() {
-    submitting = true;
-    const ids = Array.from($selectedIds);
-    try {
-      for (const id of ids) {
-        const it = allItems.find((x) => x.id === id);
-        if (it) await resolveItem(it, true);
-      }
-      addToast($t("inbox.toast.bulk_approved", { values: { count: ids.length } }), "success");
-      clearSelection();
-      bulkApproveConfirmOpen = false;
-    } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    } finally {
-      submitting = false;
-    }
-  }
-
-  function tryBulkApprove() {
-    if ($selectionCount === 0) return;
-    bulkApproveConfirmOpen = true;
-  }
+  // ── Filter chip definitions ──────────────────────────────────────────────
+  const FILTERS: { key: FilterKey; label: string }[] = [
+    { key: "all", label: "Tous" },
+    { key: "approval", label: "Approbations" },
+    { key: "deliverable", label: "Livrables" },
+    { key: "trigger", label: "Triggers" },
+    { key: "error", label: "Erreurs" },
+    { key: "memory", label: "Mémoire" },
+    { key: "cost", label: "Coût" },
+  ];
 </script>
 
-<div class="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-col gap-4 overflow-hidden" data-testid="inbox-page">
-  <!-- Header -->
-  <header class="flex items-center justify-between">
-    <div>
-      <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-semibold" data-testid="inbox-title">
-          {$uiMode === "operator" ? $t("inbox.title_operator") : $t("inbox.title_builder")}
-        </h1>
-        {#if totalPending > 0}
-          <Badge variant="destructive" data-testid="inbox-pending-count">
-            {$t("inbox.pending_count", { values: { count: totalPending } })}
-          </Badge>
-        {/if}
-      </div>
-      <p class="mt-1 text-xs text-muted-foreground">{$t("inbox.subtitle")}</p>
-    </div>
-  </header>
-
-  <!-- Filters -->
-  <InboxFilters
-    {search}
-    {kinds}
-    status={statusFilter}
-    agents={agents}
-    selectedAgent={agentFilter}
-    onsearch={(v) => (search = v)}
-    ontogglekind={handleToggleKind}
-    onstatuschange={(s) => (statusFilter = s)}
-    onagentchange={(a) => (agentFilter = a)}
+<div class="flex h-full min-h-0 w-full flex-col overflow-hidden" data-testid="inbox-page">
+  <PageHeader
+    kicker="BOÎTE DE RÉCEPTION"
+    title="Boîte de réception"
+    subtitle={totalPending > 0
+      ? $t("inbox.pending_count", { values: { count: totalPending } })
+      : $t("inbox.subtitle")}
   />
 
-  {#if loading}
-    <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
-  {:else if error}
-    <p class="text-sm text-destructive">{error}</p>
-  {:else if totalPending === 0}
-    <EmptyState
-      icon={ShieldCheck}
-      title={$t("inbox.empty_title")}
-      subtitle={$t("inbox.empty_subtitle")}
-      page="approvals"
-    />
-  {:else}
-    <!-- Desktop: 2-pane. Mobile: list only, preview in bottom sheet. -->
-    <div
-      class="relative flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row"
-      data-testid="inbox-layout"
-    >
-      <aside
-        class="flex h-full min-h-[300px] min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:min-h-0 lg:w-[380px] lg:shrink-0"
-        aria-label={$t("inbox.list_aria")}
+  <!-- Filter chips ---------------------------------------------------- -->
+  <div class="flex flex-wrap items-center gap-1.5 px-8 pt-4 pb-2">
+    {#each FILTERS as f (f.key)}
+      {@const isActive = activeFilter === f.key}
+      <button
+        type="button"
+        class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
+          ? 'bg-primary/10 text-primary border-primary/20'
+          : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
+        onclick={() => (activeFilter = f.key)}
+        aria-pressed={isActive}
+        data-testid="inbox-filter-{f.key}"
       >
-        <InboxList
-          items={filteredItems}
-          selectedIds={$selectedIds}
-          {activeId}
-          onselect={handleSelectItem}
-          ontoggle={(id) => toggleSelection(id)}
-          onselectAll={() => selectAll(visibleIds)}
-          onclearSelection={clearSelection}
-        />
-      </aside>
+        {f.label} · {counts[f.key]}
+      </button>
+    {/each}
+    <span class="ml-auto inline-flex items-center gap-1.5 text-[10.5px] text-muted-foreground/70">
+      <Kbd>A</Kbd> approuver · <Kbd>R</Kbd> refuser
+    </span>
+  </div>
 
-      <section
-        class="hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card/80 shadow-[0_8px_24px_rgba(0,0,0,0.08)] lg:flex"
-        aria-label={$t("inbox.preview_aria")}
-      >
-        <InboxPreview
-          item={activeItem}
-          {submitting}
-          onaccept={handleAccept}
-          onreject={openReject}
-          onalwaysAccept={handleAlwaysAccept}
-        />
-      </section>
-    </div>
+  <!-- Body ------------------------------------------------------------ -->
+  <div class="flex-1 min-h-0 overflow-y-auto">
+    {#if loading}
+      <p class="px-8 py-6 text-sm text-muted-foreground">{$t("common.loading")}</p>
+    {:else if error}
+      <p class="px-8 py-6 text-sm text-destructive">{error}</p>
+    {:else if filteredItems.length === 0}
+      <div class="px-8 py-10">
+        <EmptyState
+          title={$t("inbox.empty_title")}
+          desc={$t("inbox.empty_subtitle")}
+          tone="success"
+        >
+          {#snippet icon()}<InboxIcon size={22} />{/snippet}
+        </EmptyState>
+      </div>
+    {:else}
+      {#each GROUP_ORDER as g (g)}
+        {#if grouped[g].length > 0}
+          <SectionTitle count={grouped[g].length}>{GROUP_LABEL[g]}</SectionTitle>
+          <div class="px-8 pb-2">
+            <div class="rounded-xl border border-border overflow-hidden bg-card">
+              {#each grouped[g] as item (item.id)}
+                {@const isApproval = item.kind === "task" || item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash" || item.kind === "ask_user"}
+                {@const isExpanded = expandedId === item.id}
+                <div>
+                  <InboxRow
+                    type={rowType(item)}
+                    title={item.summary || "—"}
+                    agent={item.agentName}
+                    timestamp={relTime(item.suspendedAt)}
+                    unread={true}
+                    onclick={isApproval ? () => toggleExpand(item) : undefined}
+                    onAction={isApproval
+                      ? (e) => {
+                          e.stopPropagation?.();
+                          toggleExpand(item);
+                        }
+                      : undefined}
+                  />
+                  {#if isExpanded && isApproval}
+                    <div class="px-4 py-3 border-b border-border bg-muted/20">
+                      <HITLCard
+                        agent={item.agentName}
+                        action={actionLabel(item)}
+                        risk={riskLevel(item)}
+                        tool={item.toolName}
+                        scope={item.kind === "task" ? item.risk?.impact : undefined}
+                        summary={item.risk?.rationale}
+                        params={item.risk?.consequences ?? []}
+                        expires={expiresLabel(item)}
+                        onApprove={() => handleApprove(item)}
+                        onReject={() => openReject(item)}
+                      />
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      {/each}
+    {/if}
+  </div>
 
-    <InboxBulkBar
-      count={$selectionCount}
-      highRiskCount={highRiskSelectedCount}
-      {submitting}
-      onapprove={tryBulkApprove}
-      onreject={() => (bulkRejectOpen = true)}
-      oncancel={clearSelection}
-    />
-  {/if}
-
-  <!-- Mobile preview sheet -->
-  <Sheet open={mobileSheetOpen && isMobile} onclose={() => (mobileSheetOpen = false)} width="lg">
-    <div class="flex h-full flex-col">
-      <InboxPreview
-        item={activeItem}
-        {submitting}
-        onaccept={handleAccept}
-        onreject={openReject}
-        onalwaysAccept={handleAlwaysAccept}
-      />
-    </div>
-  </Sheet>
-
-  <!-- Single-item reject dialog -->
   <RejectReasonDialog
     open={rejectTarget !== null}
-    submitting={submitting}
+    {submitting}
     title={$t("inbox.reject_title")}
     onclose={() => (rejectTarget = null)}
     onconfirm={confirmReject}
-  />
-
-  <!-- Bulk reject dialog -->
-  <RejectReasonDialog
-    open={bulkRejectOpen}
-    submitting={submitting}
-    title={$t("inbox.bulk_reject_title", { values: { count: $selectionCount } })}
-    onclose={() => (bulkRejectOpen = false)}
-    onconfirm={confirmBulkReject}
-  />
-
-  <!-- Bulk approve confirm -->
-  <ConfirmDialog
-    open={bulkApproveConfirmOpen}
-    title={$t("inbox.bulk_approve_title", { values: { count: $selectionCount } })}
-    message={highRiskSelectedCount > 0
-      ? $t("inbox.bulk_approve_warning", { values: { count: highRiskSelectedCount } })
-      : $t("inbox.bulk_approve_confirm_body", { values: { count: $selectionCount } })}
-    confirmLabel={$t("inbox.bulk_approve", { values: { count: $selectionCount } })}
-    onclose={() => (bulkApproveConfirmOpen = false)}
-    onconfirm={confirmBulkApprove}
   />
 </div>

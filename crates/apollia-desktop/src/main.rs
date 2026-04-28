@@ -437,6 +437,10 @@ fn main() {
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
+            // Periodic heartbeat so the frontend `runtimeHealth` watchdog
+            // never trips during idle chat sessions.
+            events::spawn_heartbeat(app.handle().clone());
+
             // Session metrics aggregator.
             // .setup() runs outside any Tokio context; enter the Tauri async
             // runtime before calling spawn_detached so tokio::spawn is valid.
@@ -671,6 +675,7 @@ fn main() {
             commands::chat::close_chat_session,
             commands::chat::delete_chat_session,
             commands::chat::rename_chat_session,
+            commands::chat::generate_chat_session_name,
             commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,

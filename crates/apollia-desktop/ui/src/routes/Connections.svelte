@@ -1,11 +1,17 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Plus } from "lucide-svelte";
-  import { Button } from "$lib/components/ui/button";
-  import { Skeleton } from "$lib/components/ui/skeleton";
-  import { EmptyState } from "$lib/components/layout";
-  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
+  import { Plus, Sparkles, Link as LinkIcon } from "lucide-svelte";
+  import {
+    PageHeader,
+    SectionTitle,
+    Chip,
+    BtnPrimary,
+    BtnSecondary,
+    EmptyState,
+    ConnectionCard,
+    type ConnectionStatus,
+  } from "$lib/components/operator";
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
@@ -17,13 +23,6 @@
   } from "../components/integrations/McpDisclaimerDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import OperatorServerManage from "../components/integrations/OperatorServerManage.svelte";
-  import ConnectionHeroSection, {
-    type ConnectionSegment,
-  } from "../components/connections/ConnectionHeroSection.svelte";
-  import ConnectionFilterBar, {
-    type StatusFilter,
-  } from "../components/connections/ConnectionFilterBar.svelte";
-  import ConnectionAppCard from "../components/connections/ConnectionAppCard.svelte";
   import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import { rankSuggestions } from "../components/connections/ConnectionSuggestions.svelte";
 
@@ -33,6 +32,7 @@
 
   let { onNavigateTasks }: Props = $props();
 
+  // ── State (preserved from old Connections.svelte + Integrations.svelte) ────
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let registry = $state<RegistryServerView[]>([]);
@@ -40,11 +40,12 @@
   let loading = $state(false);
   let loadError = $state<string | null>(null);
 
-  let activeSegment = $state<ConnectionSegment>("active");
-  let query = $state("");
-  let category = $state("all");
-  let status = $state<StatusFilter>("all");
+  // Filter state
+  type StatusFilter = "all" | "active" | "error" | "idle";
+  let statusFilter = $state<StatusFilter>("all");
+  let mcpFilter = $state<"all" | "installed" | "official" | "community">("all");
 
+  // Modal / wizard state
   let disclaimerOpen = $state(false);
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
@@ -53,20 +54,27 @@
   let errorModalOpen = $state(false);
   let errorServer = $state<McpServerStatusView | null>(null);
 
+  // ── Loaders ────────────────────────────────────────────────────────────────
+
   async function loadAll(): Promise<void> {
     loading = true;
     loadError = null;
     try {
-      const [serverList, enrichmentEntries, registryEntries, agentList] = await Promise.all([
-        invoke<McpServerStatusView[]>("list_mcp_servers"),
-        invoke<Array<{ package_identifier: string; enrichment: ConnectorEnrichmentView }>>(
-          "list_mcp_enrichments",
-        ),
-        invoke<RegistryServerView[]>("fetch_mcp_registry").catch(() => [] as RegistryServerView[]),
-        invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
-      ]);
+      const [serverList, enrichmentEntries, registryEntries, agentList] =
+        await Promise.all([
+          invoke<McpServerStatusView[]>("list_mcp_servers"),
+          invoke<Array<{ package_identifier: string; enrichment: ConnectorEnrichmentView }>>(
+            "list_mcp_enrichments",
+          ),
+          invoke<RegistryServerView[]>("fetch_mcp_registry").catch(
+            () => [] as RegistryServerView[],
+          ),
+          invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
+        ]);
       servers = serverList;
-      enrichmentMap = new Map(enrichmentEntries.map((e) => [e.package_identifier, e.enrichment]));
+      enrichmentMap = new Map(
+        enrichmentEntries.map((e) => [e.package_identifier, e.enrichment]),
+      );
       registry = registryEntries;
       agents = agentList;
     } catch (err: unknown) {
@@ -76,96 +84,109 @@
     }
   }
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
     if (!server.package) return null;
     return enrichmentMap.get(server.package) ?? null;
   }
 
-  function registryEnrichment(server: RegistryServerView): ConnectorEnrichmentView | null {
-    return server.enrichment;
+  function statusOf(server: McpServerStatusView): ConnectionStatus {
+    if (server.error) return "error";
+    if (server.connected) return "active";
+    return "idle";
   }
 
-  function serverCategory(server: McpServerStatusView): string | null {
-    const e = resolveEnrichment(server);
-    return e?.category ?? null;
+  function syncLabel(server: McpServerStatusView): string | undefined {
+    if (!server.last_call_at) return undefined;
+    const diffMs = Date.now() - new Date(server.last_call_at).getTime();
+    if (Number.isNaN(diffMs) || diffMs < 0) return undefined;
+    const mins = Math.floor(diffMs / 60_000);
+    if (mins < 1) return "à l'instant";
+    if (mins < 60) return `il y a ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    const days = Math.floor(hours / 24);
+    return `il y a ${days} j`;
   }
 
-  // ── derived lists ──────────────────────────────────────────────────────────
+  /** Stable color for the logo tile, derived from the server name. */
+  function logoColorFor(name: string): string {
+    const palette = [
+      "#4285f4",
+      "#611f69",
+      "#1c1d2b",
+      "#ea4335",
+      "#0ea5e9",
+      "#a855f7",
+      "#16a34a",
+      "#f59e0b",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+    return palette[Math.abs(hash) % palette.length];
+  }
 
-  const suggestions = $derived(rankSuggestions(registry, agents, 6));
+  // ── Derived sets ───────────────────────────────────────────────────────────
 
   const installedNames = $derived(new Set(servers.map((s) => s.name)));
 
-  /** Categories present in the current segment, "all" always first. */
-  const availableCategories = $derived.by(() => {
-    const seen = new Set<string>();
-    const add = (c: string | null | undefined) => {
-      if (c) seen.add(c);
-    };
-    if (activeSegment === "active") {
-      for (const s of servers) add(serverCategory(s));
-    } else if (activeSegment === "suggested") {
-      for (const s of suggestions) add(s.enrichment?.category ?? s.category);
-    } else {
-      for (const s of registry) add(s.enrichment?.category ?? s.category);
-    }
-    return ["all", ...Array.from(seen).sort()];
-  });
-
-  function matchesQuery(title: string, description: string | null | undefined): boolean {
-    const q = query.trim().toLowerCase();
-    if (q.length === 0) return true;
-    if (title.toLowerCase().includes(q)) return true;
-    if (description?.toLowerCase().includes(q)) return true;
-    return false;
-  }
-
-  const activeServers = $derived.by(() => {
-    return servers.filter((s) => {
-      if (category !== "all" && serverCategory(s) !== category) return false;
-      const e = resolveEnrichment(s);
-      const title = e?.operator_label ?? s.name;
-      if (!matchesQuery(title, s.error)) return false;
-      if (status === "not_installed") return false;
-      return true;
-    });
-  });
-
-  const catalogueEntries = $derived.by(() => {
-    return registry.filter((s) => {
-      if (!s) return false;
-      const cat = s.enrichment?.category ?? s.category;
-      if (category !== "all" && cat !== category) return false;
-      const title = s.enrichment?.operator_label ?? s.title ?? s.name;
-      if (!matchesQuery(title, s.description)) return false;
-      if (status === "installed" && !s.is_installed) return false;
-      if (status === "not_installed" && s.is_installed) return false;
-      return true;
-    });
-  });
-
-  const suggestedEntries = $derived.by(() => {
-    return suggestions.filter((s) => {
-      if (!s) return false;
-      const cat = s.enrichment?.category ?? s.category;
-      if (category !== "all" && cat !== category) return false;
-      const title = s.enrichment?.operator_label ?? s.title ?? s.name;
-      if (!matchesQuery(title, s.description)) return false;
-      return true;
-    });
-  });
-
-  const hasActiveFilters = $derived(
-    query.trim().length > 0 || category !== "all" || status !== "all",
+  const activeCount = $derived(servers.filter((s) => s.connected && !s.error).length);
+  const errorCount = $derived(servers.filter((s) => !!s.error).length);
+  const idleCount = $derived(
+    servers.filter((s) => !s.connected && !s.error).length,
   );
 
-  function clearAll() {
-    query = "";
-    category = "all";
-    status = "all";
-  }
+  const filteredServers = $derived(
+    servers.filter((s) => {
+      const st = statusOf(s);
+      if (statusFilter === "all") return true;
+      return st === statusFilter;
+    }),
+  );
 
-  // ── CTAs & flows ───────────────────────────────────────────────────────────
+  /** MCP catalogue — combine ranked suggestions + remaining registry, dedup. */
+  const mcpEntries = $derived.by(() => {
+    const ranked = rankSuggestions(registry, agents, 12);
+    const seen = new Set(ranked.map((r) => r.name));
+    const rest = registry.filter((r) => !seen.has(r.name));
+    return [...ranked, ...rest];
+  });
+
+  const officialCount = $derived(
+    mcpEntries.filter(
+      (e) =>
+        e.trust_level === "verified_official" || e.trust_level === "community_verified",
+    ).length,
+  );
+  const communityCount = $derived(
+    mcpEntries.filter((e) => e.trust_level === "community" || e.trust_level === "custom")
+      .length,
+  );
+  const installedRegCount = $derived(
+    mcpEntries.filter((e) => e.is_installed || installedNames.has(e.name)).length,
+  );
+
+  const filteredMcp = $derived(
+    mcpEntries.filter((e) => {
+      const installed = e.is_installed || installedNames.has(e.name);
+      if (mcpFilter === "installed") return installed;
+      if (mcpFilter === "official")
+        return (
+          e.trust_level === "verified_official" || e.trust_level === "community_verified"
+        );
+      if (mcpFilter === "community")
+        return e.trust_level === "community" || e.trust_level === "custom";
+      return true;
+    }),
+  );
+
+  const heroKicker = $derived(
+    `INTÉGRATIONS · ${activeCount} ACTIVE${activeCount > 1 ? "S" : ""}` +
+      (errorCount > 0 ? ` · ${errorCount} ERREUR${errorCount > 1 ? "S" : ""}` : ""),
+  );
+
+  // ── CTAs & flows (preserved from old Connections.svelte) ───────────────────
 
   function openWizardFor(server: RegistryServerView) {
     selectedRegistryServer = server;
@@ -174,7 +195,6 @@
 
   function handleConnect(server: RegistryServerView) {
     if (!isDisclaimerAccepted()) {
-      // Defer: open disclaimer first, then wizard.
       selectedRegistryServer = server;
       disclaimerOpen = true;
       return;
@@ -214,10 +234,12 @@
     loadAll();
   }
 
-  function handleHealthClick(server: McpServerStatusView) {
+  function handleApolliaCardClick(server: McpServerStatusView) {
     if (server.error || !server.connected) {
       errorServer = server;
       errorModalOpen = true;
+    } else {
+      handleManage(server.name);
     }
   }
 
@@ -236,21 +258,13 @@
     handleManage(name);
   }
 
-  function handleReconnect(name: string) {
-    const server = servers.find((s) => s.name === name);
-    if (server) {
-      errorServer = server;
-      errorModalOpen = true;
+  function handleAddCustomMcp() {
+    // Open wizard with no preselected registry entry — handled by ConnectorWizard
+    // when fed a synthetic entry; for now, surface the disclaimer + scroll to
+    // catalogue. Custom URL entry is exposed inside OperatorServerManage flows.
+    if (!isDisclaimerAccepted()) {
+      disclaimerOpen = true;
     }
-  }
-
-  // ── routing browse catalogue CTA ───────────────────────────────────────────
-
-  function handleBrowseCatalogue() {
-    query = "";
-    category = "all";
-    status = "all";
-    activeSegment = "catalogue";
   }
 
   $effect(() => {
@@ -263,143 +277,268 @@
   });
 </script>
 
-<div class="mx-auto w-full max-w-7xl flex flex-col gap-6" data-testid="connections-route">
-  <div class="flex items-start justify-between gap-3">
-    <div class="flex-1 min-w-0">
-      <ConnectionHeroSection
-        active={activeSegment}
-        activeCount={servers.length}
-        suggestedCount={suggestedEntries.length}
-        catalogueCount={catalogueEntries.length}
-        onchange={(seg) => (activeSegment = seg)}
-      />
-    </div>
-    <Button size="sm" onclick={handleBrowseCatalogue} data-testid="connections-add-btn">
-      <Plus size={16} class="mr-1.5" />
-      {$t("connections.add_connection")}
-    </Button>
+<div class="flex flex-col" data-testid="connections-route">
+  <PageHeader
+    kicker={heroKicker}
+    title={$t("connections.hero.title")}
+    subtitle="Les services externes qu'Apollia peut utiliser avec votre accord. Deux familles : les Connecteurs Apollia (curés, premium) et le Catalogue MCP (protocole ouvert, communauté)."
+  >
+    {#snippet actions()}
+      <BtnPrimary onclick={handleAddCustomMcp}>
+        {#snippet icon()}<Plus size={12} />{/snippet}
+        {$t("connections.add_connection")}
+      </BtnPrimary>
+    {/snippet}
+  </PageHeader>
+
+  {#if loadError}
+    <p class="text-sm text-destructive px-8 py-4" data-testid="connections-error">
+      {loadError}
+    </p>
+  {/if}
+
+  <!-- ============ SECTION APOLLIA ============ -->
+  <SectionTitle count={`${activeCount} actif${activeCount > 1 ? "s" : ""} · ${servers.length} total`}>
+    Connecteurs Apollia
+  </SectionTitle>
+
+  <div class="px-8 pb-2 flex items-center gap-2" data-testid="connections-status-filters">
+    <Chip
+      tone={statusFilter === "all" ? "primary" : "neutral"}
+      size="sm"
+      outline={statusFilter !== "all"}
+    >
+      <button
+        type="button"
+        class="bg-transparent border-0 p-0 cursor-pointer"
+        onclick={() => (statusFilter = "all")}
+      >
+        Tous · {servers.length}
+      </button>
+    </Chip>
+    <Chip
+      tone={statusFilter === "active" ? "success" : "neutral"}
+      size="sm"
+      outline={statusFilter !== "active"}
+    >
+      <button
+        type="button"
+        class="bg-transparent border-0 p-0 cursor-pointer"
+        onclick={() => (statusFilter = "active")}
+      >
+        Actifs · {activeCount}
+      </button>
+    </Chip>
+    <Chip
+      tone={statusFilter === "error" ? "danger" : "neutral"}
+      size="sm"
+      outline={statusFilter !== "error"}
+    >
+      <button
+        type="button"
+        class="bg-transparent border-0 p-0 cursor-pointer"
+        onclick={() => (statusFilter = "error")}
+      >
+        Erreur · {errorCount}
+      </button>
+    </Chip>
+    <Chip
+      tone={statusFilter === "idle" ? "neutral" : "neutral"}
+      size="sm"
+      outline={statusFilter !== "idle"}
+    >
+      <button
+        type="button"
+        class="bg-transparent border-0 p-0 cursor-pointer"
+        onclick={() => (statusFilter = "idle")}
+      >
+        Inactif · {idleCount}
+      </button>
+    </Chip>
   </div>
 
-  <ConnectionFilterBar
-    {query}
-    {category}
-    availableCategories={availableCategories}
-    {status}
-    hasActive={hasActiveFilters}
-    onquery={(v) => (query = v)}
-    oncategory={(v) => (category = v)}
-    onstatus={(v) => (status = v)}
-    onclearall={clearAll}
-  />
-
-  {#if loading}
-    <div
-      class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-      data-testid="connections-loading"
-    >
-      {#each Array(6) as _, i (i)}
-        <Skeleton class="h-40" />
-      {/each}
-    </div>
-  {:else if loadError}
-    <p class="text-sm text-destructive" data-testid="connections-error">{loadError}</p>
-  {:else if activeSegment === "active"}
-    {#if servers.length === 0}
+  <div class="px-8 pt-3 pb-2">
+    {#if loading}
+      <div class="grid grid-cols-3 gap-3.5" data-testid="connections-loading">
+        {#each Array(6) as _, i (i)}
+          <div class="h-24 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+        {/each}
+      </div>
+    {:else if servers.length === 0}
       <EmptyState
-        icon={EMPTY_STATES.integrations.icon}
         title={$t("connections.empty.no_connections_title")}
-        description={$t("connections.empty.no_connections_description")}
-        primaryLabel={$t("connections.empty.browse_catalogue")}
-        primaryAction={handleBrowseCatalogue}
-        page="connections"
-      />
-    {:else if activeServers.length === 0}
+        desc={$t("connections.empty.no_connections_description")}
+        tone="primary"
+      >
+        {#snippet icon()}<LinkIcon size={22} />{/snippet}
+        {#snippet action()}
+          <BtnPrimary onclick={handleAddCustomMcp}>
+            {#snippet icon()}<Plus size={12} />{/snippet}
+            {$t("connections.add_connection")}
+          </BtnPrimary>
+        {/snippet}
+      </EmptyState>
+    {:else if filteredServers.length === 0}
       <EmptyState
-        icon={EMPTY_STATES.integrations.icon}
-        title={$t("connections.empty.no_results_title", { values: { query } })}
-        description={$t("connections.empty.no_results_description")}
-        primaryLabel={$t("connections.filters.clear_all")}
-        primaryAction={clearAll}
-        page="connections"
-      />
+        title={$t("connections.empty.no_results_title", { values: { query: "" } })}
+        desc={$t("connections.empty.no_results_description")}
+        tone="neutral"
+      >
+        {#snippet action()}
+          <BtnSecondary onclick={() => (statusFilter = "all")}>
+            {$t("connections.filters.clear_all")}
+          </BtnSecondary>
+        {/snippet}
+      </EmptyState>
     {:else}
       <div
-        class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-        data-testid="connections-active-grid"
+        class="grid grid-cols-3 gap-3.5"
+        data-testid="connections-apollia-grid"
       >
-        {#each activeServers as server (server.name)}
+        {#each filteredServers as server (server.name)}
           {@const enrichment = resolveEnrichment(server)}
-          <ConnectionAppCard
-            {server}
-            {enrichment}
-            toolsCount={server.tools_count}
-            installed={true}
-            onmanage={handleManage}
-            onreconnect={handleReconnect}
-            onhealthClick={handleHealthClick}
+          {@const label = enrichment?.operator_label ?? server.name}
+          <ConnectionCard
+            variant="apollia"
+            name={label}
+            description={enrichment?.category ?? server.server_info ?? undefined}
+            status={statusOf(server)}
+            capabilities={server.tools_count}
+            logoColor={logoColorFor(label)}
+            error={server.error ?? undefined}
+            sync={syncLabel(server)}
+            onclick={() => handleApolliaCardClick(server)}
           />
         {/each}
       </div>
     {/if}
-  {:else if activeSegment === "suggested"}
-    {#if suggestedEntries.length === 0}
-      <EmptyState
-        icon={EMPTY_STATES.integrations.icon}
-        title={$t("connections.empty.no_suggestions_title")}
-        description={$t("connections.empty.no_suggestions_description")}
-        primaryLabel={$t("connections.empty.browse_catalogue")}
-        primaryAction={handleBrowseCatalogue}
-        page="connections"
-      />
-    {:else}
-      <div
-        class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-        data-testid="connections-suggested-grid"
+  </div>
+
+  <!-- ============ SECTION MCP ============ -->
+  <div class="mt-4 border-t border-border/40">
+    <SectionTitle count={`${mcpEntries.length} serveurs`}>
+      Catalogue MCP
+      {#snippet action()}
+        <Chip tone="neutral" size="sm">protocole ouvert · communauté</Chip>
+      {/snippet}
+    </SectionTitle>
+
+    <div class="px-8 pb-3 flex items-center gap-2" data-testid="connections-mcp-filters">
+      <Chip
+        tone={mcpFilter === "all" ? "primary" : "neutral"}
+        size="sm"
+        outline={mcpFilter !== "all"}
       >
-        {#each suggestedEntries as entry (entry?.name)}
-          {#if entry}
-            <ConnectionAppCard
-              registry={entry}
-              enrichment={registryEnrichment(entry)}
-              toolsCount={(entry.packages ?? [])[0]?.package_arguments.length ?? 0}
-              installed={installedNames.has(entry.name)}
-              onconnect={handleConnect}
-              onmanage={handleManage}
-            />
-          {/if}
-        {/each}
-      </div>
-    {/if}
-  {:else}
-    {#if catalogueEntries.length === 0}
-      <EmptyState
-        icon={EMPTY_STATES.integrations.icon}
-        title={$t("connections.empty.no_results_title", { values: { query } })}
-        description={$t("connections.empty.no_results_description")}
-        primaryLabel={$t("connections.filters.clear_all")}
-        primaryAction={clearAll}
-        page="connections"
-      />
-    {:else}
-      <div
-        class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-        data-testid="connections-catalogue-grid"
+        <button
+          type="button"
+          class="bg-transparent border-0 p-0 cursor-pointer"
+          onclick={() => (mcpFilter = "all")}
+        >
+          Tous · {mcpEntries.length}
+        </button>
+      </Chip>
+      <Chip
+        tone={mcpFilter === "installed" ? "success" : "neutral"}
+        size="sm"
+        outline={mcpFilter !== "installed"}
       >
-        {#each catalogueEntries as entry (entry?.name)}
-          {#if entry}
-            <ConnectionAppCard
-              registry={entry}
-              enrichment={registryEnrichment(entry)}
-              toolsCount={(entry.packages ?? [])[0]?.package_arguments.length ?? 0}
-              installed={entry.is_installed || installedNames.has(entry.name)}
-              onconnect={handleConnect}
-              onmanage={handleManage}
-            />
-          {/if}
-        {/each}
-      </div>
-    {/if}
-  {/if}
+        <button
+          type="button"
+          class="bg-transparent border-0 p-0 cursor-pointer"
+          onclick={() => (mcpFilter = "installed")}
+        >
+          Installés · {installedRegCount}
+        </button>
+      </Chip>
+      <Chip
+        tone={mcpFilter === "official" ? "primary" : "neutral"}
+        size="sm"
+        outline={mcpFilter !== "official"}
+      >
+        <button
+          type="button"
+          class="bg-transparent border-0 p-0 cursor-pointer"
+          onclick={() => (mcpFilter = "official")}
+        >
+          Officiels · {officialCount}
+        </button>
+      </Chip>
+      <Chip
+        tone={mcpFilter === "community" ? "info" : "neutral"}
+        size="sm"
+        outline={mcpFilter !== "community"}
+      >
+        <button
+          type="button"
+          class="bg-transparent border-0 p-0 cursor-pointer"
+          onclick={() => (mcpFilter = "community")}
+        >
+          Communauté · {communityCount}
+        </button>
+      </Chip>
+    </div>
+
+    <div class="px-8 pb-8">
+      {#if loading}
+        <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-loading">
+          {#each Array(8) as _, i (i)}
+            <div class="h-20 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+          {/each}
+        </div>
+      {:else if mcpEntries.length === 0}
+        <EmptyState
+          title={$t("connections.empty.no_suggestions_title")}
+          desc={$t("connections.empty.no_suggestions_description")}
+          tone="neutral"
+        >
+          {#snippet icon()}<Sparkles size={22} />{/snippet}
+        </EmptyState>
+      {:else if filteredMcp.length === 0}
+        <EmptyState
+          title={$t("connections.empty.no_results_title", { values: { query: "" } })}
+          desc={$t("connections.empty.no_results_description")}
+          tone="neutral"
+        >
+          {#snippet action()}
+            <BtnSecondary onclick={() => (mcpFilter = "all")}>
+              {$t("connections.filters.clear_all")}
+            </BtnSecondary>
+          {/snippet}
+        </EmptyState>
+      {:else}
+        <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-grid">
+          {#each filteredMcp as entry (entry.name)}
+            {@const installed = entry.is_installed || installedNames.has(entry.name)}
+            {@const isOfficial =
+              entry.trust_level === "verified_official" ||
+              entry.trust_level === "community_verified"}
+            {@const vendor = isOfficial ? "officiel" : "communauté"}
+            {@const url = entry.remotes?.[0]?.url ?? entry.repository_url ?? ""}
+            <div class="flex flex-col gap-1.5">
+              <ConnectionCard
+                variant="mcp"
+                name={entry.enrichment?.operator_label ?? entry.title ?? entry.name}
+                vendor={vendor}
+                description={entry.description ?? undefined}
+                official={isOfficial}
+                installed={installed}
+                onclick={() =>
+                  installed ? handleManage(entry.name) : handleConnect(entry)}
+              />
+              {#if url}
+                <span
+                  class="px-3 text-[10px] font-mono text-muted-foreground/60 truncate"
+                  title={url}
+                >
+                  {url}
+                </span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
 </div>
 
 {#if selectedRegistryServer}

@@ -32,12 +32,11 @@
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
-  import CloseSessionDialog from "./CloseSessionDialog.svelte";
   import NextStepsPanel from "../common/NextStepsPanel.svelte";
   import { sessionScope, type NextStepsFacts } from "$lib/stores/nextSteps";
-  import { toggleArchived } from "$lib/stores/chatSessions";
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
+  import { triggerAutoName } from "$lib/chat/autoName";
   import SessionNotFound from "./SessionNotFound.svelte";
   import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
   import { AlertOctagon } from "lucide-svelte";
@@ -124,11 +123,6 @@
     // opening the sheet + showing the entry is sufficient for P7.
   }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
-
-  /** soft-close / archive confirmation modal. */
-  let closeDialogOpen = $state(false);
-  let closeDialogMode = $state<"close" | "archive">("close");
-  let closeDialogLoading = $state(false);
 
   /** Pending tool approval — shown inline when the LLM requests a tool call. */
   let pendingApproval = $state<{
@@ -487,6 +481,7 @@
     } catch { /* Session may have been deleted */ }
   }
 
+
   function applySessionDetail(detail: ChatSessionDetail): void {
     messages = detail.messages ?? [];
     sessionMode = detail.mode;
@@ -544,6 +539,15 @@
   }
 
   async function handleSend(content: string, attachments: PendingAttachment[] = []): Promise<void> {
+    // Auto-name fallback: covers conversations created without an initial
+    // prompt (QuickPicker handles the common case before mount). Idempotent
+    // via the helper's internal Set, so double-firing is safe.
+    const isFirstUserMessage =
+      (messages ?? []).every((m) => m.role !== "user") && !sessionDetail?.title;
+    if (isFirstUserMessage) {
+      triggerAutoName(sessionId, content);
+    }
+
     // Attachments v1: inline small payloads as fenced blocks, reference larger
     // files by absolute path. The backend sees a single user message — the
     // authoritative tool-side ingestion happens via the filesystem HITL flow.
@@ -608,11 +612,8 @@
     }
   }
 
-  async function handleSlashCommand(cmdId: "clear" | "export" | "rename" | "memory" | "tools"): Promise<void> {
+  async function handleSlashCommand(cmdId: "export" | "rename"): Promise<void> {
     switch (cmdId) {
-      case "clear":
-        requestCloseSession();
-        return;
       case "rename": {
         const title = prompt($t("chat.rename_placeholder"), sessionDetail?.title ?? "");
         if (title !== null && title.trim()) {
@@ -622,12 +623,6 @@
       }
       case "export":
         await exportCurrentSession("markdown-with-tools");
-        return;
-      case "memory":
-        onconfigtoggle?.();
-        return;
-      case "tools":
-        onconfigtoggle?.();
         return;
     }
   }
@@ -647,34 +642,6 @@
       await invoke("export_conversation", { destPath: dest, content, mime });
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  /** Opens the confirmation modal — user must confirm before close/archive fires. */
-  function requestCloseSession(): void {
-    closeDialogMode = sessionStatus === "closed" ? "archive" : "close";
-    closeDialogOpen = true;
-  }
-
-  function requestArchiveSession(): void {
-    closeDialogMode = "archive";
-    closeDialogOpen = true;
-  }
-
-  async function confirmCloseOrArchive(): Promise<void> {
-    closeDialogLoading = true;
-    try {
-      if (closeDialogMode === "close") {
-        try { await invoke("close_chat_session", { sessionId }); }
-        catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
-        void refreshSession();
-      } else {
-        // Archive is client-side (deviation — backend persistence pending).
-        toggleArchived(sessionId);
-      }
-    } finally {
-      closeDialogLoading = false;
-      closeDialogOpen = false;
     }
   }
 
@@ -827,8 +794,6 @@
       {onsessionsopen}
       onrename={handleRename}
       onexport={(format) => exportCurrentSession(format)}
-      oncloseSession={requestCloseSession}
-      onarchive={requestArchiveSession}
       ondelete={handleDeleteSession}
     />
   {/if}
@@ -1148,13 +1113,5 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
-
-<CloseSessionDialog
-  open={closeDialogOpen}
-  mode={closeDialogMode}
-  loading={closeDialogLoading}
-  onclose={() => (closeDialogOpen = false)}
-  onconfirm={() => void confirmCloseOrArchive()}
-/>
 
 <HitlFilesystemModal {sessionId} />
