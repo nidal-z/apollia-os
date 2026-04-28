@@ -47,7 +47,7 @@ Toute phase peut etre interrompue — l'etat est persiste et la barre de reprise
 | `get_onboarding_status` | — | `OnboardingStatus` | Topics couverts, statut completion |
 | `dismiss_onboarding` | — | `` | Marque la conversation comme dismissee |
 | `check_onboarded` | — | `bool` | `true` si `done` |
-| `reset_onboarding` | — | `` | Reinitialise vers `welcome` |
+| `reset_onboarding` | — | `` | Reinitialise vers `welcome` et purge les données de progression stale (voir §8) |
 
 ### Tour guidé (4 commandes)
 
@@ -200,3 +200,20 @@ mouseup mic-btn   → invoke("stop_tour_recording")
 | passer / skip / quitter | `SkipTour` |
 | tout autre texte | `AskCompanion` |
 | transcription vide | `Unrecognized` |
+
+---
+
+## 8. Reinitialisation de la progression — `reset_onboarding_progress`
+
+Appelee automatiquement par `trigger_onboarding` (sans `topic`) avant chaque nouvelle session d'onboarding, et invoquee explicitement via la commande IPC `reset_onboarding`.
+
+**Deux sources de progression stale sont purgees :**
+
+1. **`UserMemoryRepository`** — efface toutes les cles `onboarding_topic_{topic}` (une par topic couvert). Sans ce nettoyage, la barre de completion afficherait 100% des l'arrivee, avant meme le premier message.
+
+2. **Base semantique de l'agent d'onboarding** (`~/.apollia/memory/onboarding-agent.db`) — efface toutes les entrees dont la cle commence par `user.*` (profil collecte en conversation) et les cles `onboarding.*` sauf `onboarding.active_profile` (preserve pour conserver le profil de la session en cours).
+
+**Garanties :**
+- Si la DB semantique est absente ou illisible, la purge est ignoree silencieusement (warning tracing uniquement).
+- `onboarding.active_profile` est preserve — il est ecrit juste apres le reset et doit survivre.
+- Les donnees des autres namespaces (episodique, procedural) ne sont pas touchees.

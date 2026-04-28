@@ -22,7 +22,7 @@
 4. Cliquez sur **Télécharger**. Une barre de progression apparaît à côté du modèle.
    `[SCREENSHOT: ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler]`
 
-5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 15 minutes selon votre débit). Vous pouvez continuer à utiliser le reste d'Apollia.
+5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue — seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
 
 6. À la fin, l'état du modèle passe à **Disponible localement** avec une pastille verte.
 

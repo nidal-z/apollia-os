@@ -37,7 +37,7 @@ Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques se
 
 ## Étape 4 — Après la réinitialisation
 
-1. Apollia redémarre automatiquement et affiche l'écran d'accueil initial (onboarding).
+1. Apollia redémarre automatiquement et affiche l'écran d'accueil initial. Si le redémarrage automatique échoue (environnement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
 2. Reconfigurez votre fournisseur d'IA : voir [Connecter un fournisseur d'IA](../installation/connecter-un-fournisseur-d-ia.md).
 3. Réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
 4. Si vous avez exporté votre mémoire via la CLI, réimportez-la avec `apollia-os memory import`.

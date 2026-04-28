@@ -27,29 +27,23 @@ main() Tauri
 
 ---
 
-## 13 routes, une barre latérale
+## Navigation — rail d'icônes
 
-L'interface est organisée en 4 catégories dans la sidebar :
+La sidebar est un rail vertical fixe de 56px. Sept destinations principales + Paramètres en pied :
 
-**Opérations**
-- `Agents` — démarrer, arrêter, inspecter les agents en temps réel
-- `Tâches` — liste filtrée, timeline interactive, input/output complets
-- `Approbations` — cartes HITL avec compteur, prompt, boutons Approuver/Rejeter
-- `Chat` — sessions conversationnelles (Chat Libre et Chat Agent)
+| Icône | Vue | Rôle |
+|---|---|---|
+| Accueil | Dashboard | Vue d'ensemble temps réel |
+| Chat | Chat | Sessions conversationnelles |
+| Mes assistants | Agents | Démarrer, arrêter, inspecter |
+| Projets | Projects | Isolation de contexte par projet |
+| Mon travail | Tasks | Liste filtrée, timeline, input/output |
+| Boîte de réception | Inbox | Approbations HITL en attente |
+| Connexions | Integrations | Serveurs MCP |
 
-**Infrastructure**
-- `LLM` — backends configurés, ping de latence, statistiques de coût
-- `Triggers` — créer/modifier/supprimer des triggers, enable/disable, historique des fires
-- `Pipelines` — définir des pipelines, suivre les runs en temps réel
-- `Intégrations` — serveurs MCP (mode opérateur et mode builder)
+Un badge numérique sur **Chat** indique les sessions actives, sur **Mon travail** les tâches in-flight (pulsation animée), sur **Boîte de réception** les approbations en attente. Un tooltip apparaît au survol de chaque icône.
 
-**Données**
-- `Mémoire` — exploration FTS5 des namespaces, recherche sémantique, suppression
-- `Transcriptions` — historique STT, transcription de fichier audio
-- `Notifications` — canaux, événements globaux, historique des alertes envoyées
-- `Observabilité` — timeline globale, coûts LLM, audit trail outils
-
-**Settings** — configuration lecture seule (redirection vers vues dédiées pour les données opérationnelles)
+Les vues complètes (LLM, Triggers, Pipelines, Mémoire, Notifications, Observabilité) restent accessibles via **Paramètres** ou la command palette (Cmd+K).
 
 ---
 

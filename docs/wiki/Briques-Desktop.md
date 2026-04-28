@@ -19,9 +19,10 @@ main() Tauri
   │
   └── tauri::Builder
         ├── .manage(RuntimeHandle)     ← etat partage
-        ├── .invoke_handler(commands)  ← 114 commandes IPC
+        ├── .invoke_handler(commands)  ← commandes IPC
         ├── .plugin(dialog)            ← file picker natif
         ├── .plugin(notification)      ← notifications natives
+        ├── .plugin(updater)           ← mises a jour in-app (tauri-plugin-updater)
         └── .run()                     ← ouvre la WebView
 ```
 
@@ -147,7 +148,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-126 commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérité : `invoke_handler` dans `src/main.rs`) :
+Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérité : `invoke_handler` dans `src/main.rs`) :
 
 ### Agents (6)
 
@@ -302,6 +303,22 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 | `check_llm_configured` | — | `bool` |
 | `check_hello_agent_exists` | — | `Option<String>` (path) |
 
+### Mises a jour in-app (2)
+
+| Commande | Parametres | Retour | Description |
+|---|---|---|---|
+| `check_for_update` | — | `Result<UpdateCheckResult, String>` | Interroge l'endpoint GitHub Releases configure dans `tauri.conf.json`. Retourne `available: true` + `new_version` si une version plus recente existe. |
+| `install_update` | — | `Result<(), String>` | Telecharge et installe la mise a jour disponible, puis redémarre l'application. Doit etre appele apres `check_for_update`. |
+
+```rust
+pub struct UpdateCheckResult {
+    pub available: bool,
+    pub current_version: String,
+    pub new_version: Option<String>,
+    pub release_notes: Option<String>,
+}
+```
+
 ---
 
 ## 4. Frontend Svelte (ADR-028)
@@ -317,7 +334,7 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` avec 15 routes (source de vérité : `ui/src/lib/stores/navigation.ts`) :
+Store Svelte `currentRoute` (source de vérité : `ui/src/lib/stores/navigation.ts`) :
 
 ```typescript
 type Route =
@@ -327,33 +344,40 @@ type Route =
   | "approvals"      // Approbations HITL
   | "chat"           // Sessions de chat interactif
   | "transcriptions" // Historique STT + transcription fichier
-  | "integrations"   // Page Integrations MCP : operator (Connexions) / builder (MCP Servers)
+  | "integrations"   // Connexions MCP (operator) / MCP Servers (builder)
   | "llm"            // Backends LLM, ping, statistiques
   | "triggers"       // Triggers TOML, enable/disable, fire
   | "pipelines"      // Runs multi-agent, steps temps reel
   | "memory"         // Namespaces, recherche FTS5, suppression
   | "notifications"  // Canaux, test, historique
   | "observability"  // Timeline, audit trail, couts LLM
-  | "settings"       // Configuration lecture seule (ADR-029)
-  | "onboarding";    // Wizard premier lancement (gere separement via showOnboarding)
+  | "settings";      // Configuration lecture seule (ADR-029)
 ```
 
-Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side.
+Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side. L'onboarding est gere séparément par `App.svelte` via le store `onboardingStore.showOnboarding` (overlay fullscreen, pas une route).
 
 ### 4.3 Sidebar
 
-Navigation regroupee en 4 categories :
+Rail d'icones 56px permanent (V4, `data-state="rail"`). Pas de mode expand/collapse ni de categories — liste plate de 7 destinations + Settings en pied.
 
-| Categorie | Routes |
-|---|---|
-| **Operations** | agents, tasks, approvals, chat |
-| **Infrastructure** | llm, triggers, pipelines, integrations |
-| **Donnees** | memory, transcriptions, notifications, observability |
-| **Settings** | settings (en bas, avant l'indicateur de connexion) |
+| Route | Icone | Badge |
+|---|---|---|
+| `dashboard` | Home | — |
+| `chat()` | MessageSquare | compteur sessions actives |
+| `agents` | Bot | — |
+| `projects` | FolderOpen | — |
+| `tasks` | CheckSquare | compteur taches in-flight (pulse animee) |
+| `inbox` | Inbox | compteur approbations en attente (`pendingCount + pendingChatApprovalCount`) |
+| `integrations` | Plug | — |
+| `settings` | Settings | — (pied de sidebar) |
 
-Badge rouge sur `approvals` affichant le nombre d'approbations en attente.
-Indicateur de connexion SSE en bas (pastille verte/rouge + label).
-Attributs `data-testid` sur chaque element de navigation pour les tests e2e.
+Comportement :
+- Chaque bouton affiche un **tooltip** au survol (label en francais)
+- La route active est materalisee par une **barre verticale** (`active-bar`) a gauche du bouton
+- Sur mobile, la sidebar bascule en **drawer** (overlay semi-transparent, focus trap, fermeture Echap)
+- L'avatar utilisateur (initiales) est affiche en dernier element du rail
+
+Attributs `data-testid` : `nav-<route>` sur chaque bouton (ex. `data-testid="nav-inbox"`).
 
 ### 4.4 SSE et stores reactifs
 
@@ -572,7 +596,8 @@ Declenchees quand la fenetre est masquee + `TaskInputRequired` recu via SSE :
 ### 8.2 Configuration Tauri
 
 - Fenetre : 1280×800 par defaut, minimum 900×600
-- Plugins : `tauri-plugin-dialog` (file picker), `tauri-plugin-notification` (notifications natives)
+- Plugins : `tauri-plugin-dialog` (file picker), `tauri-plugin-notification` (notifications natives), `tauri-plugin-updater` (mises a jour in-app via GitHub Releases)
+- Endpoint updater configure dans `tauri.conf.json` → section `plugins.updater.endpoints`
 - Build : Vite dev server sur port 5173, frontend dist dans `ui/dist`
 
 ### 8.3 CI
@@ -601,10 +626,8 @@ Un seul processus, un seul Supervisor, un seul jeu d'acteurs Tokio. Pas de confl
 
 Elements `data-testid` sur les composants principaux pour les tests e2e :
 
-- Layout : `app-loading`, `app-main`, `sidebar`, `sidebar-logo`, `sidebar-nav`
-- Navigation : `nav-agents`, `nav-tasks`, `nav-approvals`, `nav-llm`, `nav-triggers`, `nav-pipelines`, `nav-memory`, `nav-notifications`, `nav-observability`, `nav-settings`
-- Groupes : `nav-group-operations`, `nav-group-infrastructure`, `nav-group-donnees`
-- Badges : `approvals-badge`, `connection-status`, `connection-dot`
+- Layout : `app-loading`, `app-main`, `sidebar`
+- Navigation (rail) : `nav-dashboard`, `nav-chat`, `nav-agents`, `nav-projects`, `nav-tasks`, `nav-inbox`, `nav-integrations`, `nav-settings`
 - Contenu : `agents-header`, `register-agent-btn`, `agents-grid`
 
 ---

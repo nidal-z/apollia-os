@@ -614,7 +614,7 @@ disabled:cursor-not-allowed disabled:opacity-50
 
 **Props:**
 - `open: boolean` (required)
-- `onclose: () => void` (required)
+- `onclose: => void` (required)
 - `size?: "sm" | "md" | "lg" | "xl"` (default: `"md"`)
 - `title?: string` — optional header title
 - `children?: Snippet`
