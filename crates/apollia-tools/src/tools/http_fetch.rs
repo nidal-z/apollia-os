@@ -9,6 +9,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::ssrf::assert_public;
 
 /// Maximum response body size accepted by this tool.
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
@@ -24,6 +25,7 @@ const DEFAULT_TIMEOUT_SECS: u64 = 30;
 pub struct HttpFetch {
     allowlist: Option<Vec<String>>,
     client: reqwest::Client,
+    ssrf_guard: bool,
 }
 
 /// Errors produced by [`HttpFetch`].
@@ -43,6 +45,11 @@ pub enum HttpFetchError {
     /// The URL could not be parsed or is missing a hostname.
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
+
+    /// Destination resolves to a private / loopback / link-local / cloud-metadata
+    /// address. Blocked by the SSRF guard before any socket is opened.
+    #[error("SSRF blocked: {0}")]
+    Ssrf(String),
 
     /// The HTTP request failed (connection refused, DNS error, protocol error, etc.).
     #[error("HTTP request failed: {0}")]
@@ -112,7 +119,22 @@ impl HttpFetch {
         let client = reqwest::Client::builder()
             .build()
             .expect("reqwest::Client initialization is infallible");
-        Self { allowlist, client }
+        Self {
+            allowlist,
+            client,
+            ssrf_guard: true,
+        }
+    }
+
+    /// Toggle the name-level SSRF guard.
+    ///
+    /// Enabled by default in [`Self::new`]. The opt-out exists for in-process
+    /// integration tests that need to talk to a `127.0.0.1` mock server.
+    /// Production call sites must keep the guard on.
+    #[must_use]
+    pub fn with_ssrf_guard(mut self, enabled: bool) -> Self {
+        self.ssrf_guard = enabled;
+        self
     }
 
     /// Perform the HTTP request described by `input`.
@@ -132,6 +154,14 @@ impl HttpFetch {
         let started = Instant::now();
 
         let parsed_url = self.validate_url(&input.url)?;
+
+        // SSRF guard — must precede any network I/O. Runs after the allowlist
+        // check so an invalid configuration (`HostNotAllowed`) is reported
+        // first; `Ssrf` only fires when the host *is* allowlisted but still
+        // points at a private destination.
+        if self.ssrf_guard {
+            assert_public(&parsed_url).map_err(|e| HttpFetchError::Ssrf(e.to_string()))?;
+        }
 
         let timeout_secs = input.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
         let method_str = input.method.as_deref().unwrap_or("GET").to_uppercase();
@@ -385,7 +415,7 @@ mod tests {
         let response = b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nPONG";
         tokio::spawn(serve_once(listener, response));
 
-        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()]));
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()])).with_ssrf_guard(false);
 
         // WHEN
         let result = tool
@@ -464,7 +494,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
-        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()]));
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()])).with_ssrf_guard(false);
 
         // WHEN
         let result = tool
@@ -505,7 +535,7 @@ mod tests {
             tokio::time::sleep(Duration::from_secs(60)).await;
         });
 
-        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()]));
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()])).with_ssrf_guard(false);
 
         // WHEN: timeout_secs = 1
         let err = tool
@@ -545,7 +575,7 @@ mod tests {
             socket.write_all(&body).await.expect("write body");
         });
 
-        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()]));
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()])).with_ssrf_guard(false);
 
         // WHEN
         let err = tool
@@ -634,6 +664,53 @@ mod tests {
             matches!(result, Err(HttpFetchError::InvalidUrl(_))),
             "malformed URL should return InvalidUrl"
         );
+    }
+
+    // ─── SSRF guard ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn ssrf_blocks_loopback_even_when_allowlisted() {
+        // GIVEN an allowlist that *does* include 127.0.0.1 but the SSRF
+        // guard is on. Operator misconfiguration should still be safe.
+        let tool = HttpFetch::new(Some(vec!["127.0.0.1".to_string()]));
+
+        // WHEN
+        let err = tool
+            .run(HttpFetchInput {
+                url: "http://127.0.0.1:8080/secret".to_string(),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_secs: Some(1),
+            })
+            .await
+            .expect_err("SSRF should block loopback");
+
+        // THEN
+        assert!(matches!(err, HttpFetchError::Ssrf(_)), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn ssrf_blocks_metadata_endpoint() {
+        // GIVEN: allowlist permits the AWS metadata link-local IP. SSRF must
+        // still slam the door — this is the canonical cloud-credential
+        // exfiltration vector.
+        let tool = HttpFetch::new(Some(vec!["169.254.169.254".to_string()]));
+
+        // WHEN
+        let err = tool
+            .run(HttpFetchInput {
+                url: "http://169.254.169.254/latest/meta-data/".to_string(),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_secs: Some(1),
+            })
+            .await
+            .expect_err("SSRF should block metadata IP");
+
+        // THEN
+        assert!(matches!(err, HttpFetchError::Ssrf(_)), "got: {err}");
     }
 
     #[test]

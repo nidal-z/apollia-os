@@ -114,7 +114,17 @@ pub enum AIPBridgeError {
     /// Internal bridge error.
     #[error("bridge error: {0}")]
     Internal(String),
+
+    /// The Python `run()` coroutine exceeded the configured wall-clock budget.
+    ///
+    /// The underlying `spawn_blocking` task is detached when this fires —
+    /// the Tokio runtime cannot preempt synchronous Python code holding the GIL.
+    #[error("agent run() exceeded wall-clock limit of {secs}s")]
+    WallClockTimeout { secs: u64 },
 }
+
+/// Default wall-clock budget applied to `call_run()` when none is configured.
+const DEFAULT_WALL_CLOCK_SECS: u64 = 300;
 
 /// Bridge between the Tokio runtime and a Python asyncio agent.
 ///
@@ -144,6 +154,9 @@ pub struct AIPBridge {
     /// When set, `call_run()` fetches `APOLLIA.md` asynchronously and injects its content
     /// into `ctx.workspace.apollia_md` before invoking `agent.run(task, ctx)`.
     cwd: Option<std::path::PathBuf>,
+    /// Wall-clock budget enforced around `agent.run()` — falls back to
+    /// [`DEFAULT_WALL_CLOCK_SECS`] when `None`.
+    wall_clock_secs: Option<u64>,
 }
 
 impl AIPBridge {
@@ -195,7 +208,17 @@ impl AIPBridge {
             aip_result_class,
             input_response_class,
             cwd: None,
+            wall_clock_secs: None,
         })
+    }
+
+    /// Overrides the wall-clock budget enforced around `agent.run()`.
+    ///
+    /// Defaults to [`DEFAULT_WALL_CLOCK_SECS`] (5 minutes) when not set.
+    /// Exceeding the budget yields [`AIPBridgeError::WallClockTimeout`].
+    pub fn with_wall_clock_secs(mut self, secs: u64) -> Self {
+        self.wall_clock_secs = Some(secs);
+        self
     }
 
     /// Configures the working directory for `APOLLIA.md` discovery.
@@ -234,6 +257,8 @@ impl AIPBridge {
     /// - `PythonException` if the Python code raises an exception
     /// - `DeserializationError` if the result cannot become `AIPResult`
     /// - `Internal` if Python class injection fails
+    /// - `WallClockTimeout` if `agent.run()` exceeds the configured wall-clock budget
+    ///   (defaults to [`DEFAULT_WALL_CLOCK_SECS`])
     pub async fn call_run(
         &self,
         task: &AIPTask,
@@ -254,7 +279,10 @@ impl AIPBridge {
                 None
             };
 
-        let result_json = tokio::task::spawn_blocking(move || {
+        let wall_clock_secs = self.wall_clock_secs.unwrap_or(DEFAULT_WALL_CLOCK_SECS);
+        let wall_clock = std::time::Duration::from_secs(wall_clock_secs);
+
+        let blocking = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
                 // 1. Inject AIPResult and InputResponse into the agent's run method globals
                 //    so the agent can use them without any import statement.
@@ -320,9 +348,26 @@ impl AIPBridge {
 
                 py_obj_to_json_string(py, &result)
             })
-        })
-        .await
-        .map_err(|e| AIPBridgeError::Internal(format!("spawn_blocking failed: {e}")))??;
+        });
+
+        let result_json = match tokio::time::timeout(wall_clock, blocking).await {
+            Ok(Ok(inner)) => inner?,
+            Ok(Err(join_err)) => {
+                return Err(AIPBridgeError::Internal(format!(
+                    "spawn_blocking failed: {join_err}"
+                )));
+            }
+            Err(_elapsed) => {
+                // The blocking task is detached — Python is still executing on the
+                // blocking thread until it returns. We cannot safely call
+                // `py.check_signals()` from here because the GIL is held by that
+                // thread, so we'd deadlock. The agent process will reclaim the
+                // thread once `asyncio.run()` returns naturally.
+                return Err(AIPBridgeError::WallClockTimeout {
+                    secs: wall_clock_secs,
+                });
+            }
+        };
 
         serde_json::from_str(&result_json)
             .map_err(|e| AIPBridgeError::DeserializationError(e.to_string()))
@@ -604,6 +649,43 @@ agent = TestAgent()
         assert!(result.is_ok());
         let aip_result = result.expect("call_run should succeed");
         assert_eq!(aip_result.status, TaskStatus::Completed);
+    }
+
+    #[tokio::test]
+    async fn test_wall_clock_timeout_fires() {
+        // GIVEN an agent whose run() awaits longer than the configured budget
+        let code = r#"
+import asyncio
+
+class SlowAgent:
+    def manifest(self):
+        return {
+            "name": "slow-agent", "version": "1.0.0",
+            "description": "sleeps past the wall-clock", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        await asyncio.sleep(2)
+        return {"status": "completed", "output": []}
+
+agent = SlowAgent()
+"#;
+        let bridge = create_bridge(code).with_wall_clock_secs(1);
+        let ctx = empty_ctx();
+
+        // WHEN call_run() is invoked with wall_clock_secs = 1
+        let started = std::time::Instant::now();
+        let result = bridge.call_run(&AIPTask::default(), ctx).await;
+        let elapsed = started.elapsed();
+
+        // THEN WallClockTimeout is returned in well under 3 seconds
+        assert!(
+            matches!(result, Err(AIPBridgeError::WallClockTimeout { secs: 1 })),
+            "expected WallClockTimeout{{secs:1}}, got {result:?}"
+        );
+        assert!(
+            elapsed < std::time::Duration::from_secs(3),
+            "timeout took too long: {elapsed:?}"
+        );
     }
 
     #[tokio::test]

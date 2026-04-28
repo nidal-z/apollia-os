@@ -1,88 +1,28 @@
-//! SSRF guard — reject URLs whose host resolves to a private or loopback
-//! range before any socket is opened.
+//! `web_read`-flavoured SSRF guard.
 //!
-//! # Gap documented for v1
+//! Thin wrapper over the workspace-level [`crate::ssrf::assert_public`] that
+//! adapts the generic [`SsrfError`] into the tool's [`WebReadError`] taxonomy.
 //!
-//! This guard is a *name-level* check. A malicious domain that resolves to a
-//! public IP at check-time and to a private one at connect-time (DNS
-//! rebinding) is not mitigated. Closing that gap requires a custom
-//! `reqwest::dns::Resolve` implementation and a matching connector policy —
-//! scheduled as a follow-up story (ADR-072).
+//! [`SsrfError`]: crate::ssrf::SsrfError
+
+use crate::ssrf::{assert_public as shared_assert_public, SsrfError};
 
 use super::error::WebReadError;
 
-/// Validate that *url* points to a public, routable host.
-///
-/// # Errors
-///
-/// Returns [`WebReadError::InvalidUrl`] when the URL is malformed or has no
-/// host component. Returns [`WebReadError::PrivateAddress`] for loopback,
-/// private (RFC 1918 / unique-local), link-local, multicast, or otherwise
-/// internal destinations.
-pub(crate) fn assert_public(url: &url::Url) -> Result<(), WebReadError> {
-    let host = url
-        .host()
-        .ok_or_else(|| WebReadError::InvalidUrl("URL has no host component".to_string()))?;
-
-    match host {
-        url::Host::Ipv4(ip) => {
-            if ip.is_loopback()
-                || ip.is_private()
-                || ip.is_link_local()
-                || ip.is_multicast()
-                || ip.is_broadcast()
-                || ip.is_unspecified()
-            {
-                return Err(WebReadError::PrivateAddress(ip.to_string()));
-            }
-        }
-        url::Host::Ipv6(ip) => {
-            let segments = ip.segments();
-            // Unique-local addresses: fc00::/7 (high byte 0xfc or 0xfd).
-            let is_unique_local = (segments[0] & 0xfe00) == 0xfc00;
-            // IPv4-mapped embedding: if the IPv4 half is private/loopback,
-            // block as well (::ffff:127.0.0.1 etc.).
-            let is_v4_mapped_private = segments[0] == 0
-                && segments[1] == 0
-                && segments[2] == 0
-                && segments[3] == 0
-                && segments[4] == 0
-                && segments[5] == 0xffff
-                && {
-                    let lo = segments[6];
-                    let hi = segments[7];
-                    let v4 = std::net::Ipv4Addr::new(
-                        (lo >> 8) as u8,
-                        (lo & 0xff) as u8,
-                        (hi >> 8) as u8,
-                        (hi & 0xff) as u8,
-                    );
-                    v4.is_loopback() || v4.is_private() || v4.is_link_local()
-                };
-
-            if ip.is_loopback()
-                || ip.is_multicast()
-                || ip.is_unspecified()
-                || is_unique_local
-                || is_v4_mapped_private
-            {
-                return Err(WebReadError::PrivateAddress(ip.to_string()));
-            }
-        }
-        url::Host::Domain(name) => {
-            let lowered = name.to_ascii_lowercase();
-            if lowered == "localhost"
-                || lowered.ends_with(".localhost")
-                || lowered.ends_with(".local")
-                || lowered.ends_with(".internal")
-                || lowered.ends_with(".localdomain")
-            {
-                return Err(WebReadError::PrivateAddress(lowered));
-            }
+impl From<SsrfError> for WebReadError {
+    fn from(err: SsrfError) -> Self {
+        match err {
+            SsrfError::InvalidUrl(msg) => WebReadError::InvalidUrl(msg),
+            SsrfError::PrivateAddress(host) => WebReadError::PrivateAddress(host),
         }
     }
+}
 
-    Ok(())
+/// Validate that *url* points to a public, routable host.
+///
+/// See [`crate::ssrf::assert_public`] for the full policy.
+pub(crate) fn assert_public(url: &url::Url) -> Result<(), WebReadError> {
+    shared_assert_public(url).map_err(WebReadError::from)
 }
 
 #[cfg(test)]
@@ -179,13 +119,11 @@ mod tests {
 
     #[test]
     fn accepts_punycode_domain() {
-        // Internationalised domain → passes; no privacy risk.
         assert!(assert_public(&parse("https://xn--bcher-kva.example/")).is_ok());
     }
 
     #[test]
     fn rejects_missing_host() {
-        // `url::Url::parse("file:///tmp/foo")` returns a URL with no host.
         let parsed = url::Url::parse("file:///etc/passwd").expect("valid url");
         let err = assert_public(&parsed).expect_err("no host");
         assert!(matches!(err, WebReadError::InvalidUrl(_)));

@@ -32,6 +32,7 @@ pub mod project_repository;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
+pub mod ssrf;
 pub mod task_repository;
 pub mod tool_registry;
 pub mod tools;

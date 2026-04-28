@@ -58,6 +58,7 @@ pub struct WebhookChannelConfig {
 pub struct WebhookChannel {
     config: WebhookChannelConfig,
     client: Client,
+    ssrf_guard: bool,
 }
 
 impl WebhookChannel {
@@ -82,7 +83,23 @@ impl WebhookChannel {
     /// Permet d'injecter un client avec un timeout court ou un serveur mock
     /// dans les tests.
     pub(crate) fn with_client(config: WebhookChannelConfig, client: Client) -> Self {
-        Self { config, client }
+        Self {
+            config,
+            client,
+            ssrf_guard: true,
+        }
+    }
+
+    /// Active ou désactive le SSRF guard sur ce canal.
+    ///
+    /// Activé par défaut. L'opt-out existe uniquement pour les tests
+    /// d'intégration in-process qui doivent dialoguer avec un serveur mock
+    /// sur `127.0.0.1`. Tout site d'appel en production doit le laisser à
+    /// `true`.
+    #[must_use]
+    pub fn with_ssrf_guard(mut self, enabled: bool) -> Self {
+        self.ssrf_guard = enabled;
+        self
     }
 }
 
@@ -155,6 +172,16 @@ impl NotificationChannel for WebhookChannel {
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
         if notif.severity < self.config.min_severity {
             return Ok(());
+        }
+
+        // SSRF guard — must precede the HTTP request. Opérateur peut configurer
+        // une URL pointant sur 127.0.0.1 ou un endpoint metadata cloud ;
+        // refus avant tout octet émis.
+        if self.ssrf_guard {
+            let parsed_url = url::Url::parse(&self.config.url)
+                .map_err(|e| NotifError::InvalidUrl(e.to_string()))?;
+            apollia_tools::ssrf::assert_public(&parsed_url)
+                .map_err(|e| NotifError::Ssrf(e.to_string()))?;
         }
 
         let payload = build_payload(notif);
@@ -237,6 +264,7 @@ mod tests {
             signing_secret: None,
             min_severity: Severity::Info,
         })
+        .with_ssrf_guard(false)
     }
 
     fn make_channel_with_secret(url: &str, secret: &str) -> WebhookChannel {
@@ -248,6 +276,7 @@ mod tests {
             signing_secret: Some(secret.into()),
             min_severity: Severity::Info,
         })
+        .with_ssrf_guard(false)
     }
 
     // ─── canal désactivé ───────────────────────────────────────────────
@@ -437,7 +466,7 @@ mod tests {
             .timeout(Duration::from_millis(300))
             .build()
             .expect("client build");
-        let channel = WebhookChannel::with_client(config, client);
+        let channel = WebhookChannel::with_client(config, client).with_ssrf_guard(false);
 
         // WHEN
         let result = channel
@@ -483,7 +512,8 @@ mod tests {
             events: None,
             signing_secret: None,
             min_severity: Severity::Info,
-        });
+        })
+        .with_ssrf_guard(false);
 
         // WHEN
         let result = channel
@@ -702,6 +732,58 @@ mod tests {
         assert!(
             !request.to_lowercase().contains("x-apollia-signature"),
             "X-Apollia-Signature ne doit pas être présent sans secret\n---\n{request}"
+        );
+    }
+
+    // ─── SSRF guard ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_webhook_channel_blocks_internal_url() {
+        // GIVEN un canal webhook configuré (par erreur de l'opérateur) avec
+        // une URL pointant sur le réseau privé RFC1918. Aucun serveur n'écoute,
+        // mais le SSRF guard doit refuser l'envoi avant tout I/O réseau.
+        let channel = WebhookChannel::new(WebhookChannelConfig {
+            id: "exfil-test".into(),
+            url: "http://10.0.0.1/exfil".into(),
+            enabled: true,
+            events: None,
+            signing_secret: None,
+            min_severity: Severity::Info,
+        });
+        let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
+
+        // WHEN
+        let result = channel.send(&notif).await;
+
+        // THEN — NotifError::Ssrf, jamais de tentative HTTP
+        assert!(
+            matches!(result, Err(NotifError::Ssrf(_))),
+            "attendu Err(Ssrf), obtenu {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_webhook_channel_blocks_metadata_endpoint() {
+        // GIVEN URL pointant sur l'endpoint metadata cloud (link-local).
+        let channel = WebhookChannel::new(WebhookChannelConfig {
+            id: "metadata-test".into(),
+            url: "http://169.254.169.254/latest/meta-data/".into(),
+            enabled: true,
+            events: None,
+            signing_secret: None,
+            min_severity: Severity::Info,
+        });
+        let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
+
+        // WHEN
+        let result = channel.send(&notif).await;
+
+        // THEN
+        assert!(
+            matches!(result, Err(NotifError::Ssrf(_))),
+            "attendu Err(Ssrf), obtenu {:?}",
+            result
         );
     }
 }

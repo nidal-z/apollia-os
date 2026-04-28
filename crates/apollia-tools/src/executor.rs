@@ -797,6 +797,7 @@ impl ToolExecutor for HttpFetch {
                 HttpFetchError::RequestFailed(_) => "request_failed",
                 HttpFetchError::ResponseTooLarge { .. } => "response_too_large",
                 HttpFetchError::Timeout { .. } => "timeout",
+                HttpFetchError::Ssrf(_) => "ssrf_blocked",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),

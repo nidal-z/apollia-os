@@ -25,6 +25,13 @@ pub enum NotifError {
     /// Erreur interne du canal (sérialisation, état incohérent, etc.).
     #[error("erreur interne : {0}")]
     Internal(String),
+    /// URL du webhook malformée — parsing impossible.
+    #[error("URL webhook invalide : {0}")]
+    InvalidUrl(String),
+    /// SSRF guard a refusé l'envoi (URL pointant sur loopback / RFC1918 /
+    /// link-local / metadata cloud / domaine `.local|.internal|localhost`).
+    #[error("SSRF bloqué : {0}")]
+    Ssrf(String),
 }
 
 /// Notification prête à être envoyée via un ou plusieurs canaux.

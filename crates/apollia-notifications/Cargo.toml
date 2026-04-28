@@ -5,7 +5,9 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-apollia-core = { workspace = true }
+apollia-core  = { workspace = true }
+apollia-tools = { workspace = true }
+url           = "2"
 async-trait  = { workspace = true }
 chrono       = { workspace = true }
 hex          = "0.4"
