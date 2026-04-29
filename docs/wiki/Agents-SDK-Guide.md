@@ -289,6 +289,7 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `limitations` | `list[str]` | — | Contraintes connues |
 | `setup_notes` | `str` | — | Notes configuration |
 | `packages` | `list[str]` | — | Dépendances pip (ex: `["openpyxl>=3.1.0"]`) |
+| `agent_class` | `str \| None` | — | **Ne pas déclarer.** Renseigné automatiquement par le runtime depuis `agent.__class__.__name__`. Utilisé par l'UI pour afficher un badge de type. |
 | `supports_a2a` | `bool` | — | Accessible via A2A routing (défaut: false) |
 | `skills` | `list[dict]` | — | Skills publiés pour delegation A2A |
 

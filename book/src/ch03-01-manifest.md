@@ -239,3 +239,10 @@ Avant d'activer l'agent, le runtime effectue ces vérifications dans l'ordre :
 6. Résolution des outils listés dans `tools_required`
 
 Si une étape échoue, l'agent s'arrête en `STOPPED` avec un message précis pointant la cause.
+
+Deux contrôles sémantiques s'appliquent à l'étape 3 :
+
+- **`version` doit être un semver valide** (`MAJOR.MINOR.PATCH`). `"1.0.0"` passe ; `"v1"` ou `"latest"` génèrent une erreur immédiate avec le message `version 'v1' is not valid semver — use '1.0.0'`.
+- **Typos dans `tools_required` sont détectées.** Si un nom ressemble à une faute de frappe d'un outil natif connu (distance proche), le runtime refuse au démarrage et suggère la correction : `tool 'bash_explorr' not found — did you mean 'bash_executor'?`. Les outils MCP et dispatchers custom dont le nom est suffisamment distinct passent sans erreur.
+
+> **Référence technique :** [Briques AIP Specification](https://github.com/nidal-z/apollia-os/wiki/Briques-AIP-Specification) — validation sémantique complète et codes d'erreur.

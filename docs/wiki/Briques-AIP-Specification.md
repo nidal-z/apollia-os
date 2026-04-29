@@ -105,6 +105,7 @@ def manifest(self):
 | `examples` | non | `[]` | Aucun exemple — section quick-start masquée dans l'UI |
 | `limitations` | non | `[]` | Aucune limitation déclarée — section masquée dans l'UI |
 | `setup_notes` | non | `None` | Aucun prérequis — section masquée dans l'UI |
+| `agent_class` | — | `None` | **Renseigné par le runtime — ne pas déclarer dans `manifest()`.** Extrait automatiquement de `agent.__class__.__name__` par le validateur AIP. `None` uniquement pour les agents construits hors PyO3 (fixtures de test). Affiché comme badge dans l'UI (ex : `"ReActAgent"` → *Direct*, `"OrchestratedAgent"` → *Orchestrated*). |
 
 ### tools_requiring_approval
 
@@ -781,6 +782,26 @@ Le runtime valide via inspection Python à `INITIALIZING` :
 5. `run()` doit être une coroutine async (`asyncio.iscoroutinefunction`)
 
 Si une validation échoue, l'agent s'arrête en `STOPPED` avec un message d'erreur précis.
+
+### Validation sémantique (étape 3 étendue)
+
+Après désérialisation du manifest, deux contrôles sémantiques supplémentaires sont appliqués :
+
+**Semver obligatoire sur `version` :** `version` doit respecter le format `MAJOR.MINOR.PATCH` (semver strict). Les valeurs `"v1"`, `"latest"`, `"1.0"`, `"🚀"` génèrent une erreur `InvalidVersion` avec le message :
+
+```
+version '🚀' is not valid semver — use '1.0.0'
+```
+
+**Détection de typo dans `tools_required` :** chaque nom d'outil est comparé aux 13 noms d'outils natifs connus. Si un nom est absent de la liste native mais proche par distance de Levenshtein (≤ max(2, len/3)) ou préfixe commun ≥ 4 caractères, une erreur `UnknownTool` est émise avec suggestion :
+
+```
+tool 'bash_explorr' not found — did you mean 'bash_executor'?
+```
+
+Les noms non-natifs suffisamment distincts (outils MCP, dispatchers custom) passent sans erreur — la validation ne bloque que les typos vraisemblables.
+
+**Extraction de `agent_class` :** après les deux contrôles ci-dessus, le validateur estampe `manifest.agent_class` depuis `agent.__class__.__name__`. Ce champ ne doit pas être déclaré dans `manifest()` — il est toujours écrasé par le runtime.
 
 ---
 

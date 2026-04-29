@@ -152,12 +152,14 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_agents` | — | `Vec<AgentInfo>` |
+| `list_agents` | — | `Vec<AgentListItem>` |
 | `start_agent` | `path: String` | `Result<String, String>` (agent_id) |
 | `stop_agent` | `agent_id: String` | `Result<, String>` |
 | `create_agent_from_template` | `name: String, template_type: String` | `Result<CreateAgentResult, String>` |
 | `check_sdk_available` | — | `Result<bool, String>` |
 | `check_agent_name_available` | `name: String` | `Result<bool, String>` |
+
+`AgentListItem` (source : `commands/agents.rs`) inclut notamment : `name`, `description`, `version`, `status`, `execution_mode`, `tools_required`, `tools_optional`, `tags`, `skills`, `examples`, `limitations`, `setup_notes`, et `agent_class: Option<String>` — nom de la classe Python source de l'agent (ex: `"ReActAgent"`), extrait par le validateur AIP et affiché comme badge *Direct / Conversational / Orchestrated / Worker* dans la vue Agents.
 
 ### Tasks (3)
 
