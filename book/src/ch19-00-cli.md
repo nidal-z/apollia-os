@@ -10,7 +10,7 @@ La CLI `apollia-os` suit le pattern `<noun> <verb>` — cohérent avec `docker c
 
 ```
 Niveau 1 (admin, usage quotidien) : start · stop · status · run
-Niveau 2 (développeur)            : agent · task · tools · permissions · memory · audit · llm · pipeline · trigger · notify · stt
+Niveau 2 (développeur)            : agent · task · tools · permissions · memory · audit · llm · trigger · notify · stt
 Niveau 3 (debug)                  : --verbose · --debug · --raw
 ```
 
@@ -190,7 +190,6 @@ TOUTES LES COMMANDES
   start · stop · restart · status · run · health · onboard
   agent    list | start | stop | restart | info | logs | validate | new
   task     list | status | result | cancel | retry | resume | inspect
-  pipeline    list | run | runs | status
   tools       list | enable | disable | config | reload | credentials | describe
   permissions list | revoke | audit
   memory      inspect | list | clear | purge | learn-procedure | export | import
@@ -205,4 +204,4 @@ FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 
 ---
 
-> **Référence complète :** [Briques-CLI](https://github.com/nidal-z/apollia-os/wiki/Briques-CLI) — toutes les sous-commandes `agent`, `task`, `tools`, `permissions`, `memory`, `audit`, `llm`, `pipeline`, `trigger`, `notify`, `stt` avec leurs flags, sorties, et exemples détaillés.
+> **Référence complète :** [Briques-CLI](https://github.com/nidal-z/apollia-os/wiki/Briques-CLI) — toutes les sous-commandes `agent`, `task`, `tools`, `permissions`, `memory`, `audit`, `llm`, `trigger`, `notify`, `stt` avec leurs flags, sorties, et exemples détaillés.

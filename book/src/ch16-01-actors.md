@@ -166,11 +166,11 @@ if let Some(msg) = ctx.mailbox.receive(Duration::from_millis(0)).await {
 
 File FIFO par agent, capacité 100 messages. `MailboxError::QueueFull` si la file est pleine.
 
-### 8. PipelineEngine et TriggerEngine
+### 8. TriggerEngine
 
-**Rôle :** PipelineEngine orchestre les DAGs multi-agents. TriggerEngine surveille les sources d'événements et déclenche des tâches.
+**Rôle :** surveille les sources d'événements (cron, interval, filewatch, webhook) et déclenche des tâches vers les agents.
 
-Tous deux suivent le même pattern Handle — ils ne sont qu'acteurs parmi les autres, sans statut spécial.
+Suit le même pattern Handle — acteur parmi les autres, sans statut spécial.
 
 ---
 

@@ -425,7 +425,6 @@ mod tests {
     use commands::memory::MemoryCommand;
     use commands::model::ModelCommand;
     use commands::notify::NotifyCommand;
-    use commands::pipeline::PipelineCommand;
     use commands::stt::{SttCommand, SttModelCommand, TranscriptionsCommand};
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
@@ -1239,101 +1238,6 @@ mod tests {
         let cli = parse(&["apollia-os", "notify", "--json", "test"]);
         // THEN global json = true
         assert!(matches!(cli.command, Commands::Notify { .. }));
-        assert!(cli.json);
-    }
-
-    // ── pipeline command parsing ───────────────────────────────────
-
-    #[test]
-    fn test_cli_parses_pipeline_list() {
-        // GIVEN "apollia-os pipeline list"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "pipeline", "list"]);
-        // THEN Commands::Pipeline { command: PipelineCommand::List }, json=false
-        match &cli.command {
-            Commands::Pipeline { command } => {
-                assert!(matches!(
-                    command,
-                    PipelineCommand::List {
-                        registry: false,
-                        ..
-                    }
-                ));
-                assert!(!cli.json);
-            }
-            other => panic!("expected Commands::Pipeline, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_pipeline_run() {
-        // GIVEN "apollia-os pipeline run traitement-facture acme.pdf"
-        // WHEN parse
-        let cli = parse(&[
-            "apollia-os",
-            "pipeline",
-            "run",
-            "traitement-facture",
-            "acme.pdf",
-        ]);
-        // THEN PipelineCommand::Run with correct fields
-        match &cli.command {
-            Commands::Pipeline { command } => match command {
-                PipelineCommand::Run {
-                    pipeline_id,
-                    input,
-                    detach,
-                } => {
-                    assert_eq!(pipeline_id, "traitement-facture");
-                    assert_eq!(input, "acme.pdf");
-                    assert!(!detach);
-                }
-                other => panic!("expected PipelineCommand::Run, got {other:?}"),
-            },
-            other => panic!("expected Commands::Pipeline, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_pipeline_runs() {
-        // GIVEN "apollia-os pipeline runs traitement-facture"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "pipeline", "runs", "traitement-facture"]);
-        // THEN PipelineCommand::Runs with default limit=20
-        match &cli.command {
-            Commands::Pipeline { command } => match command {
-                PipelineCommand::Runs { pipeline_id, limit } => {
-                    assert_eq!(pipeline_id, "traitement-facture");
-                    assert_eq!(*limit, 20);
-                }
-                other => panic!("expected PipelineCommand::Runs, got {other:?}"),
-            },
-            other => panic!("expected Commands::Pipeline, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_pipeline_status() {
-        // GIVEN "apollia-os pipeline status r-0017"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "pipeline", "status", "r-0017"]);
-        // THEN PipelineCommand::Status { run_id: "r-0017" }
-        match &cli.command {
-            Commands::Pipeline { command } => match command {
-                PipelineCommand::Status { run_id } => assert_eq!(run_id, "r-0017"),
-                other => panic!("expected PipelineCommand::Status, got {other:?}"),
-            },
-            other => panic!("expected Commands::Pipeline, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_pipeline_json_flag() {
-        // GIVEN "apollia-os pipeline --json list"
-        // WHEN parse
-        let cli = parse(&["apollia-os", "pipeline", "--json", "list"]);
-        // THEN global json = true
-        assert!(matches!(cli.command, Commands::Pipeline { .. }));
         assert!(cli.json);
     }
 

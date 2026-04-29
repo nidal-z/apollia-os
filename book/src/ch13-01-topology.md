@@ -1,5 +1,9 @@
 # Topologie et dépendances
 
+> **Note :** contenu archivé — le moteur de pipelines a été retiré du runtime. Voir ch13-00 pour le contexte.
+
+---
+
 La topologie d'un pipeline est son graphe de dépendances : quels steps attendent quels autres, dans quel ordre ils s'exécutent, comment les données circulent de l'un à l'autre.
 
 ---

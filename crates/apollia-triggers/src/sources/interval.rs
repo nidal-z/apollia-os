@@ -81,7 +81,6 @@ mod tests {
         let def = TriggerDefinition {
             id: "interval-test".into(),
             agent: "agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Interval {

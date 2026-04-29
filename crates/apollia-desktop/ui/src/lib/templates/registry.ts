@@ -8,7 +8,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-export type TemplateKind = "automation" | "agent" | "pipeline";
+export type TemplateKind = "automation" | "agent";
 export type TemplateCategory =
   | "productivity"
   | "dev"

@@ -115,7 +115,6 @@ fn webhook_def(id: &str, secret: &str) -> TriggerDefinition {
     TriggerDefinition {
         id: id.into(),
         agent: "crm-agent".into(),
-        pipeline: None,
         enabled: true,
         on_busy: OnBusyPolicy::Queue { max_depth: 16 },
         source: TriggerSourceConfig::Webhook {
@@ -142,7 +141,6 @@ async fn build_webhook_state(
         mock_submitter,
         event_sender.clone(),
         None,
-        None,
         ObservabilityConfig::default(),
     )
     .await;
@@ -159,14 +157,12 @@ async fn build_webhook_state(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        pipeline_engine: None,
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
-        pipeline_def_repo: None,
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,

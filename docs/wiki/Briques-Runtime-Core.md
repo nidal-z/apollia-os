@@ -54,9 +54,7 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 5.   TaskRouter             → dispatch des tâches vers les agents
 6.   TriggerEngine          → moteur de déclenchement automatique
      └── ouvre TriggerDefinitionRepository (triggers_def.db)
-7.   PipelineEngine         → orchestration multi-agent
-     └── ouvre PipelineDefinitionRepository (pipelines_def.db)
-8.   AuditTrail             → log d'audit (write-only, append)
+7.   AuditTrail             → log d'audit (write-only, append)
 9.   Repositories Phase 9   → NotificationEngine, PlanCacheRepository, AgentMailbox,
                                UserMemoryRepository, TaskRepository, PendingApprovals,
                                ProjectRepository
@@ -73,7 +71,7 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 
 > **Note :** Il n'existe pas d'acteur `MemoryEngine` distinct. Les accès mémoire passent par des repositories SQLite directs (`Arc<Mutex<T>>` dans `AppState`), conformément à ADR-033. L'`APIServer` est démarré en position 12 (dernier acteur de service) afin que toutes les routes soient disponibles seulement une fois tous les composants prêts.
 
-(ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
+(ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances. Le timeout est **global** (pas par acteur) : 10s en mode CLI, 300s en mode embarqué (`EmbeddedConfig`).
 
@@ -270,12 +268,6 @@ GET    /dashboard                           → Dashboard HTML embarqué
 GET    /api/v1/dashboard/state              → Snapshot JSON état runtime
 GET    /api/v1/dashboard/partials/{section} → Fragment HTML (HTMX)
 GET    /api/v1/dashboard/stream             → SSE stream dashboard
-
-# Pipelines CRUD
-POST   /api/v1/pipelines                    → Créer un pipeline
-PUT    /api/v1/pipelines/{id}               → Modifier un pipeline
-DELETE /api/v1/pipelines/{id}               → Supprimer un pipeline
-GET    /api/v1/pipelines/{id}               → Définition d'un pipeline
 
 # Notifications CRUD
 POST   /api/v1/notifications/channels       → Créer un canal
@@ -513,48 +505,7 @@ TriggerDisabled { trigger_id: String },
 TriggersReloaded { count: usize },
 ```
 
-### 7.11 Pipelines
-
-```rust
-/// Run de pipeline démarré.
-PipelineStarted {
-    run_id:      String,
-    pipeline_id: String,
-    trigger_id:  Option<String>,  // None si démarrage manuel
-    step_count:  usize,
-},
-
-/// Step de pipeline soumis au TaskRouter.
-PipelineStepStarted  { run_id: String, step_id: String, task_id: String, agent: String },
-
-/// Step de pipeline terminé avec succès.
-PipelineStepCompleted { run_id: String, step_id: String },
-
-/// Step de pipeline échoué.
-PipelineStepFailed {
-    run_id:     String,
-    step_id:    String,
-    reason:     String,
-    on_failure: String,   // "skip" | "fallback" | "fail"
-},
-
-/// Step de pipeline sauté (condition=false ou on_failure=skip).
-PipelineStepSkipped  { run_id: String, step_id: String, reason: String },
-
-/// Pipeline suspendu en attente d'une approbation HITL.
-PipelineSuspended    { run_id: String, step_id: String, task_id: String },
-
-/// Pipeline repris après approbation HITL.
-PipelineResumed      { run_id: String, step_id: String },
-
-/// Tous les steps complétés — pipeline terminé avec succès.
-PipelineCompleted    { run_id: String, pipeline_id: String, duration_ms: u64 },
-
-/// Pipeline échoué suite à un step avec on_failure=fail.
-PipelineFailed       { run_id: String, pipeline_id: String, step_id: String, reason: String },
-```
-
-### 7.12 Chat
+### 7.11 Chat
 
 ```rust
 /// Session de chat créée.

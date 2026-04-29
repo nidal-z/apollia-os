@@ -1,7 +1,8 @@
 # Intégrer un agent dans un pipeline — Apollia OS
 
-> Guide pratique pour écrire un agent Python qui fonctionne dans un pipeline multi-agent.
-> Public cible : développeur d'agent Python connaissant déjà le format AIP de base.
+> **Note :** la crate `apollia-pipelines` a été retirée du runtime dans cette version. Cette page est conservée comme référence historique. Pour orchestrer plusieurs agents, utilisez le pattern Director Agent via A2A (voir [Agents-Mode-Orchestre](./Agents-Mode-Orchestre)).
+
+> ~~Guide pratique pour écrire un agent Python qui fonctionne dans un pipeline multi-agent.~~
 
 ---
 

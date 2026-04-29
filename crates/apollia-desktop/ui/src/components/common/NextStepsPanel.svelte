@@ -60,7 +60,6 @@
     "/inbox": { route: "inbox" },
     "/llm": { route: "llm" },
     "/triggers": { route: "automations" },
-    "/pipelines": { route: "pipelines" },
     "/memory": { route: "memory" },
     "/memory?new": { route: "memory" },
     "/observability": { route: "observability" },
@@ -73,7 +72,6 @@
   const COMMAND_WHITELIST = new Set([
     "memory_insert",
     "create_trigger",
-    "create_pipeline",
     "install_agent",
     "export_session",
   ]);

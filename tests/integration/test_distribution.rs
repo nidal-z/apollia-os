@@ -142,7 +142,6 @@ fn supervisor_config(
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository: repo,
         bundled_agents_path,
-        pipelines_config: apollia_core::PipelinesConfig::default(),
         package_repository: None,
     }
 }

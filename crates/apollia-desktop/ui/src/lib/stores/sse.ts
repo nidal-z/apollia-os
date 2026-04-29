@@ -23,7 +23,6 @@ import type {
   ConnectionStatus,
   LlmBackendConfig,
   TriggerStatus,
-  PipelineRunSummary,
   ChatSessionSummary,
   PlanCacheHitEvent,
   InsightEntry,
@@ -60,9 +59,6 @@ export const llmBackends = writable<LlmBackendConfig[]>([]);
 
 /** List of triggers from the runtime. */
 export const triggers = writable<TriggerStatus[]>([]);
-
-/** List of pipeline runs from the runtime. */
-export const pipelineRuns = writable<PipelineRunSummary[]>([]);
 
 /** List of chat sessions from the runtime. */
 export const chatSessions = writable<ChatSessionSummary[]>([]);
@@ -133,18 +129,6 @@ async function refreshTriggersViaIpc(): Promise<void> {
   try {
     const result: TriggerStatus[] = await invoke("list_triggers");
     triggers.set(result);
-  } catch {
-    // runtime not ready yet — keep current state
-  }
-}
-
-async function refreshPipelineRunsViaIpc(): Promise<void> {
-  try {
-    const result: PipelineRunSummary[] = await invoke(
-      "list_all_pipeline_runs",
-      { limit: 50 },
-    );
-    pipelineRuns.set(result);
   } catch {
     // runtime not ready yet — keep current state
   }
@@ -293,9 +277,6 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     case "trigger-fired":
       void refreshTriggersViaIpc();
-      break;
-    case "pipeline-changed":
-      void refreshPipelineRunsViaIpc();
       break;
     case "chat-changed":
       void refreshChatSessionsViaIpc();
@@ -450,7 +431,6 @@ export async function refreshAll(): Promise<void> {
     refreshTasksViaIpc(),
     refreshLlmBackendsViaIpc(),
     refreshTriggersViaIpc(),
-    refreshPipelineRunsViaIpc(),
     refreshPendingApprovalsViaIpc(),
     refreshChatSessionsViaIpc(),
   ]);

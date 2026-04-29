@@ -182,7 +182,7 @@
         <div>
           <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-headers">
             {$t("notifications.field_headers")}
-            <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+            <span class="font-normal text-muted-foreground">({$t("common.optional")})</span>
           </label>
           <Textarea
             id="edit-channel-headers"

@@ -295,7 +295,6 @@ mod tests {
         TriggerDefinition {
             id: "file-test".into(),
             agent: "file-agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::FileWatch {
@@ -732,7 +731,6 @@ mod tests {
         let def = TriggerDefinition {
             id: "dedup-test".into(),
             agent: "dedup-agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::FileWatch {

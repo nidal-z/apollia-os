@@ -1,5 +1,9 @@
 # Conditions et fallbacks
 
+> **Note :** contenu archivé — le moteur de pipelines a été retiré du runtime. Voir ch13-00 pour le contexte.
+
+---
+
 Les dépendances linéaires (`depends_on`) suffisent pour les workflows séquentiels. Mais dès qu'un step doit s'adapter au résultat d'un précédent — ne s'exécuter que si la validation a produit "VALIDE", passer à un agent de revue manuelle si l'automatique échoue — il faut des mécanismes supplémentaires.
 
 Apollia OS propose deux : les **conditions** (skip si la condition est fausse) et les **fallbacks** (remplacer un step qui a échoué par un agent de secours).

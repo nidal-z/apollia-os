@@ -1,5 +1,9 @@
 # Lancer un pipeline
 
+> **Cette fonctionnalité n'est pas disponible dans la version actuelle.** Le moteur de pipelines déclaratifs a été retiré du runtime. Pour orchestrer plusieurs agents, utilisez des agents Python en mode Director (voir *Démarrer un agent*).
+
+<!--
+
 > Pour les operators qui veulent exécuter un workflow multi-étapes déjà défini et suivre sa progression de bout en bout.
 
 ## Prérequis
@@ -48,4 +52,4 @@ Le run apparaît dans l'onglet **Runs** avec le statut **Terminé** et une duré
 - **Modal de paramètres avec un message rouge** : un champ obligatoire est vide ou mal formaté (par exemple, une URL sans `https://`).
 - **Pipeline bloqué en bleu sans avancer** : une étape attend une approbation. Vérifiez l'**Inbox** pour voir s'il y a une carte d'approbation en attente.
 
-> **Concept :** [book ch13 — Pipelines](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch13-00-pipelines.md)
+-->

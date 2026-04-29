@@ -659,60 +659,6 @@ $ apollia-os notify logs --last 50
   14:28:15           task.failed          t-038      desktop, slack-webhook
 ```
 
-### `apollia-os pipeline <verb>`
-
-Orchestration multi-agent via pipelines déclaratifs. Nécessite un runtime démarré.
-
-```bash
-# Lister les pipelines déclarés dans apollia.toml
-$ apollia-os pipeline list
-  PIPELINES CONFIGURÉS
-  ──────────────────────────────────────────────────────
-  ID                      STEPS   DESCRIPTION
-  traitement-facture      4       OCR → validation → comptabilisation → archivage
-  rapport-hebdomadaire    2       Rapport PME automatique
-
-# Déclencher un pipeline manuellement
-$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf"
-  ✔ Pipeline run démarré : r-3f7a2b9c
-
-# Déclencher et suivre la progression (polling par défaut)
-$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf"
-  ⟿ [ocr] running
-  ✔ [ocr] completed
-  ⟿ [validation] running
-  ✔ [validation] completed
-  ⟿ [comptabilite] running
-  ⏸ [comptabilite] waiting_approval
-
-  ✔ Pipeline terminé en 1m23s — 4/4 steps (0 skipped)
-
-# Déclencher sans attendre la fin (fire-and-forget)
-$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf" --detach
-  ● traitement-facture › démarré (run r-3f7a2b9c)
-
-# Voir l'historique des runs d'un pipeline
-$ apollia-os pipeline runs traitement-facture
-  RUN ID       STATUT        DÉMARRÉ                DURÉE
-  r-3f7a2b9c   Completed     2026-03-10 10:01:32    1m23s
-  r-2e6b1a8b   Failed        2026-03-09 14:32:01    0m08s   (step: validation)
-
-# Inspecter l'état détaillé d'un run
-$ apollia-os pipeline status r-3f7a2b9c
-  Pipeline : traitement-facture
-  Run      : r-3f7a2b9c
-  Statut   : Completed — 2026-03-10 10:02:55
-
-  STEP              STATUT      DURÉE   TÂCHE
-  ocr               Completed   13.2s   t-0021
-  validation        Completed    1.8s   t-0022
-  comptabilisation  Completed   13.0s   t-0023
-  archivage         Completed    2.3s   t-0024
-
-# Format JSON pour scripts
-$ apollia-os pipeline status r-3f7a2b9c --json
-```
-
 ---
 
 ## 4. Niveau 3 — Debug
@@ -793,7 +739,6 @@ $ apollia-os
     start · stop · restart · status · run · health · onboard
     agent    list | start | stop | restart | info | logs | validate | new
     task     list | status | result | cancel | retry | resume | inspect
-    pipeline    list | run | runs | status
     tools       list | enable | disable | config | reload | credentials | describe
     permissions list | revoke | audit
     memory      inspect | list | clear | purge | learn-procedure | export | import
@@ -937,19 +882,6 @@ $ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replac
 # Purge configurable par type
 $ apollia memory purge --agent crm-agent --older-than 7 --type episodic
   5 entrée(s) épisodique(s) supprimée(s).
-```
-
-### `apollia pipeline install`
-
-```bash
-# Installer un pipeline depuis le registry communautaire
-$ apollia pipeline install code-review
-  ✔ Pipeline "code-review" installé dans ~/.apollia/pipelines/code-review.toml
-
-# Lister les pipelines disponibles dans le registry
-$ apollia pipeline list --registry
-  code-review          Revue de code automatique
-  invoice-processing   OCR → validation → comptabilisation
 ```
 
 ---

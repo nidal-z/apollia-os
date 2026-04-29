@@ -7,7 +7,6 @@
   import { uiMode } from "$lib/stores/mode";
   import type {
     AgentListItem,
-    PipelineInfo,
     CreateTriggerRequest,
     TriggerSourceInput,
     TriggerDefinitionView,
@@ -26,7 +25,6 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
-  import { RadioItem } from "$lib/components/ui/radio";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -43,7 +41,6 @@
   let { open, onclose, oncreated }: Props = $props();
 
   type SourceType = "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
-  type TargetKind = "agent" | "pipeline";
 
   const isBuilder = $derived($uiMode === "builder");
 
@@ -61,13 +58,10 @@
   ];
 
   let agents = $state<AgentListItem[]>([]);
-  let pipelines = $state<PipelineInfo[]>([]);
 
   let triggerId = $state("");
   let idCustomized = $state(false);
-  let targetKind = $state<TargetKind>("agent");
   let selectedAgent = $state("");
-  let selectedPipeline = $state("");
   let sourceType = $state<SourceType>("cron");
   let enabled = $state(true);
   let onBusy = $state<"queue" | "drop">("queue");
@@ -97,9 +91,8 @@
   // Auto-generate ID for operators when agent + source type are set
   $effect(() => {
     if (!isBuilder && !idCustomized) {
-      const target = selectedAgent || selectedPipeline;
-      if (target && sourceType) {
-        const slug = target.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      if (selectedAgent && sourceType) {
+        const slug = selectedAgent.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
         triggerId = `${slug}-${sourceType.replace("_", "-")}`;
       }
     }
@@ -114,8 +107,7 @@
 
   const targetError = $derived.by(() => {
     if (!touched) return null;
-    if (targetKind === "agent" && !selectedAgent) return $t("triggers.field_target_required");
-    if (targetKind === "pipeline" && !selectedPipeline) return $t("triggers.field_target_required");
+    if (!selectedAgent) return $t("triggers.field_target_required");
     return null;
   });
 
@@ -135,7 +127,7 @@
   const isValid = $derived(
     !!triggerId.trim() &&
     TRIGGER_ID_PATTERN.test(triggerId) &&
-    ((targetKind === "agent" && !!selectedAgent) || (targetKind === "pipeline" && !!selectedPipeline)) &&
+    !!selectedAgent &&
     !sourceError
   );
 
@@ -171,12 +163,8 @@
         enabled,
         on_busy: onBusy,
         source: buildSource(),
+        agent: selectedAgent,
       };
-      if (targetKind === "agent") {
-        definition.agent = selectedAgent;
-      } else {
-        definition.pipeline = selectedPipeline;
-      }
       if (inputTemplate.trim()) {
         definition.input_template = inputTemplate.trim();
       }
@@ -200,9 +188,7 @@
   function resetForm() {
     triggerId = "";
     idCustomized = false;
-    targetKind = "agent";
     selectedAgent = "";
-    selectedPipeline = "";
     sourceType = "cron";
     enabled = true;
     onBusy = "queue";
@@ -229,11 +215,6 @@
     } catch {
       agents = [];
     }
-    try {
-      pipelines = await invoke("list_pipelines");
-    } catch {
-      pipelines = [];
-    }
   }
 
   $effect(() => {
@@ -255,7 +236,6 @@
 
         if (typeof agentId === "string") {
           selectedAgent = agentId;
-          targetKind = "agent";
         }
         if (type === "interval") {
           sourceType = "interval";
@@ -279,50 +259,19 @@
 <Dialog open={open} onclose={onclose} size="md" title={$t("triggers.create_trigger")} data-testid="trigger-create-dialog">
   <div class="space-y-5">
 
-    <!-- Target: Agent / Pipeline -->
+    <!-- Target: Agent -->
     <div>
       <p class="mb-1.5 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
-      <div class="mb-2 flex gap-3">
-        <RadioItem
-          value="agent"
-          checked={targetKind === "agent"}
-          onchange={() => targetKind = "agent"}
-          data-testid="trigger-target-agent-radio"
-        >
-          {$t("triggers.field_target_agent")}
-        </RadioItem>
-        <RadioItem
-          value="pipeline"
-          checked={targetKind === "pipeline"}
-          onchange={() => targetKind = "pipeline"}
-          data-testid="trigger-target-pipeline-radio"
-        >
-          {$t("triggers.field_target_pipeline")}
-        </RadioItem>
-      </div>
-      {#if targetKind === "agent"}
-        <Select
-          bind:value={selectedAgent}
-          aria-label={$t("triggers.field_target_agent")}
-          data-testid="trigger-input-agent"
-        >
-          <option value="" disabled>— {$t("triggers.field_target_agent")} —</option>
-          {#each agents as agent}
-            <option value={agent.name}>{agent.name}</option>
-          {/each}
-        </Select>
-      {:else}
-        <Select
-          bind:value={selectedPipeline}
-          aria-label={$t("triggers.field_target_pipeline")}
-          data-testid="trigger-pipeline-select"
-        >
-          <option value="" disabled>— {$t("triggers.field_target_pipeline")} —</option>
-          {#each pipelines as pipeline}
-            <option value={pipeline.id}>{pipeline.id}{pipeline.description ? ` — ${pipeline.description}` : ""}</option>
-          {/each}
-        </Select>
-      {/if}
+      <Select
+        bind:value={selectedAgent}
+        aria-label={$t("triggers.field_target_agent")}
+        data-testid="trigger-input-agent"
+      >
+        <option value="" disabled>— {$t("triggers.field_target_agent")} —</option>
+        {#each agents as agent}
+          <option value={agent.name}>{agent.name}</option>
+        {/each}
+      </Select>
       {#if targetError}
         <p class="mt-0.5 text-xs text-destructive" data-testid="trigger-target-error">{targetError}</p>
       {/if}
@@ -549,7 +498,7 @@
           <div>
             <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-input-template">
               {$t("triggers.field_input_template")}
-              <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+              <span class="font-normal text-muted-foreground">({$t("common.optional")})</span>
             </label>
             <Textarea
               id="trigger-input-template"

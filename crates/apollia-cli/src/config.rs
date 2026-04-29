@@ -4,9 +4,10 @@
 //! et [`validate_llm_config`] pour une validation non-fatale (warnings seulement)
 //! des backends LLM.
 //!
-//! Les sections opérationnelles (`[[triggers]]`, `[[pipelines]]`, `[notifications]`,
-//! `[stt]`) ne sont plus gérées par le fichier TOML — elles sont désormais stockées
-//! en SQLite et administrées via l'API REST ou l'application desktop.
+//! Les sections opérationnelles (`[[triggers]]`, `[notifications]`, `[stt]`) ne sont
+//! plus gérées par le fichier TOML — elles sont désormais stockées en SQLite et
+//! administrées via l'API REST ou l'application desktop. Les sections `[pipelines]`
+//! et `[[pipelines]]` sont obsolètes — l'engine pipelines a été retiré.
 //! Si un ancien fichier TOML contient ces sections, un warning est émis mais le boot
 //! continue normalement.
 //!
@@ -55,7 +56,7 @@ pub enum ConfigError {
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
 ///
 /// Contient la configuration LLM, l'API REST, le runtime core, le HITL et le routing A2A.
-/// La configuration opérationnelle (triggers, pipelines, notifications, agents, stt)
+/// La configuration opérationnelle (triggers, notifications, agents, stt)
 /// est gérée en SQLite.
 ///
 /// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
@@ -92,10 +93,9 @@ pub struct ApolliaCConfig {
     /// Vaut `None` si absente ; les valeurs par défaut de [`ORIAConfig`] s'appliquent.
     pub oria: Option<ORIAConfig>,
 
-    /// Section `[registry]` — URL du registry de pipelines communautaires.
+    /// Section `[registry]` — URL du registry communautaire.
     ///
-    /// Vaut `None` si absente ; la valeur par défaut de [`RegistryConfig`] s'applique
-    /// (`https://github.com/apollia-os/pipelines`).
+    /// Vaut `None` si absente ; la valeur par défaut de [`RegistryConfig`] s'applique.
     pub registry: Option<RegistryConfig>,
 
     /// Section `[tools]` — outils natifs : limites, désactivations statiques,
@@ -124,7 +124,7 @@ pub struct ApolliaCConfig {
 ///
 /// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
 /// si un ancien fichier `apollia.toml` contient encore ces sections.
-const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
+const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt", "pipelines"];
 
 // ─────────────────────────────────────────────
 // Fonctions publiques
@@ -155,8 +155,9 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 ///
 /// Après le parsing TOML :
 /// - Les chemins `model_path` des backends embarqués sont normalisés via [`expand_tilde`].
-/// - Les sections obsolètes (`[[triggers]]`, `[[pipelines]]`, `[notifications]`) sont
-///   détectées et émettent un warning sans bloquer le démarrage.
+/// - Les sections obsolètes (`[[triggers]]`, `[pipelines]` / `[[pipelines]]`,
+///   `[notifications]`, `[stt]`) sont détectées et émettent un warning sans bloquer
+///   le démarrage.
 ///
 /// La section `[llm]` est **optionnelle** : son absence produit `config.llm = None`
 /// sans erreur.
@@ -196,14 +197,6 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
                 filtered.insert((*key).to_string(), v.clone());
             }
         }
-        // `[pipelines]` (table) = engine configuration — include only when a table.
-        // `[[pipelines]]` (array) = old deprecated pipeline definitions — skip silently.
-        for key in &["pipelines"] {
-            if let Some(toml::Value::Table(_)) = table.get(*key) {
-                let v = table.get(*key).expect("just matched").clone();
-                filtered.insert((*key).to_string(), v);
-            }
-        }
     }
 
     let mut config: ApolliaCConfig = toml::Value::Table(filtered)
@@ -233,9 +226,9 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
 
 /// Détecte et signale les sections TOML obsolètes.
 ///
-/// Les sections `[[triggers]]`, `[[pipelines]]` et
-/// `[notifications]` sont gérées en SQLite. Si le fichier TOML les contient
-/// encore, un warning est émis pour chaque section détectée.
+/// Les sections `[[triggers]]`, `[notifications]`, `[stt]`, `[pipelines]` /
+/// `[[pipelines]]` sont obsolètes. Si le fichier TOML les contient encore, un
+/// warning est émis pour chaque section détectée.
 fn check_deprecated_sections(content: &str) {
     for section in DEPRECATED_SECTIONS {
         let bracket_single = format!("[{section}]");
@@ -590,24 +583,21 @@ events = ["task.completed"]
 
     // GIVEN la constante DEPRECATED_SECTIONS
     // WHEN on l'inspecte
-    // THEN elle contient triggers, notifications, stt (mais pas "pipelines" — [pipelines] est une section active)
+    // THEN elle contient triggers, notifications, stt et pipelines (engine retiré)
     #[test]
     fn test_deprecated_sections_constant() {
         assert!(DEPRECATED_SECTIONS.contains(&"triggers"));
         assert!(DEPRECATED_SECTIONS.contains(&"notifications"));
         assert!(DEPRECATED_SECTIONS.contains(&"stt"));
-        // [pipelines] (table) is still a valid active section for PipelinesConfig —
-        // only the old [[pipelines]] array format (pipeline definitions) is deprecated.
-        assert!(!DEPRECATED_SECTIONS.contains(&"pipelines"));
+        assert!(DEPRECATED_SECTIONS.contains(&"pipelines"));
     }
 
     // GIVEN un TOML qui contient [[pipelines]] obsolète (format tableau)
     // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit — le tableau [[pipelines]] est silencieusement ignoré
-    // car seul [pipelines] (table) est inclus dans la configuration active.
+    // THEN le parsing réussit — le tableau [[pipelines]] est silencieusement ignoré.
     #[test]
     fn test_deprecated_pipelines_array_section_does_not_block_parsing() {
-        // GIVEN — [[pipelines]] array is the old pipeline-definitions format (now in SQLite)
+        // GIVEN — [[pipelines]] array is the old pipeline-definitions format
         let toml = r#"
 [[pipelines]]
 id          = "old-pipeline"
@@ -623,16 +613,11 @@ input = "x"
         // WHEN
         let result = parse_apollia_toml(file.path());
 
-        // THEN — array format is silently skipped; config.pipelines is None
+        // THEN — array format is silently skipped; parsing succeeds
         assert!(
             result.is_ok(),
             "parsing should succeed — [[pipelines]] array is ignored, error: {:?}",
             result.err()
-        );
-        let cfg = result.expect("must parse");
-        assert!(
-            cfg.pipelines.is_none(),
-            "[[pipelines]] array must not be deserialized into PipelinesConfig"
         );
     }
 
@@ -689,7 +674,7 @@ max_sessions = 100
 
     // GIVEN le struct ApolliaCConfig
     // WHEN on vérifie sa structure
-    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a, oria, pipelines, registry, mcp, permissions, filesystem)
+    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a, oria, registry, tools, mcp, permissions, filesystem)
     #[test]
     fn test_config_struct_has_expected_fields() {
         let config = ApolliaCConfig {
@@ -699,7 +684,6 @@ max_sessions = 100
             hitl: None,
             a2a: None,
             oria: None,
-            pipelines: None,
             registry: None,
             tools: None,
             mcp: None,

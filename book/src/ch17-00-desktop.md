@@ -1,6 +1,6 @@
 # L'application Desktop
 
-Apollia OS propose une application desktop native (macOS et Linux) construite avec Tauri v2 et Svelte 5. Elle démarre le runtime complet en interne — un double-clic suffit pour avoir agents, pipelines, et chat interactif dans une interface graphique.
+Apollia OS propose une application desktop native (macOS et Linux) construite avec Tauri v2 et Svelte 5. Elle démarre le runtime complet en interne — un double-clic suffit pour avoir agents et chat interactif dans une interface graphique.
 
 ---
 
@@ -43,7 +43,7 @@ La sidebar est un rail vertical fixe de 56px. Sept destinations principales + Pa
 
 Un badge numérique sur **Chat** indique les sessions actives, sur **Mon travail** les tâches in-flight (pulsation animée), sur **Boîte de réception** les approbations en attente. Un tooltip apparaît au survol de chaque icône.
 
-Les vues complètes (LLM, Triggers, Pipelines, Mémoire, Notifications, Observabilité) restent accessibles via **Paramètres** ou la command palette (Cmd+K).
+Les vues complètes (LLM, Triggers, Mémoire, Notifications, Observabilité) restent accessibles via **Paramètres** ou la command palette (Cmd+K).
 
 ---
 
@@ -58,7 +58,6 @@ Le frontend Svelte maintient une connexion SSE permanente vers `localhost:7771/a
 | `pendingApprovals` | Événement `TaskInputRequired` |
 | `llmBackends` | Événements `LlmModelReady`, `LlmModelFailed` |
 | `triggers` | Événements `TriggerFired`, `TriggerEnabled` |
-| `pipelineRuns` | Événements `PipelineStarted`, `PipelineCompleted` |
 | `connectionStatus` | État de la connexion SSE elle-même |
 
 Reconnexion automatique avec backoff exponentiel (1s → 30s) si la connexion SSE est perdue.

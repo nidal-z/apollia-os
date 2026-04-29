@@ -1105,28 +1105,12 @@ mod tests {
         TriggerDefinition {
             id: id.into(),
             agent: "test-agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy,
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
             input_template: InputTemplate("test {{scheduled_at}}".into()),
-        }
-    }
-
-    /// Construit une `TriggerDefinition` pour un trigger pipeline.
-    fn make_pipeline_definition(id: &str, pipeline_id: &str) -> TriggerDefinition {
-        TriggerDefinition {
-            id: id.into(),
-            agent: String::new(),
-            pipeline: Some(pipeline_id.into()),
-            enabled: true,
-            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
-            source: TriggerSourceConfig::Cron {
-                schedule: "0 8 * * MON".into(),
-            },
-            input_template: InputTemplate("{{scheduled_at}}".into()),
         }
     }
 
@@ -1222,7 +1206,6 @@ mod tests {
             router,
             make_bus(),
             None,
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1240,7 +1223,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1266,7 +1248,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1298,7 +1279,6 @@ mod tests {
             router,
             make_bus(),
             None,
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1316,7 +1296,6 @@ mod tests {
             vec![],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1340,7 +1319,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1368,7 +1346,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1400,7 +1377,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1441,7 +1417,6 @@ mod tests {
             router,
             make_bus(),
             None,
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1475,7 +1450,6 @@ mod tests {
             router,
             bus_tx,
             None,
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1504,79 +1478,16 @@ mod tests {
         );
     }
 
-    // ── Triggers → Pipelines ──────────────────────────────────────────────────
-
-    /// Trigger avec `pipeline` sans PipelineEngineHandle → TriggerSkipped, pas de panic.
-    #[tokio::test]
-    async fn test_ac3_trigger_pipeline_no_engine_warning_no_panic() {
-        // GIVEN TriggerEngine sans pipeline_engine (None)
-        //   ET un trigger avec pipeline = "traitement-facture"
-        let def = make_pipeline_definition("factures-auto", "traitement-facture");
-        let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
-        let (router, task_calls) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(
-            vec![def],
-            router,
-            bus_tx,
-            None,
-            None,
-            ObservabilityConfig::default(),
-        )
-        .await;
-
-        // WHEN le trigger fire
-        let result = handle.fire_now("factures-auto").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        // THEN Err(SubmitFailed) — aucune panic
-        assert!(
-            matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
-            "expected SubmitFailed, got {result:?}"
-        );
-
-        // ET TaskRouter n'est pas appelé
-        assert_eq!(
-            task_calls.load(Ordering::SeqCst),
-            0,
-            "TaskRouter ne doit pas être appelé pour un trigger pipeline"
-        );
-
-        // ET TriggerSkipped est émis sur EventBus avec reason pipeline_engine_unavailable
-        let skipped = tokio::time::timeout(std::time::Duration::from_millis(200), async {
-            loop {
-                match bus_rx.recv().await {
-                    Ok(apollia_core::RuntimeEvent::TriggerSkipped { reason, .. }) => {
-                        return reason;
-                    }
-                    Ok(_) => {}
-                    Err(_) => return String::new(),
-                }
-            }
-        })
-        .await
-        .unwrap_or_default();
-
-        assert!(
-            skipped.contains("pipeline_engine_unavailable"),
-            "reason doit contenir 'pipeline_engine_unavailable', got: '{skipped}'"
-        );
-
-        // ET l'acteur est toujours vivant (pas de panic)
-        let list = handle.list().await;
-        assert_eq!(list.len(), 1, "l'acteur doit encore répondre après le skip");
-    }
-
-    /// Trigger avec `agent` non affecté par l'ajout de la fonctionnalité pipeline.
+    /// Trigger avec `agent` non affecté.
     #[tokio::test]
     async fn test_ac5_agent_trigger_unaffected() {
-        // GIVEN trigger existant avec agent="hello-agent" (pipeline = None)
+        // GIVEN trigger existant avec agent="hello-agent"
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
         let handle = TriggerEngine::start(
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1631,7 +1542,6 @@ mod tests {
             router,
             make_bus(),
             Some(persistence),
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1650,37 +1560,6 @@ mod tests {
         assert!(list[0].last_fired.is_some(), "last_fired doit être Some");
     }
 
-    /// Le champ `pipeline` de TriggerDefinition est backward-compatible.
-    ///
-    /// Un moteur créé avec des définitions sans `pipeline` fonctionne exactement
-    /// comme attendu — aucune régression.
-    #[tokio::test]
-    async fn test_ac1_pipeline_none_no_regression() {
-        // GIVEN trigger sans pipeline (None)
-        let def = make_definition("ancien-trigger", OnBusyPolicy::Queue { max_depth: 10 });
-        assert!(def.pipeline.is_none());
-
-        let (router, calls) = MockTaskRouterHandle::new_with_tracking();
-        let handle = TriggerEngine::start(
-            vec![def],
-            router,
-            make_bus(),
-            None,
-            None,
-            ObservabilityConfig::default(),
-        )
-        .await;
-
-        // WHEN fire
-        handle
-            .fire_now("ancien-trigger")
-            .await
-            .expect("fire_now must succeed");
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        // THEN submit appelé — même comportement qu'avant
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
 
     // ── OnBusyPolicy::Queue ────────────────────────────────────────────────
 
@@ -1693,7 +1572,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1723,7 +1601,6 @@ mod tests {
             vec![def],
             router,
             bus_tx,
-            None,
             None,
             ObservabilityConfig::default(),
         )
@@ -1781,7 +1658,6 @@ mod tests {
             router,
             make_bus(),
             None,
-            None,
             ObservabilityConfig::default(),
         )
         .await;
@@ -1807,7 +1683,6 @@ mod tests {
             vec![def],
             router,
             make_bus(),
-            None,
             None,
             ObservabilityConfig::default(),
         )

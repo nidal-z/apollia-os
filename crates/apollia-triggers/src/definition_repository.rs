@@ -407,7 +407,6 @@ mod tests {
         TriggerDefinitionRow {
             id: id.to_string(),
             agent: Some(agent.to_string()),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -434,7 +433,6 @@ mod tests {
         let got = got.expect("should exist");
         assert_eq!(got.id, "rapport-hebdo");
         assert_eq!(got.agent.as_deref(), Some("rapport-agent"));
-        assert!(got.pipeline.is_none());
         assert!(got.enabled);
         assert_eq!(got.on_busy, OnBusy::Queue);
         assert_eq!(got.source_type, "cron");
@@ -573,7 +571,6 @@ mod tests {
         let def_neither = TriggerDefinitionRow {
             id: "test-neither".to_string(),
             agent: None,
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -594,7 +591,6 @@ mod tests {
         let def_both = TriggerDefinitionRow {
             id: "test-both".to_string(),
             agent: Some("a".to_string()),
-            pipeline: Some("p".to_string()),
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -620,7 +616,6 @@ mod tests {
         let def = TriggerDefinitionRow {
             id: "webhook-short".to_string(),
             agent: Some("agent".to_string()),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "webhook".to_string(),
@@ -679,7 +674,6 @@ mod tests {
         let def = TriggerDefinitionRow {
             id: "webhook-valid".to_string(),
             agent: Some("agent".to_string()),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "webhook".to_string(),
@@ -694,28 +688,4 @@ mod tests {
         assert_eq!(got.source_type, "webhook");
     }
 
-    // ── Extra — Pipeline target (sans agent) ────────────────────────────────
-
-    #[test]
-    fn test_pipeline_target() {
-        let (_dir, repo) = open_test_repo();
-        let def = TriggerDefinitionRow {
-            id: "pipeline-trigger".to_string(),
-            agent: None,
-            pipeline: Some("my-pipeline".to_string()),
-            enabled: true,
-            on_busy: OnBusy::Drop,
-            source_type: "interval".to_string(),
-            source_config: serde_json::json!({ "every": "30m" }),
-            input_template: Some("{{body}}".to_string()),
-            created_at: String::new(),
-            updated_at: String::new(),
-        };
-
-        repo.insert(&def).expect("insert");
-        let got = repo.get("pipeline-trigger").expect("get").expect("exists");
-        assert!(got.agent.is_none());
-        assert_eq!(got.pipeline.as_deref(), Some("my-pipeline"));
-        assert_eq!(got.on_busy, OnBusy::Drop);
-    }
 }

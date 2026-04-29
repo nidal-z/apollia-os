@@ -112,27 +112,6 @@ Le champ `events` accepte `"create"`, `"modify"`, et `"delete"`. `~` dans `path`
 
 Les variables disponibles (`{{filepath}}`, `{{filename}}`, `{{size_bytes}}`, `{{file_event}}`, `{{fired_at}}`) sont documentées dans [Briques-Triggers](https://github.com/nidal-z/apollia-os/wiki/Briques-Triggers).
 
-**Pointer vers un pipeline** au lieu d'un agent :
-
-```bash
-curl -X POST http://localhost:7771/api/v1/triggers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "import-factures-pipeline",
-    "pipeline": "traitement-facture",
-    "enabled": true,
-    "on_busy": "queue",
-    "source": {
-      "type": "file_watch",
-      "path": "~/factures/entrant/",
-      "events": ["create"]
-    },
-    "input_template": "{{filepath}}"
-  }'
-```
-
-`agent` et `pipeline` sont mutuellement exclusifs — l'API retourne une erreur si les deux sont présents ou si aucun n'est fourni.
-
 ---
 
 ## Webhook — appel externe signé

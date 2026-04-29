@@ -92,4 +92,4 @@ Les codes HTTP respectent les conventions REST : `404` pour les ressources absen
 
 ---
 
-> **Référence complète :** [API-HTTP-Reference](https://github.com/nidal-z/apollia-os/wiki/API-HTTP-Reference) — tous les endpoints agents, tâches, A2A, LLM, sessions, mémoire utilisateur, STT, MCP, triggers, pipelines, notifications, observabilité, et dashboard SSE.
+> **Référence complète :** [API-HTTP-Reference](https://github.com/nidal-z/apollia-os/wiki/API-HTTP-Reference) — tous les endpoints agents, tâches, A2A, LLM, sessions, mémoire utilisateur, STT, MCP, triggers, notifications, observabilité, et dashboard SSE.

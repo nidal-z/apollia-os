@@ -1,10 +1,18 @@
 # Pipelines multi-agents
 
+> **Note :** le moteur de pipelines déclaratifs (`apollia-pipelines`) a été retiré du runtime dans cette version. Les chapitres 13.0–13.2 sont conservés pour référence historique mais ne correspondent plus au code actuel.
+>
+> Pour orchestrer plusieurs agents, utilisez le pattern **Director Agent** (chapitre 11 — A2A) : un agent superviseur délègue des tâches aux agents spécialisés et coordonne les résultats via son propre code Python.
+
+---
+
+*Contenu archivé — correspond à une version antérieure du runtime.*
+
 L'A2A (chapitre 11) permet à un agent d'en appeler un autre de façon ponctuelle. Mais certains workflows sont plus complexes : extraire un PDF, valider le résultat, comptabiliser si la validation passe, alerter un humain si elle échoue. Quatre agents, des dépendances entre eux, des règles de fallback.
 
 Câbler tout ça manuellement dans le code d'un Director Agent, c'est fragile. Si le runtime redémarre en cours de route, le workflow s'arrête sans reprise. Si la validation échoue, l'erreur est silencieuse.
 
-Les **pipelines** d'Apollia OS permettent de décrire ce type de workflow comme un **graphe déclaratif** (DAG), persisté en SQLite. Chaque step est une tâche soumise à un agent. Le runtime orchestre l'exécution couche par couche, gère les échecs, les conditions, les fallbacks, et reprend après un redémarrage.
+Les **pipelines** d'Apollia OS permettaient de décrire ce type de workflow comme un **graphe déclaratif** (DAG), persisté en SQLite. Chaque step était une tâche soumise à un agent. Le runtime orchestrait l'exécution couche par couche, gérait les échecs, les conditions, les fallbacks, et reprenait après un redémarrage.
 
 ---
 

@@ -15,8 +15,7 @@ Phase  3 : Tool Registry      → catalogue outils + résolution MCP
 Phase  4 : Memory Engine      → connexions SQLite
 Phase  5 : LlmRouter          → backends LLM (local + cloud)
 Phase  6 : TriggerEngine      → ouvre triggers_def.db, charge les triggers
-Phase  7 : PipelineEngine     → ouvre pipelines_def.db, charge les pipelines
-Phase  8 : APIServer          → accepte les connexions externes
+Phase  7 : APIServer          → accepte les connexions externes
 Phase  9 : NotificationEngine → ouvre notifications.db
 Phase 10 : AgentMailbox       → files de messages inter-agents
 Phase 11 : ChatSessionManager → ouvre chat.db, restaure sessions
@@ -34,7 +33,6 @@ apollia-os start
 # ✔ Memory Engine    prêt
 # ✔ LlmRouter        2 backends (local · anthropic)
 # ✔ TriggerEngine    3 triggers actifs
-# ✔ PipelineEngine   2 pipelines chargés
 # ✔ APIServer        localhost:7771 · /tmp/apollia.sock
 # ✔ NotificationEngine
 # ✔ AgentMailbox

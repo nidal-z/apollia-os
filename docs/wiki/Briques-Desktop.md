@@ -31,7 +31,7 @@ main() Tauri
 | Type | Mecanisme | Exemples |
 |---|---|---|
 | Mutations ponctuelles | Commandes Tauri `#[tauri::command]` | `start_agent`, `submit_task`, `fire_trigger` |
-| Flux temps reel | SSE EventBus (`localhost:7771/api/v1/dashboard/stream`) | Agents, tasks, LLM, triggers, pipelines, approvals |
+| Flux temps reel | SSE EventBus (`localhost:7771/api/v1/dashboard/stream`) | Agents, tasks, LLM, triggers, approvals |
 
 Le CLI reste fonctionnel via le socket Unix existant (`/tmp/apollia.sock`).
 
@@ -58,7 +58,6 @@ crates/apollia-desktop/
 │       ├── hitl.rs            ← list_pending_approvals, list_resolved_approvals, resume_task
 │       ├── llm.rs             ← list_llm_backends, ping_llm_backend, get_llm_cost_stats
 │       ├── triggers.rs        ← list_triggers, set_trigger_enabled, fire_trigger, get_trigger_logs, reload_triggers
-│       ├── pipelines.rs       ← list_pipelines, list_pipeline_runs, list_all_pipeline_runs, run_pipeline, get_pipeline_run_detail
 │       ├── memory.rs          ← list_memory_namespaces, list_memory_entries, search_memory, delete_memory_entry
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
 │       ├── tools.rs           ← list_tools, describe_tool
@@ -94,14 +93,13 @@ crates/apollia-desktop/
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
-        │   ├── pipelines/     ← PipelineRunCard, PipelineRunDetail, PipelineDefinitionCard, CreatePipelineDialog, EditPipelineDialog
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte
         │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
-        └── routes/            ← 15 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Pipelines, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
+        └── routes/            ← 14 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
 ```
 
 ### 2.2 `RuntimeHandle` (apollia-runtime)
@@ -116,7 +114,6 @@ pub struct RuntimeHandle {
     pub api_port: u16,
     pub llm_router: Option<Arc<LlmRouter>>,
     pub trigger_engine: Option<TriggerEngineHandle>,
-    pub pipeline_engine: Option<PipelineEngineHandle>,
     pub audit_trail: Option<AuditTrailHandle>,
     pub task_repository: Option<Arc<TaskRepository>>,
     pub pending_approvals: Option<Arc<Mutex<PendingApprovals>>>,
@@ -199,20 +196,6 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 | `set_trigger_enabled` | `id: String, enabled: bool` | `` |
 | `fire_trigger` | `id: String` | `String` (task_id) |
 | `get_trigger_logs` | `id: String` | `Vec<TriggerLogEntry>` |
-
-### Pipelines (9 — 5 + 3 + 1)
-
-| Commande | Parametres | Retour |
-|---|---|---|
-| `list_pipelines` | — | `Vec<PipelineInfo>` |
-| `list_pipeline_definitions` | — | `Vec<PipelineDefinitionView>` |
-| `get_pipeline_definition` | `id: String` | `PipelineDefinitionView` |
-| `create_pipeline` | `definition: CreatePipelineRequest` | `PipelineDefinitionView` |
-| `update_pipeline` | `id: String, definition: UpdatePipelineRequest` | `PipelineDefinitionView` |
-| `delete_pipeline` | `id: String` | `` |
-| `list_pipeline_runs` | `pipeline_id: String, limit: Option<usize>` | `Vec<PipelineRunSummary>` |
-| `run_pipeline` | `pipeline_id: String, inputs: Option<Value>` | `RunPipelineResult` |
-| `get_pipeline_run_detail` | `run_id: String` | `PipelineRunDetail` |
 
 ### Memory (4)
 
@@ -397,7 +380,6 @@ type Route =
   | "integrations"   // Connexions MCP (operator) / MCP Servers (builder)
   | "llm"            // Backends LLM, ping, statistiques
   | "triggers"       // Triggers TOML, enable/disable, fire
-  | "pipelines"      // Runs multi-agent, steps temps reel
   | "memory"         // Namespaces, recherche FTS5, suppression
   | "notifications"  // Canaux, test, historique
   | "observability"  // Timeline, audit trail, couts LLM
@@ -442,7 +424,6 @@ Le store `sse.ts` etablit une connexion SSE vers `localhost:7771/api/v1/dashboar
 | `pendingApprovals` | `PendingApproval[]` | channel `approvals` |
 | `llmBackends` | `LlmBackendStatus[]` | channel `llm` |
 | `triggers` | `TriggerStatus[]` | channel `triggers` |
-| `pipelineRuns` | `PipelineRunSummary[]` | channel `pipeline` |
 | `connectionStatus` | `ConnectionStatus` | etat connexion SSE |
 | `sttStatus` | `SttStatus \| null` | hydrate via IPC `get_stt_status` |
 | `transcriptions` | `TranscriptRow[]` | hydrate via IPC `list_transcriptions` |
@@ -477,9 +458,6 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 **Triggers :**
 `TriggerStatus` (id, agent, source_kind, enabled, fire_count, skip_count, last_fired), `TriggerLogEntry`, `TriggerFireResult`
 
-**Pipelines :**
-`PipelineInfo`, `PipelineRunSummary`, `PipelineStepSummary`, `PipelineRunDetail`, `RunPipelineResult`
-
 **Memory :**
 `MemoryEntry` (episodic|semantic|procedural), `MemorySearchResult`
 
@@ -509,8 +487,6 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 **LLM** — Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
 
 **Triggers** — Vue editeur CRUD. Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
-
-**Pipelines** — Vue editeur CRUD. Onglet Definitions (liste des pipelines, creation/edition/suppression) + Onglet Runs. `CreatePipelineDialog` et `EditPipelineDialog` avec gestion dynamique des steps, validation DAG live, sections conditions depliables. `PipelineDefinitionCard` affiche la topologie. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
 
 **Memory** — Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
 

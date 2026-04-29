@@ -17,7 +17,6 @@ import {
   MessageSquare,
   Plug,
   Timer,
-  Workflow,
 } from "lucide-svelte";
 
 /** Canonical scopes covered by the empty-state catalogue. */
@@ -25,7 +24,6 @@ export type EmptyStateVariant =
   | "agents"
   | "tasks"
   | "triggers"
-  | "pipelines"
   | "chat"
   | "notifications"
   | "integrations";
@@ -71,14 +69,6 @@ export const EMPTY_STATES: Record<EmptyStateVariant, EmptyStateEntry> = {
     primaryCtaKey: "empty_states.triggers.primary_cta",
     secondaryCtaKey: "empty_states.triggers.secondary_cta",
   },
-  pipelines: {
-    page: "pipelines",
-    icon: Workflow,
-    titleKey: "empty_states.pipelines.title",
-    descriptionKey: "empty_states.pipelines.description",
-    primaryCtaKey: "empty_states.pipelines.primary_cta",
-    secondaryCtaKey: "empty_states.pipelines.secondary_cta",
-  },
   chat: {
     page: "chat",
     icon: MessageSquare,
@@ -110,7 +100,6 @@ export const EMPTY_STATE_ORDER: EmptyStateVariant[] = [
   "agents",
   "tasks",
   "triggers",
-  "pipelines",
   "chat",
   "notifications",
   "integrations",

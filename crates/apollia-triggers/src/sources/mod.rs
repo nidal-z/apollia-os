@@ -93,7 +93,6 @@ mod tests {
         let def = TriggerDefinition {
             id: "wh".into(),
             agent: "a".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Skip,
             source: TriggerSourceConfig::Webhook {

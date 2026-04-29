@@ -17,9 +17,6 @@
     "task.input_required",
     "agent.degraded",
     "trigger.error",
-    "pipeline.completed",
-    "pipeline.failed",
-    "pipeline.suspended",
     "llm.backend_down",
   ] as const;
 

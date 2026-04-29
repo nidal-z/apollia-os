@@ -1682,7 +1682,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         (config, temp_dir)
     }
@@ -1855,7 +1854,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2005,7 +2003,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2059,14 +2056,12 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
-            pipeline_engine: None,
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
-            pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
@@ -2120,7 +2115,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2182,7 +2176,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2227,7 +2220,6 @@ mod tests {
         repo.insert(&TriggerDefinitionRow {
             id: "test-trigger".into(),
             agent: Some("test-agent".into()),
-            pipeline: None,
             enabled: true,
             on_busy: apollia_triggers::OnBusy::Queue,
             source_type: "cron".into(),
@@ -2256,7 +2248,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2311,13 +2302,9 @@ mod tests {
             .await
             .expect("boot with empty DBs should succeed");
 
-        // THEN AllReady est émis, 0 triggers, pas de pipeline engine, pas de notification engine
+        // THEN AllReady est émis, 0 triggers, pas de notification engine
         let trigger_list = handles.trigger_engine.list().await;
         assert!(trigger_list.is_empty(), "empty DB should yield 0 triggers");
-        assert!(
-            handles.pipeline_engine.is_none(),
-            "empty DB should yield no PipelineEngine"
-        );
         assert!(
             handles.notification_engine.is_none(),
             "empty DB should yield no NotificationEngine"
@@ -2357,7 +2344,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2424,7 +2410,6 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
-            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2438,17 +2423,13 @@ mod tests {
             )
             .await;
 
-        // THEN le démarrage réussit et pipeline_engine est None
+        // THEN le démarrage réussit
         assert!(
             result.is_ok(),
-            "démarrage sans pipelines doit réussir, erreur: {:?}",
+            "démarrage doit réussir, erreur: {:?}",
             result.err()
         );
         let handles = result.unwrap();
-        assert!(
-            handles.pipeline_engine.is_none(),
-            "pipeline_engine doit être None quand aucun pipeline n'est défini"
-        );
 
         // Cleanup
         handles.trigger_engine.shutdown().await;

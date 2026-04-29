@@ -2,19 +2,19 @@
 
 Les pipelines et les agents répondent à des invocations explicites — un humain envoie une requête, un Director délègue une tâche. Mais la plupart des workflows opérationnels réels sont pilotés par des événements : un fichier déposé dans un dossier, une heure atteinte, un appel webhook entrant.
 
-Les **triggers** d'Apollia OS permettent de déclencher automatiquement un agent ou un pipeline sans intervention humaine. Ils sont déclaratifs, persistés en SQLite, et modifiables à chaud sans redémarrer le runtime.
+Les **triggers** d'Apollia OS permettent de déclencher automatiquement un agent sans intervention humaine. Ils sont déclaratifs, persistés en SQLite, et modifiables à chaud sans redémarrer le runtime.
 
 ---
 
 ## Ce que fait un trigger
 
-Un trigger surveille une source d'événements et, quand elle se déclenche, soumet une tâche à un agent ou un pipeline via le `TaskRouter`. C'est tout — le trigger ne connaît pas l'agent, il ne sait pas ce qu'il fait, il se contente de déclencher.
+Un trigger surveille une source d'événements et, quand elle se déclenche, soumet une tâche à un agent via le `TaskRouter`. C'est tout — le trigger ne connaît pas l'agent, il ne sait pas ce qu'il fait, il se contente de déclencher.
 
 ```
 Source d'événement               TriggerEngine          TaskRouter
 ─────────────────                ─────────────          ──────────
 cron "0 8 * * MON"   ──fire──►  render template  ──►   agent.run()
-~/imports/*.pdf créé  ──fire──►  render template  ──►   pipeline.run()
+~/imports/*.pdf créé  ──fire──►  render template  ──►   agent.run()
 POST /webhooks/push   ──fire──►  render template  ──►   agent.run()
 ```
 

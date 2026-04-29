@@ -20,7 +20,6 @@ import {
   Plug,
   Brain,
   Timer,
-  GitBranch,
   Database,
   Bell,
   Activity,
@@ -124,7 +123,6 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
     nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"], "builder"),
     nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
-    nav("nav.pipelines", "pipelines", "nav.pipelines", GitBranch, ["pipelines", "dag"], "builder"),
     nav("nav.templates", "templates", "nav.templates", LayoutGrid, ["templates"]),
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], "builder"),
     nav("nav.transcriptions", "transcriptions", "nav.transcriptions", Mic, ["stt", "speech"], "builder"),
@@ -178,18 +176,6 @@ export function buildPaletteActions(): PaletteAction[] {
       execute: () => {
         navigateTo("automations");
         window.dispatchEvent(new CustomEvent("apollia:automations:create"));
-      },
-    },
-    {
-      id: "pipelines.run",
-      label: tr("commandPalette.actions.runPipeline"),
-      keywords: ["pipeline", "run", "execute"],
-      icon: Play,
-      kind: "actions",
-      persona: "builder",
-      execute: () => {
-        navigateTo("pipelines");
-        window.dispatchEvent(new CustomEvent("apollia:pipelines:run"));
       },
     },
     {

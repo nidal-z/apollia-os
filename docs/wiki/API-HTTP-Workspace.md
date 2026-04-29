@@ -1,11 +1,11 @@
-# API HTTP — Workspace (Triggers, Pipelines, Notifications) — Apollia OS
+# API HTTP — Workspace (Triggers, Notifications) — Apollia OS
 
-> Référence des endpoints REST liés aux **triggers, webhooks, notifications, pipelines et runs**.
+> Référence des endpoints REST liés aux **triggers, webhooks et notifications**.
 > Public cible : développeur intégrant Apollia OS dans un système externe.
 >
 > Cette page fait partie d'un découpage en trois :
 > - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - **API-HTTP-Workspace** (cette page) — triggers, webhooks, notifications, pipelines, runs
+> - **API-HTTP-Workspace** (cette page) — triggers, webhooks, notifications
 > - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
@@ -78,7 +78,7 @@ Supprimer un trigger.
 
 Lire la définition complète d'un trigger.
 
-**Réponse 200 :** définition complète (id, agent/pipeline, source, enabled, on_busy, input_template, created_at, updated_at).
+**Réponse 200 :** définition complète (id, agent, source, enabled, on_busy, input_template, created_at, updated_at).
 
 **Erreurs :** `404` NotFound.
 
@@ -365,182 +365,6 @@ La table `notification_logs` est créée de manière idempotente si elle n'exist
 
 ---
 
-## Pipelines *(CRUD)*
-
-### POST /api/v1/pipelines
-
-Créer un pipeline.
-
-**Corps de requête :**
-```json
-{
-  "id": "traitement-facture",
-  "description": "OCR → validation → comptabilisation",
-  "on_failure": "fail",
-  "enabled": true,
-  "steps": [
-    { "id": "ocr", "agent": "ocr-agent", "input": "{{trigger.payload}}" },
-    { "id": "validation", "agent": "validation-agent",
-      "input": "{{steps.ocr.output}}", "depends_on": ["ocr"] }
-  ]
-}
-```
-
-**Réponse 201 :** définition complète avec timestamps.
-
-**Erreurs :** `409` DuplicateId, `422` ValidationError (cycle DAG, step ID dupliqué, depends_on invalide).
-
-### PUT /api/v1/pipelines/:id
-
-Modifier un pipeline existant (re-valide le DAG avant écriture).
-
-**Réponse 200 :** définition mise à jour.
-
-**Erreurs :** `404` NotFound, `422` ValidationError.
-
-### DELETE /api/v1/pipelines/:id
-
-Supprimer un pipeline.
-
-**Réponse 200 :** `{ "deleted": true }`
-
-**Erreurs :** `404` NotFound.
-
-### GET /api/v1/pipelines/:id
-
-Lire la définition complète d'un pipeline (steps inclus en JSON).
-
-**Réponse 200 :** définition complète avec steps, on_failure, timestamps.
-
-**Erreurs :** `404` NotFound.
-
-### GET /api/v1/pipelines
-
-Liste tous les pipelines.
-
-**Réponse 200 :**
-```json
-{
-  "pipelines": [
-    {
-      "id": "traitement-facture",
-      "description": "OCR → validation → comptabilisation → archivage",
-      "step_count": 4
-    },
-    {
-      "id": "rapport-hebdomadaire",
-      "description": "Génération automatique du rapport PME",
-      "step_count": 2
-    }
-  ]
-}
-```
-
-### POST /api/v1/pipelines/{id}/run
-
-Démarre un nouveau run pour le pipeline `{id}`.
-
-**Corps (optionnel) :**
-```json
-{
-  "input": "facture-acme-2026-03.pdf",
-  "trigger_id": null
-}
-```
-
-**Réponse 200 :**
-```json
-{
-  "run_id": "r-3f7a2b9c",
-  "pipeline_id": "traitement-facture",
-  "status": { "type": "running" },
-  "started_at": "2026-03-10T10:01:32Z"
-}
-```
-
-**Réponse 404 — pipeline inconnu :**
-```json
-{ "error": "pipeline not found: traitement-facture-typo" }
-```
-
-### GET /api/v1/pipelines/{id}/runs
-
-Historique des runs du pipeline `{id}`. Paramètre optionnel : `?limit=20` (défaut 20, max 100).
-
-**Réponse 200 :**
-```json
-{
-  "runs": [
-    {
-      "run_id": "r-3f7a2b9c",
-      "pipeline_id": "traitement-facture",
-      "status": { "type": "completed" },
-      "trigger_payload": "facture-acme.pdf",
-      "started_at": "2026-03-10T10:01:32Z",
-      "ended_at": "2026-03-10T10:02:55Z"
-    }
-  ]
-}
-```
-
-### GET /api/v1/pipelines/{id}/runs/{run_id}
-
-État détaillé d'un run incluant le statut par step.
-
-**Réponse 200 :**
-```json
-{
-  "run_id": "r-3f7a2b9c",
-  "pipeline_id": "traitement-facture",
-  "status": { "type": "completed" },
-  "trigger_payload": "facture-acme.pdf",
-  "started_at": "2026-03-10T10:01:32Z",
-  "ended_at": "2026-03-10T10:02:55Z",
-  "step_runs": {
-    "ocr": {
-      "step_id": "ocr",
-      "task_id": "t-0021",
-      "status": "completed",
-      "output": "Facture ACME Corp — 12 500€ — 2026-03-01",
-      "error": null,
-      "started_at": "2026-03-10T10:01:32Z",
-      "ended_at": "2026-03-10T10:01:45Z"
-    },
-    "validation": {
-      "step_id": "validation",
-      "task_id": "t-0022",
-      "status": "completed",
-      "output": "VALIDE",
-      "error": null,
-      "started_at": "2026-03-10T10:01:45Z",
-      "ended_at": "2026-03-10T10:01:47Z"
-    }
-  }
-}
-```
-
-**Statuts de step possibles :** `pending` / `running` / `waiting_approval` / `completed` / `failed` / `skipped` / `fallback_active`
-
-**Statuts de run possibles :**
-```json
-{ "type": "running" }
-{ "type": "waiting_approval", "step_id": "comptabilite", "task_id": "t-0023" }
-{ "type": "completed" }
-{ "type": "failed", "step_id": "validation", "reason": "timeout après 30s" }
-```
-
-**Réponse 404 :** `{ "error": "run not found: r-inexistant" }`
-
-### GET /api/v1/runs/:run_id
-
-Raccourci pour obtenir l'état détaillé d'un run sans connaître le `pipeline_id`. Équivalent fonctionnel de `GET /api/v1/pipelines/{pipeline_id}/runs/{run_id}`.
-
-**Réponse 200 :** identique à `GET /api/v1/pipelines/{id}/runs/{run_id}` ci-dessus.
-
-**Réponse 404 :** `{ "error": "run not found: r-inexistant" }`
-
----
-
 ## Codes d'erreur HTTP
 
 Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-http) pour le tableau complet.
@@ -553,8 +377,6 @@ Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-h
 - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user, dashboard, STT, MCP
 - [Briques Triggers](./Briques-Triggers) — moteur de déclenchement
 - [Briques Notifications](./Briques-Notifications) — canaux de notification et moteur HITL
-- [Briques Pipelines](./Briques-Pipelines) — moteur de pipelines DAG
 - [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload
 - [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)
-- [ADR-025](../adr/ADR-025) — décisions pipelines multi-agents (TOML déclaratif, topologies natives)
-- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/pipelines/notifications)
+- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/notifications)

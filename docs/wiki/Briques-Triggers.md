@@ -320,7 +320,7 @@ pub enum TriggerDefinitionError {
 Le repository est wrappé dans `Arc<Mutex<TriggerDefinitionRepository>>` dans `AppState` (ADR-033). Les mutations sont rares (opérateur humain), pas de contention en pratique.
 
 **Validation avant écriture** (`apollia-triggers/src/validation.rs`) :
-- XOR : `agent` ou `pipeline` (jamais les deux, jamais aucun)
+- Le champ `agent` est obligatoire et non vide
 - Expression cron syntaxiquement valide
 - Secret webhook ≥ 32 caractères
 

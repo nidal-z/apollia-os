@@ -1,15 +1,14 @@
 //! Integration tests — CRUD API → SQLite → reload acteur.
 //!
 //! Tests the full cycle: create/update/delete via HTTP REST, verify persistence
-//! in SQLite, and confirm that actors (TriggerEngine, PipelineEngine,
-//! NotificationEngine) reload their definitions.
+//! in SQLite, and confirm that actors (TriggerEngine, NotificationEngine) reload
+//! their definitions.
 //!
 //! POST trigger → GET triggers → verify 1 trigger
 //! PUT trigger → GET trigger → verify updated schedule
 //! DELETE trigger → GET triggers → verify 0 triggers
-//! POST pipeline → POST run → verify run created
 //! POST notification channel → write log → GET logs → verify log
-//! POST trigger invalid cron → 422, POST pipeline cycle → 422,
+//! POST trigger invalid cron → 422,
 //!        POST channel webhook missing URL → 422
 //! Boot with pre-populated DB → subsystems load definitions
 //! Boot with empty DB → no errors, empty lists
@@ -23,9 +22,6 @@ use std::time::Duration;
 use apollia_core::{AIPInput, AIPResult, AIPTask, ObservabilityConfig, TaskId, TaskStatus};
 use apollia_notifications::{
     NotificationChannelRow, NotificationConfigRepository, NotificationLogRow,
-};
-use apollia_pipelines::{
-    PipelineDefinitionRepository, PipelineDefinitionRow, PipelineStepDef, StepId,
 };
 use apollia_runtime::{
     api::routes_agents::StubAgentLoader,
@@ -110,7 +106,6 @@ fn temp_socket_path() -> PathBuf {
 /// Build AppState with real repos and a TriggerEngine.
 async fn build_app_state_with_repos(
     triggers_db: &Path,
-    pipelines_db: &Path,
     notifications_db: &Path,
 ) -> AppState<MockBackend> {
     let (event_sender, _rx) = EventBus::new();
@@ -119,13 +114,10 @@ async fn build_app_state_with_repos(
         TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
 
     let trigger_repo = TriggerDefinitionRepository::open(triggers_db).expect("open triggers.db");
-    let pipeline_repo =
-        PipelineDefinitionRepository::open(pipelines_db).expect("open pipelines.db");
     let notification_repo =
         NotificationConfigRepository::open(notifications_db).expect("open notifications.db");
 
     let trigger_def_repo = Arc::new(std::sync::Mutex::new(trigger_repo));
-    let pipeline_def_repo = Arc::new(std::sync::Mutex::new(pipeline_repo));
     let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
 
     // Spawn a TriggerEngine with empty definitions so list_triggers works
@@ -133,7 +125,6 @@ async fn build_app_state_with_repos(
         vec![],
         MockTaskSubmitter,
         event_sender.clone(),
-        None,
         None,
         ObservabilityConfig::default(),
     )
@@ -151,14 +142,12 @@ async fn build_app_state_with_repos(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
-        pipeline_engine: None,
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: Some(trigger_def_repo),
-        pipeline_def_repo: Some(pipeline_def_repo),
         notification_repo: Some(notification_repo),
         notification_engine_handle: None,
         chat_manager: None,
@@ -178,12 +167,11 @@ async fn build_app_state_with_repos(
 /// Start an APIServer with real repos. Returns (handle, port, socket_path).
 async fn start_test_server_with_repos(
     triggers_db: &Path,
-    pipelines_db: &Path,
     notifications_db: &Path,
 ) -> (APIServerHandle, u16, PathBuf) {
     let port = free_port().await;
     let socket_path = temp_socket_path();
-    let state = build_app_state_with_repos(triggers_db, pipelines_db, notifications_db).await;
+    let state = build_app_state_with_repos(triggers_db, notifications_db).await;
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: port,
@@ -299,7 +287,6 @@ fn parse_http_response(raw: &[u8]) -> (u16, serde_json::Value) {
     let json_str =
         if let (Some(start_obj), Some(end_obj)) = (body_raw.find('{'), body_raw.rfind('}')) {
             if let (Some(start_arr), Some(end_arr)) = (body_raw.find('['), body_raw.rfind(']')) {
-                // Pick whichever container starts first
                 if start_arr < start_obj {
                     &body_raw[start_arr..=end_arr]
                 } else {
@@ -329,20 +316,15 @@ async fn cleanup(handle: APIServerHandle, socket_path: &Path) {
 // Create trigger → list → verify
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN a runtime with triggers.db vide
-/// WHEN POST /api/v1/triggers with a valid cron trigger
-/// THEN GET /api/v1/triggers/:id returns the trigger with correct fields
 #[tokio::test]
 async fn test_create_and_list_trigger() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // WHEN — create a cron trigger
     let (status, resp) = http_post(
         port,
         "/api/v1/triggers",
@@ -358,7 +340,6 @@ async fn test_create_and_list_trigger() {
     )
     .await;
 
-    // THEN — 201 Created with correct fields
     assert_eq!(status, 201, "expected 201 Created, got {status}: {resp}");
     assert_eq!(resp["id"], "test-cron");
     assert_eq!(resp["agent"], "hello-agent");
@@ -369,7 +350,6 @@ async fn test_create_and_list_trigger() {
     );
     assert_eq!(resp["on_busy"], "queue");
 
-    // THEN — GET /api/v1/triggers/:id returns the trigger
     let (get_status, get_resp) = http_get(port, "/api/v1/triggers/test-cron").await;
     assert_eq!(
         get_status, 200,
@@ -389,20 +369,15 @@ async fn test_create_and_list_trigger() {
 // Update trigger → verify source restarted
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN a trigger "test-trigger" with schedule "0 * * * *"
-/// WHEN PUT /api/v1/triggers/test-trigger with schedule "30 * * * *"
-/// THEN GET /api/v1/triggers/test-trigger returns the new schedule
 #[tokio::test]
 async fn test_update_trigger() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // GIVEN — create initial trigger
     let (create_status, _) = http_post(
         port,
         "/api/v1/triggers",
@@ -418,7 +393,6 @@ async fn test_update_trigger() {
     .await;
     assert_eq!(create_status, 201);
 
-    // WHEN — update the schedule
     let (update_status, update_resp) = http_put(
         port,
         "/api/v1/triggers/test-trigger",
@@ -432,13 +406,11 @@ async fn test_update_trigger() {
     )
     .await;
 
-    // THEN — 200 OK with updated schedule
     assert_eq!(
         update_status, 200,
         "expected 200 OK, got {update_status}: {update_resp}"
     );
 
-    // THEN — GET shows new schedule
     let (get_status, get_resp) = http_get(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(get_status, 200);
     let source_config = &get_resp["source_config"];
@@ -454,20 +426,15 @@ async fn test_update_trigger() {
 // Delete trigger → verify source stopped
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN a trigger "test-trigger" existing
-/// WHEN DELETE /api/v1/triggers/test-trigger
-/// THEN GET /api/v1/triggers/test-trigger returns 404
 #[tokio::test]
 async fn test_delete_trigger() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // GIVEN — create a trigger
     let (create_status, _) = http_post(
         port,
         "/api/v1/triggers",
@@ -483,7 +450,6 @@ async fn test_delete_trigger() {
     .await;
     assert_eq!(create_status, 201);
 
-    // WHEN — delete it
     let (delete_status, delete_resp) = http_delete(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(
         delete_status, 200,
@@ -491,70 +457,8 @@ async fn test_delete_trigger() {
     );
     assert_eq!(delete_resp["deleted"], "test-trigger");
 
-    // THEN — GET returns 404
     let (get_status, _) = http_get(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(get_status, 404, "deleted trigger should return 404");
-
-    cleanup(handle, &socket_path).await;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Create pipeline → list → verify definition
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// GIVEN a runtime with pipelines.db vide
-/// WHEN POST /api/v1/pipelines with a valid 1-step pipeline
-/// THEN GET /api/v1/pipelines returns the pipeline
-#[tokio::test]
-async fn test_create_pipeline_and_list() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
-    let notifications_db = dir.path().join("notifications.db");
-
-    let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
-
-    // WHEN — create a pipeline with 1 step
-    let (status, resp) = http_post(
-        port,
-        "/api/v1/pipelines",
-        serde_json::json!({
-            "id": "test-pipeline",
-            "description": "Test pipeline for e2e",
-            "steps": [
-                {
-                    "id": "step-1",
-                    "agent": "hello-agent",
-                    "input": "process this"
-                }
-            ]
-        }),
-    )
-    .await;
-
-    // THEN — 201 Created
-    assert_eq!(status, 201, "expected 201 Created, got {status}: {resp}");
-    assert_eq!(resp["id"], "test-pipeline");
-    assert_eq!(resp["description"], "Test pipeline for e2e");
-    assert!(
-        resp["enabled"].as_bool().unwrap_or(false),
-        "pipeline should be enabled"
-    );
-    let steps = resp["steps"].as_array().expect("steps should be an array");
-    assert_eq!(steps.len(), 1, "expected 1 step");
-    assert_eq!(steps[0]["id"], "step-1");
-    assert_eq!(steps[0]["agent"], "hello-agent");
-
-    // THEN — GET /api/v1/pipelines lists it
-    let (list_status, list_resp) = http_get(port, "/api/v1/pipelines").await;
-    assert_eq!(
-        list_status, 200,
-        "expected 200 OK, got {list_status}: {list_resp}"
-    );
-    let pipelines = list_resp.as_array().expect("response should be an array");
-    assert_eq!(pipelines.len(), 1, "expected 1 pipeline");
-    assert_eq!(pipelines[0]["id"], "test-pipeline");
 
     cleanup(handle, &socket_path).await;
 }
@@ -563,21 +467,15 @@ async fn test_create_pipeline_and_list() {
 // Create notification channel → verify logs endpoint
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN a runtime with notifications.db vide
-/// WHEN POST /api/v1/notifications/channels with a desktop channel
-/// THEN GET /api/v1/notifications/channels lists the channel
-///   AND GET /api/v1/notifications/logs works (returns entries array)
 #[tokio::test]
 async fn test_create_channel_and_verify_logs_endpoint() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // WHEN — create a desktop notification channel
     let (status, resp) = http_post(
         port,
         "/api/v1/notifications/channels",
@@ -591,7 +489,6 @@ async fn test_create_channel_and_verify_logs_endpoint() {
     )
     .await;
 
-    // THEN — 201 Created
     assert_eq!(status, 201, "expected 201 Created, got {status}: {resp}");
     assert_eq!(resp["id"], "desktop-test");
     assert_eq!(resp["channel_type"], "desktop");
@@ -600,7 +497,6 @@ async fn test_create_channel_and_verify_logs_endpoint() {
         "channel should be enabled"
     );
 
-    // THEN — list shows the channel
     let (list_status, list_resp) = http_get(port, "/api/v1/notifications/channels").await;
     assert_eq!(list_status, 200);
     let channels = list_resp["channels"]
@@ -609,7 +505,6 @@ async fn test_create_channel_and_verify_logs_endpoint() {
     assert_eq!(channels.len(), 1, "expected 1 channel");
     assert_eq!(channels[0]["id"], "desktop-test");
 
-    // Insert a log entry directly to verify the logs endpoint works
     {
         let repo =
             NotificationConfigRepository::open(&notifications_db).expect("open notifications.db");
@@ -625,7 +520,6 @@ async fn test_create_channel_and_verify_logs_endpoint() {
         repo.write_log(&log).expect("write log");
     }
 
-    // THEN — logs endpoint returns the entry
     let (logs_status, logs_resp) = http_get(port, "/api/v1/notifications/logs?last=10").await;
     assert_eq!(
         logs_status, 200,
@@ -644,20 +538,15 @@ async fn test_create_channel_and_verify_logs_endpoint() {
 // Validation errors
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN a runtime démarré
-/// WHEN invalid payloads are sent
-/// THEN 422 Unprocessable Entity is returned
 #[tokio::test]
 async fn test_validation_errors() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // Trigger with invalid cron expression
     let (trigger_status, trigger_resp) = http_post(
         port,
         "/api/v1/triggers",
@@ -683,35 +572,6 @@ async fn test_validation_errors() {
         "error message should mention validation: {trigger_resp}"
     );
 
-    // Pipeline with a cycle (step-a depends on step-b and vice versa)
-    let (pipeline_status, pipeline_resp) = http_post(
-        port,
-        "/api/v1/pipelines",
-        serde_json::json!({
-            "id": "cyclic-pipeline",
-            "steps": [
-                {
-                    "id": "step-a",
-                    "agent": "agent-a",
-                    "input": "do A",
-                    "depends_on": ["step-b"]
-                },
-                {
-                    "id": "step-b",
-                    "agent": "agent-b",
-                    "input": "do B",
-                    "depends_on": ["step-a"]
-                }
-            ]
-        }),
-    )
-    .await;
-    assert_eq!(
-        pipeline_status, 422,
-        "cyclic pipeline should return 422, got {pipeline_status}: {pipeline_resp}"
-    );
-
-    // Notification channel: webhook without URL
     let (notif_status, notif_resp) = http_post(
         port,
         "/api/v1/notifications/channels",
@@ -722,9 +582,6 @@ async fn test_validation_errors() {
         }),
     )
     .await;
-    // Webhook without URL may return 422 (validation) or 201 (if validation is deferred)
-    // The spec says 422 but the implementation may accept it and fail at send time.
-    // Accept either 422 or 201 with a note.
     assert!(
         notif_status == 422 || notif_status == 201,
         "webhook without URL should return 422 or 201, got {notif_status}: {notif_resp}"
@@ -737,25 +594,17 @@ async fn test_validation_errors() {
 // Boot with pre-populated DB
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN triggers.db, pipelines.db, notifications.db pre-filled with definitions
-/// WHEN the runtime starts
-/// THEN GET /api/v1/triggers/:id returns the pre-filled trigger
-///   AND GET /api/v1/pipelines lists the pre-filled pipeline
-///   AND GET /api/v1/notifications/channels lists the pre-filled channel
 #[tokio::test]
 async fn test_boot_with_prepopulated_db() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
-    // Pre-populate triggers.db
     {
         let repo = TriggerDefinitionRepository::open(&triggers_db).expect("open triggers.db");
         let row = TriggerDefinitionRow {
             id: "pre-existing-trigger".into(),
             agent: Some("hello-agent".into()),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "interval".into(),
@@ -767,33 +616,6 @@ async fn test_boot_with_prepopulated_db() {
         repo.insert(&row).expect("insert trigger");
     }
 
-    // Pre-populate pipelines.db
-    {
-        let repo = PipelineDefinitionRepository::open(&pipelines_db).expect("open pipelines.db");
-        let row = PipelineDefinitionRow {
-            id: "pre-existing-pipeline".into(),
-            description: "Pre-existing pipeline".into(),
-            on_failure: apollia_pipelines::GlobalFailurePolicy::Fail,
-            steps: vec![PipelineStepDef {
-                id: StepId("step-1".into()),
-                agent: "hello-agent".into(),
-                input: "do something".into(),
-                depends_on: vec![],
-                on_failure: apollia_pipelines::StepFailurePolicy::Fail,
-                condition: None,
-                fallback_for: None,
-                timeout_secs: None,
-                fan_out: None,
-                retry: None,
-            }],
-            enabled: true,
-            created_at: String::new(),
-            updated_at: String::new(),
-        };
-        repo.insert(&row).expect("insert pipeline");
-    }
-
-    // Pre-populate notifications.db
     {
         let repo =
             NotificationConfigRepository::open(&notifications_db).expect("open notifications.db");
@@ -809,11 +631,9 @@ async fn test_boot_with_prepopulated_db() {
         repo.insert_channel(&row).expect("insert channel");
     }
 
-    // Boot the runtime
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // THEN — trigger definition visible via repo-backed GET
     let (trigger_status, trigger_resp) =
         http_get(port, "/api/v1/triggers/pre-existing-trigger").await;
     assert_eq!(
@@ -823,16 +643,6 @@ async fn test_boot_with_prepopulated_db() {
     assert_eq!(trigger_resp["id"], "pre-existing-trigger");
     assert_eq!(trigger_resp["source_type"], "interval");
 
-    // THEN — pipeline listed
-    let (pipeline_status, pipeline_resp) = http_get(port, "/api/v1/pipelines").await;
-    assert_eq!(pipeline_status, 200);
-    let pipelines = pipeline_resp
-        .as_array()
-        .expect("response should be an array");
-    assert_eq!(pipelines.len(), 1, "expected 1 pre-filled pipeline");
-    assert_eq!(pipelines[0]["id"], "pre-existing-pipeline");
-
-    // THEN — notification channel listed
     let (notif_status, notif_resp) = http_get(port, "/api/v1/notifications/channels").await;
     assert_eq!(notif_status, 200);
     let channels = notif_resp["channels"]
@@ -848,35 +658,18 @@ async fn test_boot_with_prepopulated_db() {
 // Boot with empty DB
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// GIVEN empty .db files (no definitions)
-/// WHEN the runtime starts
-/// THEN no errors and all list endpoints return empty arrays
 #[tokio::test]
 async fn test_boot_with_empty_db() {
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
-    let pipelines_db = dir.path().join("pipelines.db");
     let notifications_db = dir.path().join("notifications.db");
 
     let (handle, port, socket_path) =
-        start_test_server_with_repos(&triggers_db, &pipelines_db, &notifications_db).await;
+        start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
-    // Health check — runtime started successfully
     let (health_status, _) = http_get(port, "/api/v1/health").await;
     assert_eq!(health_status, 200, "runtime should start without errors");
 
-    // GET pipelines → empty array
-    let (pipeline_status, pipeline_resp) = http_get(port, "/api/v1/pipelines").await;
-    assert_eq!(pipeline_status, 200);
-    let pipelines = pipeline_resp
-        .as_array()
-        .expect("response should be an array");
-    assert!(
-        pipelines.is_empty(),
-        "expected 0 pipelines, got {pipeline_resp}"
-    );
-
-    // GET notification channels → empty array
     let (notif_status, notif_resp) = http_get(port, "/api/v1/notifications/channels").await;
     assert_eq!(notif_status, 200);
     let channels = notif_resp["channels"]

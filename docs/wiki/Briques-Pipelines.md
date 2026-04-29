@@ -1,6 +1,8 @@
 # Pipelines Engine — Orchestration Multi-Agent
 
-> *Coordinatez plusieurs agents indépendants via un pipeline déclaratif persisté en SQLite. Fan-out, fan-in, conditions, fallback, HITL intégré — gérables via API REST ou application desktop (ADR-033).*
+> **Note :** la crate `apollia-pipelines` a été retirée du workspace dans cette version. Cette page est conservée comme référence historique. Pour orchestrer plusieurs agents, utilisez le pattern Director Agent via A2A (voir [Agents-Mode-Orchestre](./Agents-Mode-Orchestre)).
+
+> ~~*Coordinatez plusieurs agents indépendants via un pipeline déclaratif persisté en SQLite. Fan-out, fan-in, conditions, fallback, HITL intégré — gérables via API REST ou application desktop (ADR-033).*~~
 
 ---
 

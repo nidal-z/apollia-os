@@ -452,7 +452,6 @@ export interface TriggerReloadResult {
 export interface TriggerDefinitionView {
   id: string;
   agent: string | null;
-  pipeline: string | null;
   enabled: boolean;
   on_busy: "queue" | "drop";
   source_type: "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
@@ -474,7 +473,6 @@ export type TriggerSourceInput =
 export interface CreateTriggerRequest {
   id: string;
   agent?: string;
-  pipeline?: string;
   enabled: boolean;
   on_busy: "queue" | "drop";
   source: TriggerSourceInput;
@@ -484,111 +482,10 @@ export interface CreateTriggerRequest {
 /** Corps de requête pour la mise à jour d'un trigger. */
 export interface UpdateTriggerRequest {
   agent?: string;
-  pipeline?: string;
   enabled?: boolean;
   on_busy?: "queue" | "drop";
   source: TriggerSourceInput;
   input_template?: string;
-}
-
-/** Résumé d'un pipeline run pour l'affichage. */
-export interface PipelineRunSummary {
-  run_id: string;
-  pipeline_id: string;
-  status: "running" | "waiting_approval" | "completed" | "failed";
-  started_at: string | null;
-  ended_at: string | null;
-}
-
-/** Step d'un pipeline run. */
-export interface PipelineStepSummary {
-  step_id: string;
-  status: "pending" | "running" | "completed" | "failed";
-  output: string | null;
-  error: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-}
-
-/** Détail complet d'un pipeline run avec ses steps. */
-export interface PipelineRunDetail {
-  run_id: string;
-  pipeline_id: string;
-  status: string;
-  step_runs: PipelineStepSummary[];
-  started_at: string;
-  ended_at: string | null;
-}
-
-/** Pipeline disponible pour lancement. */
-export interface PipelineInfo {
-  id: string;
-  description: string;
-}
-
-/** Définition complète d'un pipeline retournée par les opérations CRUD. */
-export interface PipelineDefinitionView {
-  id: string;
-  description: string;
-  on_failure: "fail" | "continue";
-  steps: PipelineStepView[];
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Step d'un pipeline dans les réponses CRUD. */
-export interface PipelineStepView {
-  id: string;
-  agent: string;
-  input: string;
-  depends_on: string[];
-  on_failure: "fail" | "skip" | "fallback";
-  condition: StepConditionView | null;
-  fallback_for: string | null;
-}
-
-/** Condition d'exécution d'un step. */
-export interface StepConditionView {
-  when: "contains" | "equals" | "starts_with" | "ends_with" | "regex";
-  field: string;
-  value: string;
-}
-
-/** Corps de requête pour la création d'un pipeline. */
-export interface CreatePipelineRequest {
-  id: string;
-  description?: string;
-  on_failure?: "fail" | "continue";
-  enabled?: boolean;
-  steps: PipelineStepInput[];
-}
-
-/** Corps de requête pour la mise à jour d'un pipeline. */
-export interface UpdatePipelineRequest {
-  id: string;
-  description?: string;
-  on_failure?: "fail" | "continue";
-  enabled?: boolean;
-  steps: PipelineStepInput[];
-}
-
-/** Step dans les requêtes de création/mise à jour de pipeline. */
-export interface PipelineStepInput {
-  id: string;
-  agent: string;
-  input: string;
-  depends_on?: string[];
-  on_failure?: "fail" | "skip" | "fallback";
-  condition?: StepConditionView;
-  fallback_for?: string;
-}
-
-/** Résultat du lancement d'un pipeline run. */
-export interface RunPipelineResult {
-  run_id: string;
-  pipeline_id: string;
-  status: string;
 }
 
 /** Entrée mémoire unifiée (episodic | semantic | procedural). */

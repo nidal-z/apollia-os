@@ -243,15 +243,6 @@ max_sessions = 50
 root = "~/.apollia/journal"
 ```
 
-### [pipelines]
-
-```toml
-[pipelines]
-# Timeout par défaut d'un step, en secondes. Peut être surchargé par step via timeout_secs.
-# Défaut : 60. Bornes : [5, 3600].
-default_step_timeout_secs = 60
-```
-
 ### [llm] et [[llm.backends]] — Moteur LLM
 
 La section `[llm]` configure le `LlmRouter`. Elle est **optionnelle** — le runtime démarre sans LLM, et `ctx.llm` sera `None` dans les agents.
@@ -467,7 +458,6 @@ Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 | Ancienne section TOML | Désormais dans | Gestion via | Sprint |
 |---|---|---|---|
 | `[[triggers]]` | `~/.apollia/triggers_def.db` | API REST CRUD + app desktop | 17 |
-| `[[pipelines]]` | `~/.apollia/pipelines_def.db` | API REST CRUD + app desktop | 17 |
 | `[notifications]` | `~/.apollia/notifications.db` | API REST CRUD + app desktop | 17 |
 | `[stt]` | `~/.apollia/system.db` (table `stt_config`) | `GET/PUT /api/v1/stt/config` + app desktop | 28 |
 | `[[llm.backends]]` | `~/.apollia/system.db` (table `llm_backends`) | `GET/POST/PUT/DELETE /api/v1/llm/backends` + app desktop | 28 |
@@ -475,11 +465,10 @@ Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 
 **Pourquoi :** un opérateur peut créer, modifier et supprimer ses backends LLM, sa config STT, ses serveurs MCP et ses triggers depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
 
-`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[api]`, `[tools]`, `[oria]`, `[pipelines]`, `[hitl]`, `[llm]`, `[a2a]`, `[registry]`. Les sections `[memory]` et `[budget]` ne sont **pas** désérialisées.
+`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[api]`, `[tools]`, `[oria]`, `[hitl]`, `[llm]`, `[a2a]`, `[registry]`. Les sections `[memory]` et `[budget]` ne sont **pas** désérialisées.
 
 Voir :
 - [Briques Triggers](./Briques-Triggers) — CRUD triggers
-- [Briques Pipelines](./Briques-Pipelines) — CRUD pipelines
 - [Briques Notifications](./Briques-Notifications) — CRUD notifications
 - [API HTTP — Index](./API-HTTP-Reference) — endpoints CRUD (3 pages par domaine)
 
@@ -590,4 +579,3 @@ api_key_env = "ANTHROPIC_API_KEY"
 - [INSTALL.md](./INSTALL) — installation et prérequis
 - [INSTALL Production](./INSTALL-Production) — déploiement en production
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — monitoring et debug
-- [Briques Pipelines](./Briques-Pipelines) — documentation complète `[[pipelines]]`

@@ -1,5 +1,9 @@
 # Approuver une étape HITL d'un pipeline
 
+> **Cette fonctionnalité n'est pas disponible dans la version actuelle.** Le moteur de pipelines déclaratifs a été retiré du runtime. Pour les approbations HITL d'agents autonomes, voir *Approuver ou refuser une action d'agent*.
+
+<!--
+
 > Pour les operators qui doivent valider une étape critique d'un pipeline en cours d'exécution avant que la suite se déclenche.
 
 ## Prérequis
@@ -44,4 +48,4 @@ L'étape qui était en orange passe au vert dans le graphe. L'étape suivante d�
 - **Pipeline en erreur après refus** : c'est le comportement attendu si le pipeline n'a pas de fallback défini. Consultez les logs de l'étape refusée pour comprendre.
 - **Le bouton Approuver est grisé** : votre fournisseur d'IA est déconnecté. Reconnectez-le depuis le bandeau supérieur, puis revenez à la carte.
 
-> **Concept :** [book ch10 — HITL (Human-In-The-Loop)](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch10-00-hitl.md)
+-->

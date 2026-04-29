@@ -178,7 +178,6 @@ mod tests {
         TriggerDefinitionRow {
             id: "test".to_string(),
             agent: Some("agent".to_string()),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),

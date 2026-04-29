@@ -71,7 +71,6 @@ mod tests {
         let def = TriggerDefinition {
             id: "oneshot".into(),
             agent: "agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },
@@ -99,7 +98,6 @@ mod tests {
         let def = TriggerDefinition {
             id: "past-oneshot".into(),
             agent: "agent".into(),
-            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },

@@ -21,7 +21,6 @@ export * from "./chat";
 export * from "./agents";
 export * from "./tasks";
 export * from "./triggers";
-export * from "./pipelines";
 export * from "./settings";
 export * from "./integrations";
 export * from "./notifications";

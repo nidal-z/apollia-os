@@ -50,7 +50,7 @@
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("kind") as TemplateKind | null;
-    if (tab === "automation" || tab === "agent" || tab === "pipeline") {
+    if (tab === "automation" || tab === "agent") {
       activeTab = tab;
     }
     search = params.get("q") ?? "";
@@ -128,7 +128,7 @@
   });
 
   const counts = $derived.by(() => {
-    const result = { automation: 0, agent: 0, pipeline: 0 };
+    const result: Record<TemplateKind, number> = { automation: 0, agent: 0 };
     for (const tmpl of templates) {
       if (tmpl.source === "community" && !$showCommunityTemplates) continue;
       result[tmpl.kind]++;
@@ -146,11 +146,6 @@
       key: "agent",
       label: $t("templates.tabs.agents"),
       count: counts.agent,
-    },
-    {
-      key: "pipeline",
-      label: $t("templates.tabs.pipelines"),
-      count: counts.pipeline,
     },
   ]);
 
@@ -170,8 +165,7 @@
         "success",
       );
       if (template.kind === "automation") currentRoute.set("automations");
-      else if (template.kind === "agent") currentRoute.set("agents");
-      else currentRoute.set("pipelines");
+      else currentRoute.set("agents");
     } catch (e) {
       addToast(
         $t("templates.use_error", {

@@ -10,7 +10,6 @@
   import Inbox from "../../routes/Inbox.svelte";
   import Llm from "../../routes/Llm.svelte";
   import Automations from "../../routes/Automations.svelte";
-  import Pipelines from "../../routes/Pipelines.svelte";
   import Memory from "../../routes/Memory.svelte";
   import Notifications from "../../routes/Notifications.svelte";
   import Observability from "../../routes/Observability.svelte";
@@ -68,8 +67,6 @@
           <Llm />
         {:else if $currentRoute === "automations"}
           <Automations />
-        {:else if $currentRoute === "pipelines"}
-          <Pipelines />
         {:else if $currentRoute === "projects"}
           <Projects />
         {:else if $currentRoute === "memory"}

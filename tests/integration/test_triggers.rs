@@ -89,7 +89,6 @@ fn interval_def(id: &str, every: &str, on_busy: OnBusyPolicy) -> TriggerDefiniti
     TriggerDefinition {
         id: id.into(),
         agent: "test-agent".into(),
-        pipeline: None,
         enabled: true,
         on_busy,
         source: TriggerSourceConfig::Interval {
@@ -116,7 +115,6 @@ async fn test_ac1_interval_trigger_submits_tasks() {
         vec![def],
         mock_router,
         bus_tx,
-        None,
         None,
         ObservabilityConfig::default(),
     )
@@ -145,7 +143,6 @@ async fn test_ac2_file_watch_create_submits_task() {
     let def = TriggerDefinition {
         id: "watch-test".into(),
         agent: "test-agent".into(),
-        pipeline: None,
         enabled: true,
         on_busy: OnBusyPolicy::Queue { max_depth: 16 },
         source: TriggerSourceConfig::FileWatch {
@@ -160,7 +157,6 @@ async fn test_ac2_file_watch_create_submits_task() {
         vec![def],
         mock_router,
         bus_tx,
-        None,
         None,
         ObservabilityConfig::default(),
     )
@@ -204,7 +200,6 @@ async fn test_ac5_on_busy_drop_skips_and_emits_event() {
         vec![def],
         mock_router,
         bus_tx,
-        None,
         None,
         ObservabilityConfig::default(),
     )
@@ -253,7 +248,6 @@ async fn test_ac6_on_busy_queue_submits_task_when_agent_busy() {
         vec![def],
         mock_router,
         bus_tx,
-        None,
         None,
         ObservabilityConfig::default(),
     )

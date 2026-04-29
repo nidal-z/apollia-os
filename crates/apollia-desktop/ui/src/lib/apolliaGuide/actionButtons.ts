@@ -56,7 +56,6 @@ const ROUTE_WHITELIST: Record<string, Route> = {
   "/onboarding": "onboarding",
   "/llm": "llm",
   "/triggers": "automations",
-  "/pipelines": "pipelines",
   "/memory": "memory",
   "/observability": "observability",
   "/notifications": "notifications",
