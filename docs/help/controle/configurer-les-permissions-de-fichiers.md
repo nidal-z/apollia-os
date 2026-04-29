@@ -9,7 +9,7 @@
 
 ## Comment les autorisations sont-elles créées ?
 
-Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Vous ne créez pas de règle manuellement depuis cet écran : cet onglet sert uniquement à les consulter et à les révoquer.
+Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un outil et que vous choisissez une portée persistée dans la carte d'approbation (par exemple : *Ce projet* ou *Partout*). Les règles de chat (portée *Chat*) sont créées via le bouton **"Toujours autoriser"** dans le chat libre. Vous ne créez pas de règle manuellement depuis cet écran : cet onglet sert uniquement à les consulter et à les révoquer.
 
 ## Visualiser les autorisations actives
 
@@ -26,7 +26,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - l'**auteur** de la décision (agent ou utilisateur)
 
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
-   - **Portée** : *Toutes*, *Ce projet*, *Partout*
+   - **Portée** : *Toutes*, *Ce projet*, *Chat*, *Partout*
    - **Outil** : sélectionnez un outil précis dans la liste des outils présents
 
 ## Révoquer une autorisation individuelle
@@ -47,6 +47,10 @@ Une fois révoquée, l'outil concerné redemandera une approbation manuelle à l
    - *Toutes portées* — supprime toutes les règles persistées
 3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
    `[SCREENSHOT: dialog "Tout révoquer", sélecteur de portée, compteur de règles concernées, bouton Révoquer]`
+
+## Règles du chat (Apollia Chat)
+
+La section **Chat — Apollia** liste les outils auto-approuvés pour toutes les sessions du chat libre. Ces règles sont créées via **"Toujours autoriser"** dans le chat et persistent d'une session à l'autre. Révoquez-les individuellement ici pour que l'outil redemande confirmation lors de la prochaine invocation depuis le chat.
 
 ## Consulter l'audit récent
 

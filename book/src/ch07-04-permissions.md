@@ -69,11 +69,14 @@ C'est l'application stricte du **principe de moindre privilège** (OWASP ASVS V1
 
 Pour des règles plus dynamiques, vous laissez l'opérateur cliquer **"Toujours autoriser ce type d'opération"** dans l'UI desktop. L'opérateur choisit la portée de la règle créée :
 
-- **Session** — règle en mémoire uniquement, disparaît à l'arrêt de l'application.
 - **Project** — règle persistée en SQLite, active uniquement pour le projet courant (chemin canonique).
+- **Chat** — règle persistée en SQLite, active pour toutes les sessions futures de l'agent système `apollia:chat`. Créée via le bouton **"Toujours autoriser"** dans le chat libre — visible et révocable dans **Réglages › Permissions › Chat**.
+- **Session** — règle en mémoire uniquement, disparaît à l'arrêt de l'application.
 - **Global** — règle persistée, active pour tous les projets.
 
-Les règles project et global sont mutables, supprimables, et intégralement auditées.
+Les règles project, chat et global sont mutables, supprimables, et intégralement auditées.
+
+L'ordre d'évaluation du moteur va du plus spécifique au plus large : **Project** → **Chat** → **Session** → **Global**. Une règle project prend toujours le dessus sur une règle chat pour le même outil.
 
 ## Ce que vous voyez dans les logs de votre agent
 

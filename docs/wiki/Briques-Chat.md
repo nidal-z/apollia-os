@@ -71,6 +71,14 @@ Flux d'execution par echange :
 
 Le prompt systeme est configurable par session. La valeur par defaut fournit les instructions ReAct standard avec la liste des outils disponibles.
 
+**Surcharges persistees (Chat Libre uniquement) :** a la creation de chaque session Libre, `load_chat_libre_overrides()` lit `governance.db` et applique :
+- `system_prompt` — prepend au prompt systeme de la session si non vide.
+- `allowed_tools` — restreint la liste `available_tools` si non vide.
+- `llm_backend` — enregistre le backend prefere sur la session.
+- Regles `scope = 'agent'`/`action = 'allow'` pour `apollia:chat` — prechargees dans `authorized_tools` (ces outils ne declenchent pas de HITL).
+
+Ces surcharges sont configurables depuis **Mes assistants → Apollia Chat** dans l'interface desktop, via les 4 commandes IPC `chat_libre_*`. Fallback silencieux si `governance.db` est absent.
+
 ### CompositeToolInvoker — routing A2A depuis le chat libre
 
 Le `CompositeToolInvoker` est introduit par pour permettre au Chat Libre d'invoquer des Worker Agents via A2A sans que l'utilisateur ne sache que la délégation a eu lieu.
@@ -146,7 +154,7 @@ pub struct ChatSession {
 }
 ```
 
-Le champ `authorized_tools` contient les outils approuves via `AlwaysAccept` pour cette session. Le champ `active_exchange` est `Some` uniquement pendant le traitement d'un message (statut `Processing`).
+Le champ `authorized_tools` contient les outils approuves via `AlwaysAccept` pour cette session. En mode Libre, il est precharge depuis `governance.db` (regles `scope = 'agent'`) a la creation et a la restauration de la session via `load_chat_libre_overrides()`. Le champ `active_exchange` est `Some` uniquement pendant le traitement d'un message (statut `Processing`).
 
 ### ChatMessage
 
@@ -202,7 +210,12 @@ Trois decisions sont possibles :
 | `Refuse` | Injecte un message de refus dans l'historique, la boucle ReAct continue sans executer |
 | `AlwaysAccept` | Ajoute l'outil a `authorized_tools` de la session, execute, les appels suivants sont automatiquement autorises |
 
-La decision `AlwaysAccept` est persistee dans la table `chat_tool_authorizations` de SQLite et restauree au redemarrage.
+La decision `AlwaysAccept` est persistee a deux endroits :
+
+1. **`chat_tool_authorizations`** (SQLite `chat.db`) — par session, restauree au redemarrage.
+2. **`permission_rules`** (SQLite `governance.db`, `scope = 'agent'`) — cross-session, sous l'identifiant logique `APOLLIA_CHAT_AGENT_ID = "apollia:chat"`. Cette regle est active automatiquement dans toutes les sessions futures en mode Libre via `load_chat_libre_overrides()`. Elle est visible et révocable dans **Réglages › Permissions › Chat** dans l'interface desktop.
+
+Pour le mode Agent (agent Python), l'`agent_id` utilisé pour la règle de gouvernance est `session.agent_name` plutôt que `apollia:chat`.
 
 ### Mecanisme interne
 

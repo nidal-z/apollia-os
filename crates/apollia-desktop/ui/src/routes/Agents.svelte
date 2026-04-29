@@ -461,9 +461,9 @@
                 Apollia Chat
               </h2>
               <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
-                Agent système — pilote les sessions du chat libre. Sa
-                configuration est persistée dans <code>governance.db</code> et
-                appliquée à chaque nouvelle session Libre.
+                Votre assistant intégré — il vous accompagne au quotidien dans
+                le chat libre. Personnalisez sa personnalité, ses outils, et
+                le modèle qu'il utilise.
               </p>
             </div>
             <div class="flex shrink-0 gap-1.5">

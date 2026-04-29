@@ -98,8 +98,9 @@ pub struct PrefixRule {
     pub action: RuleAction,                          // Allow | Deny
     pub created_at: i64,
     pub created_by_agent: Option<String>,
-    pub scope: PermissionScope,                      // Global | Project | Session
+    pub scope: PermissionScope,                      // Global | Project | Agent | Session
     pub project_path: Option<PathBuf>,               // renseigné si scope == Project
+    pub agent_id: Option<String>,                    // renseigné si scope == Agent
     pub expires_at: Option<i64>,                     // Unix timestamp, None = permanent
 }
 // impl Default : id=0, scope=Global, action=Allow, autres champs vides
@@ -113,7 +114,7 @@ impl PrefixRuleEngine {
     pub fn check(&self, tool_name: &str, first_arg: Option<&str>) -> Result<Option<RuleAction>, PermissionError> { ... }
     /// Retourne l'id de la règle déclenchée (pour l'audit log).
     pub fn check_with_id(&self, tool_name: &str, first_arg: Option<&str>) -> Result<Option<(i64, RuleAction)>, PermissionError> { ... }
-    /// Variante scope-aware : évalue Session → Project (filtré par chemin) → Global.
+    /// Variante scope-aware : évalue Project (chemin) → Agent (agent_id) → Session (mémoire) → Global.
     pub fn check_with_scope(&self, tool_name: &str, first_arg: Option<&str>, ctx: &ScopeContext, session_rules: &[PrefixRule]) -> Result<Option<(i64, RuleAction)>, PermissionError> { ... }
     pub fn add_rule(&mut self, rule: &PrefixRule) -> Result<i64, PermissionError> { ... }
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> { ... }
@@ -121,9 +122,14 @@ impl PrefixRuleEngine {
     pub fn list_rules_filtered(&self, scope: Option<PermissionScope>, project_path: Option<&Path>) -> Result<Vec<PrefixRule>, PermissionError> { ... }
     /// Supprime toutes les règles persistées correspondant à *scope*.
     /// Pour `Project`, `project_path = None` supprime toutes les règles projet.
+    /// Pour `Agent`, supprime toutes les règles agent (tous agent_id confondus).
     /// Erreur si `scope == Session` (règles session non persistées).
     /// Retourne le nombre de lignes supprimées.
     pub fn remove_rules_by_scope(&mut self, scope: PermissionScope, project_path: Option<&Path>) -> Result<u32, PermissionError> { ... }
+    /// Supprime toutes les règles `scope = 'agent'` correspondant à `agent_id`. Retourne le nombre supprimé.
+    pub fn remove_rules_by_agent(&mut self, agent_id: &str) -> Result<u32, PermissionError> { ... }
+    /// Liste les règles `scope = 'agent'` filtrées par `agent_id`.
+    pub fn list_rules_for_agent(&self, agent_id: &str) -> Result<Vec<PrefixRule>, PermissionError> { ... }
 }
 ```
 
@@ -137,18 +143,21 @@ Exemple : règle `bash_executor(git:*)` → auto-approuve toutes les commandes `
 pub enum PermissionScope {
     Session,    // mémoire uniquement — disparaît à l'arrêt du process
     Project,    // persisté SQLite, filtré par chemin canonique du projet
+    Agent,      // persisté SQLite, filtré par agent_id (ex. "apollia:chat")
     #[default]
-    Global,     // persisté SQLite, s'applique à tout projet
+    Global,     // persisté SQLite, s'applique à tout projet et tout agent
 }
 
 /// Contexte d'évaluation passé à check_with_scope().
+#[derive(Debug, Clone, Default)]
 pub struct ScopeContext {
     pub scope: PermissionScope,
     pub project_path: Option<PathBuf>,  // None = hors projet
+    pub agent_id: Option<String>,        // None = hors contexte agent
 }
 ```
 
-**Ordre d'évaluation scope-aware :** Session → Project (chemin exact) → Global. Une règle Session override toujours les règles Project ou Global pour le même outil/préfixe.
+**Ordre d'évaluation scope-aware (du plus spécifique au plus large) :** Project (chemin exact) → Agent (agent_id exact) → Session (mémoire) → Global. Une règle Project prend toujours le dessus pour le même outil/préfixe.
 
 ---
 
@@ -237,8 +246,9 @@ CREATE TABLE IF NOT EXISTS permission_rules (
     action       TEXT NOT NULL,                     -- 'allow' | 'deny'
     created_at   INTEGER NOT NULL,
     created_by   TEXT,
-    scope        TEXT NOT NULL DEFAULT 'global',    -- 'global' | 'project' | 'session'
+    scope        TEXT NOT NULL DEFAULT 'global',    -- 'global' | 'project' | 'agent' | 'session'
     project_path TEXT,                              -- chemin projet si scope='project'
+    agent_id     TEXT,                              -- identifiant agent si scope='agent' (ex. 'apollia:chat')
     expires_at   INTEGER                            -- Unix ts, NULL = permanent
 );
 CREATE INDEX IF NOT EXISTS idx_rules_tool ON permission_rules(tool_name);

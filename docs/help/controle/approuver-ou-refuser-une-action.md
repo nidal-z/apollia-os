@@ -27,6 +27,8 @@
    - **Ce projet** (`project`) — règle persistée pour le projet courant uniquement.
    - **Partout** (`global`) — cet outil est toujours autorisé, pour tous les agents et tous les projets.
 
+   Dans le **chat libre**, la décision **"Toujours autoriser"** crée automatiquement une règle de portée *Chat* (`agent`), active pour toutes les sessions futures du chat. Ces règles sont visibles et révocables dans **Paramètres → Autorisations → Chat**.
+
 6. Cliquez sur **Approuver** ou **Refuser**. L'action se déclenche (ou non) sans délai supplémentaire.
 
 7. Pour voir et gérer les règles d'autorisation existantes, allez dans **Paramètres → Autorisations**. Vous pouvez modifier ou supprimer une règle à tout moment (voyez la page *Gérer les autorisations d'outils*).

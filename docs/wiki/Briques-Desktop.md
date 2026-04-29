@@ -63,6 +63,7 @@ crates/apollia-desktop/
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
 │       ├── tools.rs           ← list_tools, describe_tool
 │       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
+│       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
@@ -84,11 +85,11 @@ crates/apollia-desktop/
         │   │   ├── navigation.ts      ← currentRoute + showOnboarding
         │   │   ├── settings.ts        ← SettingsSubRoute (12 valeurs) + SETTINGS_SUB_ROUTES
         │   │   ├── toolGovernance.ts  ← ToolStatusDto, CredentialEntryDto, CredentialTestResultDto + 7 fonctions IPC (loadTools, toggleTool, getToolConfig, updateToolConfig, setCredential, deleteCredential, testCredential)
-        │   │   └── permissions.ts     ← PermissionRuleDto, AuditEntryDto, PermissionRuleFilter + 7 fonctions IPC (loadRules, revokeRule, revokeAll, countRulesForScope, loadAudit, setScopeFilter, setToolFilter)
+        │   │   └── permissions.ts     ← PermissionRuleDto, AuditEntryDto, PermissionRuleFilter, PermissionRuleScope ("session"|"project"|"agent"|"global") + 7 fonctions IPC (loadRules, revokeRule, revokeAll, countRulesForScope, loadAudit, setScopeFilter, setToolFilter) + stores chat (chatPermissionRules, loadChatRules, deleteChatRule)
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
-        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte, CreateFromTemplateDialog.svelte
+        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte, CreateFromTemplateDialog.svelte, ApolliaChatConfigPanel.svelte
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
@@ -243,9 +244,32 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 | `get_tool_audit_trail` | `limit: Option<usize>` | `Vec<AuditTrailEntry>` |
 | `get_llm_daily_costs` | `days: Option<u32>` | `Vec<LlmDailyCostEntry>` |
 
+### Chat Libre Config (4)
+
+Commandes lisant/écrivant la configuration persistée de l'agent système Apollia Chat (`apollia:chat`) dans `governance.db`, et gérant les règles de permission de portée `agent` qui lui sont associées.
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `get_chat_libre_config` | — | `Result<ChatLibreConfigDto, String>` |
+| `update_chat_libre_config` | `config: ChatLibreConfigDto` | `Result<(), String>` |
+| `list_chat_permission_rules` | — | `Result<Vec<PermissionRuleDto>, String>` |
+| `delete_chat_permission_rule` | `rule_id: i64` | `Result<(), String>` |
+
+`ChatLibreConfigDto` (source : `commands/chat_libre.rs`) :
+
+```rust
+pub struct ChatLibreConfigDto {
+    pub system_prompt: String,          // vide ⇒ comportement runtime par défaut
+    pub allowed_tools: Vec<String>,     // vide ⇒ tous les outils du registre
+    pub llm_backend: Option<String>,    // None ⇒ défaut runtime
+}
+```
+
+`APOLLIA_CHAT_AGENT_ID = "apollia:chat"` — identifiant logique de l'agent système Chat, partagé avec `apollia-runtime::chat::manager`.
+
 ### Tool Governance (12)
 
-Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` via `governance.db`. Seuls les scopes `project` et `global` sont exposés au frontend — ils sont persistés dans `governance.db`.
+Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` via `governance.db`. Les scopes `project` et `global` sont exposés au frontend via ces commandes ; le scope `agent` est géré par les commandes Chat Libre Config ci-dessus.
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -262,7 +286,7 @@ Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngin
 | `governance_revoke_all_rules` | `scope: String, project_path: Option<String>` | `u32` |
 | `governance_list_audit` | `tool_name: Option<String>, limit: Option<u32>, offset: Option<u32>` | `Vec<AuditEntryDto>` |
 
-DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialEntryDto`, `CredentialTestResultDto`, `PermissionRuleFilter`, `PermissionRuleDto`, `AuditEntryDto`.
+DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialEntryDto`, `CredentialTestResultDto`, `PermissionRuleFilter`, `PermissionRuleDto` (champs : `id`, `tool_name`, `arg_prefix`, `action`, `scope`, `project_path`, `agent_id`, `expires_at`, `created_at`, `created_by`), `AuditEntryDto`.
 
 ### Configuration (2)
 

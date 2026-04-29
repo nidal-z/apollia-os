@@ -256,10 +256,10 @@
   <section class="space-y-2" data-testid="permissions-chat">
     <header class="flex items-center justify-between">
       <div>
-        <h3 class="text-sm font-semibold">Chat — Apollia</h3>
+        <h3 class="text-sm font-semibold">Apollia Chat</h3>
         <p class="text-[11px] text-muted-foreground">
-          Outils auto-approuvés pour les sessions du chat libre (agent
-          <code>apollia:chat</code>).
+          Outils que vous avez auto-approuvés depuis le chat via
+          « Toujours autoriser ».
         </p>
       </div>
       <span class="text-[11px] text-muted-foreground">
