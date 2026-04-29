@@ -337,6 +337,7 @@ pub async fn add_permission_prefix_rule(
                 rule_action,
                 apollia_permissions::PermissionScope::Project,
                 Some(canonical.clone()),
+                None,
             )?;
             tracing::info!(
                 tool = %tool_name,
@@ -356,6 +357,7 @@ pub async fn add_permission_prefix_rule(
                 rule_action,
                 apollia_permissions::PermissionScope::Global,
                 None,
+                None,
             )?;
             tracing::info!(
                 tool = %tool_name,
@@ -364,9 +366,9 @@ pub async fn add_permission_prefix_rule(
                 "operator added global permission rule"
             );
         }
-        apollia_permissions::PermissionScope::Session => {
+        apollia_permissions::PermissionScope::Agent | apollia_permissions::PermissionScope::Session => {
             return Err(
-                "session scope is no longer supported; use 'project' or 'global'".to_string(),
+                "scope must be 'project' or 'global' (use authorize_chat_tool for agent scope)".to_string(),
             );
         }
     }

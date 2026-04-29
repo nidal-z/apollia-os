@@ -11,6 +11,7 @@ pub mod agents;
 pub mod apollia_coach;
 pub mod artifacts;
 pub mod chat;
+pub mod chat_libre;
 pub mod cli;
 pub mod config;
 pub mod hitl;

@@ -98,6 +98,8 @@ pub struct PermissionRuleDto {
     pub scope: String,
     /// Chemin canonique du projet, pour les règles `project`.
     pub project_path: Option<String>,
+    /// Identifiant de l'agent, pour les règles `agent`.
+    pub agent_id: Option<String>,
     /// Date d'expiration ISO 8601, le cas échéant.
     pub expires_at: Option<String>,
     /// Date de création ISO 8601.
@@ -169,11 +171,16 @@ fn iso8601_opt(secs: Option<i64>) -> Option<String> {
 fn parse_scope(value: &str) -> Result<PermissionScope, String> {
     match value {
         "project" => Ok(PermissionScope::Project),
+        "agent" => Ok(PermissionScope::Agent),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "unknown scope '{other}', expected 'project' | 'global'"
+            "unknown scope '{other}', expected 'project' | 'agent' | 'global'"
         )),
     }
+}
+
+pub(crate) fn rule_to_dto_pub(rule: &PrefixRule) -> PermissionRuleDto {
+    rule_to_dto(rule)
 }
 
 fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
@@ -190,6 +197,7 @@ fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
             .project_path
             .as_ref()
             .map(|p| p.to_string_lossy().to_string()),
+        agent_id: rule.agent_id.clone(),
         expires_at: iso8601_opt(rule.expires_at),
         created_at: iso8601(rule.created_at),
         created_by: rule.created_by_agent.clone(),
@@ -219,6 +227,7 @@ pub(crate) fn persist_scoped_rule(
     action: RuleAction,
     scope: PermissionScope,
     project_path: Option<PathBuf>,
+    agent_id: Option<String>,
 ) -> Result<i64, String> {
     let _migrate = GovernanceDb::open(base_dir)
         .map_err(|e| format!("failed to open governance database: {e}"))?;
@@ -234,6 +243,7 @@ pub(crate) fn persist_scoped_rule(
         created_at: current_unix_secs(),
         scope,
         project_path,
+        agent_id,
         ..PrefixRule::default()
     };
 
@@ -739,6 +749,7 @@ mod tests {
             RuleAction::Allow,
             PermissionScope::Project,
             Some(project.clone()),
+            None,
         )
         .expect("persist project");
 
@@ -765,6 +776,7 @@ mod tests {
             RuleAction::Allow,
             PermissionScope::Global,
             None,
+            None,
         )
         .expect("persist global");
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
@@ -790,6 +802,7 @@ mod tests {
             RuleAction::Allow,
             PermissionScope::Global,
             None,
+            None,
         )
         .expect("global");
         persist_scoped_rule(
@@ -799,6 +812,7 @@ mod tests {
             RuleAction::Allow,
             PermissionScope::Project,
             Some(project),
+            None,
         )
         .expect("project");
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
@@ -848,6 +862,7 @@ mod tests {
             created_at: 1_700_000_000,
             scope: PermissionScope::Project,
             project_path: Some(PathBuf::from("/tmp/p")),
+            agent_id: None,
             expires_at: None,
             created_by_agent: Some("operator".into()),
         };
