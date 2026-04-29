@@ -105,7 +105,11 @@ mod tests {
 
     fn make_ok_delegate() -> crate::a2a::A2aDelegateFn {
         Arc::new(
-            |skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            |skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId| {
                 let fut: Pin<
                     Box<dyn Future<Output = Result<A2aDelegateResult, LowLevelA2aError>> + Send>,
                 > = Box::pin(async move {

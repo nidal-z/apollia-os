@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::events::AgentId;
 use crate::result::InputResponseData;
 
 /// Tâche soumise par le runtime à l'agent via le bridge AIP.
@@ -45,6 +46,13 @@ pub struct AIPTask {
     /// Construite par `TaskRepository::rebuild_for_resume()`.
     #[serde(default)]
     pub input_response: Option<InputResponseData>,
+    /// Chaîne de délégation A2A — IDs des agents parents dans la chaîne.
+    ///
+    /// Vide pour une tâche racine. Étendue par le runtime à chaque délégation A2A
+    /// avec l'ID de l'agent qui délègue. Utilisée par `a2a::validate_chain` pour
+    /// détecter les cycles et appliquer la limite de hops (défaut 5, ADR-D7).
+    #[serde(default)]
+    pub delegation_chain: Vec<AgentId>,
 }
 
 /// Entrée multi-modale d'une tâche AIP.

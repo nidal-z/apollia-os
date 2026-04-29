@@ -243,7 +243,11 @@ mod tests {
     fn make_ok_delegate(output: &str) -> crate::a2a::A2aDelegateFn {
         let output = output.to_string();
         Arc::new(
-            move |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId| {
                 let output = output.clone();
                 Box::pin(async move {
                     Ok(A2aDelegateResult {
@@ -258,7 +262,11 @@ mod tests {
 
     fn make_err_delegate() -> crate::a2a::A2aDelegateFn {
         Arc::new(
-            move |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId| {
                 Box::pin(async move {
                     Err(A2aError::WorkerFailed {
                         reason: "agent crashed".to_string(),

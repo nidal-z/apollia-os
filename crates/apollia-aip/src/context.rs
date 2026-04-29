@@ -818,6 +818,17 @@ pub struct RuntimeContext {
     /// Interface STT exposée à l'agent Python via `ctx.stt`.
     /// `None` si aucun backend STT n'est configuré.
     stt: Option<pyo3::Py<crate::stt::PySttInterface>>,
+    /// ID de l'agent propriétaire de ce contexte (UUID stable).
+    ///
+    /// Propagé dans la chaîne A2A (`AIPTask::delegation_chain`) lorsque cet agent
+    /// délègue via `ctx.delegate()` (ADR-D7).
+    agent_id: AgentId,
+    /// Chaîne de délégation A2A héritée de la tâche en cours d'exécution.
+    ///
+    /// Vide pour une tâche racine. Étendue à chaque délégation par
+    /// [`crate::context::RuntimeContext::delegate`] avant transmission au
+    /// runtime (`a2a::validate_chain`).
+    delegation_chain: Vec<AgentId>,
 }
 
 impl RuntimeContext {
@@ -865,6 +876,7 @@ impl RuntimeContext {
     ) -> Self {
         let bus_for_token = event_bus.clone();
         let step_budget_arc = Arc::clone(&budget_view);
+        let agent_id_stored = agent_id.clone();
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
                 // fire-and-forget — erreurs send() silencieusement ignorées.
@@ -912,6 +924,8 @@ impl RuntimeContext {
             step_budget: Some(step_budget_arc),
             notify: None,
             stt: None,
+            agent_id: agent_id_stored,
+            delegation_chain: Vec::new(),
         }
     }
 
@@ -1251,11 +1265,14 @@ impl RuntimeContext {
             .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
 
         let timeout = timeout_secs.unwrap_or(120);
+        let parent_chain = self.delegation_chain.clone();
+        let current_agent = self.agent_id.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result: A2aDelegateResult = (delegate_fn)(skill_id, input_value, timeout)
-                .await
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            let result: A2aDelegateResult =
+                (delegate_fn)(skill_id, input_value, timeout, parent_chain, current_agent)
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
             let json_str = serde_json::to_string(&result)
                 .map_err(|e| PyRuntimeError::new_err(format!("serialization error: {e}")))?;
@@ -2223,7 +2240,11 @@ mod tool_proxy_a2a_tests {
 
     fn make_ok_delegate() -> A2aDelegateFn {
         Arc::new(
-            |skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            |skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId| {
                 let fut: Pin<
                     Box<dyn Future<Output = Result<A2aDelegateResult, LowLevelA2aError>> + Send>,
                 > = Box::pin(async move {

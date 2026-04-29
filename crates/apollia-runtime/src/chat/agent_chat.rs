@@ -332,6 +332,7 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         is_resumed: false,
         input_response: None,
         message_id: None,
+        delegation_chain: Vec::new(),
     }
 }
 

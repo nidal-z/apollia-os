@@ -44,6 +44,7 @@ enum RouterMessage<B: ExecutionBackend> {
     Submit {
         agent_id: AgentId,
         input: AIPInput,
+        delegation_chain: Vec<AgentId>,
         reply: oneshot::Sender<Result<TaskId, SubmitError>>,
     },
     /// Obtenir le statut d'une tache.
@@ -114,8 +115,8 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 msg = self.rx.recv() => {
                     let Some(msg) = msg else { break };
                     match msg {
-                        RouterMessage::Submit { agent_id, input, reply } => {
-                            let result = self.handle_submit(agent_id, input).await;
+                        RouterMessage::Submit { agent_id, input, delegation_chain, reply } => {
+                            let result = self.handle_submit(agent_id, input, delegation_chain).await;
                             let _ = reply.send(result);
                         }
                         RouterMessage::GetStatus { task_id, reply } => {
@@ -225,6 +226,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         &mut self,
         agent_id: AgentId,
         input: AIPInput,
+        delegation_chain: Vec<AgentId>,
     ) -> Result<TaskId, SubmitError> {
         // 1. Verifier l'agent dans le registre (par UUID puis par nom manifest)
         let resolved_id = if self
@@ -281,6 +283,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             input,
             history: vec![],
             timeout_seconds: None,
+            delegation_chain,
             ..AIPTask::default()
         };
 
@@ -370,11 +373,26 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     ///
     /// Retourne le TaskId genere en cas de succes.
     pub async fn submit(&self, agent_id: &str, input: AIPInput) -> Result<TaskId, SubmitError> {
+        self.submit_with_chain(agent_id, input, Vec::new()).await
+    }
+
+    /// Soumet une tache avec une chaîne de délégation A2A explicite.
+    ///
+    /// Utilisé par [`crate::a2a::delegate_inner`] après validation de la chaîne
+    /// par [`crate::a2a::validate_chain`]. Pour les soumissions racines (CLI,
+    /// triggers, REST), utiliser [`Self::submit`] qui passe une chaîne vide.
+    pub async fn submit_with_chain(
+        &self,
+        agent_id: &str,
+        input: AIPInput,
+        delegation_chain: Vec<AgentId>,
+    ) -> Result<TaskId, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::Submit {
                 agent_id: AgentId::from(agent_id),
                 input,
+                delegation_chain,
                 reply: reply_tx,
             })
             .await

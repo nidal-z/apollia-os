@@ -690,8 +690,12 @@ impl AgentBackendFactory for ProductionBackendFactory {
             self.router.get().cloned(),
         ) {
             (Some(registry), Some(router)) => {
-                let delegate =
-                    make_delegate_fn(registry.clone(), router.clone(), event_bus.clone());
+                let delegate = make_delegate_fn(
+                    registry.clone(),
+                    router.clone(),
+                    event_bus.clone(),
+                    apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
+                );
                 let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
                     registry,
                     router,

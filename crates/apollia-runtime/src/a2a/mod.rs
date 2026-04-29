@@ -32,7 +32,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use apollia_core::{AIPInput, AIPPart, DataPart, ProcessState, RuntimeEvent};
+use apollia_core::{AIPInput, AIPPart, AgentId, DataPart, ProcessState, RuntimeEvent};
 
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
@@ -75,6 +75,18 @@ pub enum A2aError {
     WorkerFailed {
         /// Raison de l'échec.
         reason: String,
+    },
+    /// L'agent cible figure déjà dans la chaîne de délégation — cycle détecté.
+    #[error("A2A cycle: agent {agent_id} already in delegation chain")]
+    CycleDetected {
+        /// ID de l'agent cible déjà présent dans la chaîne.
+        agent_id: AgentId,
+    },
+    /// La profondeur maximale de la chaîne de délégation est atteinte (ADR-D7).
+    #[error("A2A max hops exceeded: limit is {limit}")]
+    MaxHopsExceeded {
+        /// Limite de hops configurée (défaut 5).
+        limit: usize,
     },
 }
 
@@ -142,6 +154,39 @@ impl A2aErrorResponse {
     }
 }
 
+/// Valide une délégation A2A avant soumission au router.
+///
+/// Applique deux garde-fous non-contournables côté agent (Principe #7) :
+/// - **Limite de hops** : la chaîne courante ne peut dépasser `max_hops` niveaux.
+/// - **Détection de cycle** : l'agent cible ne peut figurer dans la chaîne parente.
+///
+/// Retourne la chaîne enfant (`parent_chain` + `current_agent`) à propager dans
+/// la tâche déléguée si la validation réussit.
+///
+/// # Arguments
+/// - `parent_chain` — chaîne de délégation de la tâche en cours (`AIPTask::delegation_chain`).
+/// - `current_agent` — ID de l'agent qui initie la délégation.
+/// - `target_agent` — ID de l'agent cible de la délégation.
+/// - `max_hops` — limite paramétrable (défaut runtime : 5, ADR-D7).
+pub fn validate_chain(
+    parent_chain: &[AgentId],
+    current_agent: &AgentId,
+    target_agent: &AgentId,
+    max_hops: usize,
+) -> Result<Vec<AgentId>, A2aError> {
+    if parent_chain.len() >= max_hops {
+        return Err(A2aError::MaxHopsExceeded { limit: max_hops });
+    }
+    if parent_chain.contains(target_agent) || current_agent == target_agent {
+        return Err(A2aError::CycleDetected {
+            agent_id: target_agent.clone(),
+        });
+    }
+    let mut child_chain = parent_chain.to_vec();
+    child_chain.push(current_agent.clone());
+    Ok(child_chain)
+}
+
 /// Résout un `skill_id` dans une liste d'entrées de registry.
 ///
 /// Sélectionne uniquement les agents avec `supports_a2a = true` en état
@@ -200,8 +245,13 @@ pub fn resolve_skill<'a>(
 
 /// Fonction de délégation A2A type-erasée.
 ///
-/// Accepte `(skill_id, input_payload, timeout_secs)` et retourne une `Future`
-/// résolvant en `Result<A2aDelegateResult, A2aError>`.
+/// Accepte `(skill_id, input_payload, timeout_secs, parent_chain, current_agent)`
+/// et retourne une `Future` résolvant en `Result<A2aDelegateResult, A2aError>`.
+///
+/// `parent_chain` est la chaîne de délégation courante de la tâche appelante
+/// (`AIPTask::delegation_chain`). `current_agent` est l'ID de l'agent qui initie
+/// la délégation. La validation (cycle + max_hops, ADR-D7) est appliquée par
+/// [`delegate_inner`].
 ///
 /// Construit via [`make_delegate_fn`]. Permet d'injecter la logique de délégation
 /// dans `RuntimeContext` sans générique sur le backend d'exécution.
@@ -210,6 +260,8 @@ pub type A2aDelegateFn = Arc<
             String,
             serde_json::Value,
             u64,
+            Vec<AgentId>,
+            AgentId,
         ) -> Pin<Box<dyn Future<Output = Result<A2aDelegateResult, A2aError>> + Send>>
         + Send
         + Sync,
@@ -217,18 +269,26 @@ pub type A2aDelegateFn = Arc<
 
 /// Construit une [`A2aDelegateFn`] concrète à partir des handles runtime.
 ///
-/// La fonction résout le `skill_id` vers un agent, soumet la tâche via le router,
-/// attend la complétion sur l'EventBus, et retourne le résultat structuré.
+/// La fonction résout le `skill_id` vers un agent, valide la chaîne de délégation,
+/// soumet la tâche via le router, attend la complétion sur l'EventBus, et retourne
+/// le résultat structuré.
+///
+/// `max_hops` borne la profondeur de chaîne (ADR-D7, défaut runtime : 5).
 pub fn make_delegate_fn<B>(
     registry: AgentRegistryHandle,
     router: TaskRouterHandle<B>,
     event_bus: EventBusSender,
+    max_hops: usize,
 ) -> A2aDelegateFn
 where
     B: ExecutionBackend + Clone + Send + Sync + 'static,
 {
     Arc::new(
-        move |skill_id: String, input_payload: serde_json::Value, timeout_secs: u64| {
+        move |skill_id: String,
+              input_payload: serde_json::Value,
+              timeout_secs: u64,
+              parent_chain: Vec<AgentId>,
+              current_agent: AgentId| {
             let registry = registry.clone();
             let router = router.clone();
             let event_bus = event_bus.clone();
@@ -240,12 +300,18 @@ where
                     &skill_id,
                     input_payload,
                     timeout_secs,
+                    &parent_chain,
+                    &current_agent,
+                    max_hops,
                 )
                 .await
             })
         },
     )
 }
+
+/// Limite par défaut de hops dans la chaîne de délégation A2A (ADR-D7).
+pub const DEFAULT_A2A_MAX_HOPS: usize = 5;
 
 /// Logique de délégation A2A — appelable depuis le REST handler et depuis
 /// la [`A2aDelegateFn`] type-erasée.
@@ -256,27 +322,37 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     skill_id: &str,
     input_payload: serde_json::Value,
     timeout_secs: u64,
+    parent_chain: &[AgentId],
+    current_agent: &AgentId,
+    max_hops: usize,
 ) -> Result<A2aDelegateResult, A2aError> {
     // 1. Résoudre skill_id → agent depuis le registry.
     let entries = registry.list_agents().await?;
     let target = resolve_skill(&entries, skill_id)?;
-    let agent_id = target.id.to_string();
+    let agent_id = target.id.clone();
     let agent_name = target.manifest.name.clone();
+
+    // 2. Valider la chaîne avant toute soumission (cycle + max_hops, ADR-D7).
+    let child_chain = validate_chain(parent_chain, current_agent, &agent_id, max_hops)?;
+    let agent_id = agent_id.to_string();
 
     info!(skill_id = %skill_id, agent = %agent_name, "A2A delegation initiated");
 
-    // 2. S'abonner à l'EventBus avant de soumettre (évite une race condition).
+    // 3. S'abonner à l'EventBus avant de soumettre (évite une race condition).
     let mut event_rx = event_bus.subscribe();
 
-    // 3. Construire l'input AIP depuis le payload JSON.
+    // 4. Construire l'input AIP depuis le payload JSON.
     let input = AIPInput {
         parts: vec![AIPPart::Data(DataPart {
             data: input_payload,
         })],
     };
 
-    // 4. Soumettre la tâche via le TaskRouter.
-    let task_id = router.submit(&agent_id, input).await.map_err(|e| match e {
+    // 5. Soumettre la tâche via le TaskRouter avec la chaîne étendue.
+    let task_id = router
+        .submit_with_chain(&agent_id, input, child_chain)
+        .await
+        .map_err(|e| match e {
         SubmitError::ActorDead => A2aError::RouterDead,
         other => A2aError::WorkerFailed {
             reason: other.to_string(),
@@ -592,5 +668,75 @@ mod tests {
         assert!(resp.available_skills.is_none());
         assert!(resp.conflicting_agents.is_none());
         assert!(!resp.error.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_a2a_rejects_cycle() {
+        // GIVEN une chaîne contenant déjà agent_a
+        let agent_a = AgentId::from("agent-a");
+        let agent_b = AgentId::from("agent-b");
+        let parent_chain = vec![agent_a.clone()];
+
+        // WHEN agent_b tente de déléguer vers agent_a (déjà dans la chaîne)
+        let result = validate_chain(&parent_chain, &agent_b, &agent_a, 5);
+
+        // THEN A2aError::CycleDetected
+        match result {
+            Err(A2aError::CycleDetected { agent_id }) => {
+                assert_eq!(agent_id, agent_a);
+            }
+            other => panic!("expected CycleDetected, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_a2a_rejects_max_hops() {
+        // GIVEN une tâche avec delegation_chain = [a, b, c, d, e] (5 hops)
+        let parent_chain: Vec<AgentId> = ["a", "b", "c", "d", "e"]
+            .iter()
+            .map(|s| AgentId::from(*s))
+            .collect();
+        let current = AgentId::from("e");
+        let target = AgentId::from("f");
+
+        // WHEN la délégation suivante est tentée avec max_hops = 5
+        let result = validate_chain(&parent_chain, &current, &target, 5);
+
+        // THEN A2aError::MaxHopsExceeded { limit: 5 }
+        match result {
+            Err(A2aError::MaxHopsExceeded { limit }) => {
+                assert_eq!(limit, 5);
+            }
+            other => panic!("expected MaxHopsExceeded, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_a2a_validate_chain_extends_chain_on_success() {
+        // GIVEN une chaîne courte sans conflit
+        let parent_chain = vec![AgentId::from("a")];
+        let current = AgentId::from("b");
+        let target = AgentId::from("c");
+
+        // WHEN la validation passe
+        let result = validate_chain(&parent_chain, &current, &target, 5);
+
+        // THEN la chaîne enfant contient parent + current_agent
+        let child = result.expect("validation must succeed");
+        assert_eq!(child.len(), 2);
+        assert_eq!(child[0], AgentId::from("a"));
+        assert_eq!(child[1], AgentId::from("b"));
+    }
+
+    #[tokio::test]
+    async fn test_a2a_rejects_self_invocation() {
+        // GIVEN agent_a tente de se déléguer à lui-même (chaîne vide)
+        let agent_a = AgentId::from("agent-a");
+
+        // WHEN
+        let result = validate_chain(&[], &agent_a, &agent_a, 5);
+
+        // THEN A2aError::CycleDetected (auto-invocation = cycle de longueur 0)
+        assert!(matches!(result, Err(A2aError::CycleDetected { .. })));
     }
 }

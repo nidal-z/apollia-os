@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 use apollia_core::ProcessState;
 
 use crate::a2a::invoker::{A2AError, SkillListing};
-use crate::a2a::{delegate_inner, A2aDelegateResult, A2aError, A2aErrorResponse};
+use crate::a2a::{
+    delegate_inner, A2aDelegateResult, A2aError, A2aErrorResponse, DEFAULT_A2A_MAX_HOPS,
+};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
@@ -144,6 +146,8 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
 ) -> Result<Json<A2aDelegateResult>, (StatusCode, Json<A2aErrorResponse>)> {
     let timeout_secs = req.timeout_secs.unwrap_or(DEFAULT_DELEGATE_TIMEOUT_SECS);
 
+    // Délégation initiée depuis l'API REST → chaîne vide, agent appelant fictif.
+    let rest_caller = apollia_core::AgentId::from("__rest_api__");
     delegate_inner(
         &state.registry_handle,
         &state.router_handle,
@@ -151,6 +155,9 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
         &req.skill_id,
         req.input,
         timeout_secs,
+        &[],
+        &rest_caller,
+        DEFAULT_A2A_MAX_HOPS,
     )
     .await
     .map(Json)
@@ -344,6 +351,9 @@ fn a2a_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) {
         A2aError::Timeout { .. } => StatusCode::GATEWAY_TIMEOUT,
         A2aError::WorkerFailed { .. } => StatusCode::BAD_GATEWAY,
         A2aError::Registry(_) | A2aError::RouterDead => StatusCode::INTERNAL_SERVER_ERROR,
+        A2aError::CycleDetected { .. } | A2aError::MaxHopsExceeded { .. } => {
+            StatusCode::UNPROCESSABLE_ENTITY
+        }
     };
     (status, Json(A2aErrorResponse::from_error(&err)))
 }

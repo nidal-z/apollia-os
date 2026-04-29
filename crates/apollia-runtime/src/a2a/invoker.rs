@@ -13,7 +13,7 @@ use tracing::info;
 use apollia_core::{A2AConfig, AIPResult, ProcessState, RuntimeEvent};
 
 use crate::a2a::telemetry::{make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle};
-use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn};
+use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn, DEFAULT_A2A_MAX_HOPS};
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
@@ -31,6 +31,12 @@ pub struct RuntimeContextConfig {
     /// Si `true`, la mémoire utilisateur globale est accessible en lecture via
     /// `ctx.memory.recall()`. Les écritures restent confinées au namespace de l'agent.
     pub user_memory_read_only: bool,
+    /// Limite de hops de la chaîne de délégation A2A (ADR-D7).
+    ///
+    /// `None` → défaut runtime (5). Paramétrable post-release via la table
+    /// `system.db runtime_config` (EXP-03). Pour v0.1.0 : champ optionnel
+    /// avec défaut 5, non persisté.
+    pub a2a_max_hops: Option<usize>,
 }
 
 /// Erreurs structurées retournées par [`A2AInvoker`].
@@ -225,7 +231,12 @@ impl A2AInvoker {
     where
         B: ExecutionBackend + Clone + Send + Sync + 'static,
     {
-        let delegate_fn = make_delegate_fn(registry.clone(), router, event_bus.clone());
+        let delegate_fn = make_delegate_fn(
+            registry.clone(),
+            router,
+            event_bus.clone(),
+            DEFAULT_A2A_MAX_HOPS,
+        );
         Self {
             registry,
             delegate_fn,
@@ -502,8 +513,14 @@ impl A2AInvoker {
 
         let start = Instant::now();
 
-        let delegate_result =
-            (self.delegate_fn)(skill_id.to_string(), input, effective_timeout_secs).await;
+        let delegate_result = (self.delegate_fn)(
+            skill_id.to_string(),
+            input,
+            effective_timeout_secs,
+            Vec::new(),
+            apollia_core::AgentId::from(caller),
+        )
+        .await;
         let duration_ms = start.elapsed().as_millis() as u64;
 
         let status = if delegate_result.is_ok() {
@@ -753,6 +770,7 @@ impl A2AInvoker {
     pub fn build_a2a_context(&self) -> RuntimeContextConfig {
         RuntimeContextConfig {
             user_memory_read_only: true,
+            a2a_max_hops: None,
         }
     }
 
@@ -877,7 +895,11 @@ mod tests {
 
     fn make_never_called_delegate() -> A2aDelegateFn {
         Arc::new(
-            |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            |_skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -892,7 +914,11 @@ mod tests {
     fn make_ok_delegate(output: &str) -> A2aDelegateFn {
         let output = output.to_string();
         Arc::new(
-            move |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId| {
                 let out = output.clone();
                 let fut: Pin<
                     Box<
@@ -913,7 +939,11 @@ mod tests {
 
     fn make_timeout_delegate() -> A2aDelegateFn {
         Arc::new(
-            |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            |_skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -1475,7 +1505,11 @@ mod a2a_guard_tests {
 
     fn make_ok_delegate() -> A2aDelegateFn {
         Arc::new(
-            move |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
