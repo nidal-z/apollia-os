@@ -133,6 +133,7 @@ async fn test_project_rule_applies_only_to_matching_path() {
     engine.set_scope_context(ScopeContext {
         scope: PermissionScope::Project,
         project_path: Some(project_b),
+        agent_id: None,
     });
     let denied_decision = engine
         .decide(
@@ -146,6 +147,7 @@ async fn test_project_rule_applies_only_to_matching_path() {
     engine.set_scope_context(ScopeContext {
         scope: PermissionScope::Project,
         project_path: Some(project_a),
+        agent_id: None,
     });
     let allowed_decision = engine
         .decide(
@@ -181,6 +183,7 @@ async fn test_global_rule_applies_to_all_projects() {
         engine.set_scope_context(ScopeContext {
             scope: PermissionScope::Project,
             project_path: Some(PathBuf::from(project)),
+            agent_id: None,
         });
         let decision = engine
             .decide(
@@ -213,6 +216,7 @@ async fn test_expired_rule_not_applied() {
     engine.set_scope_context(ScopeContext {
         scope: PermissionScope::Global,
         project_path: None,
+        agent_id: None,
     });
     let decision = engine
         .decide(
@@ -237,6 +241,7 @@ async fn test_revoke_removes_from_check() {
     engine.set_scope_context(ScopeContext {
         scope: PermissionScope::Global,
         project_path: None,
+        agent_id: None,
     });
     let before = engine
         .decide(
