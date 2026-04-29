@@ -65,7 +65,11 @@ STOPPING → STOPPED
 
 **État interne :** `HashMap<AgentId, ExecutionCoordinator>` + `HashMap<TaskId, TaskState>`.
 
-**Messages entrants :** `Submit`, `GetStatus`, `Cancel`, `GetActiveTasks`, `RegisterCoordinator`, `UnregisterCoordinator`, `Shutdown`.
+**Messages entrants :** `Submit { agent_id, input, delegation_chain, reply }`, `GetStatus`, `Cancel`, `GetActiveTasks`, `RegisterCoordinator`, `UnregisterCoordinator`, `Shutdown`.
+
+**API publique (TaskRouterHandle) :**
+- `submit(agent_id, input)` — soumission racine, `delegation_chain` vide
+- `submit_with_chain(agent_id, input, delegation_chain)` — délégation A2A, chaîne propagée depuis la tâche appelante (appelé par `delegate_inner` après `validate_chain`)
 
 **Comportement :**
 - Vérifie `ProcessState` via `AgentRegistryHandle` avant dispatch

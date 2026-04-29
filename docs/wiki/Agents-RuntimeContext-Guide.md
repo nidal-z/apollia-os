@@ -290,7 +290,7 @@ Délègue une tâche à un Worker Agent via skill ID. Bas niveau, type-erasé.
 | `payload` | dict | — | ✅ | Données d'entrée JSON |
 | `timeout_secs` | int \| None | 120 | ❌ | Timeout en secondes |
 | **Retour** | awaitable (dict) | — | — | `{"task_id": str, "agent_name": str, "output": list[dict]}` |
-| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: delegation not available` ; Timeout |
+| **Erreurs** | — | — | — | `RuntimeError: A2A requires supports_a2a: true` ; `RuntimeError: delegation not available` ; `RuntimeError: A2A cycle: agent X already in delegation chain` ; `RuntimeError: A2A max hops exceeded: limit is 5` ; Timeout |
 
 ---
 

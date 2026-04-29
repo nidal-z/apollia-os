@@ -265,6 +265,13 @@ async def run(self, task, ctx):
     # Champs HITL — Human-in-the-Loop
     is_resumed     = task["is_resumed"]        # bool — True si reprise après approbation
     input_response = task["input_response"]    # InputResponse | None — None au premier appel
+
+    # Champ A2A — géré par le runtime, ne pas modifier
+    delegation_chain = task.get("delegation_chain", [])
+    # list[str] — IDs des agents parents dans la chaîne de délégation A2A.
+    # Vide pour une tâche racine (soumise via CLI, trigger ou REST).
+    # Étendu automatiquement par le runtime à chaque délégation via ctx.delegate().
+    # L'agent n'a pas à lire ni modifier ce champ — il est injecté et validé par le runtime.
 ```
 
 ### Champs HITL — is_resumed et input_response
@@ -535,6 +542,8 @@ output     = result["output"]     # list[dict] — AIPPart[] — résultat de la
 **Erreurs :**
 - `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
 - `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré
+- `RuntimeError: "A2A cycle: agent <id> already in delegation chain"` — cycle détecté (l'agent cible est déjà dans la chaîne, ou l'agent se délègue à lui-même)
+- `RuntimeError: "A2A max hops exceeded: limit is 5"` — profondeur de délégation maximale atteinte (défaut : 5 niveaux)
 
 ### ctx.user_context — Contexte utilisateur global
 

@@ -167,10 +167,28 @@ Le TaskRouter reçoit toutes les requêtes de soumission (depuis l'APIServer) et
    - STOPPING/STOPPED : SubmitError::AgentUnavailable
 
 2. Construire AIPTask (UUID, context_id, timeout depuis manifest)
+   - Pour les délégations A2A : AIPTask::delegation_chain est passé via submit_with_chain()
+   - Pour les soumissions racines (CLI, triggers, REST) : delegation_chain est vide (submit())
 
 3. Dispatcher vers ExecutionCoordinator de l'agent
 
 4. Enregistrer dans pending_tasks pour tracking
+```
+
+**API publique `TaskRouterHandle` :**
+
+```rust
+// Soumission racine — delegation_chain vide (CLI, triggers, REST, chat)
+pub async fn submit(&self, agent_id: &str, input: AIPInput) -> Result<TaskId, SubmitError>
+
+// Soumission A2A — delegation_chain propagée depuis la tâche appelante
+// Appelé par delegate_inner() après validation de la chaîne par validate_chain()
+pub async fn submit_with_chain(
+    &self,
+    agent_id: &str,
+    input: AIPInput,
+    delegation_chain: Vec<AgentId>,
+) -> Result<TaskId, SubmitError>
 ```
 
 ---
@@ -771,9 +789,10 @@ level              = "info"
 format             = "text"
 path               = "~/.apollia/runtime.log"
 
-[a2a]max_depth                 = 3                # Profondeur max chaîne A2A (défaut : 3)
+[a2a]
 invocation_timeout_secs   = 120              # Timeout par invocation A2A (défaut : 120)
 chain_timeout_secs        = 300              # Budget cumulé chaîne A2A (défaut : 300)
+# max_hops : constante DEFAULT_A2A_MAX_HOPS = 5 (non configurable via TOML pour v0.1.0)
 
 [observability]max_input_bytes       = 32768               # troncature input tâches/steps (32 KB)
 max_output_bytes      = 32768               # troncature output tâches/steps (32 KB)
@@ -805,7 +824,7 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | `A2AInvoker` timeout 120s | Invocations A2A synchrones — timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
 | Auto-installation des agents bundled (ADR-050) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` — idempotent (pas de réinstallation si déjà présent) |
 | `A2AToolsProvider` | Injecte dynamiquement les skills A2A comme outils virtuels `a2a:{skill_id}` dans la boucle ReAct ORIA — backward-compatible (sans agents A2A = pas de changement) |
-| Garde-fous A2A | `max_depth`, `chain_timeout`, self-invocation — trois protections runtime non contournables pour les chaînes A2A (Principe #7) |
+| Garde-fous A2A | `validate_chain()` applique deux protections non-contournables : détection de cycle (self-invocation incluse) et limite de hops (`DEFAULT_A2A_MAX_HOPS = 5`). La chaîne est propagée via `AIPTask::delegation_chain` et étendue à chaque délégation par `delegate_inner()`. `chain_timeout` est un garde-fou temporel complémentaire (Principe #7). |
 
 ---
 

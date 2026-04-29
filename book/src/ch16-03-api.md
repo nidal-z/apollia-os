@@ -88,7 +88,7 @@ Toutes les erreurs suivent le même format JSON :
 }
 ```
 
-Les codes HTTP respectent les conventions REST : `404` pour les ressources absentes, `409` pour les conflits (agent déjà démarré), `503` si le runtime n'est pas prêt.
+Les codes HTTP respectent les conventions REST : `404` pour les ressources absentes, `409` pour les conflits (agent déjà démarré), `503` si le runtime n'est pas prêt, `422` pour les délégations A2A invalides (cycle détecté ou profondeur maximale dépassée).
 
 ---
 
