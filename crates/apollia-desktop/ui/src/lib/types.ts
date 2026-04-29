@@ -181,6 +181,14 @@ export interface AgentListItem {
   limitations: string[];
   /** Note de configuration requise avant la première utilisation (`null` = aucun prérequis). */
   setup_notes: string | null;
+  /** Nom de la classe Python source de l'agent (décision D2). */
+  agent_class:
+    | "ReActAgent"
+    | "ConversationalAgent"
+    | "OrchestratedAgent"
+    | "WorkerAgent"
+    | string
+    | null;
 }
 
 /** Skill A2A déclaré par un agent worker. */

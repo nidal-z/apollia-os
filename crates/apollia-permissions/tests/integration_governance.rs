@@ -51,6 +51,7 @@ fn dummy_manifest() -> AgentManifest {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     }
 }
 

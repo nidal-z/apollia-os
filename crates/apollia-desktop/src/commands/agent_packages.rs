@@ -299,6 +299,7 @@ pub async fn install_agent_package(
                     examples: vec![],
                     limitations: vec![],
                     setup_notes: None,
+                    agent_class: None,
                 },
                 enabled: true,
                 installed_at: now.clone(),

@@ -116,6 +116,7 @@ fn test_manifest(name: &str) -> AgentManifest {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     }
 }
 

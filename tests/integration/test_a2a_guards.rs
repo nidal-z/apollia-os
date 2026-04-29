@@ -99,6 +99,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     }
 }
 

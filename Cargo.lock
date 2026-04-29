@@ -190,6 +190,7 @@ dependencies = [
  "hound",
  "pyo3",
  "pyo3-async-runtimes",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",

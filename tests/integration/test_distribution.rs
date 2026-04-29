@@ -105,6 +105,7 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     };
     InstalledAgent {
         name: name.to_string(),

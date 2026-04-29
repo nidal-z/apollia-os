@@ -3027,6 +3027,7 @@ mod tests {
                 examples: vec![],
                 limitations: vec![],
                 setup_notes: None,
+                agent_class: None,
             })
         }
     }

@@ -871,6 +871,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         }
     }
 
@@ -1468,6 +1469,7 @@ mod a2a_guard_tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         }
     }
 

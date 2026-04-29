@@ -177,6 +177,16 @@ pub struct AgentManifest {
     /// `None` signifie : aucun prérequis — l'agent démarre immédiatement.
     #[serde(default)]
     pub setup_notes: Option<String>,
+
+    /// Nom de la classe Python source de l'agent (ex: `"ReActAgent"`,
+    /// `"ConversationalAgent"`, `"OrchestratedAgent"`, `"WorkerAgent"`).
+    ///
+    /// Décision D2 : la classe Python est la source de vérité du type
+    /// d'agent. Renseigné par le validateur AIP à partir de
+    /// `self.__class__.__name__`. `None` pour les agents construits hors
+    /// pipeline PyO3 (tests, fixtures).
+    #[serde(default)]
+    pub agent_class: Option<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -229,6 +239,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -266,6 +277,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -408,6 +420,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

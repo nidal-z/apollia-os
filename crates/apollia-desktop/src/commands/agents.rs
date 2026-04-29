@@ -85,6 +85,11 @@ pub struct AgentListItem {
     pub limitations: Vec<String>,
     /// Note de configuration requise avant la première utilisation (`None` = aucun prérequis).
     pub setup_notes: Option<String>,
+    /// Nom de la classe Python source de l'agent (ex: `"ReActAgent"`,
+    /// `"ConversationalAgent"`, `"OrchestratedAgent"`, `"WorkerAgent"`).
+    /// Renseigné par le validateur AIP. `None` pour les agents construits
+    /// hors pipeline PyO3.
+    pub agent_class: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -217,6 +222,7 @@ pub async fn list_agents(
             examples: manifest.examples.clone(),
             limitations: manifest.limitations.clone(),
             setup_notes: manifest.setup_notes.clone(),
+            agent_class: manifest.agent_class.clone(),
         });
     }
 
@@ -256,6 +262,7 @@ pub async fn list_agents(
                 examples: manifest.examples.clone(),
                 limitations: manifest.limitations.clone(),
                 setup_notes: manifest.setup_notes.clone(),
+                agent_class: manifest.agent_class.clone(),
             });
         }
     }
@@ -977,6 +984,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
 
         // WHEN serialized to JSON
@@ -1018,6 +1026,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
 
         // WHEN serialized to JSON
@@ -1054,6 +1063,7 @@ mod tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         };
 
         // WHEN serialized to JSON

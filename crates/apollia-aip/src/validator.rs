@@ -6,6 +6,7 @@
 //! but not required.
 
 use apollia_core::AgentManifest;
+use apollia_tools::NATIVE_TOOL_NAMES;
 use pyo3::prelude::*;
 
 /// Result of AIP validation on a Python agent object.
@@ -47,9 +48,113 @@ pub enum AIPValidationError {
     #[error("manifest() returned invalid data: {0}")]
     InvalidManifest(String),
 
+    /// `manifest.version` is not valid semver (`MAJOR.MINOR.PATCH`).
+    #[error("version '{value}' is not valid semver — use '1.0.0'")]
+    InvalidVersion {
+        /// Raw value provided in the manifest.
+        value: String,
+    },
+
+    /// `tools_required` references a name that looks like a typo of a known
+    /// native tool (Levenshtein distance ≤ 2 to a known name).
+    #[error("tool '{name}' not found — did you mean '{suggestion}'?")]
+    UnknownTool {
+        /// The unknown tool name as declared by the agent.
+        name: String,
+        /// The closest matching native tool name.
+        suggestion: String,
+    },
+
     /// Generic Python error during validation.
     #[error("Python error during validation: {0}")]
     PythonError(String),
+}
+
+/// Levenshtein distance between two strings (iterative, O(n·m)).
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (n, m) = (a.len(), b.len());
+    if n == 0 {
+        return m;
+    }
+    if m == 0 {
+        return n;
+    }
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut curr = vec![0usize; m + 1];
+    for i in 1..=n {
+        curr[0] = i;
+        for j in 1..=m {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            curr[j] = (curr[j - 1] + 1)
+                .min(prev[j] + 1)
+                .min(prev[j - 1] + cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[m]
+}
+
+/// Length of the common ASCII prefix of `a` and `b`.
+fn common_prefix_len(a: &str, b: &str) -> usize {
+    a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count()
+}
+
+/// Find the closest native tool name to `name` if it looks like a typo.
+///
+/// Heuristic: a candidate is a likely typo if it shares a common prefix of
+/// at least 4 bytes with `name`, or if its Levenshtein distance is small
+/// enough relative to the name length (≤ max(2, len / 3)). The candidate
+/// minimizing `(−prefix_len, distance)` wins. Returns `None` if no native
+/// tool matches the heuristic — the unknown name is then assumed to belong
+/// to a non-native registry (MCP, custom dispatcher) and passes through.
+fn closest_native_tool(name: &str) -> Option<&'static str> {
+    let limit = (name.len() / 3).max(2);
+    let mut best: Option<(&'static str, usize, usize)> = None;
+    for &candidate in NATIVE_TOOL_NAMES {
+        if candidate == name {
+            return None;
+        }
+        let prefix = common_prefix_len(name, candidate);
+        let dist = levenshtein(name, candidate);
+        let prefix_match = prefix >= 4;
+        let distance_match = dist <= limit;
+        if !prefix_match && !distance_match {
+            continue;
+        }
+        let better = match best {
+            None => true,
+            Some((_, bp, bd)) => prefix > bp || (prefix == bp && dist < bd),
+        };
+        if better {
+            best = Some((candidate, prefix, dist));
+        }
+    }
+    best.map(|(n, _, _)| n)
+}
+
+/// Apply semantic validation on a freshly deserialized manifest:
+/// - `version` must be valid semver
+/// - each `tools_required` entry must not be a typo of a known native tool
+fn validate_manifest_semantics(manifest: &AgentManifest) -> Result<(), AIPValidationError> {
+    if semver::Version::parse(&manifest.version).is_err() {
+        return Err(AIPValidationError::InvalidVersion {
+            value: manifest.version.clone(),
+        });
+    }
+    for tool in &manifest.tools_required {
+        if NATIVE_TOOL_NAMES.contains(&tool.as_str()) {
+            continue;
+        }
+        if let Some(suggestion) = closest_native_tool(tool) {
+            return Err(AIPValidationError::UnknownTool {
+                name: tool.clone(),
+                suggestion: suggestion.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Validates that a Python object is AIP-compatible.
@@ -113,8 +218,21 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
             .extract()
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
-        let manifest: AgentManifest = serde_json::from_str(&json_str)
+        let mut manifest: AgentManifest = serde_json::from_str(&json_str)
             .map_err(|e| AIPValidationError::InvalidManifest(e.to_string()))?;
+
+        // Semantic validation: semver + tool typo detection.
+        validate_manifest_semantics(&manifest)?;
+
+        // Decision D2 — Python class is the source of truth for agent type.
+        // Extract `agent.__class__.__name__` and stamp it on the manifest so
+        // downstream consumers (UI, registry) can render it as a badge.
+        let class_name: Option<String> = agent_ref
+            .getattr("__class__")
+            .and_then(|cls| cls.getattr("__name__"))
+            .and_then(|n| n.extract::<String>())
+            .ok();
+        manifest.agent_class = class_name;
 
         // Detect optional callbacks
         let has_on_start = agent_ref
@@ -283,5 +401,119 @@ agent = A()
         assert!(validated.has_on_start);
         assert!(validated.has_on_stop);
         assert!(validated.has_health_check);
+    }
+
+    #[test]
+    fn test_validate_rejects_non_semver_version() {
+        // GIVEN an agent whose manifest version is not semver (emoji).
+        let agent = create_py_agent(
+            r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "broken",
+            "version": "🚀",
+            "description": "bad",
+            "tools_required": [],
+        }
+    async def run(self, t, c): pass
+agent = A()
+"#,
+        );
+
+        // WHEN we validate
+        let result = validate_agent(&agent);
+
+        // THEN we get InvalidVersion with the offending value in the message.
+        match result {
+            Err(AIPValidationError::InvalidVersion { value }) => assert_eq!(value, "🚀"),
+            other => panic!("expected InvalidVersion, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_validate_detects_tool_typo() {
+        // GIVEN an agent requiring a tool that is a Levenshtein-close typo
+        // of a known native tool (`bash_explorr` vs `bash_executor`).
+        let agent = create_py_agent(
+            r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "typo-agent",
+            "version": "1.0.0",
+            "description": "typo",
+            "tools_required": ["bash_explorr"],
+        }
+    async def run(self, t, c): pass
+agent = A()
+"#,
+        );
+
+        // WHEN we validate
+        let result = validate_agent(&agent);
+
+        // THEN we get UnknownTool with `bash_executor` as the suggestion.
+        match result {
+            Err(AIPValidationError::UnknownTool { name, suggestion }) => {
+                assert_eq!(name, "bash_explorr");
+                assert_eq!(suggestion, "bash_executor");
+            }
+            other => panic!("expected UnknownTool, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_validate_extracts_python_class_name() {
+        // GIVEN a valid agent whose Python class is named `ReActAgent`.
+        let agent = create_py_agent(
+            r#"
+class ReActAgent:
+    def manifest(self):
+        return {
+            "name": "react-demo",
+            "version": "1.0.0",
+            "description": "react demo",
+            "tools_required": [],
+        }
+    async def run(self, t, c): pass
+agent = ReActAgent()
+"#,
+        );
+
+        // WHEN we validate
+        let validated = validate_agent(&agent).expect("validation should succeed");
+
+        // THEN the class name is captured on the manifest.
+        assert_eq!(
+            validated.manifest.agent_class.as_deref(),
+            Some("ReActAgent")
+        );
+    }
+
+    #[test]
+    fn test_validate_passes_unknown_non_typo_tool() {
+        // GIVEN an agent requiring a tool whose name is too far from any
+        // native tool to be a typo (e.g. an MCP-provided tool).
+        let agent = create_py_agent(
+            r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "mcp-agent",
+            "version": "1.0.0",
+            "description": "uses an mcp tool",
+            "tools_required": ["my_custom_mcp_tool"],
+        }
+    async def run(self, t, c): pass
+agent = A()
+"#,
+        );
+
+        // WHEN we validate
+        let result = validate_agent(&agent);
+
+        // THEN validation succeeds — unknown but distant names pass through.
+        assert!(result.is_ok(), "expected ok, got {result:?}");
     }
 }

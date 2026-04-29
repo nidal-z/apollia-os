@@ -150,6 +150,7 @@ fn onboarding_manifest() -> AgentManifest {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     }
 }
 
@@ -251,6 +252,7 @@ fn apollia_guide_manifest() -> AgentManifest {
         examples: vec![],
         limitations: vec![],
         setup_notes: None,
+        agent_class: None,
     }
 }
 

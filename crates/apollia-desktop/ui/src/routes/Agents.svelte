@@ -112,6 +112,22 @@
   );
 
   // ── Helpers ──────────────────────────────────────────────────────────
+  // Maps the Python class name (decision D2) onto a short user-facing label.
+  function agentClassLabel(a: AgentListItem): string | null {
+    switch (a.agent_class) {
+      case "ReActAgent":
+        return "Direct";
+      case "ConversationalAgent":
+        return "Conversational";
+      case "OrchestratedAgent":
+        return "Orchestrated";
+      case "WorkerAgent":
+        return "Worker";
+      default:
+        return a.agent_class ?? null;
+    }
+  }
+
   function kindLabel(a: AgentListItem): string {
     if (a.tags.includes("trigger")) return "trigger";
     if (a.execution_mode === "orchestrated") return "tâche";
@@ -533,6 +549,9 @@
             <Chip size="sm" tone="neutral">
               {a.tools_required.length + a.tools_optional.length} outils
             </Chip>
+            {#if agentClassLabel(a)}
+              <Chip size="sm" tone="info">{agentClassLabel(a)}</Chip>
+            {/if}
             {#if a.execution_mode}
               <Chip size="sm" tone="neutral">{a.execution_mode}</Chip>
             {/if}

@@ -399,6 +399,7 @@ mod tests {
                 examples: vec![],
                 limitations: vec![],
                 setup_notes: None,
+                agent_class: None,
             },
             process_state: state,
             registered_at: Instant::now(),

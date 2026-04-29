@@ -2271,6 +2271,7 @@ mod tool_proxy_a2a_tests {
             examples: vec![],
             limitations: vec![],
             setup_notes: None,
+            agent_class: None,
         }
     }
 
