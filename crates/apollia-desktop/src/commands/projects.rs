@@ -1,3 +1,6 @@
+// IPC command module: "projects" (product term in UI/onboarding)
+// corresponds to apollia-workspace crate (technical term in CLI/SDK).
+//
 //! Tauri IPC commands for project management.
 //!
 //! Projects are the core concept for organizing agent context: a project bundles
