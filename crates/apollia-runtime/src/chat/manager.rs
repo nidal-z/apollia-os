@@ -20,6 +20,124 @@ use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_tools::{ProjectRepository, ToolRegistryHandle};
+use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
+use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
+use apollia_permissions::PrefixRuleEngine;
+use apollia_permissions::prefix_rule_engine::RuleAction;
+
+/// Identifiant logique de l'agent système "Apollia Chat".
+///
+/// Sert de clé pour les règles de permission `scope = 'agent'` et la config
+/// libre persistée dans `governance.db`.
+pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
+
+/// Charge depuis `governance.db` la configuration "chat libre" et la liste des
+/// outils auto-autorisés (règles `scope = 'agent'` + action `allow` pour
+/// `apollia:chat`). Fallback silencieux sur les valeurs par défaut si la base
+/// est absente, vide, ou en erreur — aucune régression sur les sessions Libre
+/// existantes.
+fn load_chat_libre_overrides() -> ChatLibreOverrides {
+    let mut out = ChatLibreOverrides::default();
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return out,
+    };
+    let base_dir = std::path::PathBuf::from(home).join(".apollia");
+    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
+    if !db_path.exists() {
+        return out;
+    }
+
+    if let Ok(repo) = ChatLibreConfigRepository::open(&db_path) {
+        if let Ok(cfg) = repo.load() {
+            if !cfg.system_prompt.trim().is_empty() {
+                out.system_prompt = Some(cfg.system_prompt);
+            }
+            if !cfg.allowed_tools.is_empty() {
+                out.allowed_tools = Some(cfg.allowed_tools);
+            }
+            if let Some(b) = cfg.llm_backend {
+                if !b.trim().is_empty() {
+                    out.llm_backend = Some(b);
+                }
+            }
+        }
+    }
+
+    if let Ok(engine) = PrefixRuleEngine::new(&db_path) {
+        if let Ok(rules) = engine.list_rules_for_agent(APOLLIA_CHAT_AGENT_ID) {
+            for r in rules {
+                if matches!(r.action, RuleAction::Allow) {
+                    out.pre_authorized_tools.insert(r.tool_name);
+                }
+            }
+        }
+    }
+
+    out
+}
+
+#[derive(Debug, Default)]
+struct ChatLibreOverrides {
+    system_prompt: Option<String>,
+    allowed_tools: Option<Vec<String>>,
+    llm_backend: Option<String>,
+    pre_authorized_tools: std::collections::HashSet<String>,
+}
+
+/// Persiste une règle `scope = 'agent'`/`action = 'allow'` dans `governance.db`
+/// pour `agent_id`/`tool_name`. Utilisé par le bouton "Toujours autoriser" du
+/// chat — la règle s'applique aux sessions futures via `load_chat_libre_overrides`.
+///
+/// Best-effort : log et continue en cas d'échec (on conserve la règle in-memory
+/// dans `session.authorized_tools` quoi qu'il arrive).
+fn persist_agent_allow_rule(agent_id: &str, tool_name: &str) {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(e) => {
+            warn!(error = %e, "HOME not set; skipping governance.db agent rule persistence");
+            return;
+        }
+    };
+    let base_dir = std::path::PathBuf::from(home).join(".apollia");
+
+    if let Err(e) = apollia_tools::governance_db::GovernanceDb::open(&base_dir) {
+        warn!(error = %e, "failed to open governance.db for agent rule persistence");
+        return;
+    }
+    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
+
+    let mut engine = match PrefixRuleEngine::new(&db_path) {
+        Ok(e) => e,
+        Err(e) => {
+            warn!(error = %e, "failed to open prefix rule engine for agent rule persistence");
+            return;
+        }
+    };
+
+    let rule = apollia_permissions::PrefixRule {
+        tool_name: tool_name.to_string(),
+        arg_prefix: None,
+        action: RuleAction::Allow,
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64,
+        scope: apollia_permissions::PermissionScope::Agent,
+        agent_id: Some(agent_id.to_string()),
+        ..apollia_permissions::PrefixRule::default()
+    };
+
+    match engine.add_rule(&rule) {
+        Ok(rule_id) => info!(
+            rule_id,
+            agent_id,
+            tool = %tool_name,
+            "persisted agent-scoped allow rule from chat AlwaysAccept"
+        ),
+        Err(e) => warn!(error = %e, "failed to persist agent-scoped allow rule"),
+    }
+}
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
@@ -750,7 +868,7 @@ impl ChatSessionManager {
 
         // When no tools are explicitly specified, default to all tools in the registry.
         // Users can override by passing an explicit tools list when creating the session.
-        let resolved_tools = if tools.is_empty() {
+        let mut resolved_tools = if tools.is_empty() {
             let all =
                 self.tool_registry.list().await.map_err(|e| {
                     ChatError::InternalError(format!("tool registry list failed: {e}"))
@@ -762,7 +880,33 @@ impl ChatSessionManager {
 
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = now_rfc3339();
-        let prompt = system_prompt.unwrap_or_default();
+        let mut prompt = system_prompt.unwrap_or_default();
+
+        // ── Libre mode: pull persisted overrides from governance.db ──────────
+        // - system_prompt   : prepended to the caller's prompt when set.
+        // - allowed_tools   : narrows the available_tools list when set non-empty.
+        // - llm_backend     : recorded on the session for downstream routing.
+        // - pre_authorized  : agent-scoped allow rules → seed authorized_tools
+        //                     so the chat ReAct loop skips HITL for them.
+        // Silent fallback when the DB is absent / empty / unreadable: legacy behavior.
+        let mut libre_llm_backend: Option<String> = None;
+        let mut pre_authorized: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        if mode == ChatMode::Libre {
+            let overrides = load_chat_libre_overrides();
+            if let Some(sp) = overrides.system_prompt {
+                if prompt.trim().is_empty() {
+                    prompt = sp;
+                } else {
+                    prompt = format!("{sp}\n\n{prompt}");
+                }
+            }
+            if let Some(allowed) = overrides.allowed_tools {
+                resolved_tools = allowed;
+            }
+            libre_llm_backend = overrides.llm_backend;
+            pre_authorized = overrides.pre_authorized_tools;
+        }
 
         // Persist to SQLite
         self.repository.create_session(
@@ -784,11 +928,11 @@ impl ChatSessionManager {
             system_prompt: prompt,
             status: SessionStatus::Active,
             history: Vec::new(),
-            authorized_tools: std::collections::HashSet::new(),
+            authorized_tools: pre_authorized,
             available_tools: resolved_tools,
             created_at: now.clone(),
             active_exchange: None,
-            llm_backend: None,
+            llm_backend: libre_llm_backend,
             title: None,
             parent_session_id: None,
             fork_depth: 0,
@@ -1369,6 +1513,19 @@ impl ChatSessionManager {
                 warn!(error = %e, "Failed to persist tool authorization");
             }
             session.authorized_tools.insert(tool_name.to_string());
+
+            // Cross-session persistence: write an agent-scoped allow rule to
+            // governance.db so future chat sessions auto-approve this tool.
+            // The agent_id is derived from the session mode:
+            //   - Libre / Companion: well-known APOLLIA_CHAT_AGENT_ID
+            //   - Agent mode: the agent_name (per-agent permissions)
+            let agent_id_for_rule: Option<String> = match session.mode {
+                ChatMode::Libre | ChatMode::Companion => Some(APOLLIA_CHAT_AGENT_ID.to_string()),
+                ChatMode::Agent => session.agent_name.clone(),
+            };
+            if let Some(agent_id) = agent_id_for_rule {
+                persist_agent_allow_rule(&agent_id, tool_name);
+            }
         }
 
         // Trace-log the enriched metadata (reason / scope) without breaking
@@ -1860,10 +2017,18 @@ impl ChatSessionManager {
             };
             let available_tools: Vec<String> =
                 serde_json::from_str(&row.available_tools).unwrap_or_default();
-            let authorized_tools = self
+            let mut authorized_tools = self
                 .repository
                 .get_authorized_tools(&row.id)
                 .unwrap_or_default();
+            // Libre sessions: also seed from governance.db agent-scoped allow
+            // rules so cross-session "Toujours autoriser" decisions survive.
+            if mode == ChatMode::Libre {
+                let overrides = load_chat_libre_overrides();
+                for tool in overrides.pre_authorized_tools {
+                    authorized_tools.insert(tool);
+                }
+            }
             let messages = self
                 .repository
                 .get_messages(&row.id, None)
