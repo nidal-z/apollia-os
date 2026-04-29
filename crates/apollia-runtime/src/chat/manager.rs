@@ -1105,7 +1105,19 @@ impl ChatSessionManager {
                 session.system_prompt.clone()
             };
             let available_tools = session.available_tools.clone();
-            let authorized_tools = session.authorized_tools.clone();
+            // Live merge : on relit governance.db à chaque message pour que les
+            // changements de configuration Apollia Chat (outils auto-autorisés,
+            // règles agent-scoped) s'appliquent aux sessions Libre déjà ouvertes
+            // sans avoir à fermer/rouvrir la conversation. La fusion est purement
+            // additive : on n'enlève jamais d'autorisation accordée pendant la
+            // session, on en ajoute si la config a été enrichie depuis.
+            let mut authorized_tools = session.authorized_tools.clone();
+            if session.mode == ChatMode::Libre {
+                let live = load_chat_libre_overrides();
+                for tool in live.pre_authorized_tools {
+                    authorized_tools.insert(tool);
+                }
+            }
             let pending_approvals = self.pending_chat_approvals.clone();
             let budget = StepBudget::new(&self.runtime_budget);
             let sid = session_id.to_string();
