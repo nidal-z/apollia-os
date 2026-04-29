@@ -1159,6 +1159,20 @@ pub enum RuntimeEvent {
         preview: FilesystemPreview,
     },
 
+    // ── Memory namespaces ─────────────────────
+    /// Un agent a obtenu l'accès à un shared namespace mémoriel.
+    ///
+    /// Émis par `apollia-aip::memory` lorsqu'un agent est autorisé à
+    /// lire/écrire dans un namespace partagé. Permet aux consommateurs
+    /// du bus (audit, observabilité) de tracer les expansions de scope
+    /// mémoriel sans inspecter la configuration agent par agent.
+    SharedNamespaceAdded {
+        /// Identifiant de l'agent ayant obtenu l'accès.
+        agent_id: AgentId,
+        /// Nom du shared namespace désormais accessible.
+        namespace: String,
+    },
+
     // ── Session metrics ───
     /// Agrégat des métriques de session mis à jour.
     ///

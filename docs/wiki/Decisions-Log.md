@@ -1193,5 +1193,25 @@ Unification de la gouvernance des outils dans `~/.apollia/governance.db`. `ToolR
 
 ---
 
+## ADR-083 — Trust model des agents Python (v0.1.0)
+
+**Date :** 2026-04-29 — **Statut :** Accepté
+
+Les agents Python sont traités comme du code utilisateur de confiance, exécutés avec les droits du processus runtime (donc de l'utilisateur courant). Pas de sandbox process-per-agent en v0.1.0 — la cible builders avancés audite son propre code. SEC-02 (sandbox OS) reste roadmap v1.0. Bandeau onboarding obligatoire : *« Apollia OS exécute du code Python avec vos droits utilisateur — n'installez que des agents que vous avez audités. »* Marketing v0.1.0 ne doit jamais sous-entendre une isolation forte.
+
+[Détail → docs/adr/ADR-083-trust-model-python-agents.md](adr/ADR-083-trust-model-python-agents.md)
+
+---
+
+## ADR-084 — Windows hors scope v0.1.0 et v1.0
+
+**Date :** 2026-04-29 — **Statut :** Accepté
+
+Windows n'est pas supporté en v0.1.0 ni en v1.0. Le binaire ne build pas sur Windows (Unix socket axum, notify-rust D-Bus/NSUserNotificationCenter, llama.cpp Metal/CUDA, sandbox tools POSIX). Documentation publique, site vitrine et annonce ne mentionnent ni « Windows » ni « cross-platform ». Réévaluation possible v1.x si demande communautaire significative — décision tracée dans un ADR ultérieur.
+
+[Détail → docs/adr/ADR-084-windows-hors-scope-v1.md](adr/ADR-084-windows-hors-scope-v1.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

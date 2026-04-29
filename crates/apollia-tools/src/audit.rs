@@ -101,6 +101,12 @@ const SCHEMA: &str = "
         ON tool_invocations(agent_id);
     CREATE INDEX IF NOT EXISTS idx_tool_invocations_started_at
         ON tool_invocations(started_at);
+    CREATE TRIGGER IF NOT EXISTS audit_no_update
+        BEFORE UPDATE ON tool_invocations
+        BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
+    CREATE TRIGGER IF NOT EXISTS audit_no_delete
+        BEFORE DELETE ON tool_invocations
+        BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
 ";
 
 /// Colonnes d'observabilité ajoutées par la migration Sprint 13.
@@ -617,5 +623,41 @@ mod tests {
         assert_eq!(results[0].duration_ms, Some(42));
         assert_eq!(results[0].exit_code, Some(0));
         handle.shutdown().await;
+    }
+
+    // Audit trail append-only — UPDATE/DELETE refusés par triggers SQLite
+    #[tokio::test]
+    async fn test_audit_trail_is_append_only() {
+        // GIVEN une base avec une invocation enregistrée
+        let db_path =
+            std::env::temp_dir().join(format!("apollia_append_only_{}.db", uuid::Uuid::new_v4()));
+        let handle = AuditTrailHandle::open(&db_path).await.unwrap();
+        handle.record(make_record(true, None));
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        handle.shutdown().await;
+
+        // WHEN on tente un UPDATE puis un DELETE direct sur la table
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        let update_err = conn
+            .execute("UPDATE tool_invocations SET success = 0", [])
+            .unwrap_err()
+            .to_string();
+        let delete_err = conn
+            .execute("DELETE FROM tool_invocations", [])
+            .unwrap_err()
+            .to_string();
+
+        // THEN les deux opérations sont refusées avec le message attendu
+        assert!(
+            update_err.contains("audit trail is append-only"),
+            "expected append-only abort on UPDATE, got: {update_err}"
+        );
+        assert!(
+            delete_err.contains("audit trail is append-only"),
+            "expected append-only abort on DELETE, got: {delete_err}"
+        );
+
+        drop(conn);
+        tokio::fs::remove_file(&db_path).await.ok();
     }
 }

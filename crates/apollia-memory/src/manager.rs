@@ -135,6 +135,11 @@ impl MemoryManager {
     ///
     /// Retourne `ReadWrite` pour le namespace prive, `ReadOnly` pour les
     /// namespaces partages, `None` si le namespace n'est pas autorise.
+    /// Liste les shared namespaces (lecture seule) configurés pour cet agent.
+    pub fn shared_namespaces(&self) -> &[String] {
+        &self.shared_namespaces
+    }
+
     pub fn access_level(&self, namespace: &str) -> Option<MemoryAccess> {
         if self.primary_namespace.as_deref() == Some(namespace) {
             return Some(MemoryAccess::ReadWrite);

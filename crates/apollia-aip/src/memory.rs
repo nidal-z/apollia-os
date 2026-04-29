@@ -12,6 +12,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_memory::episodic::EpisodicMemory;
 use apollia_memory::injection_tracker::{global_record, preview, InjectedEntry};
 use apollia_memory::manager::{MemoryAccess, MemoryManager};
@@ -453,6 +454,25 @@ impl MemoryInterface {
             user_manager: user_manager.map(|m| Arc::new(Mutex::new(m))),
             current_turn_id: Arc::new(Mutex::new(None)),
         })
+    }
+
+    /// Annonce sur l'EventBus chaque shared namespace auquel l'agent a accès.
+    ///
+    /// Émet un [`RuntimeEvent::SharedNamespaceAdded`] par namespace partagé
+    /// configuré dans le `MemoryManager` sous-jacent. Appelé par le runtime
+    /// juste après la construction de l'interface, lorsque la liste des
+    /// namespaces autorisés est figée. Les erreurs `broadcast` sont ignorées
+    /// (fire-and-forget — pas de receiver = pas d'effet).
+    pub fn announce_shared_namespaces(&self, bus: &EventBusSender) {
+        let Ok(guard) = self.manager.lock() else {
+            return;
+        };
+        for ns in guard.shared_namespaces() {
+            let _ = bus.send(RuntimeEvent::SharedNamespaceAdded {
+                agent_id: AgentId::from(self.agent_id.as_str()),
+                namespace: ns.clone(),
+            });
+        }
     }
 
     /// Sets (or clears) the current turn id used to correlate injections.

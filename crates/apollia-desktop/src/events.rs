@@ -343,6 +343,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── Session metrics ─────────────────────────────────
         RuntimeEvent::SessionMetricsUpdated { .. } => "session-metrics",
+
+        // ── Memory namespaces ───────────────────────────────
+        RuntimeEvent::SharedNamespaceAdded { .. } => "memory-changed",
     }
 }
 

@@ -189,7 +189,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             manifest.memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                MemoryInterface::new(manager, eff_ns, agent_name.to_string(), false, None)
+                let iface =
+                    MemoryInterface::new(manager, eff_ns, agent_name.to_string(), false, None)?;
+                iface.announce_shared_namespaces(&event_bus);
+                Some(iface)
             });
 
         let supports_a2a = manifest.supports_a2a;
@@ -558,7 +561,10 @@ impl AgentRunner for BridgeRunner {
                     let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                     let manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                    MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)
+                    let iface =
+                        MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)?;
+                    iface.announce_shared_namespaces(&event_bus);
+                    Some(iface)
                 });
 
             let ctx: PyObject = Python::with_gil(|py| {

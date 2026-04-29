@@ -253,7 +253,10 @@ impl AgentRunner for BridgeRunner {
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)
+                let iface =
+                    MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)?;
+                iface.announce_shared_namespaces(&event_bus);
+                Some(iface)
             });
 
             // Chat mode wiring: when the task carries a message_id, the
