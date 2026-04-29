@@ -63,7 +63,7 @@ crates/apollia-desktop/
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
 │       ├── tools.rs           ← list_tools, describe_tool
 │       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
-│       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule
+│       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule, list_active_chat_session_authorizations, revoke_chat_session_authorization
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
@@ -85,7 +85,7 @@ crates/apollia-desktop/
         │   │   ├── navigation.ts      ← currentRoute + showOnboarding
         │   │   ├── settings.ts        ← SettingsSubRoute (12 valeurs) + SETTINGS_SUB_ROUTES
         │   │   ├── toolGovernance.ts  ← ToolStatusDto, CredentialEntryDto, CredentialTestResultDto + 7 fonctions IPC (loadTools, toggleTool, getToolConfig, updateToolConfig, setCredential, deleteCredential, testCredential)
-        │   │   └── permissions.ts     ← PermissionRuleDto, AuditEntryDto, PermissionRuleFilter, PermissionRuleScope ("session"|"project"|"agent"|"global") + 7 fonctions IPC (loadRules, revokeRule, revokeAll, countRulesForScope, loadAudit, setScopeFilter, setToolFilter) + stores chat (chatPermissionRules, loadChatRules, deleteChatRule)
+        │   │   └── permissions.ts     ← PermissionRuleDto, AuditEntryDto, PermissionRuleFilter, PermissionRuleScope ("session"|"project"|"agent"|"global") + SessionAuthorizationDto + 7 fonctions IPC (loadRules, revokeRule, revokeAll, countRulesForScope, loadAudit, setScopeFilter, setToolFilter) + stores chat (chatPermissionRules, loadChatRules, deleteChatRule) + stores session-auth (sessionAuthorizations, loadingSessionAuths, sessionAuthsError, loadSessionAuthorizations, revokeSessionAuthorization)
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
@@ -260,12 +260,34 @@ Commandes lisant/écrivant la configuration persistée de l'agent système Apoll
 ```rust
 pub struct ChatLibreConfigDto {
     pub system_prompt: String,          // vide ⇒ comportement runtime par défaut
-    pub allowed_tools: Vec<String>,     // vide ⇒ tous les outils du registre
+    pub allowed_tools: Vec<String>,     // outils ajoutés à pre_authorized_tools (skip HITL, LLM voit toujours tout le registre)
     pub llm_backend: Option<String>,    // None ⇒ défaut runtime
 }
 ```
 
+> **Sémantique `allowed_tools` :** contrairement à ce que son nom suggère, `allowed_tools` n'est **pas** une restriction de la liste d'outils disponibles. Il peuple `pre_authorized_tools` : l'outil est auto-approuvé (pas de popup HITL), mais le LLM voit l'ensemble du registre. Les changements s'appliquent aux sessions Libre déjà ouvertes (live merge à chaque message).
+
 `APOLLIA_CHAT_AGENT_ID = "apollia:chat"` — identifiant logique de l'agent système Chat, partagé avec `apollia-runtime::chat::manager`.
+
+`SessionAuthorizationDto` (source : `commands/chat_libre.rs`) :
+
+```rust
+pub struct SessionAuthorizationDto {
+    pub session_id: String,
+    pub session_title: Option<String>,
+    pub mode: String,       // "libre" | "agent" | "companion"
+    pub tool_name: String,
+}
+```
+
+DTO frontend pour les autorisations in-memory `scope=session`, exposees par les 2 nouvelles commandes ci-dessous. Ces autorisations ne sont jamais persistees dans `governance.db`.
+
+Commandes supplementaires dans `commands/chat_libre.rs` :
+
+| Commande | Parametres | Retour | Description |
+|---|---|---|---|
+| `list_active_chat_session_authorizations` | — | `Vec<SessionAuthorizationDto>` | Autorisations in-memory de toutes les sessions actives (pour Settings > Permissions > Sessions actives) |
+| `revoke_chat_session_authorization` | `session_id: String`, `tool_name: String` | `Result<(), String>` | Retire une autorisation in-memory ; erreur si session ou entree introuvable |
 
 ### Tool Governance (12)
 
@@ -308,7 +330,7 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 | `update_chat_session` | `session_id: String, request: UpdateSessionRequest` | `Result<(), String>` |
 | `generate_chat_session_name` | `session_id: String, first_message: String` | `Result<String, String>` (titre genere) |
 | `send_chat_message` | `session_id: String, content: String` | `Result<String, String>` (message_id) |
-| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<(), String>` |
+| `authorize_chat_tool` | `session_id, message_id, tool_name, decision, scope?` | `Result<(), String>` |
 
 ### STT (5)
 
@@ -507,7 +529,11 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 - *Configuration* — lecture seule nettoyee (ADR-029). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor` via `open::that`.
 - *Outils* (`/settings/tools`, `Tools.svelte`) — gouvernance des outils natifs. Liste les outils (`governance_list_tools`) avec toggle enable/disable (`ToolCard.svelte`). Bouton "Configurer" ouvre `ToolConfigDrawer.svelte` (panel latéral Sheet) pour les outils exposant une config : `web_search` (backend Auto/DDG/Brave, timeouts, résultats max, `require_configured`) et `web_read` (timeout, taille max, garde SSRF). `CredentialField.svelte` gère les credentials (Brave API key) : saisie masquée, enregistrement via `governance_set_credential`, suppression via `governance_delete_credential`, test live via `governance_test_credential`. Store réactif `toolGovernance.ts` applique un état optimiste pour les toggles avec rollback automatique si l'IPC échoue.
-- Les autres onglets (LLM backends, Permissions, Mémoires, Raccourcis, Danger, etc.) sont gérés par leurs routes respectives dans `routes/settings/`.
+- *Permissions* (`/settings/permissions`, `Permissions.svelte`) — 3 sections :
+  - **Sessions actives** — autorisations in-memory (`scope=session`) des sessions de chat en cours. Chargees via `list_active_chat_session_authorizations`, révocables via `revoke_chat_session_authorization`. Disparaissent a la fermeture de la session. Badge *Session* orange sur chaque entree.
+  - **Chat — Apollia** — regles `scope=agent` persistees dans `governance.db` pour l'agent `apollia:chat`. Chargees via `list_chat_permission_rules`, révocables via `delete_chat_permission_rule`.
+  - **Autorisations persistees** — toutes les regles `scope=project|agent|global` de `governance.db`. Filtres par portee (*Ce projet*, *Chat / agent*, *Partout*) et par outil. Revocation individuelle (`governance_revoke_permission_rule`) ou en masse (`governance_revoke_all_rules` avec portee *Ce projet* | *Chat / agent* | *Partout* | *Toutes portees*).
+- Les autres onglets (LLM backends, Mémoires, Raccourcis, Danger, etc.) sont gérés par leurs routes respectives dans `routes/settings/`.
 
 ---
 

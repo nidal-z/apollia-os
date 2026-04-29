@@ -123,7 +123,7 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 **État interne :** `HashMap<String, ChatSession>` + `ChatSessionRepository` (SQLite) + `PendingChatApprovals`.
 
-**Messages entrants :** `CreateSession`, `SendMessage`, `ResolveTool`, `ListSessions`, `GetSession`, `CloseSession`, `Shutdown`.
+**Messages entrants :** `CreateSession`, `SendMessage`, `ResolveTool`, `ListSessions`, `GetSession`, `CloseSession`, `ListSessionAuthorizations`, `RevokeSessionAuthorization`, `Shutdown`.
 
 **Comportement :**
 - Chat Libre : boucle ReAct Rust native via `BuiltInChatAgent` avec streaming token-by-token

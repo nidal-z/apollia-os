@@ -40,7 +40,7 @@ ChatSessionManager (actor loop)
         +-- EventBusSender (broadcast RuntimeEvent)
 ```
 
-L'enum `ChatCommand` definit les 7 messages acceptes par l'acteur :
+L'enum `ChatCommand` definit les 9 messages acceptes par l'acteur :
 
 - `CreateSession` — cree une session (mode, agent optionnel, outils, prompt systeme)
 - `SendMessage` — envoie un message utilisateur, declenche l'execution
@@ -48,6 +48,8 @@ L'enum `ChatCommand` definit les 7 messages acceptes par l'acteur :
 - `ListSessions` — retourne la liste des sessions (filtre optionnel par statut)
 - `GetSession` — retourne le detail complet d'une session (historique inclus)
 - `CloseSession` — ferme une session (status → `Closed`)
+- `ListSessionAuthorizations` — retourne les autorisations in-memory (scope=session) de toutes les sessions actives ; utilise par Settings > Permissions
+- `RevokeSessionAuthorization` — retire une autorisation in-memory d'une session active (retourne `true` si l'entree existait)
 - `Shutdown` — arret propre de l'acteur
 
 Chaque commande porte un `oneshot::Sender` pour la reponse, sauf `Shutdown`.
@@ -71,11 +73,13 @@ Flux d'execution par echange :
 
 Le prompt systeme est configurable par session. La valeur par defaut fournit les instructions ReAct standard avec la liste des outils disponibles.
 
-**Surcharges persistees (Chat Libre uniquement) :** a la creation de chaque session Libre, `load_chat_libre_overrides()` lit `governance.db` et applique :
+**Surcharges Chat Libre :** a la creation de chaque session Libre, `load_chat_libre_overrides()` lit `governance.db` et applique :
 - `system_prompt` — prepend au prompt systeme de la session si non vide.
-- `allowed_tools` — restreint la liste `available_tools` si non vide.
+- `allowed_tools` (config) — inseree dans `pre_authorized_tools` (le LLM voit tous les outils, mais ceux-ci ne declenchent pas de popup HITL).
 - `llm_backend` — enregistre le backend prefere sur la session.
-- Regles `scope = 'agent'`/`action = 'allow'` pour `apollia:chat` — prechargees dans `authorized_tools` (ces outils ne declenchent pas de HITL).
+- Regles `scope = 'agent'`/`action = 'allow'` pour `apollia:chat` — prechargees dans `pre_authorized_tools` (auto-approuves sans HITL).
+
+De plus, a **chaque message** d'une session Libre, `load_chat_libre_overrides()` est rappele et ses `pre_authorized_tools` sont fusionnes additivement avec `session.authorized_tools`. Cela permet aux changements de configuration (outils auto-approuves) de s'appliquer aux sessions deja ouvertes sans fermeture/reouverture.
 
 Ces surcharges sont configurables depuis **Mes assistants → Apollia Chat** dans l'interface desktop, via les 4 commandes IPC `chat_libre_*`. Fallback silencieux si `governance.db` est absent.
 
@@ -154,7 +158,7 @@ pub struct ChatSession {
 }
 ```
 
-Le champ `authorized_tools` contient les outils approuves via `AlwaysAccept` pour cette session. En mode Libre, il est precharge depuis `governance.db` (regles `scope = 'agent'`) a la creation et a la restauration de la session via `load_chat_libre_overrides()`. Le champ `active_exchange` est `Some` uniquement pendant le traitement d'un message (statut `Processing`).
+Le champ `authorized_tools` contient les outils approuves via `AlwaysAccept` pour cette session. En mode Libre, il est precharge depuis `governance.db` a la creation puis enrichi de maniere additive a chaque message (fusion avec `pre_authorized_tools` issus de `load_chat_libre_overrides()`). Le champ `active_exchange` est `Some` uniquement pendant le traitement d'un message (statut `Processing`).
 
 ### ChatMessage
 
@@ -179,8 +183,22 @@ Le champ `seq` est un entier croissant par session, utilise pour l'ordre d'affic
 | `ChatMode` | `Libre`, `Agent` | Mode d'execution de la session |
 | `SessionStatus` | `Active`, `Processing`, `Closed` | Etat du cycle de vie |
 | `ChatRole` | `User`, `Assistant`, `System`, `Tool` | Role de l'emetteur du message |
-| `ToolDecision` | `Accept`, `Refuse`, `AlwaysAccept` | Decision de l'operateur sur un appel d'outil |
+| `ToolDecision` | `Accept`, `Refuse`, `AlwaysAccept { scope: AlwaysAcceptScope }` | Decision de l'operateur sur un appel d'outil |
+| `AlwaysAcceptScope` | `ThisTool`, `ThisSession`, `ThisAgent`, `ThisProject`, `Global` | Portee de persistance pour `AlwaysAccept` |
 | `ToolCallStatus` | `Pending`, `Authorized`, `Executed`, `Refused` | Etat d'un appel d'outil dans la boucle ReAct |
+
+### SessionAuthorizationView
+
+```rust
+pub struct SessionAuthorizationView {
+    pub session_id: String,
+    pub session_title: Option<String>,
+    pub mode: String,       // "libre" | "agent" | "companion"
+    pub tool_name: String,
+}
+```
+
+Snapshot d'une autorisation `scope=session` (in-memory) sur une session active. Retourne par `ChatSessionManagerHandle::list_session_authorizations`. Ces entrees ne sont **jamais persistees** dans `governance.db` — elles disparaissent a la fermeture de la session. Exposees au frontend via les commandes IPC `list_active_chat_session_authorizations` et `revoke_chat_session_authorization`.
 
 ### ChatError
 
@@ -208,14 +226,18 @@ Trois decisions sont possibles :
 |---|---|
 | `Accept` | Execute l'outil une seule fois, approbation non memorisee |
 | `Refuse` | Injecte un message de refus dans l'historique, la boucle ReAct continue sans executer |
-| `AlwaysAccept` | Ajoute l'outil a `authorized_tools` de la session, execute, les appels suivants sont automatiquement autorises |
+| `AlwaysAccept { scope }` | Ajoute l'outil a `authorized_tools` de la session, execute, les appels suivants sont automatiquement autorises ; persistance selon le scope choisi |
 
-La decision `AlwaysAccept` est persistee a deux endroits :
+La persistance de `AlwaysAccept` varie selon le `scope` :
 
-1. **`chat_tool_authorizations`** (SQLite `chat.db`) — par session, restauree au redemarrage.
-2. **`permission_rules`** (SQLite `governance.db`, `scope = 'agent'`) — cross-session, sous l'identifiant logique `APOLLIA_CHAT_AGENT_ID = "apollia:chat"`. Cette regle est active automatiquement dans toutes les sessions futures en mode Libre via `load_chat_libre_overrides()`. Elle est visible et révocable dans **Réglages › Permissions › Chat** dans l'interface desktop.
+| Scope | Persistance dans `chat.db` | Persistance dans `governance.db` |
+|---|---|---|
+| `ThisTool` / `ThisSession` | Oui (`chat_tool_authorizations`) | Non — in-memory uniquement |
+| `ThisAgent` | Oui | Oui — `scope='agent'`, `agent_id = apollia:chat` (Libre) ou `session.agent_name` (Agent) |
+| `ThisProject` | Oui | Oui — `scope='project'`, `project_path` derive du projet courant |
+| `Global` | Oui | Oui — `scope='global'` |
 
-Pour le mode Agent (agent Python), l'`agent_id` utilisé pour la règle de gouvernance est `session.agent_name` plutôt que `apollia:chat`.
+Les autorisations `ThisSession` sont visibles dans **Reglages › Permissions › Sessions actives** (in-memory, disparaissent a la fermeture). Les regles persistees sont visibles dans **Reglages › Permissions › Chat** et dans la liste generale des regles.
 
 ### Mecanisme interne
 
@@ -340,7 +362,9 @@ Le flux SSE (`/stream`) emet les `RuntimeEvent` chat filtres par `session_id`. L
 | `update_chat_session` | `session_id`, `request` | `` | Met a jour les metadonnees (mode, agent, outils) |
 | `generate_chat_session_name` | `session_id`, `first_message` | `String` (titre) | Genere automatiquement un titre court via LLM a partir du premier message utilisateur (max 60 caracteres, compatible reasoning models) |
 | `send_chat_message` | `session_id`, `content` | `{ message_id }` | Envoie un message |
-| `authorize_chat_tool` | `session_id`, `tool_name`, `decision` | `` | Resout une approbation |
+| `authorize_chat_tool` | `session_id`, `message_id`, `tool_name`, `decision`, `scope?` | `` | Resout une approbation (`scope` = `this_session` \| `this_agent` \| `this_project` \| `global`) |
+| `list_active_chat_session_authorizations` | — | `Vec<SessionAuthorizationDto>` | Liste les autorisations in-memory (scope=session) de toutes les sessions actives |
+| `revoke_chat_session_authorization` | `session_id`, `tool_name` | `` | Retire une autorisation in-memory d'une session active |
 
 ### Event bridge Tauri
 
@@ -424,8 +448,9 @@ Composant cible quand `$uiMode === "builder"` (valeur par defaut).
 Carte d'approbation HITL adaptee au mode operateur. Elle remplace `ApprovalCard.svelte` quand `$uiMode === "operator"`.
 
 - Description humaine de l'outil en attente (via i18n), sans JSON.
-- Deux actions uniquement : **Approuver** et **Refuser** — le bouton "Toujours accepter" (`AlwaysAccept`) est retire de la vue operateur.
-- `ApprovalCard.svelte` (existant) reste utilise en mode `"builder"` et conserve les trois decisions (`Accept`, `Refuse`, `AlwaysAccept`).
+- Trois boutons : **Autoriser une fois**, **Refuser**, **Toujours autoriser**.
+- Le bouton **Toujours autoriser** ouvre un sélecteur de portée (4 options) identique a `ApprovalCard.svelte` : *Pour cette session*, *Toujours pour cet assistant*, *Toujours pour ce projet* (grise si pas de projet), *Toujours, partout*.
+- `ApprovalCard.svelte` reste utilise en mode `"builder"` avec le meme sélecteur de portée.
 
 ### Module tool-display.ts
 

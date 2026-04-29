@@ -91,7 +91,7 @@ Les 12 événements runtime du chat (`ChatSessionCreated`, `ChatToken`, `ChatToo
 
 ## Approbation d'outil inline (HITL)
 
-Quand un outil est utilisé pour la première fois dans une session, le runtime peut suspendre la génération et émettre `ChatApprovalRequired`. Le client décide d'autoriser l'outil pour toute la session (`always_accept`) ou de le refuser.
+Quand un outil est utilisé pour la première fois dans une session, le runtime peut suspendre la génération et émettre `ChatApprovalRequired`. Trois décisions sont possibles : **Autoriser une fois** (`accept`), **Refuser** (`refuse`), ou **Toujours autoriser** (`always_accept`).
 
 ```bash
 curl -X POST http://localhost:7771/api/v1/sessions/cs-a1b2c3/authorize \
@@ -103,7 +103,16 @@ curl -X POST http://localhost:7771/api/v1/sessions/cs-a1b2c3/authorize \
   }'
 ```
 
-Une fois autorisé, l'outil n'est plus demandé pour les appels suivants dans la même session. La décision est persistée en SQLite (`chat_tool_authorizations`).
+La décision `always_accept` est persistée au minimum en SQLite (`chat_tool_authorizations`) pour cette session. Dans l'interface desktop, le bouton **"Toujours autoriser"** ouvre un sélecteur de portée :
+
+| Portée | Persistance |
+|---|---|
+| Pour cette session | In-memory uniquement — expire à la fermeture du chat |
+| Toujours pour cet assistant | Règle `scope=agent` dans `governance.db` |
+| Toujours pour ce projet | Règle `scope=project` dans `governance.db` |
+| Toujours, partout | Règle `scope=global` dans `governance.db` |
+
+> **Référence technique :** [Briques-Chat](https://github.com/nidal-z/apollia-os/wiki/Briques-Chat) — détail des 4 scopes, persistance et révocation.
 
 ---
 

@@ -26,7 +26,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
    - l'**auteur** de la décision (agent ou utilisateur)
 
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
-   - **Portée** : *Toutes*, *Ce projet*, *Chat*, *Partout*
+   - **Portée** : *Toutes*, *Ce projet*, *Chat / agent*, *Partout*
    - **Outil** : sélectionnez un outil précis dans la liste des outils présents
 
 ## Révoquer une autorisation individuelle
@@ -38,11 +38,20 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
 
 Une fois révoquée, l'outil concerné redemandera une approbation manuelle à la prochaine invocation.
 
+## Sessions actives
+
+La section **Sessions actives** liste les outils auto-approuvés via « Pour cette session » dans les conversations de chat en cours. Ces autorisations sont **in-memory uniquement** — elles disparaissent à la fermeture de la session et ne sont pas persistées.
+
+Chaque entrée indique le nom de l'outil, la session concernée (titre ou identifiant court), le mode (*Apollia Chat*, *Agent*, *Companion*) et un badge *Session* orange. Cliquez sur **Révoquer** pour retirer l'autorisation immédiatement. L'outil demandera de nouveau confirmation lors du prochain appel dans cette session.
+
+`[SCREENSHOT: section Sessions actives, liste d'entrées avec badge orange Session et bouton Révoquer]`
+
 ## Révoquer toutes les autorisations d'un coup
 
 1. Cliquez sur le bouton rouge **Tout révoquer** en haut à droite.
 2. Choisissez la portée à purger :
    - *Ce projet* — supprime les règles liées au projet courant
+   - *Chat / agent* — supprime les règles liées à l'agent Apollia Chat et aux agents Python
    - *Partout* — supprime les règles globales
    - *Toutes portées* — supprime toutes les règles persistées
 3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
