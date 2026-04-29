@@ -170,11 +170,12 @@ fn iso8601_opt(secs: Option<i64>) -> Option<String> {
 
 fn parse_scope(value: &str) -> Result<PermissionScope, String> {
     match value {
+        "session" => Ok(PermissionScope::Session),
         "project" => Ok(PermissionScope::Project),
         "agent" => Ok(PermissionScope::Agent),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "unknown scope '{other}', expected 'project' | 'agent' | 'global'"
+            "unknown scope '{other}', expected 'session' | 'project' | 'agent' | 'global'"
         )),
     }
 }
@@ -847,8 +848,12 @@ mod tests {
     #[test]
     fn test_parse_scope_unknown_value() {
         assert!(parse_scope("user").is_err());
-        assert!(parse_scope("session").is_err());
+        // "session" est désormais accepté pour rétrocompat avec les filtres
+        // frontend ; list_rules_filtered renverra simplement une liste vide
+        // car aucune règle n'a scope='session' en base.
+        assert_eq!(parse_scope("session"), Ok(PermissionScope::Session));
         assert_eq!(parse_scope("project"), Ok(PermissionScope::Project));
+        assert_eq!(parse_scope("agent"), Ok(PermissionScope::Agent));
         assert_eq!(parse_scope("global"), Ok(PermissionScope::Global));
     }
 
