@@ -18,15 +18,17 @@
   const SCOPE_LABEL: Record<PermissionRuleScope, string> = {
     session: "Session en cours",
     project: "Ce projet",
+    agent: "Chat",
     global: "Partout",
   };
 
   const SCOPE_VARIANT: Record<
     PermissionRuleScope,
-    "warning" | "info" | "primary"
+    "warning" | "info" | "primary" | "secondary"
   > = {
     session: "warning",
     project: "info",
+    agent: "secondary",
     global: "primary",
   };
 
@@ -96,6 +98,13 @@
       <div>
         <span class="font-medium text-foreground">Projet :</span>
         <code class="ml-1 rounded bg-muted px-1 py-px text-[11px]">{rule.project_path}</code>
+      </div>
+    {/if}
+
+    {#if rule.scope === "agent" && rule.agent_id}
+      <div>
+        <span class="font-medium text-foreground">Agent :</span>
+        <code class="ml-1 rounded bg-muted px-1 py-px text-[11px]">{rule.agent_id}</code>
       </div>
     {/if}
 

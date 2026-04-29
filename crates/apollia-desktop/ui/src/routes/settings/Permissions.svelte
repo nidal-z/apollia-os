@@ -21,6 +21,11 @@
     revokeAll,
     setScopeFilter,
     setToolFilter,
+    chatPermissionRules,
+    loadingChatRules,
+    chatRulesError,
+    loadChatRules,
+    deleteChatRule,
     type PermissionRuleDto,
     type PermissionRuleScope,
   } from "$lib/stores/permissions";
@@ -37,15 +42,30 @@
 
   let initialized = $state(false);
   let revokingId = $state<number | null>(null);
+  let revokingChatId = $state<number | null>(null);
   let bulkOpen = $state(false);
   let bulkScope = $state<RevokeAllScope>("session");
   let bulkSubmitting = $state(false);
 
   onMount(() => {
-    void Promise.all([loadRules(), loadAudit()]).finally(() => {
+    void Promise.all([loadRules(), loadAudit(), loadChatRules()]).finally(() => {
       initialized = true;
     });
   });
+
+  async function handleChatRevoke(rule: PermissionRuleDto): Promise<void> {
+    revokingChatId = rule.id;
+    try {
+      await deleteChatRule(rule.id);
+      addToast(`Règle chat ${rule.tool_name} supprimée`, "success", {
+        "data-testid": "chat-permission-revoke-toast",
+      });
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      revokingChatId = null;
+    }
+  }
 
   const toolOptions = $derived.by(() => {
     const names = new Set<string>();
@@ -119,7 +139,7 @@
   }
 
   async function reload(): Promise<void> {
-    await Promise.all([loadRules(), loadAudit()]);
+    await Promise.all([loadRules(), loadAudit(), loadChatRules()]);
     addToast("Permissions rechargées", "info", {
       "data-testid": "permissions-reloaded-toast",
     });
@@ -232,6 +252,51 @@
       {/if}
     </div>
   </div>
+
+  <section class="space-y-2" data-testid="permissions-chat">
+    <header class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-semibold">Chat — Apollia</h3>
+        <p class="text-[11px] text-muted-foreground">
+          Outils auto-approuvés pour les sessions du chat libre (agent
+          <code>apollia:chat</code>).
+        </p>
+      </div>
+      <span class="text-[11px] text-muted-foreground">
+        {$chatPermissionRules.length} règle{$chatPermissionRules.length === 1 ? "" : "s"}
+      </span>
+    </header>
+
+    {#if $chatRulesError}
+      <div
+        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        data-testid="chat-permissions-error"
+      >
+        {$chatRulesError}
+      </div>
+    {:else if !initialized && $loadingChatRules}
+      <SettingSectionSkeleton />
+    {:else if $chatPermissionRules.length === 0}
+      <p
+        class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
+        data-testid="chat-permissions-empty"
+      >
+        Aucun outil n'a encore été marqué « Toujours autoriser » dans le chat.
+      </p>
+    {:else}
+      <ul class="space-y-2" data-testid="chat-permission-rules-list">
+        {#each $chatPermissionRules as rule (rule.id)}
+          <li>
+            <PermissionRuleCard
+              {rule}
+              busy={revokingChatId === rule.id}
+              onRevoke={handleChatRevoke}
+            />
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 
   <section class="space-y-2" data-testid="permissions-audit">
     <header class="flex items-center justify-between">

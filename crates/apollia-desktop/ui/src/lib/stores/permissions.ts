@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 
 /** Portée d'une règle de permission persistée ou en mémoire. */
-export type PermissionRuleScope = "session" | "project" | "global";
+export type PermissionRuleScope = "session" | "project" | "agent" | "global";
 
 /** Représentation frontend d'une règle exposée par `governance_list_permission_rules`. */
 export interface PermissionRuleDto {
@@ -12,6 +12,7 @@ export interface PermissionRuleDto {
   action: string;
   scope: PermissionRuleScope;
   project_path: string | null;
+  agent_id: string | null;
   expires_at: string | null;
   created_at: string;
   created_by: string | null;
@@ -128,4 +129,33 @@ export async function setScopeFilter(
 export async function setToolFilter(tool: string | null): Promise<void> {
   filterTool.set(tool);
   await loadRules();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat-libre agent rules — règles `scope = 'agent'` pour `apollia:chat`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Liste des règles agent-scoped attribuées à l'agent système Apollia Chat. */
+export const chatPermissionRules = writable<PermissionRuleDto[]>([]);
+export const loadingChatRules = writable<boolean>(false);
+export const chatRulesError = writable<string | null>(null);
+
+/** Recharge les règles `agent_id = "apollia:chat"` depuis le backend. */
+export async function loadChatRules(): Promise<void> {
+  loadingChatRules.set(true);
+  chatRulesError.set(null);
+  try {
+    const list = await invoke<PermissionRuleDto[]>("list_chat_permission_rules");
+    chatPermissionRules.set(list);
+  } catch (err) {
+    chatRulesError.set(toErrorMessage(err));
+  } finally {
+    loadingChatRules.set(false);
+  }
+}
+
+/** Supprime une règle agent-scoped puis met à jour le store local. */
+export async function deleteChatRule(id: number): Promise<void> {
+  await invoke("delete_chat_permission_rule", { ruleId: id });
+  chatPermissionRules.update((list) => list.filter((r) => r.id !== id));
 }
