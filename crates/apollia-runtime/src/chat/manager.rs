@@ -53,8 +53,13 @@ fn load_chat_libre_overrides() -> ChatLibreOverrides {
             if !cfg.system_prompt.trim().is_empty() {
                 out.system_prompt = Some(cfg.system_prompt);
             }
-            if !cfg.allowed_tools.is_empty() {
-                out.allowed_tools = Some(cfg.allowed_tools);
+            // chat_libre_config.allowed_tools = outils auto-autorisés (skip HITL)
+            // selon la copie UX "Outils autorisés sans confirmation".
+            // On les ajoute à pre_authorized_tools, pas à available_tools : le
+            // LLM voit toujours l'ensemble du registre, mais ces outils-ci ne
+            // déclenchent plus de popup.
+            for tool in cfg.allowed_tools {
+                out.pre_authorized_tools.insert(tool);
             }
             if let Some(b) = cfg.llm_backend {
                 if !b.trim().is_empty() {
@@ -80,29 +85,31 @@ fn load_chat_libre_overrides() -> ChatLibreOverrides {
 #[derive(Debug, Default)]
 struct ChatLibreOverrides {
     system_prompt: Option<String>,
-    allowed_tools: Option<Vec<String>>,
     llm_backend: Option<String>,
     pre_authorized_tools: std::collections::HashSet<String>,
 }
 
-/// Persiste une règle `scope = 'agent'`/`action = 'allow'` dans `governance.db`
-/// pour `agent_id`/`tool_name`. Utilisé par le bouton "Toujours autoriser" du
-/// chat — la règle s'applique aux sessions futures via `load_chat_libre_overrides`.
-///
-/// Best-effort : log et continue en cas d'échec (on conserve la règle in-memory
-/// dans `session.authorized_tools` quoi qu'il arrive).
-fn persist_agent_allow_rule(agent_id: &str, tool_name: &str) {
+/// Persiste une règle `allow` scopée dans `governance.db` pour `tool_name`.
+/// Utilisé par le bouton "Toujours autoriser" du chat selon le scope choisi
+/// par l'opérateur. Best-effort : log et continue en cas d'échec (l'autorisation
+/// in-memory dans `session.authorized_tools` reste en place).
+fn persist_chat_allow_rule(
+    scope: apollia_permissions::PermissionScope,
+    project_path: Option<std::path::PathBuf>,
+    agent_id: Option<String>,
+    tool_name: &str,
+) {
     let home = match std::env::var("HOME") {
         Ok(h) => h,
         Err(e) => {
-            warn!(error = %e, "HOME not set; skipping governance.db agent rule persistence");
+            warn!(error = %e, "HOME not set; skipping governance.db rule persistence");
             return;
         }
     };
     let base_dir = std::path::PathBuf::from(home).join(".apollia");
 
     if let Err(e) = apollia_tools::governance_db::GovernanceDb::open(&base_dir) {
-        warn!(error = %e, "failed to open governance.db for agent rule persistence");
+        warn!(error = %e, "failed to open governance.db for chat rule persistence");
         return;
     }
     let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
@@ -110,7 +117,7 @@ fn persist_agent_allow_rule(agent_id: &str, tool_name: &str) {
     let mut engine = match PrefixRuleEngine::new(&db_path) {
         Ok(e) => e,
         Err(e) => {
-            warn!(error = %e, "failed to open prefix rule engine for agent rule persistence");
+            warn!(error = %e, "failed to open prefix rule engine for chat rule persistence");
             return;
         }
     };
@@ -123,19 +130,20 @@ fn persist_agent_allow_rule(agent_id: &str, tool_name: &str) {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64,
-        scope: apollia_permissions::PermissionScope::Agent,
-        agent_id: Some(agent_id.to_string()),
+        scope,
+        project_path,
+        agent_id,
         ..apollia_permissions::PrefixRule::default()
     };
 
     match engine.add_rule(&rule) {
         Ok(rule_id) => info!(
             rule_id,
-            agent_id,
+            scope = %scope.as_str(),
             tool = %tool_name,
-            "persisted agent-scoped allow rule from chat AlwaysAccept"
+            "persisted scoped allow rule from chat AlwaysAccept"
         ),
-        Err(e) => warn!(error = %e, "failed to persist agent-scoped allow rule"),
+        Err(e) => warn!(error = %e, "failed to persist scoped allow rule"),
     }
 }
 
@@ -868,7 +876,7 @@ impl ChatSessionManager {
 
         // When no tools are explicitly specified, default to all tools in the registry.
         // Users can override by passing an explicit tools list when creating the session.
-        let mut resolved_tools = if tools.is_empty() {
+        let resolved_tools = if tools.is_empty() {
             let all =
                 self.tool_registry.list().await.map_err(|e| {
                     ChatError::InternalError(format!("tool registry list failed: {e}"))
@@ -900,9 +908,6 @@ impl ChatSessionManager {
                 } else {
                     prompt = format!("{sp}\n\n{prompt}");
                 }
-            }
-            if let Some(allowed) = overrides.allowed_tools {
-                resolved_tools = allowed;
             }
             libre_llm_backend = overrides.llm_backend;
             pre_authorized = overrides.pre_authorized_tools;
@@ -1505,26 +1510,79 @@ impl ChatSessionManager {
             )));
         }
 
-        // If AlwaysAccept, persist authorization (scope-agnostic at this layer —
-        // the scope is surfaced via tracing and the approval event only).
-        if decision.is_always_accept() {
+        // AlwaysAccept: dispatch persistence by scope.
+        // - ThisTool / ThisSession: in-memory only (session.authorized_tools).
+        // - ThisAgent  : règle scope='agent' dans governance.db (agent_id dérivé du mode).
+        // - ThisProject: règle scope='project' dans governance.db (workspace_path du projet courant).
+        // - Global     : règle scope='global' dans governance.db.
+        if let ToolDecision::AlwaysAccept { scope } = &decision {
+            // Toujours mettre à jour la session courante (autorisation immédiate).
+            session.authorized_tools.insert(tool_name.to_string());
+
+            // chat.db.authorized_tools : écrit pour préserver l'autorisation si
+            // le runtime crash en cours de session. Conservé pour les scopes
+            // ThisTool/ThisSession (sinon ils seraient perdus à un restart). Pour
+            // les scopes persistants, c'est redondant avec governance.db mais
+            // sans effet de bord — sera nettoyé dans une étape ultérieure.
             let now = now_rfc3339();
             if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
                 warn!(error = %e, "Failed to persist tool authorization");
             }
-            session.authorized_tools.insert(tool_name.to_string());
 
-            // Cross-session persistence: write an agent-scoped allow rule to
-            // governance.db so future chat sessions auto-approve this tool.
-            // The agent_id is derived from the session mode:
-            //   - Libre / Companion: well-known APOLLIA_CHAT_AGENT_ID
-            //   - Agent mode: the agent_name (per-agent permissions)
-            let agent_id_for_rule: Option<String> = match session.mode {
-                ChatMode::Libre | ChatMode::Companion => Some(APOLLIA_CHAT_AGENT_ID.to_string()),
-                ChatMode::Agent => session.agent_name.clone(),
-            };
-            if let Some(agent_id) = agent_id_for_rule {
-                persist_agent_allow_rule(&agent_id, tool_name);
+            use super::types::AlwaysAcceptScope;
+            match scope {
+                AlwaysAcceptScope::ThisTool | AlwaysAcceptScope::ThisSession => {
+                    // Pas de persistance dans governance.db — purement in-session.
+                }
+                AlwaysAcceptScope::ThisAgent => {
+                    let agent_id = match session.mode {
+                        ChatMode::Libre | ChatMode::Companion => {
+                            Some(APOLLIA_CHAT_AGENT_ID.to_string())
+                        }
+                        ChatMode::Agent => session.agent_name.clone(),
+                    };
+                    if let Some(aid) = agent_id {
+                        persist_chat_allow_rule(
+                            apollia_permissions::PermissionScope::Agent,
+                            None,
+                            Some(aid),
+                            tool_name,
+                        );
+                    }
+                }
+                AlwaysAcceptScope::ThisProject => {
+                    let workspace = session
+                        .project_id
+                        .as_ref()
+                        .and_then(|pid| self.project_repo.as_ref().map(|r| (r, pid)))
+                        .and_then(|(repo, pid)| repo.get_project(pid).ok())
+                        .and_then(|d| d.workspace_path.map(std::path::PathBuf::from));
+                    match workspace {
+                        Some(ws) => {
+                            persist_chat_allow_rule(
+                                apollia_permissions::PermissionScope::Project,
+                                Some(ws),
+                                None,
+                                tool_name,
+                            );
+                        }
+                        None => {
+                            warn!(
+                                session_id,
+                                tool_name,
+                                "ThisProject scope requested but session has no resolvable workspace_path; falling back to session-only authorization"
+                            );
+                        }
+                    }
+                }
+                AlwaysAcceptScope::Global => {
+                    persist_chat_allow_rule(
+                        apollia_permissions::PermissionScope::Global,
+                        None,
+                        None,
+                        tool_name,
+                    );
+                }
             }
         }
 
