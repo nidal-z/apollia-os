@@ -245,7 +245,7 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 ### Tool Governance (12)
 
-Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` via `governance.db`. Les règles de portée `session` vivent uniquement en mémoire — elles disparaissent à l'arrêt du processus.
+Commandes pilotant `NativeToolRegistry`, `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` via `governance.db`. Seuls les scopes `project` et `global` sont exposés au frontend — ils sont persistés dans `governance.db`.
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -664,7 +664,7 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 **Bouton "Toujours autoriser"** — crée une `PrefixRule` via `add_permission_prefix_rule` Tauri IPC (intégration avec `apollia-permissions`).
 
 ```typescript
-async function alwaysAllow(scope: 'session' | 'project' | 'global', projectPath?: string) {
+async function alwaysAllow(scope: 'project' | 'global', projectPath?: string) {
   await invoke('add_permission_prefix_rule', {
     toolName: permission.tool_name,
     argPrefix: extractArgPrefix(permission),

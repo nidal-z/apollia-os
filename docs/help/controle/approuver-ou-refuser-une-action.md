@@ -24,11 +24,8 @@
    `[SCREENSHOT: dialog Refuser avec textarea et compteur de caractères minimum]`
 
 5. Pour des actions répétées, la carte propose de choisir un **périmètre d'autorisation permanente** :
-   - **Cet outil uniquement** (`this_tool`) — règle limitée à cet outil précis.
-   - **Cette session** (`this_session`) — la règle expire à la fermeture de la session.
-   - **Cet agent** (`this_agent`) — s'applique uniquement à cet agent.
-   - **Ce projet** (`this_project`) — s'applique dans le contexte de ce projet.
-   - **Globalement** (`global`) — cet outil est toujours autorisé, pour tous les agents.
+   - **Ce projet** (`project`) — règle persistée pour le projet courant uniquement.
+   - **Partout** (`global`) — cet outil est toujours autorisé, pour tous les agents et tous les projets.
 
 6. Cliquez sur **Approuver** ou **Refuser**. L'action se déclenche (ou non) sans délai supplémentaire.
 

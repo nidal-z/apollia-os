@@ -20,13 +20,13 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
 
 3. Le panneau central affiche toutes les règles actives sous forme de **liste de cartes**. Chaque carte indique :
    - le **nom de l'outil** autorisé (ex. : `bash`, `file_write`, `mcp_call`)
-   - un **badge de portée** : *Session en cours*, *Ce projet* ou *Partout*
+   - un **badge de portée** : *Ce projet* ou *Partout*
    - le **préfixe d'argument** (si la règle est limitée à certaines invocations)
    - la **date d'expiration** ou la mention *Permanente*
    - l'**auteur** de la décision (agent ou utilisateur)
 
 4. Utilisez les filtres dans le panneau de gauche pour affiner la liste :
-   - **Portée** : *Toutes*, *Session*, *Ce projet*, *Partout*
+   - **Portée** : *Toutes*, *Ce projet*, *Partout*
    - **Outil** : sélectionnez un outil précis dans la liste des outils présents
 
 ## Révoquer une autorisation individuelle
@@ -42,10 +42,9 @@ Une fois révoquée, l'outil concerné redemandera une approbation manuelle à l
 
 1. Cliquez sur le bouton rouge **Tout révoquer** en haut à droite.
 2. Choisissez la portée à purger :
-   - *Session uniquement* — supprime uniquement les règles non persistées (disparaissent de toute façon à la fermeture)
    - *Ce projet* — supprime les règles liées au projet courant
    - *Partout* — supprime les règles globales
-   - *Toutes portées* — supprime absolument tout
+   - *Toutes portées* — supprime toutes les règles persistées
 3. Vérifiez le nombre de règles concernées affiché dans la boîte de dialogue, puis cliquez sur **Révoquer**.
    `[SCREENSHOT: dialog "Tout révoquer", sélecteur de portée, compteur de règles concernées, bouton Révoquer]`
 
