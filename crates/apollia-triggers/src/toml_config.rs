@@ -48,12 +48,9 @@ struct RawRoot {
 #[derive(Debug, Deserialize)]
 struct RawTrigger {
     id: String,
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Agent cible.
     #[serde(default)]
     agent: String,
-    /// Pipeline cible — exclusif avec `agent`.
-    #[serde(default)]
-    pipeline: Option<String>,
     #[serde(default = "default_true")]
     enabled: bool,
     #[serde(default)]
@@ -115,8 +112,7 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
             reason: TriggerDefinitionError::EmptyId.to_string(),
         });
     }
-    // Validation agent : requis uniquement si `pipeline` est absent.
-    if raw.pipeline.is_none() && raw.agent.is_empty() {
+    if raw.agent.is_empty() {
         return Err(TriggerTomlError::InvalidTrigger {
             id: raw.id.clone(),
             reason: TriggerDefinitionError::EmptyAgent.to_string(),
@@ -140,7 +136,6 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
     Ok(TriggerDefinition {
         id: raw.id.clone(),
         agent: raw.agent.clone(),
-        pipeline: raw.pipeline.clone(),
         enabled: raw.enabled,
         on_busy,
         source,

@@ -838,7 +838,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         api_file_config,
         runtime_file_config,
         hitl_file_config,
-        pipelines_file_config,
         tools_file_config,
         config_path,
     ) = match find_config_file() {
@@ -854,19 +853,11 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
                     reason: e.to_string(),
                 })?;
             }
-            (
-                cfg.llm,
-                cfg.api,
-                cfg.runtime,
-                cfg.hitl,
-                cfg.pipelines,
-                cfg.tools,
-                Some(path),
-            )
+            (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools, Some(path))
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None, None, None, None, None, None)
+            (None, None, None, None, None, None)
         }
     };
 
@@ -923,7 +914,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let runtime_config = runtime_file_config.unwrap_or_default();
     let hitl_config = hitl_file_config.unwrap_or_default();
-    let pipelines_config = pipelines_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -940,7 +930,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
         package_repository,
-        pipelines_config,
         bundled_agents_path: {
             // Look for agents/bundled/ adjacent to the binary, then in the current directory.
             let from_exe = std::env::current_exe()

@@ -672,7 +672,6 @@ fn build_trigger_row(
         } else {
             Some(t.agent.clone())
         },
-        pipeline: None,
         enabled: t.enabled,
         on_busy: OnBusy::Queue,
         source_type,

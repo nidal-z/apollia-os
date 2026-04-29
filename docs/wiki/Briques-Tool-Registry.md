@@ -398,6 +398,20 @@ CREATE TABLE tool_invocations (
 );
 ```
 
+L'intégrité de la table est renforcée par deux triggers SQLite déclarés au schéma :
+
+```sql
+CREATE TRIGGER IF NOT EXISTS audit_no_update
+    BEFORE UPDATE ON tool_invocations
+    BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS audit_no_delete
+    BEFORE DELETE ON tool_invocations
+    BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
+```
+
+Ces triggers bloquent toute tentative de `UPDATE` ou `DELETE` sur `tool_invocations` au niveau du moteur SQLite. L'audit trail est strictement append-only : une invocation enregistrée ne peut jamais être modifiée ni supprimée par programme.
+
 ### 7.1 Observabilité des appels outils
 
 Chaque invocation d'outil persiste les paramètres d'entrée et les sorties stdout/stderr, tronqués selon `ObservabilityConfig` :

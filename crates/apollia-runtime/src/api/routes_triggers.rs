@@ -42,10 +42,8 @@ use crate::coordinator::ExecutionBackend;
 pub struct CreateTriggerRequest {
     /// Identifiant unique du trigger.
     pub id: String,
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Agent cible.
     pub agent: Option<String>,
-    /// Pipeline cible — exclusif avec `agent`.
-    pub pipeline: Option<String>,
     /// Indique si le trigger est actif (défaut : `true`).
     pub enabled: Option<bool>,
     /// Politique quand l'agent est occupé (défaut : `"queue"`).
@@ -69,10 +67,8 @@ pub struct TriggerSourceInput {
 /// Corps de requête pour `PUT /api/v1/triggers/:id` — modification d'un trigger.
 #[derive(Debug, Deserialize)]
 pub struct UpdateTriggerRequest {
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Agent cible.
     pub agent: Option<String>,
-    /// Pipeline cible — exclusif avec `agent`.
-    pub pipeline: Option<String>,
     /// Indique si le trigger est actif.
     pub enabled: Option<bool>,
     /// Politique quand l'agent est occupé.
@@ -92,8 +88,6 @@ pub struct TriggerDefinitionResponse {
     pub id: String,
     /// Agent cible.
     pub agent: Option<String>,
-    /// Pipeline cible.
-    pub pipeline: Option<String>,
     /// Indique si le trigger est actif.
     pub enabled: bool,
     /// Politique quand l'agent est occupé.
@@ -198,7 +192,6 @@ fn row_to_response(row: TriggerDefinitionRow) -> TriggerDefinitionResponse {
     TriggerDefinitionResponse {
         id: row.id,
         agent: row.agent,
-        pipeline: row.pipeline,
         enabled: row.enabled,
         on_busy,
         source_type: row.source_type,
@@ -329,7 +322,6 @@ pub async fn create_trigger<B: ExecutionBackend + Clone>(
     let row = TriggerDefinitionRow {
         id: body.id.clone(),
         agent: body.agent,
-        pipeline: body.pipeline,
         enabled: body.enabled.unwrap_or(true),
         on_busy,
         source_type: body.source.r#type,
@@ -385,7 +377,6 @@ pub async fn update_trigger<B: ExecutionBackend + Clone>(
     let row = TriggerDefinitionRow {
         id: id.clone(),
         agent: body.agent,
-        pipeline: body.pipeline,
         enabled: body.enabled.unwrap_or(true),
         on_busy,
         source_type: body.source.r#type,

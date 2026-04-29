@@ -13,7 +13,6 @@ pub mod routes_mcp;
 pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;
-pub mod routes_pipelines;
 pub mod routes_plan_cache;
 pub mod routes_review;
 pub mod routes_sse;

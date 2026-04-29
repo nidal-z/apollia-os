@@ -18,18 +18,14 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
 use apollia_core::{
-    HitlConfig, LlmBackendRepository, PendingApprovals, PipelinesConfig, ProcessState,
-    RuntimeConfig, RuntimeEvent, SttConfigRepository, SttConfigRow,
+    HitlConfig, LlmBackendRepository, PendingApprovals, ProcessState, RuntimeConfig, RuntimeEvent,
+    SttConfigRepository, SttConfigRow,
 };
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle, McpServerRepository};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
-};
-use apollia_pipelines::{
-    PipelineDefinition, PipelineDefinitionRepository, PipelineEngine, PipelineEngineHandle,
-    PipelineRepository,
 };
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, TriggerPersistence};
@@ -122,12 +118,6 @@ pub struct SupervisorConfig {
     /// automatiquement les agents déclarés dans `manifest.json`.
     /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré silencieusement.
     pub bundled_agents_path: Option<std::path::PathBuf>,
-
-    /// Configuration du moteur de pipelines (section `[pipelines]` dans `apollia.toml`).
-    ///
-    /// Contrôle le timeout par défaut des steps de pipeline.
-    /// Défaut : [`PipelinesConfig::default()`] (60 secondes).
-    pub pipelines_config: PipelinesConfig,
 }
 
 impl SupervisorConfig {
@@ -183,11 +173,6 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Always `Some` after successful startup — even when `config.triggers` is empty.
     /// Injected into `AppState` so webhook routes and CLI commands can reach it.
     pub trigger_engine: TriggerEngineHandle,
-    /// Handle to the PipelineEngine actor.
-    ///
-    /// `None` when `config.pipelines` is empty — the runtime starts normally without
-    /// pipeline support. `Some` when at least one pipeline is defined.
-    pub pipeline_engine: Option<PipelineEngineHandle>,
     /// Handle to the AuditTrail actor.
     ///
     /// `None` when the data directory is unavailable or the SQLite open fails
@@ -712,7 +697,6 @@ impl Supervisor {
             router_handle.clone(),
             event_sender.clone(),
             trigger_persistence,
-            None, // PipelineEngine injecté après son démarrage — résout dépendance circulaire
             self.config.obs_config.clone(),
         )
         .await;
@@ -724,77 +708,6 @@ impl Supervisor {
         let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
             count: enabled_count,
         });
-
-        // Phase 7 (pos 8): PipelineEngine — chargement depuis SQLite.
-        //
-        // PipelineEngine démarre APRÈS TaskRouter (et non en position 8
-        // théorique de la spec) pour résoudre la dépendance circulaire :
-        // PipelineEngine → TaskSubmitter → TaskRouterHandle.
-        info!("Supervisor: starting PipelineEngine");
-        let pipeline_def_db_path = self.config.data_dir.join("pipelines_def.db");
-        let pipeline_def_repo =
-            PipelineDefinitionRepository::open(&pipeline_def_db_path).map_err(|e| {
-                SupervisorError::ActorStartFailed {
-                    actor: "pipeline_engine".to_string(),
-                    reason: format!("failed to open pipelines_def.db: {e}"),
-                }
-            })?;
-        let pipeline_definitions: Vec<PipelineDefinition> = {
-            let rows = pipeline_def_repo
-                .list()
-                .map_err(|e| SupervisorError::ActorStartFailed {
-                    actor: "pipeline_engine".to_string(),
-                    reason: format!("failed to list pipeline definitions: {e}"),
-                })?;
-            rows.into_iter()
-                .filter(|r| r.enabled)
-                .map(PipelineDefinition::from)
-                .collect()
-        };
-        let pipeline_def_repo = Arc::new(std::sync::Mutex::new(pipeline_def_repo));
-        let pipeline_engine: Option<PipelineEngineHandle> = if pipeline_definitions.is_empty() {
-            info!("Supervisor: no pipeline definitions in SQLite — PipelineEngine not started");
-            None
-        } else {
-            let db_path = self.config.data_dir.join("pipelines.db");
-            let db_path_str = db_path.to_string_lossy().into_owned();
-            let mut repo = PipelineRepository::open(&db_path_str).map_err(|e| {
-                SupervisorError::ActorStartFailed {
-                    actor: "pipeline_engine".to_string(),
-                    reason: format!("failed to open pipelines.db: {e}"),
-                }
-            })?;
-            repo.migrate()
-                .map_err(|e| SupervisorError::ActorStartFailed {
-                    actor: "pipeline_engine".to_string(),
-                    reason: format!("pipeline migration failed: {e}"),
-                })?;
-            let repo = std::sync::Arc::new(std::sync::Mutex::new(repo));
-            let submitter: std::sync::Arc<dyn apollia_pipelines::TaskSubmitter> =
-                std::sync::Arc::new(router_handle.clone());
-            let pipeline_count = pipeline_definitions.len();
-            let handle = PipelineEngine::spawn(
-                pipeline_definitions,
-                repo,
-                submitter,
-                event_sender.clone(),
-                self.config.pipelines_config.clone(),
-            );
-            tracing::info!(
-                count = pipeline_count,
-                "✔ PipelineEngine — {} pipeline(s) chargé(s)",
-                pipeline_count
-            );
-            Some(handle)
-        };
-
-        // Résolution de la dépendance circulaire TriggerEngine ↔ PipelineEngine :
-        // TriggerEngine a démarré sans PipelineEngine (None ci-dessus).
-        // Maintenant que PipelineEngine est prêt, on l'injecte via SetPipelineEngine.
-        if let Some(ref pe) = pipeline_engine {
-            trigger_engine.set_pipeline_engine(Some(pe.clone())).await;
-            info!("Supervisor: PipelineEngine injecté dans TriggerEngine");
-        }
 
         // Phase 8 (pos 9): AuditTrail — opened before APIServer so it's injectable into AppState.
         info!("Supervisor: opening AuditTrail");
@@ -1129,14 +1042,12 @@ impl Supervisor {
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
             notification_config: notification_config_for_state,
-            pipeline_engine: pipeline_engine.clone(),
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
-            pipeline_def_repo: Some(pipeline_def_repo.clone()),
             notification_repo: Some(notification_repo.clone()),
             notification_engine_handle: notification_engine.clone(),
             chat_manager: chat_manager.clone(),
@@ -1156,10 +1067,7 @@ impl Supervisor {
         let api_handle = match tokio::time::timeout(timeout, api_server.start()).await {
             Ok(Ok(handle)) => handle,
             Ok(Err(api_err)) => {
-                // Rollback: stop actors in reverse order (PipelineEngine → TriggerEngine → TaskRouter → …)
-                if let Some(ref pe) = pipeline_engine {
-                    pe.shutdown().await;
-                }
+                // Rollback: stop actors in reverse order (TriggerEngine → TaskRouter → …)
                 trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
@@ -1167,9 +1075,6 @@ impl Supervisor {
                 return Err(SupervisorError::from(api_err));
             }
             Err(_elapsed) => {
-                if let Some(ref pe) = pipeline_engine {
-                    pe.shutdown().await;
-                }
                 trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
@@ -1416,7 +1321,6 @@ impl Supervisor {
             api_handle,
             llm_router,
             trigger_engine,
-            pipeline_engine,
             audit_trail: audit_trail_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),

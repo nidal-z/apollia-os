@@ -12,7 +12,6 @@ pub mod model;
 pub mod notify;
 pub mod onboard;
 pub mod permissions;
-pub mod pipeline;
 pub mod plan_cache;
 pub mod resilience;
 pub mod review;

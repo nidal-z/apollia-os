@@ -657,7 +657,24 @@ A2AGuardTriggered {
 },
 ```
 
-### 7.16 STT
+### 7.16 Mémoire — Namespaces partagés
+
+```rust
+/// Un agent a obtenu l'accès à un shared namespace mémoriel.
+///
+/// Émis par `apollia-aip::memory` lors de l'initialisation du `MemoryInterface`,
+/// une fois par namespace listé dans `shared_memory_namespaces` du manifest.
+/// Permet aux consommateurs du bus (audit, observabilité) de tracer les expansions
+/// de scope mémoriel sans inspecter la configuration agent par agent.
+SharedNamespaceAdded {
+    /// Identifiant de l'agent ayant obtenu l'accès.
+    agent_id: AgentId,
+    /// Nom du shared namespace désormais accessible en lecture.
+    namespace: String,
+},
+```
+
+### 7.17 STT
 
 ```rust
 /// Enregistrement audio démarré (hotkey activée).

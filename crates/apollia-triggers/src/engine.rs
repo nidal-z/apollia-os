@@ -24,7 +24,6 @@ use apollia_core::{
     truncate_with_marker, AIPInput, AIPPart, EventBusSender, ObservabilityConfig, RuntimeEvent,
     TaskId, TextPart,
 };
-use apollia_pipelines::engine::PipelineEngineHandle;
 
 use crate::persistence::TriggerPersistence;
 use crate::sources::spawn_source;
@@ -162,11 +161,6 @@ enum TriggerCommand {
         definitions: Vec<TriggerDefinition>,
         reply: oneshot::Sender<()>,
     },
-    /// Injecte (ou retire) le `PipelineEngine` après le démarrage — résout la
-    /// dépendance circulaire TriggerEngine ↔ PipelineEngine.
-    SetPipelineEngine {
-        handle: Option<PipelineEngineHandle>,
-    },
     /// Notifie le moteur qu'un agent est passé à l'état idle.
     ///
     /// Déclenche le drain FIFO de la file d'attente de cet agent si elle
@@ -246,12 +240,6 @@ struct TriggerEngine {
     /// ([`TriggerCommand::Reload`]).
     event_tx: mpsc::Sender<TriggerEvent>,
     task_router: Arc<dyn TaskSubmitter>,
-    /// Handle optionnel vers le `PipelineEngine` — `None` si Sprint 12 non déployé.
-    ///
-    /// Injecté au démarrage. Si absent et qu'un trigger définit `pipeline`, un
-    /// `tracing::warn!` est émis et `TriggerSkipped` est envoyé sur l'EventBus
-    /// Jamais de panic.
-    pipeline_engine: Option<PipelineEngineHandle>,
     event_bus: EventBusSender,
     /// JoinHandles des sources actives — abortés lors du hot reload.
     handles: Vec<tokio::task::JoinHandle<()>>,
@@ -272,8 +260,6 @@ impl TriggerEngine {
     /// Démarre le moteur et retourne son handle clonable.
     ///
     /// `persistence` : `None` désactive la persistance SQLite (utile pour les tests unitaires).
-    /// `pipeline_engine` : `None` désactive le dispatch vers les pipelines — un trigger
-    /// avec `pipeline` émettra `TriggerSkipped` au lieu de paniquer.
     /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
     /// Les sources dans `definitions` sont des implémentations concrètes.
     pub async fn start<S: TaskSubmitter>(
@@ -281,7 +267,6 @@ impl TriggerEngine {
         task_router: S,
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
-        pipeline_engine: Option<PipelineEngineHandle>,
         obs_config: ObservabilityConfig,
     ) -> TriggerEngineHandle {
         let (event_tx, event_rx) = mpsc::channel::<TriggerEvent>(256);
@@ -329,7 +314,6 @@ impl TriggerEngine {
             definitions,
             event_tx: event_tx.clone(),
             task_router: Arc::new(task_router),
-            pipeline_engine,
             event_bus,
             handles,
             fire_counts,
@@ -537,15 +521,6 @@ impl TriggerEngine {
                 false
             }
 
-            TriggerCommand::SetPipelineEngine { handle } => {
-                self.pipeline_engine = handle;
-                tracing::info!(
-                    has_pipeline_engine = self.pipeline_engine.is_some(),
-                    "TriggerEngine: pipeline_engine mis à jour"
-                );
-                false
-            }
-
             TriggerCommand::NotifyAgentFree { agent_id } => {
                 self.drain_agent_queue(&agent_id).await;
                 false
@@ -559,7 +534,6 @@ impl TriggerEngine {
     /// émission des `RuntimeEvent` et persistance (stub).
     ///
     /// Retourne `Ok(task_id)` si une tâche a été soumise, `Err` sinon.
-    /// Pour les triggers `pipeline`, le `task_id` retourné est le `RunId` converti.
     async fn process_event(&mut self, event: TriggerEvent) -> Result<TaskId, TriggerEngineError> {
         // 1. Trouver la définition
         let def = match self
@@ -591,15 +565,6 @@ impl TriggerEngine {
                 .or_insert(0) += 1;
             return Err(TriggerEngineError::SubmitFailed(reason));
         }
-
-        // ── Dispatch pipeline ─────────────────────────────────────────────────
-        // Si `pipeline` est défini, dispatche vers `PipelineEngine` au lieu du `TaskRouter`.
-        // L'exclusivité `agent XOR pipeline` est validée à la création de la définition.
-        if let Some(ref pipeline_id) = def.pipeline.clone() {
-            return self.dispatch_to_pipeline(&event, pipeline_id, &def).await;
-        }
-
-        // ── Dispatch agent (chemin existant) ──────────────────────────────────
 
         // Évaluer l'OnBusyPolicy avant de soumettre la tâche.
         match &def.on_busy {
@@ -701,94 +666,6 @@ impl TriggerEngine {
                     "soumission de tâche échouée"
                 );
                 Err(TriggerEngineError::SubmitFailed(e))
-            }
-        }
-    }
-
-    /// Dispatche un événement vers le `PipelineEngine`.
-    ///
-    /// - Si `pipeline_engine` est `Some`, appelle `run_pipeline()` et retourne le
-    ///   `RunId` converti en `TaskId`.
-    /// - Si `pipeline_engine` est `None`, émet `TriggerSkipped` avec
-    ///   `reason = "pipeline_engine_unavailable"` et retourne `Err(SubmitFailed)`.
-    ///   Aucune panic dans les deux cas.
-    async fn dispatch_to_pipeline(
-        &mut self,
-        event: &TriggerEvent,
-        pipeline_id: &str,
-        def: &TriggerDefinition,
-    ) -> Result<TaskId, TriggerEngineError> {
-        match &self.pipeline_engine {
-            Some(pe) => {
-                // Rendre le payload du trigger depuis le template
-                let trigger_payload = def.input_template.render(&event.payload);
-                let pe = pe.clone();
-                match pe
-                    .run_pipeline(
-                        pipeline_id,
-                        Some(event.trigger_id.clone()),
-                        Some(trigger_payload),
-                    )
-                    .await
-                {
-                    Ok(run_id) => {
-                        tracing::info!(
-                            trigger_id = %event.trigger_id,
-                            pipeline_id = %pipeline_id,
-                            run_id = %run_id,
-                            "trigger dispatched to pipeline"
-                        );
-                        // Convertir RunId → TaskId pour homogénéité du type de retour
-                        let task_id = TaskId::from(run_id.0.as_str());
-                        let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
-                            trigger_id: event.trigger_id.clone(),
-                            agent: format!("pipeline:{pipeline_id}"),
-                            task_id: task_id.clone(),
-                        });
-                        *self
-                            .fire_counts
-                            .entry(event.trigger_id.clone())
-                            .or_insert(0) += 1;
-                        self.last_fired.insert(event.trigger_id.clone(), Utc::now());
-                        Ok(task_id)
-                    }
-                    Err(e) => {
-                        let reason = format!("pipeline_start_failed: {e}");
-                        tracing::warn!(
-                            trigger_id = %event.trigger_id,
-                            pipeline_id = %pipeline_id,
-                            error = %e,
-                            "failed to start pipeline"
-                        );
-                        let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
-                            trigger_id: event.trigger_id.clone(),
-                            reason: reason.clone(),
-                        });
-                        *self
-                            .skip_counts
-                            .entry(event.trigger_id.clone())
-                            .or_insert(0) += 1;
-                        Err(TriggerEngineError::SubmitFailed(reason))
-                    }
-                }
-            }
-            None => {
-                tracing::warn!(
-                    trigger_id = %event.trigger_id,
-                    pipeline_id = %pipeline_id,
-                    "pipeline engine not available — trigger skipped"
-                );
-                let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
-                    trigger_id: event.trigger_id.clone(),
-                    reason: "pipeline_engine_unavailable".into(),
-                });
-                *self
-                    .skip_counts
-                    .entry(event.trigger_id.clone())
-                    .or_insert(0) += 1;
-                Err(TriggerEngineError::SubmitFailed(
-                    "pipeline engine not available".into(),
-                ))
             }
         }
     }
@@ -1035,8 +912,6 @@ impl TriggerEngineHandle {
     /// Démarre un `TriggerEngine` et retourne son handle.
     ///
     /// `persistence` : `None` désactive la persistance SQLite (ex : tests, démonstrations).
-    /// `pipeline_engine` : `None` désactive le dispatch pipeline — triggers avec `pipeline`
-    /// émettront `TriggerSkipped` au lieu de paniquer.
     /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
     /// Équivalent à `TriggerEngine::start` — exposé ici pour une API publique cohérente.
     pub async fn spawn<S: TaskSubmitter>(
@@ -1044,18 +919,9 @@ impl TriggerEngineHandle {
         task_router: S,
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
-        pipeline_engine: Option<PipelineEngineHandle>,
         obs_config: ObservabilityConfig,
     ) -> Self {
-        TriggerEngine::start(
-            definitions,
-            task_router,
-            event_bus,
-            persistence,
-            pipeline_engine,
-            obs_config,
-        )
-        .await
+        TriggerEngine::start(definitions, task_router, event_bus, persistence, obs_config).await
     }
 
     /// Trouve un trigger webhook par ID.
@@ -1196,18 +1062,6 @@ impl TriggerEngineHandle {
             })
             .await;
         let _ = reply_rx.await;
-    }
-
-    /// Injecte (ou retire) le `PipelineEngine` après le démarrage du moteur.
-    ///
-    /// Résout la dépendance circulaire TriggerEngine ↔ PipelineEngine :
-    /// le TriggerEngine démarre sans PipelineEngine, puis reçoit le handle dès que
-    /// le PipelineEngine est prêt. Fire-and-forget — pas de réponse attendue.
-    pub async fn set_pipeline_engine(&self, handle: Option<PipelineEngineHandle>) {
-        let _ = self
-            .tx
-            .send(TriggerCommand::SetPipelineEngine { handle })
-            .await;
     }
 
     /// Notifie le moteur qu'un agent est passé à l'état idle.

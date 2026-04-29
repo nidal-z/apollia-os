@@ -528,53 +528,6 @@ fn default_trigger_queue_max_depth() -> usize {
 }
 
 // ─────────────────────────────────────────────
-// PipelinesConfig
-// ─────────────────────────────────────────────
-
-/// Configuration du moteur de pipelines (section `[pipelines]` dans `apollia.toml`).
-///
-/// Contrôle les comportements d'exécution des pipelines déclaratifs.
-/// Tous les champs ont des valeurs par défaut saines via [`Default`].
-#[derive(Debug, Clone, Deserialize)]
-pub struct PipelinesConfig {
-    /// Timeout par défaut d'un step de pipeline, en secondes.
-    ///
-    /// Chaque step attend au maximum cette durée pour recevoir un événement
-    /// `TaskCompleted` ou `TaskInputRequired` sur l'EventBus. Au-delà,
-    /// le step est considéré en échec.
-    /// Défaut : 60. Bornes : [5, 3600].
-    #[serde(default = "default_step_timeout_secs")]
-    pub default_step_timeout_secs: u64,
-}
-
-impl Default for PipelinesConfig {
-    fn default() -> Self {
-        Self {
-            default_step_timeout_secs: default_step_timeout_secs(),
-        }
-    }
-}
-
-impl PipelinesConfig {
-    /// Valide la configuration pipelines au démarrage (Principe #4 — Fail fast).
-    ///
-    /// - `default_step_timeout_secs` : doit être dans [5, 3600].
-    pub fn validate(&self) -> Result<(), ConfigError> {
-        validate_bounds(
-            "pipelines.default_step_timeout_secs",
-            self.default_step_timeout_secs,
-            5_u64,
-            3600_u64,
-        )?;
-        Ok(())
-    }
-}
-
-fn default_step_timeout_secs() -> u64 {
-    60
-}
-
-// ─────────────────────────────────────────────
 // ApiConfig
 // ─────────────────────────────────────────────
 
@@ -1743,19 +1696,6 @@ mod tests {
         cfg.validate().expect("default ORIAConfig must be valid");
     }
 
-    #[test]
-    fn test_default_pipelines_config_preserves_defaults() {
-        // GIVEN no TOML for [pipelines]
-        let cfg = PipelinesConfig::default();
-
-        // THEN default is 60 seconds
-        assert_eq!(cfg.default_step_timeout_secs, 60);
-
-        // AND default passes validation
-        cfg.validate()
-            .expect("default PipelinesConfig must be valid");
-    }
-
     // ── ORIAConfig custom values ────────────────────────────────────────────
 
     #[test]
@@ -1788,17 +1728,6 @@ mod tests {
 
         // THEN
         assert_eq!(cfg.budget_poll_ms, 200);
-        cfg.validate().expect("valid bounds");
-    }
-
-    #[test]
-    fn test_custom_step_timeout_used() {
-        // GIVEN
-        let toml = r#"default_step_timeout_secs = 120"#;
-        let cfg: PipelinesConfig = toml::from_str(toml).expect("valid toml");
-
-        // THEN
-        assert_eq!(cfg.default_step_timeout_secs, 120);
         cfg.validate().expect("valid bounds");
     }
 
@@ -1897,25 +1826,8 @@ mod tests {
     }
 
     #[test]
-    fn test_step_timeout_out_of_bounds_fails() {
-        // GIVEN default_step_timeout_secs = 1, below min 5
-        let cfg = PipelinesConfig {
-            default_step_timeout_secs: 1,
-        };
-
-        // WHEN
-        let result = cfg.validate();
-
-        // THEN
-        assert!(
-            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "pipelines.default_step_timeout_secs"),
-            "expected OutOfBounds for pipelines.default_step_timeout_secs, got: {result:?}"
-        );
-    }
-
-    #[test]
-    fn test_oria_pipelines_boundary_values_accepted() {
-        // GIVEN min and max exact values for ORIA and PipelinesConfig fields
+    fn test_oria_boundary_values_accepted() {
+        // GIVEN min and max exact values for ORIAConfig fields
         let oria_min = ORIAConfig {
             orchestrated_threshold: 0.0,
             step_memory_max_chars: 50,
@@ -1928,18 +1840,10 @@ mod tests {
             budget_poll_ms: 5_000,
             ..ORIAConfig::default()
         };
-        let pipelines_min = PipelinesConfig {
-            default_step_timeout_secs: 5,
-        };
-        let pipelines_max = PipelinesConfig {
-            default_step_timeout_secs: 3600,
-        };
 
         // THEN all boundary values are accepted
         oria_min.validate().expect("min ORIAConfig valid");
         oria_max.validate().expect("max ORIAConfig valid");
-        pipelines_min.validate().expect("min PipelinesConfig valid");
-        pipelines_max.validate().expect("max PipelinesConfig valid");
     }
 
     // ── ToolsConfig ────────────────────────────────────────────────────────

@@ -24,8 +24,7 @@ use crate::validation;
 const MIGRATION_008: &str = "\
 CREATE TABLE IF NOT EXISTS trigger_definitions (
     id              TEXT PRIMARY KEY,
-    agent           TEXT,
-    pipeline        TEXT,
+    agent           TEXT NOT NULL,
     enabled         BOOLEAN NOT NULL DEFAULT 1,
     on_busy         TEXT NOT NULL DEFAULT 'queue',
     source_type     TEXT NOT NULL,
@@ -33,8 +32,6 @@ CREATE TABLE IF NOT EXISTS trigger_definitions (
     input_template  TEXT,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    CHECK (agent IS NOT NULL OR pipeline IS NOT NULL),
-    CHECK (NOT (agent IS NOT NULL AND pipeline IS NOT NULL)),
     CHECK (on_busy IN ('queue', 'drop')),
     CHECK (source_type IN ('cron', 'interval', 'oneshot', 'file_watch', 'webhook'))
 );";
@@ -51,10 +48,8 @@ CREATE TABLE IF NOT EXISTS trigger_definitions (
 pub struct TriggerDefinitionRow {
     /// Identifiant unique du trigger (clé primaire).
     pub id: String,
-    /// Agent cible — exclusif avec `pipeline`.
+    /// Agent cible.
     pub agent: Option<String>,
-    /// Pipeline cible — exclusif avec `agent`.
-    pub pipeline: Option<String>,
     /// Indique si le trigger est actif.
     pub enabled: bool,
     /// Comportement quand l'agent cible est occupé.
@@ -119,7 +114,6 @@ impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
         Ok(TriggerDefinition {
             id: row.id,
             agent: row.agent.unwrap_or_default(),
-            pipeline: row.pipeline,
             enabled: row.enabled,
             on_busy,
             source,
@@ -258,12 +252,11 @@ impl TriggerDefinitionRepository {
         self.conn
             .execute(
                 "INSERT INTO trigger_definitions \
-                 (id, agent, pipeline, enabled, on_busy, source_type, source_config, input_template) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (id, agent, enabled, on_busy, source_type, source_config, input_template) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     def.id,
                     def.agent,
-                    def.pipeline,
                     def.enabled,
                     def.on_busy.as_sql(),
                     def.source_type,
@@ -300,13 +293,12 @@ impl TriggerDefinitionRepository {
 
         let rows = self.conn.execute(
             "UPDATE trigger_definitions \
-             SET agent = ?1, pipeline = ?2, enabled = ?3, on_busy = ?4, \
-                 source_type = ?5, source_config = ?6, input_template = ?7, \
+             SET agent = ?1, enabled = ?2, on_busy = ?3, \
+                 source_type = ?4, source_config = ?5, input_template = ?6, \
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') \
-             WHERE id = ?8",
+             WHERE id = ?7",
             params![
                 def.agent,
-                def.pipeline,
                 def.enabled,
                 def.on_busy.as_sql(),
                 def.source_type,
@@ -343,7 +335,7 @@ impl TriggerDefinitionRepository {
     /// Retourne `None` si aucun trigger ne correspond.
     pub fn get(&self, id: &str) -> Result<Option<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, agent, pipeline, enabled, on_busy, source_type, \
+            "SELECT id, agent, enabled, on_busy, source_type, \
                     source_config, input_template, created_at, updated_at \
              FROM trigger_definitions WHERE id = ?1",
         )?;
@@ -358,7 +350,7 @@ impl TriggerDefinitionRepository {
     /// Liste toutes les définitions de triggers, triées par identifiant.
     pub fn list(&self) -> Result<Vec<TriggerDefinitionRow>, TriggerDefinitionError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, agent, pipeline, enabled, on_busy, source_type, \
+            "SELECT id, agent, enabled, on_busy, source_type, \
                     source_config, input_template, created_at, updated_at \
              FROM trigger_definitions ORDER BY id",
         )?;
@@ -374,25 +366,24 @@ impl TriggerDefinitionRepository {
 
 /// Convertit une ligne SQLite en [`TriggerDefinitionRow`].
 fn row_to_definition(row: &rusqlite::Row) -> rusqlite::Result<TriggerDefinitionRow> {
-    let on_busy_str: String = row.get(4)?;
-    let source_config_str: String = row.get(6)?;
+    let on_busy_str: String = row.get(3)?;
+    let source_config_str: String = row.get(5)?;
 
     let source_config: serde_json::Value =
         serde_json::from_str(&source_config_str).map_err(|e| {
-            rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
+            rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::new(e))
         })?;
 
     Ok(TriggerDefinitionRow {
         id: row.get(0)?,
         agent: row.get(1)?,
-        pipeline: row.get(2)?,
-        enabled: row.get(3)?,
+        enabled: row.get(2)?,
         on_busy: OnBusy::from_sql(&on_busy_str),
-        source_type: row.get(5)?,
+        source_type: row.get(4)?,
         source_config,
-        input_template: row.get(7)?,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
+        input_template: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
     })
 }
 

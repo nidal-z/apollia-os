@@ -39,7 +39,6 @@ apollia-workspace     = { path = "../apollia-workspace" }
 apollia-stt           = { workspace = true }
 apollia-memory        = { workspace = true }
 apollia-notifications = { workspace = true }
-apollia-pipelines     = { path = "../apollia-pipelines" }
 apollia-oria          = { workspace = true }
 apollia-mcp           = { path = "../apollia-mcp" }
 apollia-tools         = { workspace = true, features = ["http", "memory-search"] }

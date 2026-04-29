@@ -29,7 +29,6 @@ use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::permissions::PermissionsCommand;
-use commands::pipeline::PipelineCommand;
 use commands::plan_cache::PlanCacheCommand;
 use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
@@ -223,13 +222,6 @@ enum Commands {
         command: PermissionsCommand,
     },
 
-    /// Pipeline orchestration (list, run, runs, status).
-    Pipeline {
-        /// Pipeline subcommand.
-        #[command(subcommand)]
-        command: PipelineCommand,
-    },
-
     /// Interactive chat session with an LLM (resume with --resume <id>, list with --list).
     Chat {
         /// Resume an existing session from its last message.
@@ -396,9 +388,6 @@ fn main() {
             }
             Commands::Permissions { command } => {
                 commands::permissions::run(&command, cli.socket, json).await
-            }
-            Commands::Pipeline { command } => {
-                commands::pipeline::run(&command, cli.socket, json).await
             }
             Commands::Chat { resume, list } => {
                 chat::run(resume.as_deref(), list, cli.socket, json).await

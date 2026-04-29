@@ -36,7 +36,6 @@ pyo3                  = { workspace = true, optional = true }
 apollia-memory       = { workspace = true }
 apollia-mcp          = { workspace = true }
 apollia-notifications = { workspace = true }
-apollia-pipelines     = { workspace = true }
 reqwest               = { workspace = true, features = ["json"] }
 rusqlite              = { workspace = true }
 chrono                = { workspace = true }
@@ -122,10 +121,6 @@ path = "integration/test_webhook_notification.rs"
 [[test]]
 name = "test_agent_persistence"
 path = "integration/test_agent_persistence.rs"
-
-[[test]]
-name = "test_pipelines"
-path = "integration/test_pipelines.rs"
 
 [[test]]
 name = "test_config_crud"

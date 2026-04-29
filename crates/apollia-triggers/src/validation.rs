@@ -17,24 +17,18 @@ const MIN_WEBHOOK_SECRET_LENGTH: usize = 32;
 /// Valide une [`TriggerDefinitionRow`] avant insert ou update.
 ///
 /// Vérifie :
-/// - XOR agent/pipeline (exactement un des deux doit être défini)
+/// - Agent défini (non-None et non-vide)
 /// - Identifiant non vide
 /// - `source_type` reconnu
 /// - `source_config` valide pour le `source_type` donné
 pub fn validate_trigger(def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError> {
-    // XOR agent/pipeline
-    match (&def.agent, &def.pipeline) {
-        (None, None) => {
+    match def.agent.as_deref() {
+        None | Some("") => {
             return Err(TriggerDefinitionError::ValidationError(
-                "agent or pipeline must be set".to_string(),
+                "agent must be set".to_string(),
             ));
         }
-        (Some(_), Some(_)) => {
-            return Err(TriggerDefinitionError::ValidationError(
-                "agent and pipeline are mutually exclusive".to_string(),
-            ));
-        }
-        _ => {}
+        Some(_) => {}
     }
 
     if def.id.is_empty() {

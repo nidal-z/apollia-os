@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 
 use apollia_core::{
     A2AConfig, ApiConfig, FilesystemConfig, HitlConfig, McpConfig, ORIAConfig, PermissionsConfig,
-    PipelinesConfig, RegistryConfig, RuntimeConfig, ToolsConfig,
+    RegistryConfig, RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -91,11 +91,6 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si absente ; les valeurs par défaut de [`ORIAConfig`] s'appliquent.
     pub oria: Option<ORIAConfig>,
-
-    /// Section `[pipelines]` — configuration du moteur de pipelines.
-    ///
-    /// Vaut `None` si absente ; les valeurs par défaut de [`PipelinesConfig`] s'appliquent.
-    pub pipelines: Option<PipelinesConfig>,
 
     /// Section `[registry]` — URL du registry de pipelines communautaires.
     ///

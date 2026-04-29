@@ -966,7 +966,6 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
         } else {
             Some(def.agent.clone())
         },
-        pipeline: def.pipeline.clone(),
         enabled: def.enabled,
         on_busy,
         source_type,

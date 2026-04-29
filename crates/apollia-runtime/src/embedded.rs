@@ -14,7 +14,6 @@ use std::time::Duration;
 use apollia_core::{A2AConfig, HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
-use apollia_pipelines::PipelineEngineHandle;
 use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
@@ -55,8 +54,6 @@ pub struct RuntimeHandle {
     pub llm_router: Option<Arc<LlmRouter>>,
     /// Handle vers le TriggerEngine.
     pub trigger_engine: TriggerEngineHandle,
-    /// Handle vers le PipelineEngine optionnel.
-    pub pipeline_engine: Option<PipelineEngineHandle>,
     /// Handle vers l'AuditTrail optionnel.
     pub audit_trail: Option<AuditTrailHandle>,
     /// Accès au TaskRepository pour lecture.
@@ -171,12 +168,6 @@ pub struct EmbeddedConfig {
     /// Correspond à la section `[a2a]` dans `apollia.toml`.
     /// Peuplé par [`EmbeddedConfig::apply_toml`].
     pub a2a_config: A2AConfig,
-
-    /// Configuration du moteur de pipelines (timeout step).
-    ///
-    /// Correspond à la section `[pipelines]` dans `apollia.toml`.
-    /// Peuplé par [`EmbeddedConfig::apply_toml`].
-    pub pipelines_config: apollia_core::PipelinesConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -200,7 +191,6 @@ impl Default for EmbeddedConfig {
             runtime_config: RuntimeConfig::default(),
             hitl_config: HitlConfig::default(),
             a2a_config: A2AConfig::default(),
-            pipelines_config: apollia_core::PipelinesConfig::default(),
         }
     }
 }
@@ -219,7 +209,6 @@ impl EmbeddedConfig {
             hitl: Option<HitlConfig>,
             a2a: Option<A2AConfig>,
             api: Option<apollia_core::ApiConfig>,
-            pipelines: Option<apollia_core::PipelinesConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -238,9 +227,6 @@ impl EmbeddedConfig {
             if let Some(api) = s.api {
                 // Update socket_path from [api].unix_socket when explicitly configured.
                 self.socket_path = api.unix_socket;
-            }
-            if let Some(pc) = s.pipelines {
-                self.pipelines_config = pc;
             }
         }
 
@@ -332,7 +318,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         agent_repository: config.agent_repository,
         package_repository: None,
         bundled_agents_path: config.bundled_agents_path,
-        pipelines_config: config.pipelines_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -355,7 +340,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         api_handle: Arc::new(handles.api_handle),
         llm_router: handles.llm_router,
         trigger_engine: handles.trigger_engine,
-        pipeline_engine: handles.pipeline_engine,
         audit_trail: handles.audit_trail,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,

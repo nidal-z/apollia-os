@@ -13,7 +13,6 @@ members = [
     "crates/apollia-mcp",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
-    "crates/apollia-pipelines",
     "crates/apollia-workspace",
     "crates/apollia-permissions",
     "crates/apollia-cli",
@@ -34,7 +33,6 @@ default-members = [
     "crates/apollia-mcp",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
-    "crates/apollia-pipelines",
     "crates/apollia-workspace",
     "crates/apollia-permissions",
     "crates/apollia-cli",
@@ -128,7 +126,7 @@ enigo = "0.5"
 # --- File opener (cross-platform) ---
 open = "5"
 
-# --- Regular expressions (apollia-pipelines step conditions) ---
+# --- Regular expressions ---
 regex = "1"
 
 # --- Shell word splitting (POSIX quoting) ---
@@ -167,7 +165,6 @@ apollia-llm           = { path = "crates/apollia-llm", default-features = false 
 apollia-stt           = { path = "crates/apollia-stt", default-features = false }
 apollia-triggers      = { path = "crates/apollia-triggers" }
 apollia-notifications = { path = "crates/apollia-notifications" }
-apollia-pipelines     = { path = "crates/apollia-pipelines" }
 apollia-mcp           = { path = "crates/apollia-mcp" }
 apollia-workspace     = { path = "crates/apollia-workspace" }
 apollia-permissions   = { path = "crates/apollia-permissions" }

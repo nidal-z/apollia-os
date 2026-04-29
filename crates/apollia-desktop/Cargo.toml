@@ -39,7 +39,6 @@ apollia-memory   = { workspace = true }
 apollia-tools        = { workspace = true }
 apollia-workspace    = { workspace = true }
 apollia-permissions  = { path = "../apollia-permissions" }
-apollia-pipelines    = { path = "../apollia-pipelines" }
 apollia-aip      = { workspace = true }
 apollia-triggers = { workspace = true }
 apollia-oria     = { workspace = true }

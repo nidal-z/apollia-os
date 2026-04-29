@@ -27,7 +27,6 @@ use apollia_notifications::{
     NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
 };
 use apollia_oria::plan_cache::PlanCacheRepository;
-use apollia_pipelines::{PipelineDefinitionRepository, PipelineEngineHandle};
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
 
@@ -87,11 +86,6 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `POST /api/v1/notifications/test`.
     /// `None` si aucune section `[notifications]` n'est présente dans la config.
     pub notification_config: Option<NotificationConfig>,
-    /// Handle vers le `PipelineEngine` actor.
-    ///
-    /// `None` quand aucun `[[pipelines]]` n'est déclaré dans `apollia.toml`.
-    /// Les routes REST pipelines retournent 503 quand `None`.
-    pub pipeline_engine: Option<PipelineEngineHandle>,
     /// Factory for creating per-agent execution backends (ADR-019 extension).
     ///
     /// `Some` in production — creates real `AIPBridge` backends with tool access.
@@ -122,12 +116,6 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
     /// `None` en tests unitaires.
     pub trigger_def_repo: Option<Arc<std::sync::Mutex<TriggerDefinitionRepository>>>,
-    /// Repository CRUD des définitions de pipelines.
-    ///
-    /// Ouvert par le Supervisor depuis `data_dir/pipelines.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
-    /// `None` en tests unitaires.
-    pub pipeline_def_repo: Option<Arc<std::sync::Mutex<PipelineDefinitionRepository>>>,
     /// Repository CRUD de la configuration des notifications.
     ///
     /// Ouvert par le Supervisor depuis `data_dir/notifications.db`.
@@ -215,14 +203,12 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             task_repository: self.task_repository.clone(),
             pending_approvals: self.pending_approvals.clone(),
             notification_config: self.notification_config.clone(),
-            pipeline_engine: self.pipeline_engine.clone(),
             backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
             obs_config: self.obs_config.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
             trigger_def_repo: self.trigger_def_repo.clone(),
-            pipeline_def_repo: self.pipeline_def_repo.clone(),
             notification_repo: self.notification_repo.clone(),
             notification_engine_handle: self.notification_engine_handle.clone(),
             chat_manager: self.chat_manager.clone(),
@@ -372,10 +358,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
         test_channels, update_channel,
     };
-    use super::routes_pipelines::{
-        create_pipeline, delete_pipeline, get_pipeline, get_run, get_run_by_id, list_pipelines,
-        list_runs, run_pipeline, update_pipeline,
-    };
     use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use super::routes_review::post_review;
     use super::routes_sse::stream_task;
@@ -484,21 +466,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
         .merge(model_hub_routes::<B>())
-        // Pipeline routes (CRUD + run management)
-        .route(
-            "/api/v1/pipelines",
-            get(list_pipelines::<B>).post(create_pipeline::<B>),
-        )
-        .route(
-            "/api/v1/pipelines/:id",
-            get(get_pipeline::<B>)
-                .put(update_pipeline::<B>)
-                .delete(delete_pipeline::<B>),
-        )
-        .route("/api/v1/pipelines/:id/run", post(run_pipeline::<B>))
-        .route("/api/v1/pipelines/:id/runs", get(list_runs::<B>))
-        .route("/api/v1/pipelines/:id/runs/:run_id", get(get_run::<B>))
-        .route("/api/v1/runs/:run_id", get(get_run_by_id::<B>))
         // Chat session routes
         .route(
             "/api/v1/sessions",
