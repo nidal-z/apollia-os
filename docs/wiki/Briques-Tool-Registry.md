@@ -201,6 +201,8 @@ AgentManifest(
 )
 ```
 
+**Garde anti-SSRF :** Après vérification de l'allowlist, `http_fetch` applique un second filtre via `apollia_tools::ssrf::assert_public`. Les URL pointant vers des hôtes privés (loopback `127.x`, RFC 1918, link-local `169.254.x.x`, metadata cloud, domaines `.local`/`.internal`/`localhost`) sont rejetées avec `ToolExecutionError::ExecutionFailed { code: "SSRF_BLOCKED" }`. Ce filtre s'applique même si l'hôte figure dans l'allowlist — une misconfiguration opérateur ne peut pas ouvrir l'accès à l'infrastructure interne.
+
 **Feature flag :** Compilé uniquement si `features = ["http"]` dans `apollia-tools`. Absent du binaire par défaut.
 
 ### 3.10 `memory_search` *(feature flag `memory-search`)*

@@ -116,6 +116,13 @@ pub enum NotifError {
     /// Erreur interne du canal (sérialisation, état incohérent, etc.).
     #[error("erreur interne : {0}")]
     Internal(String),
+    /// URL du webhook malformée — parsing impossible.
+    #[error("URL webhook invalide : {0}")]
+    InvalidUrl(String),
+    /// Garde anti-SSRF a refusé l'envoi — URL pointant sur loopback, RFC 1918,
+    /// link-local, ou domaine interne (`.local`, `.internal`, `localhost`, metadata cloud).
+    #[error("SSRF bloqué : {0}")]
+    Ssrf(String),
 }
 ```
 
@@ -473,12 +480,17 @@ pub struct WebhookChannelConfig {
 
 pub struct WebhookChannel {
     config: WebhookChannelConfig,
-    client: Client,     // reqwest::Client, timeout 5s
+    client: Client,      // reqwest::Client, timeout 5s
+    ssrf_guard: bool,    // activé par défaut — bloque les URL internes avant tout I/O
 }
 
 impl WebhookChannel {
     /// Client reqwest avec timeout 5s et User-Agent "apollia-os/<version>".
+    /// Le garde anti-SSRF est activé par défaut.
     pub fn new(config: WebhookChannelConfig) -> Self;
+
+    /// Désactive le garde anti-SSRF (usage test uniquement — ne pas appeler en production).
+    pub fn with_ssrf_guard(self, enabled: bool) -> Self;
 }
 ```
 
@@ -506,6 +518,20 @@ impl WebhookChannel {
 | `X-Apollia-Event` | nom de l'événement (ex: `task.failed`) |
 | `User-Agent` | `apollia-os/<version>` |
 | `X-Apollia-Signature` | `sha256=<hmac-hex>` — présent uniquement si `hmac_secret` configuré (voir §6.1) |
+
+### 6.0 Garde anti-SSRF
+
+Avant tout envoi HTTP, `WebhookChannel` vérifie que l'URL cible pointe vers un hôte public via `apollia_tools::ssrf::assert_public`. Sont rejetés :
+
+- Adresses loopback (`127.0.0.0/8`, `::1`)
+- Réseaux privés RFC 1918 (`10.x`, `172.16–31.x`, `192.168.x`)
+- Link-local (`169.254.x.x`, `fe80::/10`)
+- Multicast, adresses non-spécifiées
+- Domaines internes : `localhost`, `*.local`, `*.internal`, `*.localdomain`
+
+Un opérateur qui configure par erreur une URL pointant sur `10.0.0.1` ou l'endpoint de metadata AWS (`169.254.169.254`) verra la notification échouer avec `NotifError::Ssrf(...)`. L'engine logge en `warn!` et continue le dispatch vers les autres canaux.
+
+La validation est au niveau du nom d'hôte déclaré dans l'URL — le cas DNS rebinding (hôte public au check, adresse privée à la connexion) n'est pas couvert en v0.1.
 
 ### 6.1 Signature HMAC-SHA256 des webhooks sortants
 
@@ -606,6 +632,8 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 | EventBus fermé (arrêt runtime) | `break` — engine se termine proprement, aucun panic |
 | Base SQLite vide (aucun canal) | Engine non démarré — aucun coût, aucune erreur |
 | Webhook sans `url` en CRUD | `NotificationConfigError::ValidationError` → HTTP 422 |
+| URL webhook vers hôte privé (RFC 1918, loopback) | `NotifError::Ssrf(_)` → `warn!`, dispatch continue |
+| URL webhook malformée | `NotifError::InvalidUrl(_)` → `warn!`, dispatch continue |
 
 ---
 

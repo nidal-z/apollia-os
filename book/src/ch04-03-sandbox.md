@@ -90,7 +90,7 @@ Chaque outil a un profil sandbox prédéfini qui détermine le niveau d'isolatio
 |---|---|---|---|
 | `ReadOnly` | Lecture seule | Aucun | `file_read`, `file_glob`, `file_grep`, `file_list`, `memory_search` |
 | `FileSystem` | Lecture/écriture sandbox | Aucun | `file_write`, `file_edit`, `bash_executor`, `python_executor` |
-| `NetworkRestricted` | ReadOnly | Whitelist uniquement | `http_fetch` |
+| `NetworkRestricted` | ReadOnly | Whitelist + garde anti-SSRF | `http_fetch`, `web_read` |
 | `Full` | Accès complet | Accès complet | Outils `dangerous: true` |
 
 Les profils sont **prédéfinis par outil** — vous ne pouvez pas choisir un profil différent pour un outil natif. Pour les outils MCP, le profil dépend du champ `requires_approval` dans `mcp.toml`.

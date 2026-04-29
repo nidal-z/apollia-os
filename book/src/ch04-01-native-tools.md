@@ -32,7 +32,7 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 | **Notebooks** | `notebook_read` | Lire un notebook Jupyter (.ipynb) cellule par cellule |
 | | `notebook_edit` | Modifier une cellule de notebook Jupyter |
 
-Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque. `web_search` et `web_read` nécessitent les feature flags `web-search` et `web-read` à la compilation.
+Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque. `web_search` et `web_read` nécessitent les feature flags `web-search` et `web-read` à la compilation. `http_fetch` et `web_read` appliquent tous deux un **garde anti-SSRF** : toute URL pointant vers un hôte privé (loopback, RFC 1918, link-local, metadata cloud) est rejetée avant l'envoi du moindre octet réseau.
 
 ---
 

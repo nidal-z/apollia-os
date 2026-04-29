@@ -21,7 +21,7 @@
 
 5. Pour un canal **Bureau**, le canal est prêt immédiatement. Passez à l'étape 7.
 
-6. Pour un canal **Webhook**, renseignez l'**URL** d'envoi. Si l'endpoint demande une authentification, ajoutez l'en-tête correspondant dans la section **En-têtes personnalisés**.
+6. Pour un canal **Webhook**, renseignez l'**URL** d'envoi. Si l'endpoint demande une authentification, ajoutez l'en-tête correspondant dans la section **En-têtes personnalisés**. L'URL doit pointer vers un hôte public : les adresses privées (réseau local, loopback `127.x`, adresses cloud metadata) sont refusées par le garde de sécurité d'Apollia avant l'envoi.
    `[SCREENSHOT: dialogue Nouveau canal, type Webhook sélectionné, URL et en-têtes visibles]`
 
 7. Cliquez sur **Tester**. Apollia envoie une notification de test : vous devez la recevoir sur le canal cible en quelques secondes.
@@ -35,5 +35,6 @@ La notification de test arrive bien sur le canal choisi. Le canal figure dans la
 - **Notification bureau invisible** : vérifiez que les notifications de l'application sont autorisées dans les réglages système de votre ordinateur.
 - **Webhook en erreur 401 ou 403** : l'URL ou l'en-tête d'authentification est incorrect. Re-générez l'URL côté outil cible (Slack, Discord) et collez-la à nouveau.
 - **Webhook en erreur 404 ou délai dépassé** : l'URL est mal recopiée ou l'endpoint est hors-ligne. Testez l'URL avec un outil comme un client HTTP avant de réessayer.
+- **Webhook bloqué (SSRF)** : si le journal affiche une erreur *SSRF bloqué*, l'URL pointe vers une adresse privée ou interne (ex. `10.x.x.x`, `192.168.x.x`, `127.0.0.1`). Apollia OS refuse ces envois par sécurité. Utilisez uniquement des URLs publiques accessibles depuis l'extérieur.
 
 > **Référence technique :** [Briques-Notifications](https://github.com/nidal-z/apollia-os/wiki/Briques-Notifications)

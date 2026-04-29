@@ -42,7 +42,7 @@ def manifest(self):
         "step_budget": {               # dict | None — None = défauts runtime
             "max_steps": 40,           # int — défaut runtime: 30
             "max_tool_calls": 80,      # int — défaut runtime: 60
-            "wall_clock_timeout_secs": 900  # int — défaut runtime: 600
+            "wall_clock_timeout_secs": 900  # int — défaut bridge: 300
         },
 
         # Réseau
@@ -95,7 +95,7 @@ def manifest(self):
 | `tools_optional` | non | `[]` | Ignoré |
 | `memory_namespace` | non | `None` | `ctx.memory` est `None` |
 | `max_concurrent_tasks` | non | `1` | 1 tâche à la fois |
-| `step_budget` | non | `None` | Défauts runtime (10 steps, 20 calls, 300s) |
+| `step_budget` | non | `None` | Défauts bridge (30 steps, 60 calls, 300s wall-clock) — dépassement → tâche `failed` avec `WallClockTimeout` |
 | `dangerous_tools_allowed` | non | `False` | Outils dangereux bloqués |
 | `tools_requiring_approval` | non | `[]` | Aucun outil ne nécessite d'approbation |
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |

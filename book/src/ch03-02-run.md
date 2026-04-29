@@ -252,3 +252,5 @@ async def run(self, task, ctx):
 **Recopier task_id** — toujours inclure `"task_id": task["task_id"]` dans le retour. Le runtime utilise ce champ pour corréler la réponse à la requête originale, surtout en mode concurrent.
 
 **Ne pas lever d'exceptions non gérées** — si une exception Python traverse `run()`, le runtime la catchera et marquera la tâche comme `failed`, mais le message sera peu lisible. Préférez des retours `status: "failed"` explicites.
+
+**Respecter le budget wall-clock** — le runtime applique un timeout de **300 secondes** autour de chaque appel à `run()` (configurable via `step_budget.wall_clock_timeout_secs` dans le manifest). Si `run()` dépasse cette limite, la tâche est marquée `failed` automatiquement — le code Python ne peut pas capturer cet événement. Pour les traitements longs, découpez la logique en étapes courtes ou utilisez le pattern HITL pour suspendre et reprendre.

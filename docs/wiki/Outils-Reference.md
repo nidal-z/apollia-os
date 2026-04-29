@@ -447,6 +447,7 @@ Effectue une requête HTTP vers un hôte externe. Nécessite le feature flag `ht
 |---|---|
 | `host_not_allowed` | L'hôte n'est pas dans l'allowlist de l'opérateur |
 | `no_allowlist` | Aucune allowlist HTTP n'est configurée pour cet agent |
+| `ssrf_blocked` | URL vers hôte privé refusée (loopback, RFC 1918, link-local, metadata cloud, domaine interne) |
 | `invalid_url` | L'URL est malformée ou ne contient pas de hôte |
 | `request_failed` | La requête a échoué (DNS, TLS, connexion refusée…) |
 | `response_too_large` | La réponse dépasse la limite de 1 Mo |
