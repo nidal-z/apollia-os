@@ -3,12 +3,8 @@
 
 [agent]
 name = "onboarding-agent"
-version = "1.5.0"
-description = """\
-Agent d'onboarding conversationnel — fait connaissance avec l'utilisateur \
-de manière naturelle et peuple user-memory avec ses préférences et son \
-contexte de travail.\
-"""
+version = "2.0.0"
+description = "Premier contact utilisateur — initiaée"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
 tags = ["onboarding", "conversational", "system"]
@@ -18,7 +14,7 @@ agent_type = "system"
 execution_mode = "auto"
 tools_required = []
 tools_optional = []
-memory_namespace = "onboarding-agent"
+memory_namespace = "onboarding"
 supports_streaming = false
 supports_a2a = false
 max_concurrent_tasks = 1
