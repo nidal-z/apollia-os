@@ -269,10 +269,10 @@ pub async fn list_resolved_approvals(
 /// Ajoute une règle de préfixe dont la portée est choisie par l'opérateur.
 ///
 /// Appelé par les boutons « Toujours autoriser » des composants HITL desktop.
-/// Trois portées sont supportées :
+/// Deux portées sont supportées (le scope `session` a été retiré : il vivait
+/// uniquement dans le processus desktop et n'était jamais consulté par le
+/// `PermissionEngine` du runtime) :
 ///
-/// - `"session"` — règle vivant uniquement en mémoire dans le processus
-///   desktop. Disparaît au redémarrage et n'est jamais écrite en base.
 /// - `"project"` — règle persistée dans `governance.db` avec son
 ///   `project_path` canonicalisé. `project_path` est requis dans ce mode.
 /// - `"global"` — règle persistée pour tous les projets.
@@ -292,9 +292,9 @@ pub async fn add_permission_prefix_rule(
     scope: String,
     project_path: Option<String>,
 ) -> Result<(), String> {
-    use apollia_permissions::prefix_rule_engine::{PrefixRule, RuleAction};
+    use apollia_permissions::prefix_rule_engine::RuleAction;
 
-    use super::tool_governance::{persist_scoped_rule, push_session_rule};
+    use super::tool_governance::persist_scoped_rule;
 
     if tool_name.trim().is_empty() {
         return Err("tool_name must not be empty".to_string());
@@ -311,39 +311,16 @@ pub async fn add_permission_prefix_rule(
     };
 
     let scope_enum = match scope.as_str() {
-        "session" => apollia_permissions::PermissionScope::Session,
         "project" => apollia_permissions::PermissionScope::Project,
         "global" => apollia_permissions::PermissionScope::Global,
         other => {
             return Err(format!(
-                "unknown scope '{other}', expected 'session' | 'project' | 'global'"
+                "unknown scope '{other}', expected 'project' | 'global'"
             ));
         }
     };
 
-    let created_at = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
     match scope_enum {
-        apollia_permissions::PermissionScope::Session => {
-            let rule = PrefixRule {
-                tool_name: tool_name.clone(),
-                arg_prefix: arg_prefix.clone(),
-                action: rule_action,
-                created_at,
-                scope: apollia_permissions::PermissionScope::Session,
-                ..PrefixRule::default()
-            };
-            push_session_rule(rule)?;
-            tracing::info!(
-                tool = %tool_name,
-                arg_prefix = ?arg_prefix,
-                scope = "session",
-                "operator added in-memory session permission rule"
-            );
-        }
         apollia_permissions::PermissionScope::Project => {
             use super::tool_governance::canonical_project_path;
             let raw =
@@ -385,6 +362,11 @@ pub async fn add_permission_prefix_rule(
                 arg_prefix = ?arg_prefix,
                 scope = "global",
                 "operator added global permission rule"
+            );
+        }
+        apollia_permissions::PermissionScope::Session => {
+            return Err(
+                "session scope is no longer supported; use 'project' or 'global'".to_string(),
             );
         }
     }

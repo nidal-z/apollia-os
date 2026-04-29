@@ -28,7 +28,7 @@
 
   const MIN_REASON_LENGTH = 10;
 
-  type Scope = "session" | "project" | "global";
+  type Scope = "project" | "global";
 
   let isProcessing = $state(false);
   let pendingScope = $state<Scope | "approve" | "reject" | null>(null);
@@ -185,23 +185,7 @@
       <p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         Toujours autoriser sans redemander
       </p>
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <button
-          type="button"
-          class="flex h-full flex-col items-start gap-1 rounded-md border border-border bg-background px-3 py-2 text-left text-[11px] transition-colors hover:border-primary/40 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isProcessing}
-          onclick={() => handleAlwaysAllow("session")}
-          data-testid="permission-always-allow-session-btn"
-        >
-          <span class="font-semibold text-foreground">Cette session</span>
-          <span class="text-muted-foreground">
-            Expire à la fermeture du daemon. Non persisté.
-          </span>
-          {#if busy("session")}
-            <span class="text-[10px] text-primary">Application…</span>
-          {/if}
-        </button>
-
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
           type="button"
           class="flex h-full flex-col items-start gap-1 rounded-md border border-border bg-background px-3 py-2 text-left text-[11px] transition-colors hover:border-primary/40 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"

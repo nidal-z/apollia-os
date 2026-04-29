@@ -6,15 +6,12 @@
 //! `ToolCredentialStore`, `PrefixRuleEngine` et `PermissionAuditLog` exposés
 //! par les crates `apollia-tools` et `apollia-permissions`.
 //!
-//! Les règles de permission *session* vivent uniquement en mémoire dans le
-//! processus desktop : elles sont persistées dans un store statique partagé
-//! entre [`crate::commands::hitl::add_permission_prefix_rule`] et
-//! [`list_permission_rules`] / [`revoke_permission_rule`] /
-//! [`revoke_all_rules`].
+//! Les règles de permission *session* ne sont plus supportées côté desktop :
+//! seuls les scopes `project` et `global` (persistés dans `governance.db`)
+//! sont exposés au frontend. Le store mémoire historique a été retiré car il
+//! n'était jamais consulté par le `PermissionEngine` du runtime.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use apollia_permissions::{
@@ -131,44 +128,6 @@ pub struct AuditEntryDto {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Session rules store (process-local, in-memory)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Conteneur en mémoire d'une règle session, associé à un identifiant négatif
-/// stable pour la durée du processus.
-#[derive(Debug, Clone)]
-pub(crate) struct SessionRule {
-    pub id: i64,
-    pub rule: PrefixRule,
-}
-
-fn session_store() -> &'static Mutex<Vec<SessionRule>> {
-    static STORE: OnceLock<Mutex<Vec<SessionRule>>> = OnceLock::new();
-    STORE.get_or_init(|| Mutex::new(Vec::new()))
-}
-
-fn next_session_id() -> i64 {
-    static COUNTER: AtomicI64 = AtomicI64::new(0);
-    -1 - COUNTER.fetch_add(1, Ordering::Relaxed)
-}
-
-/// Ajoute une règle dans le store de session du processus desktop.
-///
-/// L'id retourné est négatif et sert de référence stable pour
-/// [`revoke_permission_rule`].
-pub(crate) fn push_session_rule(mut rule: PrefixRule) -> Result<i64, String> {
-    rule.scope = PermissionScope::Session;
-    rule.project_path = None;
-    let id = next_session_id();
-    rule.id = id;
-    session_store()
-        .lock()
-        .map_err(|_| "session rules mutex poisoned".to_string())?
-        .push(SessionRule { id, rule });
-    Ok(id)
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Helpers privés
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -209,11 +168,10 @@ fn iso8601_opt(secs: Option<i64>) -> Option<String> {
 
 fn parse_scope(value: &str) -> Result<PermissionScope, String> {
     match value {
-        "session" => Ok(PermissionScope::Session),
         "project" => Ok(PermissionScope::Project),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "unknown scope '{other}', expected 'session' | 'project' | 'global'"
+            "unknown scope '{other}', expected 'project' | 'global'"
         )),
     }
 }
@@ -602,10 +560,7 @@ async fn test_brave_key(key: &str) -> CredentialTestResultDto {
 // Permission rules — list / revoke
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste les règles de permission selon `filter`.
-///
-/// Les règles `session` sont lues depuis le store mémoire du processus, les
-/// règles `project` / `global` depuis `governance.db`.
+/// Liste les règles de permission `project` / `global` depuis `governance.db`.
 ///
 /// # Errors
 ///
@@ -624,28 +579,15 @@ pub async fn governance_list_permission_rules(
 
     let mut out = Vec::new();
 
-    if scope_filter.is_none() || scope_filter == Some(PermissionScope::Session) {
-        let session = session_store()
-            .lock()
-            .map_err(|_| "session rules mutex poisoned".to_string())?;
-        for entry in session.iter() {
-            if matches_tool(&entry.rule.tool_name, tool_filter) {
-                out.push(rule_to_dto(&entry.rule));
-            }
-        }
-    }
-
-    if scope_filter != Some(PermissionScope::Session) {
-        let db_path = ensure_governance_db()?;
-        let engine = PrefixRuleEngine::new(&db_path)
-            .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
-        let rules = engine
-            .list_rules_filtered(scope_filter, None)
-            .map_err(|e| format!("failed to list permission rules: {e}"))?;
-        for r in rules {
-            if matches_tool(&r.tool_name, tool_filter) {
-                out.push(rule_to_dto(&r));
-            }
+    let db_path = ensure_governance_db()?;
+    let engine = PrefixRuleEngine::new(&db_path)
+        .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
+    let rules = engine
+        .list_rules_filtered(scope_filter, None)
+        .map_err(|e| format!("failed to list permission rules: {e}"))?;
+    for r in rules {
+        if matches_tool(&r.tool_name, tool_filter) {
+            out.push(rule_to_dto(&r));
         }
     }
 
@@ -661,9 +603,6 @@ fn matches_tool(rule_tool: &str, filter: Option<&str>) -> bool {
 
 /// Supprime la règle identifiée par `rule_id`.
 ///
-/// Les identifiants négatifs ciblent une règle session (mémoire), les
-/// identifiants positifs une règle persistée.
-///
 /// # Errors
 ///
 /// Retourne une erreur sérialisable si l'identifiant n'existe pas ou si la
@@ -673,19 +612,6 @@ pub async fn governance_revoke_permission_rule(
     rule_id: i64,
     _state: State<'_, RuntimeHandle>,
 ) -> Result<(), String> {
-    if rule_id < 0 {
-        let mut session = session_store()
-            .lock()
-            .map_err(|_| "session rules mutex poisoned".to_string())?;
-        let before = session.len();
-        session.retain(|entry| entry.id != rule_id);
-        if session.len() == before {
-            return Err(format!("session rule {rule_id} not found"));
-        }
-        tracing::info!(rule_id, "session permission rule revoked");
-        return Ok(());
-    }
-
     let db_path = ensure_governance_db()?;
     let mut engine = PrefixRuleEngine::new(&db_path)
         .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
@@ -699,9 +625,8 @@ pub async fn governance_revoke_permission_rule(
     Ok(())
 }
 
-/// Supprime toutes les règles d'une portée donnée — `None` cible les trois.
-///
-/// Retourne le nombre total de règles supprimées (session + DB).
+/// Supprime toutes les règles d'une portée donnée — `None` cible `project`
+/// et `global`.
 ///
 /// # Errors
 ///
@@ -719,28 +644,18 @@ pub async fn governance_revoke_all_rules(
 
     let mut total: u32 = 0;
 
-    if target_scope.is_none() || target_scope == Some(PermissionScope::Session) {
-        let mut session = session_store()
-            .lock()
-            .map_err(|_| "session rules mutex poisoned".to_string())?;
-        total = total.saturating_add(u32::try_from(session.len()).unwrap_or(u32::MAX));
-        session.clear();
-    }
-
-    if target_scope != Some(PermissionScope::Session) {
-        let db_path = ensure_governance_db()?;
-        let mut engine = PrefixRuleEngine::new(&db_path)
-            .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
-        let scopes_to_clear: Vec<PermissionScope> = match target_scope {
-            None => vec![PermissionScope::Project, PermissionScope::Global],
-            Some(s) => vec![s],
-        };
-        for s in scopes_to_clear {
-            let removed = engine
-                .remove_rules_by_scope(s, None)
-                .map_err(|e| format!("failed to revoke rules: {e}"))?;
-            total = total.saturating_add(removed);
-        }
+    let db_path = ensure_governance_db()?;
+    let mut engine = PrefixRuleEngine::new(&db_path)
+        .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
+    let scopes_to_clear: Vec<PermissionScope> = match target_scope {
+        None => vec![PermissionScope::Project, PermissionScope::Global],
+        Some(s) => vec![s],
+    };
+    for s in scopes_to_clear {
+        let removed = engine
+            .remove_rules_by_scope(s, None)
+            .map_err(|e| format!("failed to revoke rules: {e}"))?;
+        total = total.saturating_add(removed);
     }
 
     tracing::info!(scope = ?scope, count = total, "permission rules revoked in bulk");
@@ -808,32 +723,6 @@ mod tests {
             |r| r.get::<_, i64>(0),
         )
         .expect("count")
-    }
-
-    #[test]
-    fn test_add_session_rule_not_persisted() {
-        // GIVEN
-        let dir = TempDir::new().expect("tempdir");
-        let _ = GovernanceDb::open(dir.path()).expect("init");
-        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
-
-        // WHEN — ajout d'une règle session via le store mémoire
-        let id = push_session_rule(PrefixRule {
-            tool_name: "bash_executor".into(),
-            arg_prefix: Some("git".into()),
-            action: RuleAction::Allow,
-            ..PrefixRule::default()
-        })
-        .expect("push session");
-
-        // THEN — l'id est négatif et la DB ne contient aucune règle
-        assert!(id < 0);
-        let engine = PrefixRuleEngine::new(&db_path).expect("engine");
-        let persisted = engine.list_rules().expect("list");
-        assert!(persisted.is_empty(), "no rule must be persisted in DB");
-
-        // Cleanup pour ne pas polluer les autres tests qui partagent le store statique
-        session_store().lock().expect("lock").retain(|e| e.id != id);
     }
 
     #[test]
@@ -944,7 +833,7 @@ mod tests {
     #[test]
     fn test_parse_scope_unknown_value() {
         assert!(parse_scope("user").is_err());
-        assert_eq!(parse_scope("session"), Ok(PermissionScope::Session));
+        assert!(parse_scope("session").is_err());
         assert_eq!(parse_scope("project"), Ok(PermissionScope::Project));
         assert_eq!(parse_scope("global"), Ok(PermissionScope::Global));
     }
