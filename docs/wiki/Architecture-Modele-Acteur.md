@@ -230,7 +230,7 @@ Supervisor::start()
              └── bind TCP 7771 + Unix socket
              └── axum::serve() + boucle accept hyper-util
     │
-    └── … 5-12. (LlmRouter, TriggerEngine, PipelineEngine,
+    └── … 5-12. (LlmRouter, TriggerEngine,
     │        NotificationEngine…)
     │
     └── 12c. AgentMailbox::spawn(event_tx)

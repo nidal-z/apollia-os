@@ -5,7 +5,7 @@
 >
 > Cette page fait partie d'un découpage en trois :
 > - **API-HTTP-Agents** (cette page) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications, pipelines, runs
+> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
 > - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
@@ -1095,7 +1095,7 @@ curl --unix-socket /tmp/apollia.sock http://localhost/api/v1/health
 
 ## Voir aussi
 
-- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications, pipelines
+- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
 - [API-HTTP-Observability](./API-HTTP-Observability) — audit, timeline, approvals, user, dashboard, STT, MCP
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
 - [Briques Runtime Core](./Briques-Runtime-Core) — implémentation APIServer axum

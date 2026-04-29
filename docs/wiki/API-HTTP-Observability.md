@@ -5,7 +5,7 @@
 >
 > Cette page fait partie d'un découpage en trois :
 > - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, chat, LLM, tools, a2a, plan-cache, sessions, health, shutdown
-> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications, pipelines, runs
+> - [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
 > - **API-HTTP-Observability** (cette page) — audit, timeline, approvals, user memory, dashboard, STT, MCP
 
 ---
@@ -644,7 +644,7 @@ Voir [API-HTTP-Agents — Codes d'erreur HTTP](./API-HTTP-Agents#codes-derreur-h
 ## Voir aussi
 
 - [API-HTTP-Agents](./API-HTTP-Agents) — agents, tasks, LLM, tools, a2a, sessions
-- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications, pipelines
+- [API-HTTP-Workspace](./API-HTTP-Workspace) — triggers, webhooks, notifications
 - [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
 - [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué
 - [Briques MCP](./Briques-MCP) — spécification crate apollia-mcp

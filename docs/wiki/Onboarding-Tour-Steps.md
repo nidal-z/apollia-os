@@ -43,9 +43,8 @@
 | 5 | `chat()` | `chat()` | envoyer un message | `onboarding.tour.bld.chat.message` | Message envoye |
 | 6 | `integrations` | `integrations` | observer | `onboarding.tour.bld.integrations.message` | Navigation detectee |
 | 7 | `triggers` | `triggers` | observer | `onboarding.tour.bld.triggers.message` | Navigation detectee |
-| 8 | `pipelines` | `pipelines` | observer | `onboarding.tour.bld.pipelines.message` | Navigation detectee |
-| 9 | `observability` | `observability` | observer | `onboarding.tour.bld.observability.message` | Navigation detectee |
-| 10 | `graduation` | — | cliquer CTA | `onboarding.tour.bld.graduation.message` | Phase `graduation` atteinte |
+| 8 | `observability` | `observability` | observer | `onboarding.tour.bld.observability.message` | Navigation detectee |
+| 9 | `graduation` | — | cliquer CTA | `onboarding.tour.bld.graduation.message` | Phase `graduation` atteinte |
 
 ### Messages companion courts (onboarding_v2.tour.bld.step_N)
 
@@ -58,9 +57,8 @@
 | `onboarding_v2.tour.bld.step_5` | Envoyez ce message pour voir comment un agent traite une requete liee a la memoire. |
 | `onboarding_v2.tour.bld.step_6` | Connectez des outils externes via MCP. Vos agents les appellent sans dependances Python. |
 | `onboarding_v2.tour.bld.step_7` | Cron, intervalle, filewatch, webhook. Chaque trigger appelle run automatiquement. |
-| `onboarding_v2.tour.bld.step_8` | Connectez des agents en graphes DAG. Fan-out, fan-in, branches — moteur de pipeline. |
-| `onboarding_v2.tour.bld.step_9` | Chaque appel d'outil, ecriture memoire et token LLM est enregistre dans l'audit trail. |
-| `onboarding_v2.tour.bld.step_10` | Vous connaissez l'architecture. Creez votre premier agent avec manifest + run. |
+| `onboarding_v2.tour.bld.step_8` | Chaque appel d'outil, ecriture memoire et token LLM est enregistre dans l'audit trail. |
+| `onboarding_v2.tour.bld.step_9` | Vous connaissez l'architecture. Creez votre premier agent avec manifest + run. |
 
 ---
 
@@ -77,7 +75,6 @@ Les selectors CSS utilisés pour le spotlight de chaque etape sont injectés par
 | chat | `[data-testid="chat-input"]` |
 | integrations | `[data-testid="integrations-page"]` |
 | triggers | `[data-testid="trigger-table"]` |
-| pipelines | `[data-testid="pipeline-list"]` |
 | observability | `[data-testid="observability-tabs"]` |
 | approvals | `[data-testid="approvals-list"]` |
 | notifications | `[data-testid="notification-channels"]` |

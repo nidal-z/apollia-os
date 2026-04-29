@@ -19,16 +19,14 @@ Principaux endpoints couverts :
 - `/api/v1/a2a/*` (agents, skills, delegate, invoke)
 - `/api/v1/sessions/*` (chat interactif + SSE)
 
-### [API-HTTP-Workspace](./API-HTTP-Workspace) — Triggers, Pipelines, Notifications
+### [API-HTTP-Workspace](./API-HTTP-Workspace) — Triggers, Notifications
 
-Endpoints d'automatisation workspace : déclencheurs (cron, interval, filewatch, webhook), webhooks d'ingestion avec HMAC-SHA256, canaux de notification (desktop, webhook, SSE), pipelines DAG multi-agents et historique des runs.
+Endpoints d'automatisation workspace : déclencheurs (cron, interval, filewatch, webhook), webhooks d'ingestion avec HMAC-SHA256, canaux de notification (desktop, webhook, SSE).
 
 Principaux endpoints couverts :
 - `/api/v1/triggers/*` (CRUD, `/fire`, `/enable`, `/disable`, `/logs`, `/reload`)
 - `/webhooks/:trigger_id` (HMAC-SHA256)
 - `/api/v1/notifications/*` (channels CRUD, events, test, logs)
-- `/api/v1/pipelines/*` (CRUD, `/run`, `/runs`)
-- `/api/v1/runs/:run_id`
 
 ### [API-HTTP-Observability](./API-HTTP-Observability) — Observability, STT, MCP
 

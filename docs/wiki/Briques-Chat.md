@@ -54,7 +54,7 @@ L'enum `ChatCommand` definit les 9 messages acceptes par l'acteur :
 
 Chaque commande porte un `oneshot::Sender` pour la reponse, sauf `Shutdown`.
 
-Le `ChatSessionManager` occupe la position 13 dans la sequence de demarrage du Supervisor, apres le `NotificationEngine` (position 9) et le `PipelineEngine` (position 8).
+Le `ChatSessionManager` occupe la position 13 dans la sequence de demarrage du Supervisor, apres le `NotificationEngine` (position 9).
 
 ### Chat Libre — BuiltInChatAgent
 

@@ -28,7 +28,6 @@ Le dashboard est organisé en **7 sections** mises à jour en temps réel via SS
 |---|---|---|
 | **Agents** | ProcessState, manifest, tâches actives | `AgentReady`, `AgentDegraded`, `AgentStopped` |
 | **Tasks** | TaskState, agent cible, durée, erreur | `TaskStarted`, `TaskCompleted`, `TaskCanceled` |
-| **Pipelines** | Runs actifs, steps en cours, badge WaitingApproval | `PipelineStarted`, `PipelineStepCompleted`, `PipelineSuspended`, `PipelineCompleted`, `PipelineFailed` |
 | **Triggers** | Fires, skips, erreurs, dernier fire | `TriggerFired`, `TriggerSkipped`, `TriggerError` |
 | **Tools** | Circuit breaker state, appels récents | `ToolCircuitBroken`, `ToolCircuitRestored` |
 | **LLM** | Backends actifs, coût estimé, latence | `LlmModelReady`, `LlmCallCompleted` |
@@ -91,10 +90,6 @@ GET /api/v1/dashboard/stream
 // Événements → canaux SSE nommés
 AgentReady | AgentDegraded | AgentStopped           → event: "agents"
 TaskStarted | TaskCompleted | TaskCanceled           → event: "tasks"
-PipelineStarted | PipelineStepStarted
-| PipelineStepCompleted | PipelineStepFailed
-| PipelineSuspended | PipelineResumed
-| PipelineCompleted | PipelineFailed                → event: "pipeline"
 TriggerFired | TriggerSkipped | TriggerError
 | TriggerEnabled | TriggerDisabled
 | TriggersReloaded                                   → event: "triggers"

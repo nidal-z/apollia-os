@@ -1,6 +1,6 @@
 # Matrice de décision — Capabilities Apollia OS
 
-> Quand utiliser un MCP Tool, un Worker Agent, un Pipeline TOML, le Mode Direct ou le Mode Orchestré ?
+> Quand utiliser un MCP Tool, un Worker Agent, le Mode Direct ou le Mode Orchestré ?
 
 Ce document est destiné aux **builders** qui créent ou composent des agents avec Apollia OS. Il synthétise les décisions architecturales formalisées dans ADR-048 et ADR-049.
 
@@ -11,11 +11,10 @@ Ce document est destiné aux **builders** qui créent ou composent des agents av
 | # | Situation | Mécanisme recommandé | Pourquoi | Exemple |
 |---|---|---|---|---|
 | 1 | Tâche atomique, 1 seul appel, résultat déterministe | **MCP Tool** | Zéro overhead agent, latence minimale, pas besoin de LLM | Convertisseur de format, extraction d'un champ JSON, appel API REST |
-| 2 | Workflow connu à l'avance, agents et séquence figés, versionnabilité essentielle | **Pipeline TOML** *(en pause)* | Déclaratif, reproductible, auditable — équivalent N8N local | Traitement batch quotidien : ETL → normalisation → export |
-| 3 | Tâche agentique standard, logique métier dans le code `run()`, modèle moyen ou frontier | **ORIA Mode Direct** | L'agent contrôle sa propre boucle ReAct, guardrails codés dans `run()` | Code reviewer automatique, agent d'onboarding, analyse de logs |
-| 4 | Tâche complexe single-agent, plan LLM incertain, résilience runtime critique | **ORIA Mode Orchestré** | ORIA applique StepBudget par step, persistance SQLite, replanification × 2 — indépendamment du code Python de l'agent | Agents déclaratifs purs, tâches longues où une panne partielle ne doit pas tout relancer |
-| 5 | Domaine spécialisé (Excel, SQL, PDF…), modèle léger (7-14B), guardrails non-négociables | **Worker Agent** | Expertise encodée dans le code — model-agnostic, résistant à la fenêtre de contexte courte | `excel-worker`, `csv-data-worker`, `sql-worker`, `pdf-worker` |
-| 6 | Composition dynamique, plusieurs agents, routing piloté par le LLM à runtime | **A2A** | Discovery via `skill_id`, invocation synchrone, résultat structuré — le routing est porté par le modèle, pas par le développeur | Director Agent → `excel-worker` via `skill_id="read-excel"` |
+| 2 | Tâche agentique standard, logique métier dans le code `run()`, modèle moyen ou frontier | **ORIA Mode Direct** | L'agent contrôle sa propre boucle ReAct, guardrails codés dans `run()` | Code reviewer automatique, agent d'onboarding, analyse de logs |
+| 3 | Tâche complexe single-agent, plan LLM incertain, résilience runtime critique | **ORIA Mode Orchestré** | ORIA applique StepBudget par step, persistance SQLite, replanification × 2 — indépendamment du code Python de l'agent | Agents déclaratifs purs, tâches longues où une panne partielle ne doit pas tout relancer |
+| 4 | Domaine spécialisé (Excel, SQL, PDF…), modèle léger (7-14B), guardrails non-négociables | **Worker Agent** | Expertise encodée dans le code — model-agnostic, résistant à la fenêtre de contexte courte | `excel-worker`, `csv-data-worker`, `sql-worker`, `pdf-worker` |
+| 5 | Composition dynamique, plusieurs agents, routing piloté par le LLM à runtime | **A2A** | Discovery via `skill_id`, invocation synchrone, résultat structuré — le routing est porté par le modèle, pas par le développeur | Director Agent → `excel-worker` via `skill_id="read-excel"` |
 
 ---
 
@@ -57,10 +56,6 @@ La tâche est-elle atomique (1 appel, résultat direct) ?
   │ oui → MCP Tool
   │ non
   ▼
-Le workflow est-il connu à l'avance et fixe (séquence déterministe) ?
-  │ oui → Pipeline TOML (en pause — réactiver si versionnabilité prioritaire)
-  │ non
-  ▼
 La tâche nécessite-t-elle plusieurs agents composés dynamiquement ?
   │ oui → A2A (routing par skill_id)
   │ non — single-agent
@@ -85,13 +80,7 @@ La résilience runtime est-elle critique (tâche longue, panne partielle inaccep
 | ORIA Mode Orchestré | ✅ Stable | |
 | Worker Agent | ✅ Stable | |
 | A2A (discovery + invocation) | ✅ Livré | |
-| Pipeline TOML | ⏸ En pause | — réactivation post-v1 |
-
----
-
-## Note sur les Pipelines
-
-Les Pipelines TOML sont fonctionnels et couvrent un cas d'usage de type N8N local : workflow déclaratif versionnabe, fan-out/fan-in, conditions, fallback, HITL, reprise restart. Ils ne sont pas abandonnés — ils sont mis en pause parce que la composition dynamique via A2A est plus alignée avec l'état de l'art 2026 et les besoins identifiés chez les early adopters. La réactivation sera explicitement décidée si le cas d'usage "workflow fixe versionnabe" devient prioritaire.
+| Pipeline TOML | ❌ Retiré v0.1.0 | — rebuild prévu v1.0 (spec n8n-like, voir ADR-085) |
 
 ---
 

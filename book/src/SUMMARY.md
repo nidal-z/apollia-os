@@ -84,10 +84,6 @@
   - [Chat Libre vs Chat Agent](ch12-02-modes.md)
   - [Mémoire utilisateur](ch12-03-user-memory.md)
 
-- [Pipelines multi-agents](ch13-00-pipelines.md)
-  - [Topologie et dépendances](ch13-01-topology.md)
-  - [Conditions et fallbacks](ch13-02-conditions.md)
-
 - [Triggers](ch14-00-triggers.md)
   - [Cron, FileWatch, Webhook](ch14-01-sources.md)
   - [Hot reload](ch14-02-hot-reload.md)
@@ -98,7 +94,6 @@
   - [Architecture cible](ch15-01-architecture.md)
   - [Les Worker Agents](ch15-02-workers.md)
   - [Le Director Agent](ch15-03-director.md)
-  - [Le pipeline](ch15-04-pipeline.md)
   - [Résultat final](ch15-05-result.md)
 
 # Aller plus loin

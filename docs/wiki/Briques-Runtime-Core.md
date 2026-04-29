@@ -692,7 +692,6 @@ FatalError(String),
 | Outils | `ToolCircuitBroken`, `ToolCircuitRestored` | Cœur |
 | LLM | `LlmModelLoading`, `LlmModelReady`, `LlmModelFailed`, `LlmCallCompleted` | 8 / 28 |
 | Triggers | `TriggerFired`, `TriggerSkipped`, `TriggerError`, `TriggerEnabled`, `TriggerDisabled`, `TriggersReloaded` | 9 |
-| Pipelines | `PipelineStarted`, `PipelineStepStarted`, `PipelineStepCompleted`, `PipelineStepFailed`, `PipelineStepSkipped`, `PipelineSuspended`, `PipelineResumed`, `PipelineCompleted`, `PipelineFailed` | 12 |
 | Chat | `ChatSessionCreated`, `ChatSessionClosed`, `ChatMessageSent`, `ChatResponseStarted`, `ChatToken`, `ChatResponseCompleted`, `ChatError`, `ChatToolCallStarted`, `ChatToolCallCompleted`, `ChatApprovalRequired`, `ChatApprovalResolved`, `ChatApprovalTimeout` | 18 |
 | Agent messaging | `AgentMessageSent` | 20 |
 | A2A invocation | `A2AInvocationStarted`, `A2AInvocationCompleted` | 30 |
@@ -795,7 +794,7 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | REST JSON (pas gRPC) | Debuggable avec curl, pas de génération protobuf, CLI simple |
 | SSE pour streaming | Unidirectionnel suffisant, compatible tout client HTTP |
 | Graceful shutdown avec drain 30s | Jamais de tâche perdue silencieusement |
-| `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/pipelines/notifications CRUD (ADR-033) |
+| `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/notifications CRUD (ADR-033) |
 | HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
 | `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
 | `ChatSessionManager` séparé du `TaskRouter` (Phase 13) | Chat = sessions longues stateful, TaskRouter = fire-and-forget stateless. Sémantiques incompatibles (ADR-034) |

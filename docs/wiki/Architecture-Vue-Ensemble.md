@@ -35,7 +35,6 @@ graph TB
         MEM[Memory Engine SQLite]
         LLM[LLM Router]
         TRIG[TriggerEngine]
-        PIPE[PipelineEngine]
     end
 
     subgraph Agents["Agents Python"]

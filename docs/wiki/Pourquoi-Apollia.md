@@ -22,7 +22,7 @@ Apollia OS est le **runtime** qui manque entre votre agent Python et la producti
 - **Isolation** : chaque outil s'exécute dans un sandbox Linux (namespaces), sans Docker.
 - **Garde-fous** : StepBudget, circuit breakers, audit trail — appliqués par le runtime Rust, non contournables par l'agent Python.
 - **Agnostique du framework** : votre agent LangGraph, CrewAI, ou custom fonctionne tel quel. Deux fonctions suffisent : `manifest()` et `run()`.
-- **Outillé** : CLI, API REST, application desktop, triggers, pipelines, notifications, mémoire persistante — tout inclus.
+- **Outillé** : CLI, API REST, application desktop, triggers, notifications, mémoire persistante — tout inclus.
 
 ## Quand utiliser Apollia OS
 

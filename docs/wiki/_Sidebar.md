@@ -39,7 +39,6 @@
 - [[Briques-Auth|Auth OAuth2 PKCE]]
 - [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Notifications|Notifications Engine]]
-- [[Briques-Pipelines|Pipelines Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-Desktop|Application Desktop]]
 - [[Onboarding-System|Onboarding — Spec système]]
@@ -56,7 +55,7 @@
 **API & Intégration**
 - [[API-HTTP-Reference|API HTTP — Index]]
   - [[API-HTTP-Agents|Agents, Chat, LLM, A2A]]
-  - [[API-HTTP-Workspace|Triggers, Pipelines, Notifications]]
+  - [[API-HTTP-Workspace|Triggers, Notifications]]
   - [[API-HTTP-Observability|Observability, STT, MCP]]
 - [[MCP-Guide-Utilisateur|MCP — Guide utilisateur]]
 - [[Integrations-Guide|Intégrations — Guide desktop]]

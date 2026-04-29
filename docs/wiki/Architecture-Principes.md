@@ -97,7 +97,7 @@ Un agent qui démarre avec succès et plante à la 3ème étape de sa 2ème tâc
 - `TaskRouter` : dispatch des tâches uniquement
 - `ExecutionCoordinator` : interface avec ORIA par agent uniquement
 - `APIServer` : exposition externe uniquement
-- Et 8+ acteurs supplémentaires : `LlmRouter`, `TriggerEngine`, `PipelineEngine`, `NotificationEngine`, `ChatSessionManager`, `SttEngine`, `AuditTrail`, `TimeoutWatcher`…
+- Et 8+ acteurs supplémentaires : `LlmRouter`, `TriggerEngine`, `NotificationEngine`, `ChatSessionManager`, `SttEngine`, `AuditTrail`, `TimeoutWatcher`…
 - Chaque acteur communique par messages, jamais par état partagé
 
 > Pour la liste complète des acteurs et leur séquence de démarrage, voir [Runtime Core](./Briques-Runtime-Core).

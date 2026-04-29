@@ -1213,5 +1213,13 @@ Windows n'est pas supporté en v0.1.0 ni en v1.0. Le binaire ne build pas sur Wi
 
 ---
 
+## ADR-085 — Pipeline engine TOML supprimé de v0.1.0
+
+**Date :** 2026-04-29 — **Statut :** Accepté
+
+Le crate `apollia-pipelines` (TOML déclaratif, topologies DAG natives, HITL — ADR-025/ADR-053) est retiré de la v0.1.0. Le composant fonctionnait mais doublait la composition dynamique via A2A (ADR-066), plus alignée avec l'état de l'art 2026 et les besoins early adopters. Code, docs publiques, diagrammes, templates et corpus help associés sont supprimés. ADR-025 et ADR-053 sont conservés pour traçabilité historique. Rebuild prévu en v1.0 sur une spec n8n-like (workflow visuel + step library) si la demande "workflow fixe versionnable" devient prioritaire.
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

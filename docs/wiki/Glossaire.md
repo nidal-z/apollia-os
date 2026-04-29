@@ -46,8 +46,6 @@ Définitions des termes techniques utilisés dans la documentation.
 
 ## P
 
-**Pipeline** — Orchestration déclarative de plusieurs agents en séquence ou parallèle (DAG). Supporte fan-out, fan-in, conditions, fallback, et HITL intégré. Défini en JSON via API et persisté en SQLite.
-
 **ProcessState** — Machine d'état d'un agent : `Initializing` → `Active` → `Stopping` → `Stopped`. Un agent peut aussi être `Degraded` (outil optionnel manquant, LLM indisponible).
 
 ## R

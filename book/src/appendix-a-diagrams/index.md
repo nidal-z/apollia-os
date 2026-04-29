@@ -35,9 +35,6 @@
 ## Machine d'état — Session de chat
 ![ChatSession State](state-chat-session.svg)
 
-## Machine d'état — PipelineRun & StepRun
-![Pipeline State](state-pipeline.svg)
-
 ## Machine d'état — Circuit Breaker (ResilienceLayer)
 ![Circuit Breaker](state-circuit-breaker.svg)
 
@@ -136,19 +133,6 @@
 
 ## Séquence — Dispatch des notifications (event → channel)
 ![Notification Dispatch](seq-notification-dispatch.svg)
-
----
-
-## Pipelines multi-agents
-
-## Topologie — Pipeline (fan-out / fan-in / fallback / condition)
-![Pipeline Topology](component-pipeline-topology.svg)
-
-## Séquence — Exécution d'un pipeline (layers topologiques)
-![Pipeline Execution](seq-pipeline-execution.svg)
-
-## Séquence — HITL dans un pipeline (suspend / resume)
-![Pipeline HITL](seq-pipeline-hitl.svg)
 
 ---
 
