@@ -6,6 +6,7 @@
   import { Shield, ChevronDown } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
+  import { currentSession } from "$lib/stores/chat";
 
   interface Props {
     sessionId: string;
@@ -14,6 +15,11 @@
   }
 
   let { sessionId, messageId, toolCall }: Props = $props();
+
+  /** Cf. ApprovalCard : grise « Toujours pour ce projet » hors contexte projet. */
+  const hasProject = $derived(
+    $currentSession?.id === sessionId && $currentSession?.project_id !== null,
+  );
 
   /** Mappe sur l'enum runtime `AlwaysAcceptScope` (snake_case via serde). */
   type AlwaysScope =
@@ -162,14 +168,17 @@
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
-        disabled={isProcessing}
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="operator-approval-scope-project-{toolCall.tool_name}"
+        title={!hasProject ? "Cette session n'est rattachée à aucun projet." : undefined}
       >
         <div class="font-medium text-foreground">Toujours pour ce projet</div>
         <div class="text-[10px] text-muted-foreground">
-          Tous les assistants utilisés dans ce projet.
+          {hasProject
+            ? "Tous les assistants utilisés dans ce projet."
+            : "Indisponible — la session n'est rattachée à aucun projet."}
         </div>
       </button>
       <button

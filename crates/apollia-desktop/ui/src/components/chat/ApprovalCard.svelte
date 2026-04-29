@@ -4,6 +4,7 @@
   import { slide } from "svelte/transition";
   import { ShieldAlert, Zap, ChevronDown } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { currentSession } from "$lib/stores/chat";
 
   interface Props {
     sessionId: string;
@@ -13,6 +14,12 @@
   }
 
   let { sessionId, messageId, toolName, inputPreview }: Props = $props();
+
+  /** True quand la session courante est rattachée à un projet — sert à griser
+   *  l'option "Toujours pour ce projet" hors contexte projet. */
+  const hasProject = $derived(
+    $currentSession?.id === sessionId && $currentSession?.project_id !== null,
+  );
 
   /**
    * Portée de la règle "Toujours autoriser".
@@ -171,14 +178,17 @@
       </button>
       <button
         type="button"
-        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
-        disabled={isProcessing}
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        disabled={isProcessing || !hasProject}
         onclick={() => handleAlwaysAccept("this_project")}
         data-testid="approval-scope-project-{toolName}"
+        title={!hasProject ? "Cette session n'est rattachée à aucun projet." : undefined}
       >
         <div class="font-medium text-foreground">Toujours pour ce projet</div>
         <div class="text-[10px] text-muted-foreground">
-          Tous les assistants utilisés dans ce projet.
+          {hasProject
+            ? "Tous les assistants utilisés dans ce projet."
+            : "Indisponible — la session n'est rattachée à aucun projet."}
         </div>
       </button>
       <button
