@@ -539,6 +539,7 @@ dependencies = [
  "apollia-memory",
  "apollia-notifications",
  "apollia-oria",
+ "apollia-permissions",
  "apollia-pipelines",
  "apollia-stt",
  "apollia-tools",

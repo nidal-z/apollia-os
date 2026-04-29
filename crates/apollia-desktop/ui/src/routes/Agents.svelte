@@ -24,6 +24,7 @@
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import AgentPackageCard from "../components/agents/AgentPackageCard.svelte";
   import AgentPackageDetail from "../components/agents/AgentPackageDetail.svelte";
+  import ApolliaChatConfigPanel from "../components/agents/ApolliaChatConfigPanel.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import {
@@ -66,6 +67,9 @@
   // ── New V3 state ─────────────────────────────────────────────────────
   let query = $state("");
   let selectedName = $state<string | null>(null);
+  /** Pinned synthetic system agent — when true, the right column shows the
+   * Apollia Chat config panel instead of an `AgentListItem` detail. */
+  let apolliaChatSelected = $state(false);
 
   $effect(() => {
     refreshPackages();
@@ -312,6 +316,39 @@
       </div>
 
       <div class="flex-1 overflow-y-auto px-2.5 pb-2">
+        <!-- Pinned system agent: Apollia Chat -->
+        <button
+          type="button"
+          onclick={() => {
+            apolliaChatSelected = true;
+            selectedName = null;
+          }}
+          class="mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors {apolliaChatSelected
+            ? 'bg-primary/10'
+            : 'hover:bg-surface-1'}"
+          data-testid="apollia-chat-pinned"
+        >
+          <div
+            class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+            style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary))); color: white;"
+          >
+            <Zap size={13} />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div
+              class="flex items-center gap-1.5 text-[12.5px] {apolliaChatSelected
+                ? 'font-semibold text-foreground'
+                : 'font-medium text-foreground'}"
+            >
+              <span class="truncate">Apollia Chat</span>
+            </div>
+            <div class="truncate text-[10.5px] text-muted-foreground">
+              Agent système · chat libre
+            </div>
+          </div>
+          <Chip size="sm" tone="info">Système</Chip>
+        </button>
+
         {#if $connectionStatus === "connecting" && allAssistants.length === 0}
           <div class="space-y-1">
             {#each Array(4) as _, i (i)}
@@ -357,7 +394,10 @@
             {@const active = agent.name === selectedName}
             <button
               type="button"
-              onclick={() => (selectedName = agent.name)}
+              onclick={() => {
+                selectedName = agent.name;
+                apolliaChatSelected = false;
+              }}
               class="mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors {active
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
@@ -404,7 +444,38 @@
 
     <!-- RIGHT — detail -->
     <section class="flex min-w-0 flex-1 flex-col overflow-y-auto">
-      {#if selected}
+      {#if apolliaChatSelected}
+        <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
+          <div class="flex items-start gap-3.5">
+            <div
+              class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl"
+              style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
+            >
+              <Zap size={20} color="white" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <h2
+                class="m-0 text-foreground"
+                style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2;"
+              >
+                Apollia Chat
+              </h2>
+              <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
+                Agent système — pilote les sessions du chat libre. Sa
+                configuration est persistée dans <code>governance.db</code> et
+                appliquée à chaque nouvelle session Libre.
+              </p>
+            </div>
+            <div class="flex shrink-0 gap-1.5">
+              <Chip size="sm" tone="info">Système</Chip>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 pt-[18px] pb-8">
+          <ApolliaChatConfigPanel />
+        </div>
+      {:else if selected}
         {@const a = selected}
         <!-- Header -->
         <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
