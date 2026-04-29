@@ -3,7 +3,7 @@
   import { resolveToolDisplay } from "$lib/tools/tool-display";
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { Shield } from "lucide-svelte";
+  import { Shield, ChevronDown } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
 
@@ -15,14 +15,22 @@
 
   let { sessionId, messageId, toolCall }: Props = $props();
 
+  /** Mappe sur l'enum runtime `AlwaysAcceptScope` (snake_case via serde). */
+  type AlwaysScope =
+    | "this_session"
+    | "this_agent"
+    | "this_project"
+    | "global";
+
   const display = $derived(resolveToolDisplay(toolCall));
   const ToolIcon = $derived(display.icon);
 
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
+  let scopeOpen = $state(false);
 
   async function handleDecision(
-    decision: "accept" | "refuse" | "always_accept",
+    decision: "accept" | "refuse",
   ): Promise<void> {
     isProcessing = true;
     error = null;
@@ -36,6 +44,24 @@
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
       isProcessing = false;
+    }
+  }
+
+  async function handleAlwaysAccept(scope: AlwaysScope): Promise<void> {
+    isProcessing = true;
+    error = null;
+    try {
+      await invoke("authorize_chat_tool", {
+        sessionId,
+        messageId,
+        toolName: toolCall.tool_name,
+        decision: "always_accept",
+        scope,
+      });
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
+      isProcessing = false;
+      scopeOpen = false;
     }
   }
 </script>
@@ -66,7 +92,7 @@
   {/if}
 
   <!-- Decision buttons -->
-  <div class="mt-4 flex gap-2">
+  <div class="mt-4 flex flex-wrap items-center gap-2">
     <Button
       variant="outline"
       size="sm"
@@ -75,7 +101,7 @@
       onclick={() => handleDecision("accept")}
       data-testid="operator-approval-accept-{toolCall.tool_name}"
     >
-      {$t("chat.approve_accept")}
+      Autoriser une fois
     </Button>
     <Button
       variant="ghost"
@@ -85,17 +111,79 @@
       onclick={() => handleDecision("refuse")}
       data-testid="operator-approval-refuse-{toolCall.tool_name}"
     >
-      {$t("chat.approve_refuse")}
+      Refuser
     </Button>
     <Button
       variant="ghost"
       size="sm"
       class="h-7 px-3 text-[11px] text-primary"
       disabled={isProcessing}
-      onclick={() => handleDecision("always_accept")}
-      data-testid="operator-approval-always-{toolCall.tool_name}"
+      onclick={() => (scopeOpen = !scopeOpen)}
+      data-testid="operator-approval-always-toggle-{toolCall.tool_name}"
+      aria-expanded={scopeOpen}
     >
-      {$t("chat.approve_always")}
+      Toujours autoriser
+      <ChevronDown
+        size={11}
+        class="ml-0.5 transition-transform {scopeOpen ? 'rotate-180' : ''}"
+      />
     </Button>
   </div>
+
+  {#if scopeOpen}
+    <div
+      class="mt-2 grid grid-cols-1 gap-1.5 rounded-md bg-surface-2/40 p-2 sm:grid-cols-2"
+      transition:slide={{ duration: 150 }}
+      data-testid="operator-approval-scope-menu-{toolCall.tool_name}"
+    >
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        disabled={isProcessing}
+        onclick={() => handleAlwaysAccept("this_session")}
+        data-testid="operator-approval-scope-session-{toolCall.tool_name}"
+      >
+        <div class="font-medium text-foreground">Pour cette session</div>
+        <div class="text-[10px] text-muted-foreground">
+          Jusqu'à la fermeture de ce chat.
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        disabled={isProcessing}
+        onclick={() => handleAlwaysAccept("this_agent")}
+        data-testid="operator-approval-scope-agent-{toolCall.tool_name}"
+      >
+        <div class="font-medium text-foreground">Toujours pour cet assistant</div>
+        <div class="text-[10px] text-muted-foreground">
+          Apollia Chat (ou l'agent courant) ne demandera plus.
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        disabled={isProcessing}
+        onclick={() => handleAlwaysAccept("this_project")}
+        data-testid="operator-approval-scope-project-{toolCall.tool_name}"
+      >
+        <div class="font-medium text-foreground">Toujours pour ce projet</div>
+        <div class="text-[10px] text-muted-foreground">
+          Tous les assistants utilisés dans ce projet.
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
+        disabled={isProcessing}
+        onclick={() => handleAlwaysAccept("global")}
+        data-testid="operator-approval-scope-global-{toolCall.tool_name}"
+      >
+        <div class="font-medium text-foreground">Toujours, partout</div>
+        <div class="text-[10px] text-warning">
+          Tous les assistants, tous les projets.
+        </div>
+      </button>
+    </div>
+  {/if}
 </div>
