@@ -18,7 +18,7 @@
     { route: "agents"    as Route, Icon: Bot,           label: "Assistants",         badge: "none"      },
     { route: "projects"  as Route, Icon: FolderOpen,    label: "Projets",            badge: "none"      },
     { route: "tasks"     as Route, Icon: CheckSquare,   label: "Mon travail",        badge: "tasks"     },
-    { route: "triggers"  as Route, Icon: Timer,         label: "Mes déclencheurs",   badge: "none"      },
+    { route: "automations" as Route, Icon: Timer,       label: "Mes automatisations", badge: "none"      },
     { route: "inbox"     as Route, Icon: Inbox,         label: "Boîte de réception", badge: "approvals" },
   ];
 

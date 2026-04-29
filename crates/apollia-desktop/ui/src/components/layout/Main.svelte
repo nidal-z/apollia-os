@@ -7,10 +7,8 @@
   import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
-  import Approvals from "../../routes/Approvals.svelte";
   import Inbox from "../../routes/Inbox.svelte";
   import Llm from "../../routes/Llm.svelte";
-  import Triggers from "../../routes/Triggers.svelte";
   import Automations from "../../routes/Automations.svelte";
   import Pipelines from "../../routes/Pipelines.svelte";
   import Memory from "../../routes/Memory.svelte";
@@ -27,6 +25,8 @@
   import DesignMotion from "../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../routes/DesignEmptyStates.svelte";
   import DesignDarkMode from "../../routes/DesignDarkMode.svelte";
+
+  const isDev = import.meta.env.DEV;
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -62,14 +62,10 @@
           <Tasks />
         {:else if $currentRoute === "chat"}
           <Chat />
-        {:else if $currentRoute === "approvals"}
-          <Approvals />
         {:else if $currentRoute === "inbox"}
           <Inbox />
         {:else if $currentRoute === "llm"}
           <Llm />
-        {:else if $currentRoute === "triggers"}
-          <Triggers />
         {:else if $currentRoute === "automations"}
           <Automations />
         {:else if $currentRoute === "pipelines"}
@@ -92,13 +88,13 @@
           <Settings />
         {:else if $currentRoute === "settings-permission-rules"}
           <SettingsPermissionRules />
-        {:else if $currentRoute === "design"}
+        {:else if isDev && $currentRoute === "design"}
           <Design />
-        {:else if $currentRoute === "design-motion"}
+        {:else if isDev && $currentRoute === "design-motion"}
           <DesignMotion />
-        {:else if $currentRoute === "design-empty-states"}
+        {:else if isDev && $currentRoute === "design-empty-states"}
           <DesignEmptyStates />
-        {:else if $currentRoute === "design-dark-mode"}
+        {:else if isDev && $currentRoute === "design-dark-mode"}
           <DesignDarkMode />
         {/if}
       </PageTransition>

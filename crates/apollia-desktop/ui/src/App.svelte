@@ -91,8 +91,8 @@
     const cleanup = createSSEConnection();
     const disposeShortcuts = installGlobalShortcuts();
 
-    // Design showcase pages — internal-facing, not advertised in the sidebar.
-    if (typeof window !== "undefined") {
+    // Design showcase pages — DEV-only, gated out of release builds.
+    if (import.meta.env.DEV && typeof window !== "undefined") {
       if (window.location.hash === "#design") {
         navigateTo("design");
       } else if (window.location.hash === "#motion") {

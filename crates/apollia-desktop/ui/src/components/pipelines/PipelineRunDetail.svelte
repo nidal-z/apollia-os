@@ -71,7 +71,7 @@
   }
 
   function navigateToApprovals() {
-    currentRoute.set("approvals");
+    currentRoute.set("inbox");
     onclose();
   }
 

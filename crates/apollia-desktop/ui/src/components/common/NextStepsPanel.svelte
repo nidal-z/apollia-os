@@ -59,7 +59,7 @@
     "/integrations": { route: "integrations" },
     "/inbox": { route: "inbox" },
     "/llm": { route: "llm" },
-    "/triggers": { route: "triggers" },
+    "/triggers": { route: "automations" },
     "/pipelines": { route: "pipelines" },
     "/memory": { route: "memory" },
     "/memory?new": { route: "memory" },

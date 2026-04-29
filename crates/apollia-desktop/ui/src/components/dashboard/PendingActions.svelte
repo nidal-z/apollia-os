@@ -12,7 +12,7 @@
 
 <button
   class="group hover-lift flex w-full items-center gap-3 rounded-lg glass-card glass-border px-4 py-3 hover:bg-warning/5"
-  onclick={() => navigateTo("approvals")}
+  onclick={() => navigateTo("inbox")}
   data-testid="pending-actions"
 >
   <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-warning/10">

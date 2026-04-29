@@ -12,7 +12,6 @@
   import { flip } from "svelte/animate";
   import { triggers } from "$lib/stores/triggers";
   import { currentRoute } from "$lib/stores/navigation";
-  import { uiMode } from "$lib/stores/mode";
   import type { TriggerStatus } from "$lib/types";
   import AutomationCard from "../components/automations/AutomationCard.svelte";
   import AutomationGroup from "../components/automations/AutomationGroup.svelte";
@@ -108,7 +107,14 @@
       if (detail?.triggerId) handleRequestDelete(detail.triggerId);
     };
     window.addEventListener("apollia:automation_delete_request", handler);
-    return () => window.removeEventListener("apollia:automation_delete_request", handler);
+    const createHandler = () => {
+      showWizard = true;
+    };
+    window.addEventListener("apollia:automations:create", createHandler);
+    return () => {
+      window.removeEventListener("apollia:automation_delete_request", handler);
+      window.removeEventListener("apollia:automations:create", createHandler);
+    };
   });
 
   function handleRequestDelete(triggerId: string) {
@@ -150,10 +156,6 @@
     await performDelete(deleteCandidate.id);
   }
 
-  function switchToBuilder() {
-    uiMode.set("builder");
-    currentRoute.set("triggers");
-  }
 </script>
 
 <div class="mx-auto w-full max-w-6xl space-y-6" data-testid="automations-page">
@@ -200,16 +202,6 @@
     </div>
   {/if}
 
-  <!-- Builder escape hatch — mirrors the pattern used on Agents / Projects. -->
-  <footer class="flex justify-end pt-2">
-    <button
-      class="text-[11px] text-muted-foreground/70 underline decoration-dotted underline-offset-2 hover:text-muted-foreground"
-      onclick={switchToBuilder}
-      data-testid="automations-advanced-link"
-    >
-      {$t("automations.advanced_link")}
-    </button>
-  </footer>
 </div>
 
 {#if logsTriggerId}

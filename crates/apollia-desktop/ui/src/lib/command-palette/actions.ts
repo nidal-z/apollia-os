@@ -120,12 +120,10 @@ export function buildPaletteActions(): PaletteAction[] {
     nav("nav.projects", "projects", "nav.projects", FolderOpen, ["project", "workspaces"]),
     nav("nav.tasks", "tasks", "nav.tasks", ListChecks, ["tasks", "activity"]),
     nav("nav.chat", "chat", "nav.chat", MessageSquare, ["chat", "conversation"]),
-    nav("nav.approvals", "approvals", "nav.approvals", ShieldCheck, ["approvals", "hitl"], "operator"),
-    nav("nav.inbox", "inbox", "nav.inbox_builder", ShieldCheck, ["inbox", "hitl"], "builder"),
+    nav("nav.inbox", "inbox", "nav.inbox", ShieldCheck, ["inbox", "approvals", "hitl"]),
     nav("nav.integrations", "integrations", "nav.connections", Plug, ["integrations", "mcp"]),
     nav("nav.llm", "llm", "nav.llm", Brain, ["llm", "models"], "builder"),
-    nav("nav.triggers", "triggers", "nav.triggers", Timer, ["triggers", "cron"], "builder"),
-    nav("nav.automations", "automations", "nav.automations", Timer, ["automations"], "operator"),
+    nav("nav.automations", "automations", "nav.automations", Timer, ["automations", "triggers", "cron"]),
     nav("nav.pipelines", "pipelines", "nav.pipelines", GitBranch, ["pipelines", "dag"], "builder"),
     nav("nav.templates", "templates", "nav.templates", LayoutGrid, ["templates"]),
     nav("nav.memory", "memory", "nav.memory", Database, ["memory", "recall"], "builder"),
@@ -172,15 +170,14 @@ export function buildPaletteActions(): PaletteAction[] {
       },
     },
     {
-      id: "triggers.create",
+      id: "automations.create",
       label: tr("commandPalette.actions.createTrigger"),
-      keywords: ["trigger", "create", "cron", "schedule"],
+      keywords: ["automation", "trigger", "create", "cron", "schedule"],
       icon: Timer,
       kind: "actions",
-      persona: "builder",
       execute: () => {
-        navigateTo("triggers");
-        window.dispatchEvent(new CustomEvent("apollia:triggers:create"));
+        navigateTo("automations");
+        window.dispatchEvent(new CustomEvent("apollia:automations:create"));
       },
     },
     {
