@@ -167,7 +167,17 @@ fn migrate_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
             created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
             last_used_at    INTEGER,
             UNIQUE(tool_name, key_name)
-        );",
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_libre_config (
+            id              INTEGER PRIMARY KEY CHECK (id = 1),
+            system_prompt   TEXT NOT NULL DEFAULT '',
+            allowed_tools   TEXT NOT NULL DEFAULT '[]',
+            llm_backend     TEXT,
+            updated_at      TEXT NOT NULL
+                            DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        );
+        INSERT OR IGNORE INTO chat_libre_config (id) VALUES (1);",
     )?;
 
     add_column_if_missing(
@@ -177,6 +187,7 @@ fn migrate_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         "TEXT NOT NULL DEFAULT 'global'",
     )?;
     add_column_if_missing(conn, "permission_rules", "project_path", "TEXT")?;
+    add_column_if_missing(conn, "permission_rules", "agent_id", "TEXT")?;
     add_column_if_missing(conn, "permission_rules", "expires_at", "INTEGER")?;
 
     add_column_if_missing(conn, "permission_audit", "scope", "TEXT")?;
