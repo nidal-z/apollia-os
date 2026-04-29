@@ -12,6 +12,7 @@
 use std::path::PathBuf;
 
 use apollia_permissions::PrefixRuleEngine;
+use apollia_runtime::chat::SessionAuthorizationView;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::chat_libre_config::{ChatLibreConfig, ChatLibreConfigRepository};
 use apollia_tools::{GovernanceDb, GOVERNANCE_DB_FILENAME};
@@ -134,6 +135,88 @@ pub async fn list_chat_permission_rules(
         .iter()
         .map(super::tool_governance::rule_to_dto_pub)
         .collect())
+}
+
+/// DTO frontend pour une autorisation in-memory `scope = 'session'`.
+///
+/// Ces autorisations vivent dans `ChatSessionManager.sessions[].authorized_tools`
+/// — jamais persistées dans `governance.db`. Elles disparaissent à la fermeture
+/// de la session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionAuthorizationDto {
+    /// Identifiant unique de la session.
+    pub session_id: String,
+    /// Titre de la session (vide pour les sessions sans titre).
+    pub session_title: Option<String>,
+    /// Mode de la session (`"libre"` | `"agent"` | `"companion"`).
+    pub mode: String,
+    /// Nom de l'outil auto-autorisé.
+    pub tool_name: String,
+}
+
+impl From<SessionAuthorizationView> for SessionAuthorizationDto {
+    fn from(v: SessionAuthorizationView) -> Self {
+        Self {
+            session_id: v.session_id,
+            session_title: v.session_title,
+            mode: v.mode,
+            tool_name: v.tool_name,
+        }
+    }
+}
+
+/// Liste les autorisations in-memory de toutes les sessions actives.
+///
+/// Permet à `Settings > Permissions` d'afficher les autorisations
+/// `scope = 'session'` qui ne vivent pas dans `governance.db`.
+///
+/// # Errors
+///
+/// Renvoie une erreur sérialisable si le sous-système chat n'est pas
+/// disponible.
+#[tauri::command]
+pub async fn list_active_chat_session_authorizations(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<SessionAuthorizationDto>, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let entries = manager.list_session_authorizations().await;
+    Ok(entries.into_iter().map(SessionAuthorizationDto::from).collect())
+}
+
+/// Retire une autorisation `scope = 'session'` d'une session active.
+///
+/// # Errors
+///
+/// - Erreur si la session est inconnue.
+/// - Erreur si le sous-système chat n'est pas disponible.
+#[tauri::command]
+pub async fn revoke_chat_session_authorization(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    tool_name: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+    let removed = manager
+        .revoke_session_authorization(session_id.clone(), tool_name.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+    if !removed {
+        return Err(format!(
+            "session authorization not found: session={session_id} tool={tool_name}"
+        ));
+    }
+    tracing::info!(
+        session_id,
+        tool_name,
+        "in-memory chat session authorization revoked"
+    );
+    Ok(())
 }
 
 /// Supprime une règle `scope = 'agent'` (réutilise le delete de

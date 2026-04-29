@@ -683,6 +683,8 @@ fn main() {
             commands::chat_libre::update_chat_libre_config,
             commands::chat_libre::list_chat_permission_rules,
             commands::chat_libre::delete_chat_permission_rule,
+            commands::chat_libre::list_active_chat_session_authorizations,
+            commands::chat_libre::revoke_chat_session_authorization,
             commands::chat::respond_user_input,
             commands::chat::respond_user_input_rejected,
             commands::chat::list_pending_user_inputs,

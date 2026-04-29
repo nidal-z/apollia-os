@@ -159,3 +159,51 @@ export async function deleteChatRule(id: number): Promise<void> {
   await invoke("delete_chat_permission_rule", { ruleId: id });
   chatPermissionRules.update((list) => list.filter((r) => r.id !== id));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Active session authorizations — `scope = 'session'` in-memory only.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Autorisation in-memory accordée pendant une session de chat. */
+export interface SessionAuthorizationDto {
+  session_id: string;
+  session_title: string | null;
+  mode: "libre" | "agent" | "companion" | string;
+  tool_name: string;
+}
+
+export const sessionAuthorizations = writable<SessionAuthorizationDto[]>([]);
+export const loadingSessionAuths = writable<boolean>(false);
+export const sessionAuthsError = writable<string | null>(null);
+
+/** Recharge les autorisations in-memory de toutes les sessions actives. */
+export async function loadSessionAuthorizations(): Promise<void> {
+  loadingSessionAuths.set(true);
+  sessionAuthsError.set(null);
+  try {
+    const list = await invoke<SessionAuthorizationDto[]>(
+      "list_active_chat_session_authorizations",
+    );
+    sessionAuthorizations.set(list);
+  } catch (err) {
+    sessionAuthsError.set(toErrorMessage(err));
+  } finally {
+    loadingSessionAuths.set(false);
+  }
+}
+
+/** Retire une autorisation in-memory et rafraîchit le store. */
+export async function revokeSessionAuthorization(
+  sessionId: string,
+  toolName: string,
+): Promise<void> {
+  await invoke("revoke_chat_session_authorization", {
+    sessionId,
+    toolName,
+  });
+  sessionAuthorizations.update((list) =>
+    list.filter(
+      (e) => !(e.session_id === sessionId && e.tool_name === toolName),
+    ),
+  );
+}

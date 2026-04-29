@@ -26,16 +26,22 @@
     chatRulesError,
     loadChatRules,
     deleteChatRule,
+    sessionAuthorizations,
+    loadingSessionAuths,
+    sessionAuthsError,
+    loadSessionAuthorizations,
+    revokeSessionAuthorization,
     type PermissionRuleDto,
     type PermissionRuleScope,
+    type SessionAuthorizationDto,
   } from "$lib/stores/permissions";
   import { addToast } from "$lib/components/ui/toast";
 
-  type RevokeAllScope = "session" | "project" | "global" | "all";
+  type RevokeAllScope = "project" | "agent" | "global" | "all";
 
   const BULK_LABELS: Record<RevokeAllScope, string> = {
-    session: "Session uniquement",
     project: "Ce projet",
+    agent: "Chat / agent",
     global: "Partout",
     all: "Toutes portées",
   };
@@ -43,15 +49,40 @@
   let initialized = $state(false);
   let revokingId = $state<number | null>(null);
   let revokingChatId = $state<number | null>(null);
+  let revokingSessionAuthKey = $state<string | null>(null);
   let bulkOpen = $state(false);
-  let bulkScope = $state<RevokeAllScope>("session");
+  let bulkScope = $state<RevokeAllScope>("project");
   let bulkSubmitting = $state(false);
 
   onMount(() => {
-    void Promise.all([loadRules(), loadAudit(), loadChatRules()]).finally(() => {
+    void Promise.all([
+      loadRules(),
+      loadAudit(),
+      loadChatRules(),
+      loadSessionAuthorizations(),
+    ]).finally(() => {
       initialized = true;
     });
   });
+
+  async function handleSessionAuthRevoke(
+    entry: SessionAuthorizationDto,
+  ): Promise<void> {
+    const key = `${entry.session_id}::${entry.tool_name}`;
+    revokingSessionAuthKey = key;
+    try {
+      await revokeSessionAuthorization(entry.session_id, entry.tool_name);
+      addToast(
+        `Autorisation de session retirée pour ${entry.tool_name}`,
+        "success",
+        { "data-testid": "session-auth-revoke-toast" },
+      );
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      revokingSessionAuthKey = null;
+    }
+  }
 
   async function handleChatRevoke(rule: PermissionRuleDto): Promise<void> {
     revokingChatId = rule.id;
@@ -74,7 +105,13 @@
   });
 
   function scopeFromValue(value: string): PermissionRuleScope | null {
-    if (value === "session" || value === "project" || value === "global") return value;
+    if (
+      value === "session" ||
+      value === "project" ||
+      value === "agent" ||
+      value === "global"
+    )
+      return value;
     return null;
   }
 
@@ -114,7 +151,7 @@
   });
 
   function openBulk(): void {
-    bulkScope = "session";
+    bulkScope = "project";
     bulkOpen = true;
   }
 
@@ -139,10 +176,28 @@
   }
 
   async function reload(): Promise<void> {
-    await Promise.all([loadRules(), loadAudit(), loadChatRules()]);
+    await Promise.all([
+      loadRules(),
+      loadAudit(),
+      loadChatRules(),
+      loadSessionAuthorizations(),
+    ]);
     addToast("Permissions rechargées", "info", {
       "data-testid": "permissions-reloaded-toast",
     });
+  }
+
+  function modeLabel(mode: string): string {
+    switch (mode) {
+      case "libre":
+        return "Apollia Chat";
+      case "agent":
+        return "Agent";
+      case "companion":
+        return "Companion";
+      default:
+        return mode;
+    }
   }
 
   function formatAuditDate(value: string): string {
@@ -196,8 +251,8 @@
           data-testid="permissions-filter-scope"
         >
           <option value="">Toutes</option>
-          <option value="session">Session</option>
           <option value="project">Ce projet</option>
+          <option value="agent">Chat / agent</option>
           <option value="global">Partout</option>
         </Select>
       </div>
@@ -252,6 +307,81 @@
       {/if}
     </div>
   </div>
+
+  <section class="space-y-2" data-testid="permissions-session-auths">
+    <header class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-semibold">Sessions actives</h3>
+        <p class="text-[11px] text-muted-foreground">
+          Outils auto-approuvés via « Pour cette session » dans les chats en
+          cours. Ces autorisations disparaissent à la fermeture de la session.
+        </p>
+      </div>
+      <span class="text-[11px] text-muted-foreground">
+        {$sessionAuthorizations.length} entrée{$sessionAuthorizations.length === 1 ? "" : "s"}
+      </span>
+    </header>
+
+    {#if $sessionAuthsError}
+      <div
+        class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        data-testid="session-auths-error"
+      >
+        {$sessionAuthsError}
+      </div>
+    {:else if !initialized && $loadingSessionAuths}
+      <SettingSectionSkeleton />
+    {:else if $sessionAuthorizations.length === 0}
+      <p
+        class="rounded-md border border-dashed border-border px-4 py-4 text-center text-xs text-muted-foreground"
+        data-testid="session-auths-empty"
+      >
+        Aucune session active n'a d'autorisation in-memory.
+      </p>
+    {:else}
+      <ul
+        class="space-y-2"
+        data-testid="session-auths-list"
+      >
+        {#each $sessionAuthorizations as entry (entry.session_id + "::" + entry.tool_name)}
+          {@const key = entry.session_id + "::" + entry.tool_name}
+          <li
+            class="flex items-start justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 shadow-sm"
+            data-testid="session-auth-row"
+            data-session-id={entry.session_id}
+            data-tool-name={entry.tool_name}
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <code class="font-mono text-[12.5px] text-foreground">{entry.tool_name}</code>
+                <span
+                  class="rounded bg-warning/10 px-1.5 py-px text-[10px] font-medium text-warning"
+                >
+                  Session
+                </span>
+              </div>
+              <div class="mt-0.5 text-[11px] text-muted-foreground">
+                {modeLabel(entry.mode)} · {entry.session_title ?? entry.session_id.slice(0, 8)}
+              </div>
+              <div class="mt-0.5 text-[10.5px] text-muted-foreground italic">
+                Expire à la fermeture de la session — non persistée
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 px-2 text-[11px]"
+              disabled={revokingSessionAuthKey === key}
+              onclick={() => handleSessionAuthRevoke(entry)}
+              data-testid="session-auth-revoke"
+            >
+              Révoquer
+            </Button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 
   <section class="space-y-2" data-testid="permissions-chat">
     <header class="flex items-center justify-between">
@@ -352,8 +482,8 @@
         disabled={bulkSubmitting}
         data-testid="permissions-revoke-all-scope-select"
       >
-        <option value="session">Session uniquement</option>
         <option value="project">Ce projet</option>
+        <option value="agent">Chat / agent</option>
         <option value="global">Partout</option>
         <option value="all">Toutes portées</option>
       </Select>
