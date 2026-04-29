@@ -31,6 +31,23 @@ use apollia_permissions::prefix_rule_engine::RuleAction;
 /// libre persistée dans `governance.db`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
+/// Snapshot d'une autorisation tool-level scope=session pour une session active.
+///
+/// Renvoyé par `ChatHandle::list_session_authorizations` afin que le desktop
+/// puisse afficher les autorisations in-memory dans Settings > Permissions
+/// (les règles `scope = 'session'` ne sont jamais persistées).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SessionAuthorizationView {
+    /// Identifiant unique de la session.
+    pub session_id: String,
+    /// Titre de la session (None pour les sessions sans titre).
+    pub session_title: Option<String>,
+    /// Mode de la session (`"libre"` | `"agent"` | `"companion"`).
+    pub mode: String,
+    /// Nom de l'outil auto-autorisé pendant cette session.
+    pub tool_name: String,
+}
+
 /// Charge depuis `governance.db` la configuration "chat libre" et la liste des
 /// outils auto-autorisés (règles `scope = 'agent'` + action `allow` pour
 /// `apollia:chat`). Fallback silencieux sur les valeurs par défaut si la base
@@ -344,6 +361,22 @@ pub enum ChatCommand {
     OrphanProjectSessions {
         /// Project identifier.
         project_id: String,
+    },
+    /// List in-memory tool authorizations across all active sessions
+    /// (used by the desktop Settings > Permissions page to surface
+    /// session-only auths that don't live in `governance.db`).
+    ListSessionAuthorizations {
+        /// Response channel.
+        reply: oneshot::Sender<Vec<SessionAuthorizationView>>,
+    },
+    /// Remove an in-memory tool authorization from a specific session.
+    RevokeSessionAuthorization {
+        /// Target session.
+        session_id: SessionId,
+        /// Tool name to remove from `authorized_tools`.
+        tool_name: String,
+        /// Response channel — `true` if the entry existed and was removed.
+        reply: oneshot::Sender<Result<bool, ChatError>>,
     },
     /// List all A2A skills available from active worker agents.
     ListA2ASkills {
@@ -664,6 +697,39 @@ impl ChatSessionManager {
                             warn!(project_id = %project_id, error = %e, "Failed to orphan sessions");
                         }
                     }
+                }
+                ChatCommand::ListSessionAuthorizations { reply } => {
+                    let mut out: Vec<SessionAuthorizationView> = Vec::new();
+                    for s in self.sessions.values() {
+                        if matches!(s.status, SessionStatus::Closed) {
+                            continue;
+                        }
+                        for tool in &s.authorized_tools {
+                            out.push(SessionAuthorizationView {
+                                session_id: s.id.clone(),
+                                session_title: s.title.clone(),
+                                mode: s.mode.as_sql().to_string(),
+                                tool_name: tool.clone(),
+                            });
+                        }
+                    }
+                    out.sort_by(|a, b| {
+                        a.session_id
+                            .cmp(&b.session_id)
+                            .then_with(|| a.tool_name.cmp(&b.tool_name))
+                    });
+                    let _ = reply.send(out);
+                }
+                ChatCommand::RevokeSessionAuthorization {
+                    session_id,
+                    tool_name,
+                    reply,
+                } => {
+                    let result = match self.sessions.get_mut(&session_id) {
+                        Some(s) => Ok(s.authorized_tools.remove(&tool_name)),
+                        None => Err(ChatError::SessionNotFound(session_id.clone())),
+                    };
+                    let _ = reply.send(result);
                 }
                 ChatCommand::ListA2ASkills { reply } => {
                     if let Some(ref a2a) = self.a2a_invoker {
@@ -2521,6 +2587,42 @@ impl ChatSessionManagerHandle {
             .await
             .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
 
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Liste les autorisations in-memory (scope=session) sur les sessions
+    /// actives. Renvoie un vecteur vide si l'acteur ne répond pas.
+    pub async fn list_session_authorizations(&self) -> Vec<SessionAuthorizationView> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::ListSessionAuthorizations { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Retire une autorisation `scope=session` d'une session active.
+    /// Retourne `true` si l'entrée existait et a été retirée.
+    pub async fn revoke_session_authorization(
+        &self,
+        session_id: String,
+        tool_name: String,
+    ) -> Result<bool, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::RevokeSessionAuthorization {
+                session_id,
+                tool_name,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
         reply_rx
             .await
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
