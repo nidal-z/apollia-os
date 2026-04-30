@@ -292,6 +292,7 @@ Classe abstraite pour que les agents explorent et persistent un contexte cross-s
 | `agent_class` | `str \| None` | — | **Ne pas déclarer.** Renseigné automatiquement par le runtime depuis `agent.__class__.__name__`. Utilisé par l'UI pour afficher un badge de type. |
 | `supports_a2a` | `bool` | — | Accessible via A2A routing (défaut: false) |
 | `skills` | `list[dict]` | — | Skills publiés pour delegation A2A |
+| `user_memory_write` | `bool` | — | Autorise `ctx.memory.remember_user()` — écriture dans `__user__`. Réservé aux agents système (ex. `onboarding-agent`). Défaut: `false`. |
 
 ---
 
@@ -375,8 +376,9 @@ Stub pour mémoire persistante.
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | `record()` | `async (content: str, importance: float \| None = 0.5, task_id: str \| None = None, metadata: dict \| None = None, expires_in: int \| None = None) -> None` | `content`: texte; `importance`: 0–1; `task_id`: tâche courante; `metadata`: dict arbitraire; `expires_in`: TTL en secondes | — | `RuntimeError` si espace namespace épuisé | Persiste en mémoire épisodique |
-| `remember()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str; `source`: optional; `confidence`: 0–1 | — | — | Mémoire sémantique clé/valeur |
-| `recall()` | `async (key: str) -> str \| None` | `key`: str | Valeur ou `None` | — | Lecture sémantique exacte |
+| `remember()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str; `source`: optional; `confidence`: 0–1 | — | — | Mémoire sémantique clé/valeur dans le namespace propre de l'agent |
+| `remember_user()` | `async (key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key`: str; `value`: str | — | `RuntimeError` si `user_memory_write ≠ true` | Écriture dans `__user__` (namespace global). Réservé aux agents avec `user_memory_write = true` dans le manifest. |
+| `recall()` | `async (key: str) -> str \| None` | `key`: str | Valeur ou `None` | — | Cherche dans le namespace propre puis dans `__user__` (fallback inconditionnel si `user_manager` configuré). |
 | `recall_entry()` | `async (key: str, injection_reason: str \| None = None) -> dict \| None` | `key`: str | `{key, value, confidence, source, updated_at, expires_at}` ou `None` | — | Retourne entrée avec metadata complète |
 | `recall_all()` | `async (limit: int \| None = 100, injection_reason: str \| None = None) -> list[dict]` | `limit`: max résultats | `list[dict]` — même structure que `recall_entry()` | — | Liste toutes les entrées du namespace |
 | `recall_procedure()` | `async (trigger: str) -> list[dict]` | `trigger`: déclencheur exact | `[{id, trigger, steps, success_count, last_used_at, created_at}]` ou `[]` | — | Mémoire procédurale — workflows appris |

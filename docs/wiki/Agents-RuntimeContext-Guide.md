@@ -174,8 +174,9 @@ Accès à la mémoire persistante (épisodique, sémantique, procédurale). Name
 | Méthode | Signature | Paramètres | Retour | Exceptions | Notes |
 |---|---|---|---|---|---|
 | **record** | `async record(content: str, importance: float=0.5, task_id: str=None, metadata: dict=None) -> str` | `content` : str ; `importance` : float [0.0-1.0] ; `task_id` : str optionnel ; `metadata` : dict optionnel | memory_id (str) | `RuntimeError` si no namespace | Enregistrement mémoire épisodique (horodaté) |
-| **remember** | `async remember(key: str, value: str, *, source: str \| None = None, confidence: float \| None = None) -> None` | `key` : str ; `value` : str ; `source` : str optionnel ; `confidence` : float [0.0-1.0] optionnel | `None` | `RuntimeError` si no namespace | Enregistrement mémoire sémantique clé/valeur |
-| **recall** | `async recall(key: str) -> str \| None` | `key` : str (clé de fait sémantique) | `str` (valeur stockée) ou `None` si absent ou expiré | — | Rappel simplifié : clé → valeur sémantique |
+| **remember** | `async remember(key: str, value: str, *, source: str \| None = None, confidence: float \| None = None) -> None` | `key` : str ; `value` : str ; `source` : str optionnel ; `confidence` : float [0.0-1.0] optionnel | `None` | `RuntimeError` si no namespace | Enregistrement mémoire sémantique clé/valeur dans le namespace propre de l'agent |
+| **remember_user** | `async remember_user(key: str, value: str, source: str \| None = None, confidence: float \| None = None) -> None` | `key` : str ; `value` : str ; `source` / `confidence` optionnels | `None` | `RuntimeError` si `user_memory_write ≠ true` dans le manifest ; `RuntimeError` si aucun `user_manager` configuré | Écrit dans le namespace global `__user__`. Réservé aux agents système (ex. `onboarding-agent`). Toute valeur écrite devient lisible par tous les agents via `recall()`. |
+| **recall** | `async recall(key: str) -> str \| None` | `key` : str (clé de fait sémantique) | `str` (valeur stockée) ou `None` si absent | — | Cherche d'abord dans le namespace propre, puis dans `__user__` en fallback inconditionnellement (si `user_manager` configuré). |
 | **recall_entry** | `async recall_entry(key: str) -> dict \| None` | `key` : str | dict complet `{"key": str, "value": str, "confidence": float, "source": str, "updated_at": str, "expires_at": str \| None}` ou `None` | — | Rappel complet avec toutes métadonnées |
 | **recall_all** | `async recall_all(limit: int=100) -> list[dict]` | `limit` : int (défaut 100) | `list[dict]` (même format que `recall_entry()`) | — | Toutes les entrées sémantiques du namespace |
 | **search** | `async search(query: str, limit: int=10) -> list[dict]` | `query` : str (texte libre) ; `limit` : int | `list[dict]` avec `{"content": str, "score": float, "type": str, "created_at": str}` | — | Recherche FTS5 cross-backend (épisodique + sémantique + procédurale) |
@@ -329,13 +330,13 @@ Découvre l'agent qui expose un skill et retourne sa carte.
 
 ---
 
-## ctx.user_memory_read_only – Propriété
+## ctx.user_memory_writable – Propriété
 
-Indique si l'agent a accès en lecture à la mémoire utilisateur globale.
+Indique si l'agent peut écrire dans la mémoire utilisateur globale via `ctx.memory.remember_user()`.
 
 | Propriété | Type | Notes |
 |---|---|---|
-| **user_memory_read_only** | bool | `True` quand l'agent est invoqué via A2A (trust model) |
+| **user_memory_writable** | bool | `True` uniquement pour les agents dont le manifest déclare `user_memory_write = true` (ex. `onboarding-agent`). La **lecture** de `__user__` via `recall()` est inconditionnelle — disponible à tout agent dès qu'un `user_manager` est configuré. |
 
 ---
 
@@ -351,7 +352,7 @@ Indique si l'agent a accès en lecture à la mémoire utilisateur globale.
 | **ctx.delegate** | Suspect per Audit Axe 3 | ✅ Confirmé, signature actuelle | Vérification effectuée dans context.rs:1128-1184 |
 | **ctx.llm.stream_complete** | Absent | ✅ Ajouté | Async iterator vs collect |
 | **ctx.emit_token** | Absent | ✅ Ajouté | Mode chat streaming |
-| **ctx.user_memory_read_only** | Absent | ✅ Ajouté | Propriété booléenne+ |
+| **ctx.user_memory_writable** | Absent (ancien `user_memory_read_only`) | ✅ MAJ | Propriété booléenne — contrôle les écritures `__user__`, lecture toujours libre |
 | **Métadonnées memory** | Narratif | Tables : `recall_entry()`, `recall_all()` | (injection tracker) |
 
 ---

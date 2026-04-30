@@ -359,29 +359,35 @@ if user_ctx is not None:
 
 ---
 
-## Accès A2A — user_memory_read_only
+## Modèle d'accès — lecture inconditionnelle, écriture opt-in
 
-Lorsqu'un agent est invoqué via A2A (`ctx.a2a_invoke`), le runtime lui octroie un accès en **lecture seule** à la mémoire utilisateur globale. L'agent peut contextualiser sa réponse à partir des préférences de l'utilisateur sans risquer de corrompre les données d'un autre agent.
+La lecture du namespace `__user__` est **inconditionnelle** : tout agent disposant d'un `memory_namespace` peut consulter le profil utilisateur via le fallback de `recall()`, qu'il soit invoqué via A2A ou en mode direct.
+
+L'écriture dans `__user__` est **opt-in** via le champ `user_memory_write: true` dans le manifest — réservée aux agents système qui gèrent légitimement le profil (ex. `onboarding-agent`).
 
 **Fichier** : `crates/apollia-aip/src/memory.rs`
 
 ```rust
 pub struct RuntimeContextConfig {
-    /// Si `true`, `ctx.memory.recall()` lit aussi le namespace `__user__`.
-    /// Les écritures restent confinées au namespace propre de l'agent.
-    pub user_memory_read_only: bool,
+    /// Si `true`, l'agent peut écrire dans `__user__` via `ctx.memory.remember_user()`.
+    /// La lecture de `__user__` via `recall()` est inconditionnelle (pas de flag requis).
+    pub user_memory_writable: bool,
 }
 ```
 
-Côté Python, ce comportement est transparent :
+Côté Python :
 
 ```python
-# Dans un Worker Agent invoqué via A2A — recall() retourne aussi des résultats __user__
-hits = await ctx.memory.recall("préférence langue")
-# → peut retourner une entrée user_memory si pertinente
+# Lecture — tous les agents, sans opt-in requis
+value = await ctx.memory.recall("user.name")
+# → cherche dans le namespace propre, puis dans __user__ en fallback
+
+# Écriture — agents avec user_memory_write = true uniquement
+await ctx.memory.remember_user("user.name", "Nidal")
+# → RuntimeError si user_memory_write absent du manifest
 ```
 
-L'agent **ne peut pas écrire** dans `__user__` — `ctx.memory.store` écrit toujours dans son propre namespace. Ce modèle est défini dans [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md).
+Les écritures standard (`ctx.memory.remember()`) restent toujours confinées au namespace propre de l'agent. Ce modèle est défini dans [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md).
 
 ---
 

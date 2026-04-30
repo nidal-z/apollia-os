@@ -68,6 +68,12 @@ def manifest(self):
         "tags": ["finance", "crm"],    # list[str]
         "skills": [],                  # list[AgentSkill dict]
 
+        # Mémoire utilisateur globale (opt-in, agents système uniquement)
+        "user_memory_write": False,    # bool — défaut: False. Autorise ctx.memory.remember_user()
+                                       # Réservé aux agents qui possèdent légitimement le profil
+                                       # utilisateur (ex. onboarding-agent). La lecture __user__
+                                       # via recall() est toujours disponible sans opt-in.
+
         # Rôle sémantique (contrat v2 — utilisé par l'UI pour catégoriser)
         "agent_type": "assistant",     # str | None — "worker" | "assistant" | "system" | None
 
@@ -105,6 +111,7 @@ def manifest(self):
 | `examples` | non | `[]` | Aucun exemple — section quick-start masquée dans l'UI |
 | `limitations` | non | `[]` | Aucune limitation déclarée — section masquée dans l'UI |
 | `setup_notes` | non | `None` | Aucun prérequis — section masquée dans l'UI |
+| `user_memory_write` | non | `False` | Opt-in pour écrire dans `__user__` via `ctx.memory.remember_user()`. Réservé aux agents système (ex. `onboarding-agent`). La lecture de `__user__` via `recall()` est inconditionnelle — pas d'opt-in requis. |
 | `agent_class` | — | `None` | **Renseigné par le runtime — ne pas déclarer dans `manifest()`.** Extrait automatiquement de `agent.__class__.__name__` par le validateur AIP. `None` uniquement pour les agents construits hors PyO3 (fixtures de test). Affiché comme badge dans l'UI (ex : `"ReActAgent"` → *Direct*, `"OrchestratedAgent"` → *Orchestrated*). |
 
 ### tools_requiring_approval
@@ -660,6 +667,11 @@ class FullAgent:
                 importance=0.6,
                 task_id=task["task_id"]
             )
+
+        # Écrire dans le profil utilisateur global (onboarding-agent uniquement)
+        # Requiert user_memory_write = true dans le manifest
+        if ctx.memory:
+            await ctx.memory.remember_user("user.name", "Nidal")  # → lisible par tous les agents via recall()
 
         response = f"Fichiers Python : {files.get('files', [])}"
         if past:

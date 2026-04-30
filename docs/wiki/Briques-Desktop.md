@@ -330,6 +330,42 @@ DTOs définis dans `commands/tool_governance.rs` : `ToolStatusDto`, `CredentialE
 | `transcribe_file` | `file_path: String` | `Result<TranscriptRow, String>` |
 | `list_stt_models` | — | `Result<Vec<SttModelInfo>, String>` |
 
+### User Memory Profile (4)
+
+Commandes lisant et écrivant le profil utilisateur persisté dans le namespace SQLite `__user__`. Exposées par `src/backend.rs` et utilisées par la vue `settings/Profile.svelte`.
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `get_user_memory_profile` | — | `Result<UserMemoryProfileView, String>` |
+| `update_user_memory_entry` | `request: UpdateUserMemoryEntryRequest` | `Result<(), String>` |
+| `delete_user_memory_entry` | `key: String` | `Result<(), String>` |
+| `clear_user_memory` | — | `Result<(), String>` |
+
+```rust
+pub struct UserMemoryEntryView {
+    pub category: String,   // "preferences" | "habits" | "context"
+    pub key: String,
+    pub value: String,
+    pub source: String,
+    pub confidence: f64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub struct UserMemoryProfileView {
+    pub entries: Vec<UserMemoryEntryView>,
+    pub stats: serde_json::Value,
+}
+
+pub struct UpdateUserMemoryEntryRequest {
+    pub category: String,
+    pub key: String,
+    pub value: String,
+}
+```
+
+`clear_user_memory` supprime l'intégralité du namespace `__user__` et doit être suivi d'un reset de l'onboarding côté frontend.
+
 ### Onboarding (6 — commandes utilitaires)
 
 | Commande | Parametres | Retour |

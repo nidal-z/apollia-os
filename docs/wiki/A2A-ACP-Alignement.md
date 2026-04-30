@@ -79,9 +79,10 @@ Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construc
 - `A2AError::SkillNotFound` inclut la liste des skills disponibles si résolution échoue
 
 **Trust model A2A** (ADR-049) :
-- L'agent invoqué lit la mémoire utilisateur globale (`__user__`) **en lecture seule**
-- Les écritures restent confinées au namespace propre de l'agent invoqué
-- Encodé dans `RuntimeContextConfig { user_memory_read_only: bool }`
+- La lecture du namespace global `__user__` est **inconditionnelle** pour tout agent avec `memory_namespace`
+- Les écritures dans `__user__` requièrent `user_memory_write = true` dans le manifest (non accordé par A2A)
+- Les écritures standard restent confinées au namespace propre de l'agent invoqué
+- Encodé dans `RuntimeContextConfig { user_memory_writable: bool }`
 
 **Endpoints REST** :
 

@@ -224,6 +224,7 @@ Si plusieurs backends sont configurés (par exemple, un backend local rapide pou
 | `supports_a2a` | `False` | Pas d'AgentCard |
 | `skills` | `[]` | Requis si `supports_a2a: True` |
 | `llm_backend` | `None` | Backend par défaut |
+| `user_memory_write` | `False` | Autorise `ctx.memory.remember_user()` (réservé aux agents système) |
 
 ---
 
