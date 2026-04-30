@@ -52,10 +52,30 @@ class MemoryInterface:
         """
         ...
 
+    def remember_user(
+        self,
+        key: str,
+        value: str,
+        source: str | None = None,
+        confidence: float | None = None,
+    ) -> Awaitable[None]:
+        """Store a key/value pair in the global ``__user__`` namespace.
+
+        Available only to agents whose manifest declares
+        ``user_memory_write = true`` (typically the onboarding agent).
+        Raises ``RuntimeError`` otherwise.
+
+        Once written, the value is readable by every other agent through
+        the standard ``recall()`` fallback.
+        """
+        ...
+
     def recall(self, key: str) -> Awaitable[str | None]:
         """Retrieve a value by key from semantic memory.
 
-        Returns ``None`` if the key does not exist.
+        Searches the agent's own namespace first, then falls back to the
+        global ``__user__`` namespace. Returns ``None`` if the key does
+        not exist in either location.
         """
         ...
 

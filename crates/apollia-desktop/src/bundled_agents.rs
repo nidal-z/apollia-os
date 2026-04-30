@@ -24,7 +24,7 @@ const ONBOARDING_AGENT_TOML: &str =
 
 /// Bundled version — must match the `manifest()["version"]` in the Python file
 /// and the `[agent].version` in `manifest.toml`.
-const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
+const ONBOARDING_AGENT_VERSION: &str = "2.1.0";
 
 /// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
@@ -151,6 +151,9 @@ fn onboarding_manifest() -> AgentManifest {
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
+        // Onboarding agent owns the user profile — only it may write
+        // into the global `__user__` namespace.
+        user_memory_write: true,
     }
 }
 
@@ -253,6 +256,7 @@ fn apollia_guide_manifest() -> AgentManifest {
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
+        user_memory_write: false,
     }
 }
 

@@ -345,14 +345,33 @@ async def _remember(
     *,
     explicit: bool = True,
 ) -> None:
-    """Persist a single onboarding fact through SDK 0.3.0."""
+    """Persist a single onboarding fact.
+
+    Keys prefixed with ``user.`` describe the operator and belong to the
+    global ``__user__`` namespace so every agent can read them via the
+    standard ``ctx.memory.recall()`` fallback. Other keys (``onboarding.*``)
+    remain in the agent's own namespace — they describe the run, not the
+    user.
+
+    Writing to ``__user__`` requires the manifest to declare
+    ``user_memory_write = true``; this agent is the only system agent that
+    holds that permission.
+    """
     confidence = CONFIDENCE_EXPLICIT if explicit else CONFIDENCE_INFERRED
-    await ctx.memory.remember(
-        key=key,
-        value=_truncate(value),
-        source=MEMORY_SOURCE,
-        confidence=confidence,
-    )
+    if key.startswith("user."):
+        await ctx.memory.remember_user(
+            key=key,
+            value=_truncate(value),
+            source=MEMORY_SOURCE,
+            confidence=confidence,
+        )
+    else:
+        await ctx.memory.remember(
+            key=key,
+            value=_truncate(value),
+            source=MEMORY_SOURCE,
+            confidence=confidence,
+        )
 
 
 async def _all_gate_keys_present(ctx: Any) -> bool:
@@ -491,6 +510,9 @@ class OnboardingAgent(ConversationalAgent):
             "max_concurrent_tasks": 1,
             "dangerous_tools_allowed": False,
             "tags": ["onboarding", "conversational"],
+            # Only this system agent owns the user profile and may write
+            # into the global `__user__` namespace via remember_user().
+            "user_memory_write": True,
         }
 
     def on_response(self, response: str) -> str:

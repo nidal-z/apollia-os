@@ -142,6 +142,7 @@ fn test_manifest(name: &str, version: &str) -> AgentManifest {
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
+        user_memory_write: false,
     }
 }
 

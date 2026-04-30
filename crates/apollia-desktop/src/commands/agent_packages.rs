@@ -300,6 +300,7 @@ pub async fn install_agent_package(
                     limitations: vec![],
                     setup_notes: None,
                     agent_class: None,
+                    user_memory_write: false,
                 },
                 enabled: true,
                 installed_at: now.clone(),

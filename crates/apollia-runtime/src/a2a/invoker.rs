@@ -24,13 +24,16 @@ use crate::router::TaskRouterHandle;
 /// Produite par [`A2AInvoker::build_a2a_context`] et consommée par le runtime
 /// lors de la construction du [`RuntimeContext`] PyO3 pour la tâche déléguée.
 ///
-/// Encode le trust model A2A : l'agent invoqué lit la mémoire utilisateur globale
-/// en lecture seule mais écrit exclusivement dans son propre namespace.
+/// La lecture du namespace global `__user__` est désormais inconditionnelle
+/// (toujours active dès qu'un `user_manager` est fourni au `MemoryInterface`).
+/// Cette config ne contrôle plus que les *écritures* dans `__user__` —
+/// réservées aux agents dont le manifest déclare `user_memory_write = true`.
 #[derive(Debug, Clone)]
 pub struct RuntimeContextConfig {
-    /// Si `true`, la mémoire utilisateur globale est accessible en lecture via
-    /// `ctx.memory.recall()`. Les écritures restent confinées au namespace de l'agent.
-    pub user_memory_read_only: bool,
+    /// Si `true`, l'agent peut écrire dans le namespace `__user__` via
+    /// `ctx.memory.remember_user()`. Par défaut `false` — les invocations A2A
+    /// n'octroient jamais ce droit, c'est le manifest qui décide.
+    pub user_memory_writable: bool,
     /// Limite de hops de la chaîne de délégation A2A (ADR-D7).
     ///
     /// `None` → défaut runtime (5). Paramétrable post-release via la table
@@ -764,12 +767,14 @@ impl A2AInvoker {
 
     /// Construit la configuration de contexte d'exécution pour un agent invoqué via A2A.
     ///
-    /// Retourne une [`RuntimeContextConfig`] avec `user_memory_read_only = true`,
-    /// appliquant le trust model A2A : l'agent peut lire la mémoire utilisateur
-    /// globale mais écrit uniquement dans son propre namespace.
+    /// La lecture du namespace `__user__` est gérée directement par le
+    /// `MemoryInterface` (toujours active dès qu'un `user_manager` est fourni)
+    /// et n'a plus besoin d'être encodée dans cette config. Les écritures
+    /// restent interdites par défaut — elles sont autorisées uniquement
+    /// quand le manifest déclare `user_memory_write = true`.
     pub fn build_a2a_context(&self) -> RuntimeContextConfig {
         RuntimeContextConfig {
-            user_memory_read_only: true,
+            user_memory_writable: false,
             a2a_max_hops: None,
         }
     }
@@ -890,6 +895,7 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         }
     }
 
@@ -1500,6 +1506,7 @@ mod a2a_guard_tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         }
     }
 

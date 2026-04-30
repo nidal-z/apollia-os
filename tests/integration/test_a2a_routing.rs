@@ -97,6 +97,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
+        user_memory_write: false,
     }
 }
 
@@ -324,11 +325,12 @@ async fn test_trust_model_context_config() {
     // WHEN on génère la configuration de contexte pour un agent invoqué via A2A
     let ctx_config = invoker.build_a2a_context();
 
-    // THEN user_memory_read_only est true — l'agent invoqué peut lire la mémoire
-    // utilisateur globale mais ne peut pas y écrire
+    // THEN user_memory_writable est false — la lecture de `__user__` est gérée
+    // directement par le `MemoryInterface` (toujours active si user_manager est
+    // fourni) et l'écriture n'est jamais octroyée par A2A.
     assert!(
-        ctx_config.user_memory_read_only,
-        "les agents invoqués via A2A doivent avoir user_memory_read_only = true"
+        !ctx_config.user_memory_writable,
+        "A2A invocation must not grant user_memory write access"
     );
 }
 

@@ -192,8 +192,20 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             manifest.memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                let iface =
-                    MemoryInterface::new(manager, eff_ns, agent_name.to_string(), false, None)?;
+                // Always attach the global __user__ store so every agent can
+                // recall keys written by the onboarding agent.
+                let user_manager = MemoryManager::new(
+                    &memory_base_dir,
+                    Some("__user__".to_string()),
+                    vec![],
+                );
+                let iface = MemoryInterface::new(
+                    manager,
+                    eff_ns,
+                    agent_name.to_string(),
+                    manifest.user_memory_write,
+                    Some(user_manager),
+                )?;
                 iface.announce_shared_namespaces(&event_bus);
                 Some(iface)
             });
@@ -226,7 +238,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 user_context,
                 None,  // a2a_delegate — chat runner does not participate in A2A delegation
                 None,  // a2a_invoker — not available in chat mode
-                false, // user_memory_read_only — direct start, not A2A
+                manifest.user_memory_write, // user_memory_writable — manifest-controlled
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -406,6 +418,8 @@ struct AIPProductionBackend {
     memory_base_dir: PathBuf,
     /// Indique si l'agent supporte le protocole A2A (depuis le manifest).
     supports_a2a: bool,
+    /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
+    user_memory_write: bool,
     /// Fonction de délégation A2A type-erasée — `None` si non disponible.
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
     /// Orchestrateur A2A de haut niveau — `None` si registry ou router non initialisés.
@@ -432,6 +446,7 @@ impl Clone for AIPProductionBackend {
             a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
+            user_memory_write: self.user_memory_write,
         }
     }
 }
@@ -463,6 +478,8 @@ struct BridgeRunner {
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
+    /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
+    user_memory_write: bool,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -483,6 +500,7 @@ impl AgentRunner for BridgeRunner {
         let a2a_delegate = self.a2a_delegate.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
+        let user_memory_write = self.user_memory_write;
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -567,8 +585,18 @@ impl AgentRunner for BridgeRunner {
                     let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                     let manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                    let iface =
-                        MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)?;
+                    let user_manager = MemoryManager::new(
+                        &memory_base_dir,
+                        Some("__user__".to_string()),
+                        vec![],
+                    );
+                    let iface = MemoryInterface::new(
+                        manager,
+                        eff_ns,
+                        agent_id.clone(),
+                        user_memory_write,
+                        Some(user_manager),
+                    )?;
                     iface.announce_shared_namespaces(&event_bus);
                     Some(iface)
                 });
@@ -589,7 +617,7 @@ impl AgentRunner for BridgeRunner {
                     None, // user_context — task mode, not chat
                     a2a_delegate,
                     a2a_invoker,
-                    false, // user_memory_read_only — direct start, not A2A
+                    user_memory_write, // user_memory_writable — manifest-controlled
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -620,6 +648,7 @@ impl ExecutionBackend for AIPProductionBackend {
             a2a_delegate: self.a2a_delegate.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
+            user_memory_write: self.user_memory_write,
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -727,6 +756,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let allowed_tools = validated.manifest.tools_required.clone();
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let supports_a2a = validated.manifest.supports_a2a;
+            let user_memory_write = validated.manifest.user_memory_write;
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -744,6 +774,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 a2a_delegate,
                 a2a_invoker,
                 tools_config: self.tools_config.clone(),
+                user_memory_write,
             })
         })();
 

@@ -126,6 +126,7 @@ fn make_manifest(
         limitations: vec![],
         setup_notes: None,
         agent_class: None,
+        user_memory_write: false,
     }
 }
 
@@ -144,6 +145,7 @@ fn make_task(text: &str) -> AIPTask {
         input_response: None,
         project_id: None,
         message_id: None,
+        delegation_chain: Vec::new(),
     }
 }
 

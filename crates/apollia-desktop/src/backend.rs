@@ -145,6 +145,8 @@ struct AIPProductionBackend {
     audit_trail: Option<AuditTrailHandle>,
     memory_namespace: Option<String>,
     memory_base_dir: PathBuf,
+    /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
+    user_memory_write: bool,
 }
 
 impl Clone for AIPProductionBackend {
@@ -161,6 +163,7 @@ impl Clone for AIPProductionBackend {
             memory_base_dir: self.memory_base_dir.clone(),
             pending_approvals: self.pending_approvals.clone(),
             task_repository: self.task_repository.clone(),
+            user_memory_write: self.user_memory_write,
         }
     }
 }
@@ -175,6 +178,8 @@ struct BridgeRunner {
     audit_trail: Option<AuditTrailHandle>,
     memory_namespace: Option<String>,
     memory_base_dir: PathBuf,
+    /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
+    user_memory_write: bool,
     /// `ask_user` pending-input registry. `Some` when invoked by the chat
     /// manager, `None` for standalone task-mode runs (HITL relies on AIP
     /// `input_required` instead).
@@ -195,6 +200,7 @@ impl AgentRunner for BridgeRunner {
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_base_dir = self.memory_base_dir.clone();
+        let user_memory_write = self.user_memory_write;
         let pending_user_inputs = self.pending_user_inputs.clone();
 
         Box::pin(async move {
@@ -256,8 +262,20 @@ impl AgentRunner for BridgeRunner {
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                let iface =
-                    MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)?;
+                // Always wire the global `__user__` store so every agent can
+                // recall keys written by the onboarding agent (read fallback).
+                let user_manager = MemoryManager::new(
+                    &memory_base_dir,
+                    Some("__user__".to_string()),
+                    vec![],
+                );
+                let iface = MemoryInterface::new(
+                    manager,
+                    eff_ns,
+                    agent_id.clone(),
+                    user_memory_write,
+                    Some(user_manager),
+                )?;
                 iface.announce_shared_namespaces(&event_bus);
                 Some(iface)
             });
@@ -287,7 +305,7 @@ impl AgentRunner for BridgeRunner {
                     None,  // user_context — task mode, not chat
                     None,  // a2a_delegate — not available in desktop backend
                     None,  // a2a_invoker — not available in desktop backend
-                    false, // user_memory_read_only — direct start, not A2A
+                    user_memory_write, // user_memory_writable — manifest-controlled
                 );
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
@@ -317,6 +335,7 @@ impl ExecutionBackend for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
+            user_memory_write: self.user_memory_write,
             // Task-mode backend: no chat UI to answer `ask_user` prompts.
             pending_user_inputs: None,
         };
@@ -385,6 +404,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
             let memory_namespace = validated.manifest.memory_namespace.clone();
+            let user_memory_write = validated.manifest.user_memory_write;
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -398,6 +418,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 memory_base_dir: default_memory_dir(),
                 pending_approvals,
                 task_repository,
+                user_memory_write,
             })
         })();
 
@@ -479,6 +500,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .cloned()
             .collect();
         let memory_namespace = validated.manifest.memory_namespace.clone();
+        let user_memory_write = validated.manifest.user_memory_write;
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
         // 3. Resolve OnceLock handles
@@ -506,6 +528,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             audit_trail,
             memory_namespace,
             memory_base_dir: default_memory_dir(),
+            user_memory_write,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
         };
 

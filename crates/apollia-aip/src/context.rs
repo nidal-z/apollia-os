@@ -772,12 +772,14 @@ pub struct RuntimeContext {
     ///
     /// Expose `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` aux agents Python.
     a2a_invoker: Option<Arc<A2AInvoker>>,
-    /// Si `true`, la mémoire utilisateur globale (`__user__`) est accessible en lecture
-    /// seule via `ctx.memory.recall()`. Activé quand l'agent est invoqué via A2A.
+    /// Si `true`, l'agent peut écrire dans la mémoire utilisateur globale
+    /// (`__user__`) via `ctx.memory.remember_user()`. Lecture du namespace
+    /// `__user__` est, elle, toujours accessible — gérée par le
+    /// [`MemoryInterface`] dès qu'un `user_manager` est fourni.
     ///
-    /// Le comportement est géré par le [`MemoryInterface`] — ce champ est purement
-    /// informatif pour l'introspection du contexte.
-    user_memory_read_only: bool,
+    /// Vrai uniquement pour les agents dont le manifest déclare
+    /// `user_memory_write = true` (ex. `onboarding-agent`).
+    user_memory_writable: bool,
     /// Profondeur courante dans la chaîne A2A (0 = invocation directe, pas via A2A).
     ///
     /// Incrémenté de 1 à chaque niveau d'invocation inter-agents.
@@ -872,7 +874,7 @@ impl RuntimeContext {
         user_context: Option<HashMap<String, Vec<(String, String)>>>,
         a2a_delegate: Option<A2aDelegateFn>,
         a2a_invoker: Option<Arc<A2AInvoker>>,
-        user_memory_read_only: bool,
+        user_memory_writable: bool,
     ) -> Self {
         let bus_for_token = event_bus.clone();
         let step_budget_arc = Arc::clone(&budget_view);
@@ -914,7 +916,7 @@ impl RuntimeContext {
             user_context,
             a2a_delegate,
             a2a_invoker,
-            user_memory_read_only,
+            user_memory_writable,
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
@@ -945,7 +947,7 @@ impl RuntimeContext {
             user_context: None,
             a2a_delegate: None,
             a2a_invoker: None,
-            user_memory_read_only: false,
+            user_memory_writable: false,
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
@@ -955,6 +957,8 @@ impl RuntimeContext {
             step_budget: None,
             notify: None,
             stt: None,
+            agent_id: AgentId::new_v4(),
+            delegation_chain: Vec::new(),
         }
     }
 
@@ -1395,14 +1399,15 @@ impl RuntimeContext {
         })
     }
 
-    /// Indique si cet agent s'exécute dans un contexte A2A avec accès en lecture
-    /// à la mémoire utilisateur globale.
+    /// Indique si cet agent peut écrire dans la mémoire utilisateur globale
+    /// (`__user__`) via `ctx.memory.remember_user()`.
     ///
-    /// Propriété Python `ctx.user_memory_read_only`. Retourne `True` quand
-    /// l'agent a été invoqué via A2A (trust model).
+    /// Propriété Python `ctx.user_memory_writable`. La lecture de
+    /// `__user__` est toujours disponible via le fallback de
+    /// `ctx.memory.recall()` — ce drapeau ne contrôle que les écritures.
     #[getter]
-    fn user_memory_read_only(&self) -> bool {
-        self.user_memory_read_only
+    fn user_memory_writable(&self) -> bool {
+        self.user_memory_writable
     }
 
     /// Log un message via le système `tracing::` du runtime.
@@ -1614,7 +1619,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
-            false,         // user_memory_read_only
+            false,         // user_memory_writable
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1643,7 +1648,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
-            false,         // user_memory_read_only
+            false,         // user_memory_writable
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -1678,7 +1683,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
-            false,         // user_memory_read_only
+            false,         // user_memory_writable
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -2126,7 +2131,7 @@ mod a2a_tests {
             user_context: None,
             a2a_delegate: None,
             a2a_invoker: None,
-            user_memory_read_only: false,
+            user_memory_writable: false,
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
@@ -2136,6 +2141,8 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            agent_id: AgentId::new_v4(),
+            delegation_chain: Vec::new(),
         };
 
         // THEN les vérifications internes échouent
@@ -2170,7 +2177,7 @@ mod a2a_tests {
             user_context: Some(uc),
             a2a_delegate: None,
             a2a_invoker: None,
-            user_memory_read_only: false,
+            user_memory_writable: false,
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
@@ -2180,6 +2187,8 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            agent_id: AgentId::new_v4(),
+            delegation_chain: Vec::new(),
         };
 
         // THEN user_context is Some with expected categories
@@ -2203,7 +2212,7 @@ mod a2a_tests {
             user_context: None,
             a2a_delegate: None,
             a2a_invoker: None,
-            user_memory_read_only: false,
+            user_memory_writable: false,
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
@@ -2213,6 +2222,8 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            agent_id: AgentId::new_v4(),
+            delegation_chain: Vec::new(),
         };
 
         // THEN user_context is None
@@ -2293,6 +2304,7 @@ mod tool_proxy_a2a_tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         }
     }
 

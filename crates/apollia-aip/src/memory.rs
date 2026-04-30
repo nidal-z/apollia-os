@@ -42,24 +42,30 @@ pub enum MemoryInterfaceError {
 /// its namespace. Write operations are only allowed on the agent's
 /// primary namespace (ReadWrite). Shared namespaces are read-only.
 ///
-/// When `user_memory_read_only` is `true` (A2A invocation context),
-/// `recall()` falls back to the global `__user__` namespace if the key
-/// is not found in the agent's own namespace. Writes always target the
-/// agent's namespace — the namespace is enforced by the runtime.
+/// `recall()` always falls back to the global `__user__` namespace when a
+/// key is missing from the agent's own namespace and a `user_manager` is
+/// configured — making the user profile visible to every agent without
+/// requiring opt-in.
+///
+/// `remember_user()` writes to `__user__` and is gated by
+/// `user_memory_writable` (set from the manifest's `user_memory_write`
+/// field). All other writes always target the agent's own namespace.
 #[pyclass]
 pub struct MemoryInterface {
     manager: Arc<Mutex<MemoryManager>>,
     namespace: String,
     agent_id: String,
-    /// When `true`, `recall()` also reads from the global user memory namespace.
+    /// When `true`, the agent is allowed to write to the global `__user__`
+    /// namespace via [`Self::remember_user`].
     ///
-    /// Set by the runtime when the agent is invoked via A2A. The agent Python
-    /// code is not aware of this flag — it calls `ctx.memory.recall()` normally.
-    user_memory_read_only: bool,
+    /// Default: `false`. Set to `true` only for agents whose manifest declares
+    /// `user_memory_write = true` (e.g. the onboarding agent).
+    user_memory_writable: bool,
     /// Secondary memory manager pointing at the `__user__` namespace.
     ///
-    /// `None` when `user_memory_read_only` is `false` or when user memory
-    /// is not available in the current runtime environment.
+    /// `None` when user memory is not available in the current runtime
+    /// environment. When `Some`, it is used both for read fallback in
+    /// `recall()` and (gated by `user_memory_writable`) for `remember_user()`.
     user_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Current turn id — set by the runtime before each agent turn so that
     /// `recall_entry()` / `recall_all()` can record their results into the
@@ -152,28 +158,71 @@ impl MemoryInterface {
         })
     }
 
+    /// Stores a key/value pair directly in the global `__user__` namespace.
+    ///
+    /// Only available when the agent's manifest declares
+    /// `user_memory_write = true`. Raises `PyRuntimeError` otherwise, or when
+    /// no global user memory manager is configured for the runtime.
+    ///
+    /// Used by the onboarding agent to populate the user profile (`user.name`,
+    /// `user.role`, etc.) so that every other agent can read those keys via
+    /// the standard `recall()` fallback.
+    #[pyo3(signature = (key, value, source=None, confidence=None))]
+    fn remember_user<'py>(
+        &self,
+        py: Python<'py>,
+        key: String,
+        value: String,
+        source: Option<String>,
+        confidence: Option<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if !self.user_memory_writable {
+            return Err(PyRuntimeError::new_err(
+                "user memory write not permitted: manifest must declare user_memory_write = true",
+            ));
+        }
+        let Some(user_manager) = self.user_manager.clone() else {
+            return Err(PyRuntimeError::new_err(
+                "user memory write not permitted: no global __user__ manager configured",
+            ));
+        };
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result = tokio::task::spawn_blocking(move || {
+                remember_inner(
+                    &user_manager,
+                    USER_MEMORY_NAMESPACE,
+                    &key,
+                    &value,
+                    source.as_deref(),
+                    confidence,
+                )
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            result.map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            Ok(Python::with_gil(|py| py.None()))
+        })
+    }
+
     /// Retrieves a value by key from semantic memory.
     ///
-    /// Searches the agent's own namespace first. When `user_memory_read_only`
-    /// is `true` and the key is absent from the agent namespace, also reads
-    /// from the global user memory namespace.
+    /// Searches the agent's own namespace first. When the key is absent
+    /// from the agent namespace and a `user_manager` is configured, reads
+    /// from the global `__user__` namespace. Profile data written by the
+    /// onboarding agent (e.g. `user.name`, `user.role`) is therefore
+    /// transparently visible to every agent.
     ///
     /// Returns the value (str) or None if the key doesn't exist.
     fn recall<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
-        let user_memory_read_only = self.user_memory_read_only;
         let user_manager = self.user_manager.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = tokio::task::spawn_blocking(move || {
-                recall_inner(
-                    &manager,
-                    &namespace,
-                    &key,
-                    user_memory_read_only,
-                    user_manager.as_ref(),
-                )
+                recall_inner(&manager, &namespace, &key, user_manager.as_ref())
             })
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
@@ -431,16 +480,20 @@ impl MemoryInterface {
 impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
-    /// `user_memory_read_only` enables read-through to the global `__user__`
-    /// namespace on `recall()` misses. Pass `None` for `user_manager` when
-    /// user memory is not needed or not available.
+    /// `user_memory_writable` is granted only to agents whose manifest declares
+    /// `user_memory_write = true` (e.g. `onboarding-agent`). Read fallback to
+    /// `__user__` is unconditional when `user_manager` is `Some` — every agent
+    /// can recall keys written by the onboarding agent.
+    ///
+    /// Pass `None` for `user_manager` when the runtime did not initialise a
+    /// global user memory store (tests, minimal contexts).
     ///
     /// Returns `None` if `namespace` is empty.
     pub fn new(
         manager: MemoryManager,
         namespace: String,
         agent_id: String,
-        user_memory_read_only: bool,
+        user_memory_writable: bool,
         user_manager: Option<MemoryManager>,
     ) -> Option<Self> {
         if namespace.is_empty() {
@@ -450,7 +503,7 @@ impl MemoryInterface {
             manager: Arc::new(Mutex::new(manager)),
             namespace,
             agent_id,
-            user_memory_read_only,
+            user_memory_writable,
             user_manager: user_manager.map(|m| Arc::new(Mutex::new(m))),
             current_turn_id: Arc::new(Mutex::new(None)),
         })
@@ -640,14 +693,14 @@ const USER_MEMORY_NAMESPACE: &str = "__user__";
 
 /// Retrieves a value by key from semantic memory.
 ///
-/// Checks the agent's primary namespace first. When `user_memory_read_only`
-/// is `true` and the key is absent, also reads from the `__user__` namespace
-/// via `user_manager` if one is provided.
+/// Checks the agent's primary namespace first; when the key is absent and a
+/// `user_manager` is configured, falls back unconditionally to the
+/// `__user__` namespace. Read access to the global user profile is therefore
+/// available to every agent without opt-in.
 fn recall_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
     key: &str,
-    user_memory_read_only: bool,
     user_manager: Option<&Arc<Mutex<MemoryManager>>>,
 ) -> Result<Option<String>, MemoryInterfaceError> {
     // Search agent's own namespace first.
@@ -666,11 +719,11 @@ fn recall_inner(
         })
     };
 
-    if agent_result.is_some() || !user_memory_read_only {
+    if agent_result.is_some() {
         return Ok(agent_result);
     }
 
-    // Key absent from agent namespace — try global user memory as fallback.
+    // Unconditional fallback: when a user_manager is provided, read __user__.
     let Some(umgr) = user_manager else {
         return Ok(None);
     };
@@ -1055,7 +1108,6 @@ mod tests {
             &iface.manager,
             &iface.namespace,
             "client.dupont.email",
-            false,
             None,
         );
 
@@ -1074,7 +1126,6 @@ mod tests {
             &iface.manager,
             &iface.namespace,
             "cle.inexistante",
-            false,
             None,
         );
 
@@ -1146,7 +1197,6 @@ mod tests {
             &iface.manager,
             &iface.namespace,
             "client.dupont.email",
-            false,
             None,
         );
         assert_eq!(result.expect("recall"), None);
@@ -1208,7 +1258,7 @@ mod tests {
 
         // WHEN we try to read (recall) — should work
         let recall_result =
-            recall_inner(&iface.manager, &iface.namespace, "nonexistent", false, None);
+            recall_inner(&iface.manager, &iface.namespace, "nonexistent", None);
         assert!(recall_result.is_ok());
 
         // WHEN we try to search — should work (empty results is ok)
@@ -1234,7 +1284,7 @@ mod tests {
 
         // THEN the entry is stored with the given confidence
         assert!(id.is_ok());
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", false, None);
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", None);
         assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
     }
 
@@ -1265,7 +1315,7 @@ mod tests {
         .expect("remember");
 
         // THEN the original value is preserved
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", false, None);
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", None);
         assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
     }
 
@@ -1296,7 +1346,7 @@ mod tests {
         .expect("remember");
 
         // THEN the new value replaces the old one
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.role", false, None);
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.role", None);
         assert_eq!(value.expect("recall"), Some("CTO".to_string()));
     }
 
@@ -1578,7 +1628,6 @@ mod trust_model_tests {
             &iface.manager,
             &iface.namespace,
             "user_pref",
-            iface.user_memory_read_only,
             iface.user_manager.as_ref(),
         );
 
@@ -1612,7 +1661,7 @@ mod trust_model_tests {
         .expect("remember");
 
         // THEN the data is in the "excel-worker" namespace
-        let in_agent = recall_inner(&iface.manager, &iface.namespace, "last_file", false, None);
+        let in_agent = recall_inner(&iface.manager, &iface.namespace, "last_file", None);
         assert_eq!(
             in_agent.expect("recall agent"),
             Some("ventes.xlsx".to_string())
@@ -1620,7 +1669,7 @@ mod trust_model_tests {
 
         // AND not visible through a separate "director" namespace manager
         let director_mgr_arc = Arc::new(Mutex::new(make_manager(&dir, "director")));
-        let in_director = recall_inner(&director_mgr_arc, "director", "last_file", false, None);
+        let in_director = recall_inner(&director_mgr_arc, "director", "last_file", None);
         assert_eq!(in_director.expect("recall director"), None);
     }
 
@@ -1653,7 +1702,6 @@ mod trust_model_tests {
             &iface.manager,
             &iface.namespace,
             "secret",
-            iface.user_memory_read_only,
             iface.user_manager.as_ref(),
         );
 
@@ -1661,7 +1709,7 @@ mod trust_model_tests {
         assert_eq!(result.expect("recall"), Some("classified".to_string()));
 
         // AND user memory does not contain the key
-        let user_result = recall_inner(&user_mgr_arc, USER_MEMORY_NAMESPACE, "secret", false, None);
+        let user_result = recall_inner(&user_mgr_arc, USER_MEMORY_NAMESPACE, "secret", None);
         assert_eq!(user_result.expect("user recall"), None);
     }
 
@@ -1679,8 +1727,8 @@ mod trust_model_tests {
         )
         .expect("create interface");
 
-        // THEN user_memory_read_only is false
-        assert!(!iface.user_memory_read_only);
+        // THEN user_memory_writable is false
+        assert!(!iface.user_memory_writable);
 
         // WHEN remember and recall
         remember_inner(
@@ -1692,7 +1740,7 @@ mod trust_model_tests {
             None,
         )
         .expect("remember");
-        let result = recall_inner(&iface.manager, &iface.namespace, "my_key", false, None);
+        let result = recall_inner(&iface.manager, &iface.namespace, "my_key", None);
 
         // THEN standard behavior — value is found
         assert_eq!(result.expect("recall"), Some("my_value".to_string()));
@@ -1717,7 +1765,6 @@ mod trust_model_tests {
             &iface.manager,
             &iface.namespace,
             "absent_key",
-            iface.user_memory_read_only,
             iface.user_manager.as_ref(),
         );
 
@@ -1754,6 +1801,164 @@ mod trust_model_tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["trigger"], "analyse rapport financier");
         assert_eq!(items[0]["steps"][0], "Ouvrir le PDF");
+    }
+
+    // ── ADR-086 — global user memory tests ────────────────────────────────
+
+    /// Direct-mode chat agents (no A2A flag) still read `__user__` whenever a
+    /// `user_manager` is configured — the read fallback is now unconditional.
+    #[test]
+    fn test_chat_agent_reads_user_memory_without_flag() {
+        // GIVEN user memory containing ("user.name", "Nidal")
+        let dir = TempDir::new().expect("create temp dir");
+        let user_seed = make_manager(&dir, USER_MEMORY_NAMESPACE);
+        let user_seed_arc = Arc::new(Mutex::new(user_seed));
+        seed_memory(&user_seed_arc, USER_MEMORY_NAMESPACE, "user.name", "Nidal");
+
+        // AND a chat agent with user_memory_writable = false but a user_manager attached
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "apollia-guide"),
+            "apollia-guide".to_string(),
+            "apollia-guide".to_string(),
+            false, // not writable
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create interface");
+
+        // WHEN recall("user.name")
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.name",
+            iface.user_manager.as_ref(),
+        );
+
+        // THEN the value is found via the unconditional __user__ fallback
+        assert_eq!(result.expect("recall"), Some("Nidal".to_string()));
+    }
+
+    /// `remember_inner` invoked on the user_manager writes into `__user__`
+    /// — verifies the storage path used by `remember_user()`.
+    #[test]
+    fn test_remember_user_writes_to_user_namespace() {
+        // GIVEN an interface with user_memory_writable = true and a user_manager
+        let dir = TempDir::new().expect("create temp dir");
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "onboarding-agent"),
+            "onboarding-agent".to_string(),
+            "onboarding-agent".to_string(),
+            true,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create interface");
+
+        // WHEN we write "user.role" → "CTO" via the user manager (matches remember_user)
+        let user_manager = iface
+            .user_manager
+            .as_ref()
+            .expect("user_manager should be set")
+            .clone();
+        remember_inner(
+            &user_manager,
+            USER_MEMORY_NAMESPACE,
+            "user.role",
+            "CTO",
+            None,
+            None,
+        )
+        .expect("remember_user");
+
+        // THEN recall via the agent interface returns the value via __user__ fallback
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.role",
+            iface.user_manager.as_ref(),
+        );
+        assert_eq!(result.expect("recall"), Some("CTO".to_string()));
+    }
+
+    /// Calling `remember_user()` without manifest opt-in must fail.
+    #[tokio::test]
+    async fn test_remember_user_blocked_without_permission() {
+        // GIVEN an interface with user_memory_writable = false
+        let dir = TempDir::new().expect("create temp dir");
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "regular-agent"),
+            "regular-agent".to_string(),
+            "regular-agent".to_string(),
+            false,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create interface");
+
+        // WHEN we attempt to write into __user__ via the Python entry point
+        let res = pyo3::Python::with_gil(|py| {
+            iface
+                .remember_user(
+                    py,
+                    "user.name".to_string(),
+                    "Nidal".to_string(),
+                    None,
+                    None,
+                )
+                .map(|_| ())
+        });
+
+        // THEN PyRuntimeError is raised
+        assert!(res.is_err(), "remember_user must be denied without permission");
+    }
+
+    /// Cross-agent integration: onboarding writes via `remember_user`,
+    /// another agent reads via `recall` through the same `__user__`.
+    #[test]
+    fn test_cross_agent_user_memory_round_trip() {
+        let dir = TempDir::new().expect("create temp dir");
+
+        // GIVEN onboarding-agent with writable user memory
+        let onboarding = MemoryInterface::new(
+            make_manager(&dir, "onboarding-agent"),
+            "onboarding-agent".to_string(),
+            "onboarding-agent".to_string(),
+            true,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create onboarding interface");
+
+        // WHEN onboarding writes "user.name" → "Nidal" into __user__
+        let onboarding_um = onboarding
+            .user_manager
+            .as_ref()
+            .expect("user_manager configured")
+            .clone();
+        remember_inner(
+            &onboarding_um,
+            USER_MEMORY_NAMESPACE,
+            "user.name",
+            "Nidal",
+            None,
+            None,
+        )
+        .expect("onboarding write");
+
+        // AND a separate guide agent with writable=false but the same __user__ store
+        let guide = MemoryInterface::new(
+            make_manager(&dir, "apollia-guide"),
+            "apollia-guide".to_string(),
+            "apollia-guide".to_string(),
+            false,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create guide interface");
+
+        // THEN guide reads "user.name" through the unconditional fallback
+        let result = recall_inner(
+            &guide.manager,
+            &guide.namespace,
+            "user.name",
+            guide.user_manager.as_ref(),
+        );
+        assert_eq!(result.expect("recall"), Some("Nidal".to_string()));
     }
 
     // FC23 — learn_procedure_inner with empty steps returns error

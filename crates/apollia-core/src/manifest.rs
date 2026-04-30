@@ -187,6 +187,15 @@ pub struct AgentManifest {
     /// pipeline PyO3 (tests, fixtures).
     #[serde(default)]
     pub agent_class: Option<String>,
+
+    /// Autorise l'agent à écrire dans le namespace global `__user__` via
+    /// `ctx.memory.remember_user()`. Faux par défaut — la lecture, elle,
+    /// est toujours disponible via le fallback `recall()`.
+    ///
+    /// Réservé aux agents système qui possèdent légitimement le profil
+    /// utilisateur (ex. `onboarding-agent`).
+    #[serde(default)]
+    pub user_memory_write: bool,
 }
 
 /// Compétence déclarative d'un agent.
@@ -240,6 +249,7 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -278,6 +288,7 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -421,6 +432,7 @@ mod tests {
             limitations: vec![],
             setup_notes: None,
             agent_class: None,
+            user_memory_write: false,
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

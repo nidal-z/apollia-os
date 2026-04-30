@@ -124,6 +124,92 @@ def build_system_prompt(mode: str | None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Onboarding profile context (specs-onboarding-agent.md §8.1)
+# ---------------------------------------------------------------------------
+
+# Tier 1 + Tier 2 keys read from semantic memory. Missing keys are silently
+# omitted from the rendered XML so the LLM never sees empty placeholders.
+_PROFILE_KEYS: tuple[str, ...] = (
+    "user.name",
+    "user.role",
+    "user.domain.sector",
+    "user.domain.team_size",
+    "user.tech.expertise",
+    "user.tech.languages",
+    "user.tech.stack",
+    "user.goals",
+    "user.constraints.sovereignty",
+    "user.constraints.compliance",
+    "user.agents.hitl",
+    "user.agents.domains",
+    "user.agents.trigger",
+)
+
+
+async def build_context_block(ctx: Any) -> str:
+    """Read the onboarding profile from semantic memory and render the XML block.
+
+    Returns an empty string when no key is available so callers can prepend
+    unconditionally without producing empty ``<user_profile>`` tags.
+    """
+    fields: dict[str, str | None] = {key: None for key in _PROFILE_KEYS}
+    for key in _PROFILE_KEYS:
+        try:
+            fields[key] = await ctx.memory.recall(key)
+        except Exception:
+            # Memory backend issue → treat the key as missing rather than fail
+            # the whole turn. Apollia Guide must remain usable offline.
+            fields[key] = None
+
+    profile_lines: list[str] = []
+    for key, label in (
+        ("user.name", "name"),
+        ("user.role", "role"),
+        ("user.domain.sector", "sector"),
+        ("user.domain.team_size", "team_size"),
+        ("user.tech.expertise", "expertise"),
+        ("user.goals", "goals"),
+    ):
+        if fields[key]:
+            profile_lines.append(f"  {label}: {fields[key]}")
+
+    stack_parts = [
+        p for p in (fields["user.tech.languages"], fields["user.tech.stack"]) if p
+    ]
+    if stack_parts:
+        profile_lines.append(f"  stack: {', '.join(stack_parts)}")
+
+    constraint_lines: list[str] = []
+    for key, label in (
+        ("user.constraints.sovereignty", "sovereignty"),
+        ("user.constraints.compliance", "compliance"),
+        ("user.agents.hitl", "hitl_default"),
+    ):
+        if fields[key]:
+            constraint_lines.append(f"  {label}: {fields[key]}")
+
+    auto_lines: list[str] = []
+    for key, label in (
+        ("user.agents.domains", "domains"),
+        ("user.agents.trigger", "trigger_preference"),
+    ):
+        if fields[key]:
+            auto_lines.append(f"  {label}: {fields[key]}")
+
+    blocks: list[str] = []
+    if profile_lines:
+        blocks.append("<user_profile>\n" + "\n".join(profile_lines) + "\n</user_profile>")
+    if constraint_lines:
+        blocks.append("<constraints>\n" + "\n".join(constraint_lines) + "\n</constraints>")
+    if auto_lines:
+        blocks.append(
+            "<automation_context>\n" + "\n".join(auto_lines) + "\n</automation_context>"
+        )
+
+    return "\n\n".join(blocks)
+
+
+# ---------------------------------------------------------------------------
 # Action button extraction
 # ---------------------------------------------------------------------------
 
@@ -240,9 +326,13 @@ class ApolliaGuideAgent(ConversationalAgent):
                 "ApolliaGuideAgent requires ctx.llm — no LLM backend configured"
             )
 
-        system_prompt = build_system_prompt(mode)
         messages: list[dict[str, str]] = list(history) if history else []
         if not messages or messages[0].get("role") != "system":
+            context_block = await build_context_block(ctx)
+            base_prompt = build_system_prompt(mode)
+            system_prompt = (
+                f"{context_block}\n\n{base_prompt}" if context_block else base_prompt
+            )
             messages.insert(0, {"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_message})
 
