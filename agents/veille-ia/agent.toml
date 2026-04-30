@@ -12,7 +12,7 @@
 
 [package]
 name    = "veille-ia"
-version = "1.0.0"
+version = "1.1.0"
 description = "Veille quotidienne IA/LLM — technologique et concurrentielle."
 author  = "Apollia OS"
 

@@ -1,0 +1,82 @@
+[package]
+name = "email-triage"
+version = "1.0.0"
+description = "Triage automatique de l'inbox : classification + actions proposées + HITL avant envoi."
+author = "apollia-agent-forge"
+license = "MIT"
+
+[[agents]]
+name = "email-triage"
+entry = "email_triage.py"
+role = "standalone"
+agent_type = "user"
+execution_mode = "orchestrated"  # ORIA pilote
+memory_namespace = "email-triage"
+supports_a2a = false
+max_concurrent_tasks = 1
+tools_required = [
+    "http_fetch",  # wrappe Gmail API en attendant plugin natif
+    "memory_search",
+]
+tools_optional = [
+    "file_write",
+]
+tools_requiring_approval = [
+    "http_fetch",  # tout appel sortant (envoi/marquage) passe HITL
+]
+user_memory_write = false
+dangerous_tools_allowed = false
+step_budget = { max_steps = 30, max_tool_calls = 25, wall_clock_secs = 1800 }
+tags = ["email", "triage", "orchestrated"]
+setup_notes = """
+1. CRITIQUE : cet agent assume un wrapper http_fetch vers Gmail API (ou Microsoft Graph).
+   Apollia v0.1 n'a PAS d'outil gmail natif — voir limitations + roadmap.
+2. Configurer credentials Gmail :
+   - apollia memory set gmail.refresh_token <refresh-token> (scope user, non global)
+   - apollia memory set gmail.client_id ...
+   - apollia memory set gmail.client_secret ...
+3. Sections APOLLIA.md à remplir :
+   - `Email Triage — Classification Rules` : règles de classement (priorité, dossiers, labels)
+   - `Email Triage — Auto-Reply Templates` : templates de réponse type (optionnel)
+4. user.agents.hitl ∈ {never, always, approval} influence la sévérité du triage :
+   - never : non recommandé, l'agent prend des décisions sans approbation (DANGEREUX en email)
+   - always : tout envoi d'email passe HITL (par défaut, recommandé)
+   - approval : envoi automatique si confiance > seuil (à configurer)
+"""
+limitations = """
+- Apollia v0.1 ne fournit PAS d'outils gmail natifs. Cet agent assume des wrappers http_fetch.
+  Limitation à lever par story dédiée (intégration Gmail/Microsoft Graph natives).
+- ORIA Mode Orchestré : `tools_requiring_approval=["http_fetch"]` impose HITL sur tout envoi.
+  Le profil user.agents.hitl n'est PAS lu automatiquement par le runtime v0.1 — il faut le
+  refléter dans le manifest manuellement (gap connu, story candidate).
+- Pas de support PJ (uniquement texte plain/html).
+"""
+
+[[agents.skills]]
+id = "triage-inbox"
+description = "Lit l'inbox, classe, propose des actions, demande HITL avant envoi"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { since = "str?", max_emails = "int?" }
+
+[tools]
+http_fetch = { enabled = true }
+memory_search = { enabled = true }
+file_write = { enabled = true }
+
+[[triggers]]
+id = "morning-triage"
+agent = "email-triage"
+on_busy = "skip"
+input_template = "Triage inbox depuis hier 18h"
+[triggers.source]
+type = "cron"
+schedule = "0 8 * * 1-5"
+
+[[triggers]]
+id = "manual-triage"
+agent = "email-triage"
+on_busy = "queue"
+input_template = "Triage inbox"
+[triggers.source]
+type = "manual"

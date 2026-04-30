@@ -158,6 +158,80 @@ async def _collect_seen_hashes(ctx: Any, limit: int = 500) -> list[str]:
         return []
 
 
+# --- v1.1.0 additions: user profile, procedure memory, notifications, dual write ---
+
+_USER_KEYS_OF_INTEREST = ("user.tech.stack", "user.domain.sector", "user.tech.languages")
+_PROCEDURE_TRIGGER = "daily-veille-ia"
+_PROCEDURE_STEPS = [
+    "Charger snapshot bootstrap (TTL 7j)",
+    "Collecter seen:{hash} pour dédup cross-run",
+    "Lire profil utilisateur (user.tech.stack, user.domain.sector)",
+    "Déléguer a2a:search-and-extract pour axe tech",
+    "Déléguer a2a:search-and-extract pour axe concurrentiel",
+    "Fusionner articles, déléguer a2a:synthesize-report",
+    "Écrire rapport dans ~/.apollia/reports/ ET ~/Documents/veille-ia/",
+    "Persister last_run_date, total_runs, episodic record",
+    "Notifier desktop fin de run",
+]
+
+
+async def _load_user_context(ctx: Any) -> dict[str, str]:
+    """Lit les clés user.* utiles pour personnaliser la veille (v1.1.0)."""
+    if ctx.memory is None:
+        return {}
+    out: dict[str, str] = {}
+    for key in _USER_KEYS_OF_INTEREST:
+        try:
+            value = await ctx.memory.recall(key)
+            if value:
+                out[key] = value
+        except Exception as e:
+            ctx.log("debug", f"recall {key} failed: {e}")
+    return out
+
+
+async def _ensure_procedure(ctx: Any) -> None:
+    """Enregistre la procédure de veille en mémoire procédurale si absente (v1.1.0)."""
+    if ctx.memory is None:
+        return
+    try:
+        existing = await ctx.memory.recall_procedure(_PROCEDURE_TRIGGER)
+        if existing:
+            return
+        await ctx.memory.learn_procedure(_PROCEDURE_TRIGGER, _PROCEDURE_STEPS)
+    except Exception as e:
+        ctx.log("debug", f"learn_procedure failed: {e}")
+
+
+async def _notify_completion(ctx: Any, today: str, article_count: int) -> None:
+    """Publie une notification desktop en fin de run (v1.1.0)."""
+    if ctx.notify is None:
+        return
+    try:
+        await ctx.notify.publish(
+            f"Veille IA du {today} : {article_count} articles",
+            severity="info",
+            title="Apollia — Veille IA",
+        )
+    except Exception as e:
+        ctx.log("debug", f"notify failed: {e}")
+
+
+async def _dual_write_report(ctx: Any, today: str, report_path_default: str, content: str) -> None:
+    """Écrit le rapport dans ~/Documents/veille-ia/ en plus du chemin canonique (v1.1.0).
+
+    Le chemin canonique ~/.apollia/reports/ est géré par le ReAct loop via file_write.
+    Cette méthode AJOUTE une copie dans le dossier utilisateur sans toucher au flow existant.
+    """
+    if ctx.tools is None:
+        return
+    try:
+        path = f"~/Documents/veille-ia/{today}.md"
+        await ctx.tools.call("file_write", {"path": path, "content": content})
+    except Exception as e:
+        ctx.log("debug", f"dual file_write failed: {e}")
+
+
 async def _persist_seen_articles(ctx: Any, articles: list[dict], run_date: str) -> None:
     """Store article URL hashes to memory for cross-session deduplication."""
     if ctx.memory is None:
@@ -239,7 +313,7 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for veille-ia-agent."""
     return {
         "name": "veille-ia-agent",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": (
             "Agent directeur de veille quotidienne IA/LLM. "
             "Orchestre la collecte (web-search-worker via A2A), la synthèse "
@@ -340,6 +414,10 @@ class VeilleIaAgent(BaseReActAgent):
         else:
             snapshot = await _load_snapshot(ctx)
 
+        # --- v1.1.0: ensure procedure memory + load user profile ---
+        await _ensure_procedure(ctx)
+        user_context = await _load_user_context(ctx)
+
         # --- Collect seen hashes for deduplication ---
         seen_hashes = await _collect_seen_hashes(ctx)
 
@@ -352,8 +430,8 @@ class VeilleIaAgent(BaseReActAgent):
                 total_runs = 1
             await ctx.memory.remember("total_runs", str(total_runs), source="veille-ia-agent")
 
-        # --- Build user message for the ReAct loop ---
-        user_message = self._build_user_message(today, snapshot, seen_hashes)
+        # --- Build user message for the ReAct loop (v1.1.0: include user_context) ---
+        user_message = self._build_user_message(today, snapshot, seen_hashes, user_context)
 
         result = await self.react(task, ctx, user_message)
         if isinstance(result, dict):
@@ -369,6 +447,10 @@ class VeilleIaAgent(BaseReActAgent):
         await self._update_memory_post_run(ctx, today, result)
         await self._record_run(ctx, today, article_count, success=True)
 
+        # --- v1.1.0: dual write + notify ---
+        await _dual_write_report(ctx, today, report_path, result)
+        await _notify_completion(ctx, today, article_count)
+
         return AIPResult.completed(result)
 
     def _build_user_message(
@@ -376,6 +458,7 @@ class VeilleIaAgent(BaseReActAgent):
         today: str,
         snapshot: dict[str, Any],
         seen_hashes: list[str],
+        user_context: dict[str, str] | None = None,
     ) -> str:
         tech_queries = snapshot.get("tech_queries", _INITIAL_SNAPSHOT["tech_queries"])
         competitive_queries = snapshot.get("competitive_queries", _INITIAL_SNAPSHOT["competitive_queries"])
@@ -383,9 +466,29 @@ class VeilleIaAgent(BaseReActAgent):
         report_dir = os.path.expanduser("~/.apollia/reports")
         report_path = f"{report_dir}/veille-{today}.md"
 
+        # v1.1.0: bloc profil utilisateur si disponible
+        user_block = ""
+        user_context = user_context or {}
+        if user_context:
+            lines = ["**Profil utilisateur (lu depuis __user__ namespace) :**"]
+            if "user.tech.stack" in user_context:
+                lines.append(
+                    f"- Stack technique : {user_context['user.tech.stack']} "
+                    "(adapter les axes tech : pondère plus les techos de cette stack)"
+                )
+            if "user.tech.languages" in user_context:
+                lines.append(f"- Langages familiers : {user_context['user.tech.languages']}")
+            if "user.domain.sector" in user_context:
+                lines.append(
+                    f"- Secteur : {user_context['user.domain.sector']} "
+                    "(les workers peuvent prioriser les news pertinentes pour ce secteur)"
+                )
+            user_block = "\n".join(lines) + "\n\n"
+
         return (
             f"Lance la veille quotidienne du {today}.\n\n"
-            f"**Requêtes tech ({len(tech_queries)}) :**\n"
+            + user_block
+            + f"**Requêtes tech ({len(tech_queries)}) :**\n"
             + json.dumps(tech_queries, ensure_ascii=False)
             + f"\n\n**Requêtes concurrentielles ({len(competitive_queries)}) :**\n"
             + json.dumps(competitive_queries, ensure_ascii=False)

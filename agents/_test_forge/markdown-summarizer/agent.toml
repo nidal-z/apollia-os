@@ -1,0 +1,52 @@
+[package]
+name = "markdown-summarizer"
+version = "1.0.0"
+description = "Résume une URL ou un fichier markdown, adapte le ton au profil utilisateur, met en cache."
+author = "apollia-agent-forge"
+license = "MIT"
+
+[[agents]]
+name = "markdown-summarizer"
+entry = "markdown_summarizer.py"
+role = "standalone"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "markdown-summarizer"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = ["web_read"]
+tools_optional = ["http_fetch", "file_write", "memory_search"]
+user_memory_write = false
+dangerous_tools_allowed = false
+step_budget = { max_steps = 12, max_tool_calls = 6, wall_clock_secs = 180 }
+tags = ["summarization", "web", "personal"]
+setup_notes = """
+1. Aucun setup obligatoire si tu utilises l'agent en mode "URL → résumé en mémoire".
+2. Pour l'output fichier : crée le dossier ~/Documents/markdown-summarizer/ (l'agent l'écrit automatiquement).
+3. Pour personnaliser le ton : renseigne user.tech.stack et user.tech.languages via l'agent onboarding.
+4. Section APOLLIA.md `Markdown Summary Style` : optionnelle, permet d'imposer un style maison (concis/exhaustif, FR/EN, etc).
+"""
+limitations = """
+- Pas de support PDF/DOCX (seulement HTML/markdown via web_read).
+- Pas de résumé multi-document : 1 URL en entrée = 1 résumé.
+- Cache mémoire non TTL (résumé conservé tant que l'agent n'est pas désinstallé).
+"""
+
+[[agents.skills]]
+id = "summarize-url"
+description = "Prend une URL et retourne un résumé markdown adapté au profil utilisateur"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { url = "str", max_words = "int?" }
+
+[tools]
+web = { enabled = true, ssrf_guard = true }
+file_write = { enabled = true }
+
+[[triggers]]
+id = "manual-summarize"
+agent = "markdown-summarizer"
+on_busy = "queue"
+input_template = "Résume cette URL : {url}"
+[triggers.source]
+type = "manual"

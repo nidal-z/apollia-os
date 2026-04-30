@@ -1,0 +1,117 @@
+[package]
+name = "code-review-multi"
+version = "1.0.0"
+description = "Code review multi-aspect : security + style + performance, règles externalisées dans APOLLIA.md."
+author = "apollia-agent-forge"
+license = "MIT"
+
+[[agents]]
+name = "code-review-director"
+entry = "director.py"
+role = "director"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "code-review-multi"
+supports_a2a = true
+max_concurrent_tasks = 1
+tools_required = ["file_read", "bash_executor"]
+tools_optional = [
+    "file_glob",
+    "file_grep",
+    "file_write",
+    "a2a:review-security",
+    "a2a:review-style",
+    "a2a:review-performance",
+]
+user_memory_write = false
+dangerous_tools_allowed = false
+step_budget = { max_steps = 25, max_tool_calls = 20, wall_clock_secs = 1500 }
+tags = ["code-review", "team-tooling"]
+setup_notes = """
+1. CRUCIAL : configure les sections APOLLIA.md (voir APOLLIA.md du package). Sans elles, les workers tournent avec des règles génériques (qualité moindre).
+2. Pour review d'un diff : `apollia agent run code-review-director --input "Review le diff entre HEAD~1 et HEAD"`.
+3. Pour review d'un fichier : `apollia agent run code-review-director --input "Review src/foo.py"`.
+"""
+limitations = """
+- Limité à un repo git ou un fichier local (pas de PR distante GitHub/GitLab — voir roadmap).
+- Les règles métier (security/style/perf) doivent venir d'APOLLIA.md. Sans config, qualité dégradée.
+"""
+
+[[agents.skills]]
+id = "review-codebase"
+description = "Review multi-aspect d'un fichier ou d'un diff"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { target = "str", aspects = "list[str]?" }
+
+[[agents]]
+name = "security-worker"
+entry = "workers/security_worker.py"
+role = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "code-review-multi"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = ["file_read", "file_grep"]
+tools_optional = ["file_glob"]
+step_budget = { max_steps = 8, max_tool_calls = 15, wall_clock_secs = 240 }
+
+[[agents.skills]]
+id = "review-security"
+description = "Audit sécurité (vulnérabilités, secrets, OWASP) selon règles workspace"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { target_path = "str", changed_lines = "list[int]?" }
+
+[[agents]]
+name = "style-worker"
+entry = "workers/style_worker.py"
+role = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "code-review-multi"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = ["file_read"]
+step_budget = { max_steps = 6, max_tool_calls = 8, wall_clock_secs = 180 }
+
+[[agents.skills]]
+id = "review-style"
+description = "Audit style (naming, structure, lisibilité) selon style guide workspace"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { target_path = "str" }
+
+[[agents]]
+name = "perf-worker"
+entry = "workers/perf_worker.py"
+role = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "code-review-multi"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = ["file_read", "file_grep"]
+step_budget = { max_steps = 6, max_tool_calls = 8, wall_clock_secs = 180 }
+
+[[agents.skills]]
+id = "review-performance"
+description = "Audit performance (complexité, allocations, IO) selon budget workspace"
+input_modes = ["text"]
+output_modes = ["text"]
+input_schema = { target_path = "str" }
+
+[tools]
+file_read = { enabled = true }
+file_grep = { enabled = true }
+file_write = { enabled = true }
+bash_executor = { enabled = true }
+
+[[triggers]]
+id = "manual-review"
+agent = "code-review-director"
+on_busy = "queue"
+input_template = "Review : {target}"
+[triggers.source]
+type = "manual"
