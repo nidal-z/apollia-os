@@ -335,6 +335,16 @@ AgentManifest(
 | `tools_optional` présent | → | Démarrage normal → `ACTIVE` |
 | `tools_optional` absent | → | Warning + démarrage → `DEGRADED` |
 | outil déprécié (`file_io`) | → | Warning dans les logs + résolution échoue comme `NotFound` |
+| dépendance `a2a:<skill>` (required ou optional) | → | Résolue d'office sans lookup registry → `ACTIVE` |
+
+**Règle préfixe `a2a:`** — Les entrées commençant par `a2a:` (ex. `a2a:search-and-extract`) sont des skills d'agents inter-agents et ne sont pas enregistrées dans le `ToolRegistry`. Le resolver les considère comme résolues d'office ; la résolution réelle a lieu à l'invocation via le `ToolProxy` + `A2AInvoker`. Un manifest mixte est valide :
+
+```python
+AgentManifest(
+    tools_required=["file_read"],                          # natif — vérifié dans le registry
+    tools_optional=["a2a:synthesize-report", "mcp_erp"],   # A2A : OK d'office ; mcp_erp : warning si absent
+)
+```
 
 ### 5.2 Erreurs de résolution
 

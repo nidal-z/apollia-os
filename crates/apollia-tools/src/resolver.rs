@@ -12,6 +12,11 @@ use thiserror::Error;
 
 use crate::registry::{ToolRegistryError, ToolRegistryHandle};
 
+/// Prefixe reserve aux dependances A2A (skills d'agents inter-agents).
+/// Ces entrees ne sont pas dans le `ToolRegistry` ; leur resolution se fait a l'invocation
+/// via le ToolProxy + A2AInvoker (cf. `apollia-runtime::chat::a2a_tools`).
+const A2A_DEPENDENCY_PREFIX: &str = "a2a:";
+
 /// Rapport de resolution des outils d'un agent.
 ///
 /// Retourne par [`resolve`] en cas de succes. Transmis par le runtime a
@@ -70,6 +75,8 @@ pub enum ToolResolutionError {
 ///    - Present et safe → ajoute a `resolved`.
 /// 3. Si `warnings` est vide → `ResolutionStatus::AllResolved`.
 ///    Sinon → `ResolutionStatus::Degraded`.
+/// 4. Les dependances avec prefixe `a2a:` sont resolues d'office (resolution reelle
+///    a l'invocation via ToolProxy/A2AInvoker), sans interroger le `ToolRegistry`.
 ///
 /// # Errors
 ///
@@ -85,6 +92,15 @@ pub async fn resolve(
 
     // Pass 1 — outils requis : echec immediat sur le premier probleme (Principe #4).
     for tool_name in &manifest.tools_required {
+        if tool_name.starts_with(A2A_DEPENDENCY_PREFIX) {
+            tracing::info!(
+                agent = %manifest.name,
+                dep = %tool_name,
+                "ToolResolver: A2A dependency declared (resolved at invocation, not at boot)"
+            );
+            resolved.push(tool_name.clone());
+            continue;
+        }
         match registry.get(tool_name).await? {
             None => {
                 tracing::error!(
@@ -117,6 +133,15 @@ pub async fn resolve(
 
     // Pass 2 — outils optionnels : degradation, pas d'erreur fatale.
     for tool_name in &manifest.tools_optional {
+        if tool_name.starts_with(A2A_DEPENDENCY_PREFIX) {
+            tracing::info!(
+                agent = %manifest.name,
+                dep = %tool_name,
+                "ToolResolver: A2A dependency declared (resolved at invocation, not at boot)"
+            );
+            resolved.push(tool_name.clone());
+            continue;
+        }
         match registry.get(tool_name).await? {
             None => {
                 let warning = format!("{tool_name} not found");
@@ -361,6 +386,76 @@ mod tests {
             result,
             Err(ToolResolutionError::RequiredToolMissing(ref name)) if name == "bash_executor"
         ));
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_a2a_dependency_in_optional_does_not_degrade() {
+        // GIVEN — empty registry, manifest declares only A2A optional deps
+        let registry = ToolRegistryHandle::start();
+        let mut manifest = minimal_manifest();
+        manifest.tools_optional = vec!["a2a:foo".to_string(), "a2a:bar".to_string()];
+        // WHEN
+        let result = resolve(&manifest, &registry).await;
+        // THEN — A2A deps are resolved without registry lookup, no warnings
+        let report = result.expect("A2A optional deps should resolve without registry lookup");
+        assert!(matches!(report.status, ResolutionStatus::AllResolved));
+        assert_eq!(report.resolved, vec!["a2a:foo", "a2a:bar"]);
+        assert!(report.warnings.is_empty());
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_a2a_dependency_in_required_passes_without_registry_lookup() {
+        // GIVEN — empty registry, manifest declares an A2A required dep
+        let registry = ToolRegistryHandle::start();
+        let mut manifest = minimal_manifest();
+        manifest.tools_required = vec!["a2a:critical-skill".to_string()];
+        // WHEN
+        let result = resolve(&manifest, &registry).await;
+        // THEN — no RequiredToolMissing, AllResolved
+        let report = result.expect("A2A required dep should resolve without registry lookup");
+        assert!(matches!(report.status, ResolutionStatus::AllResolved));
+        assert_eq!(report.resolved, vec!["a2a:critical-skill"]);
+        assert!(report.warnings.is_empty());
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_mixed_a2a_and_native_optional() {
+        // GIVEN — registry contains "file_read" only ; manifest mixes native + A2A + missing native
+        let registry = registry_with_tools(&["file_read"]).await;
+        let mut manifest = minimal_manifest();
+        manifest.tools_optional = vec![
+            "file_read".to_string(),
+            "a2a:foo".to_string(),
+            "missing-native".to_string(),
+        ];
+        // WHEN
+        let result = resolve(&manifest, &registry).await;
+        // THEN — Degraded only because of missing native ; A2A resolved silently
+        let report = result.expect("should succeed");
+        assert!(matches!(report.status, ResolutionStatus::Degraded));
+        assert!(report.resolved.contains(&"file_read".to_string()));
+        assert!(report.resolved.contains(&"a2a:foo".to_string()));
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.warnings[0].contains("missing-native"));
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_a2a_prefix_is_exact_match() {
+        // GIVEN — empty registry, manifest declares two entries that are NOT exact A2A matches
+        let registry = ToolRegistryHandle::start();
+        let mut manifest = minimal_manifest();
+        manifest.tools_optional = vec!["a2asomething".to_string(), "not-a2a:foo".to_string()];
+        // WHEN
+        let result = resolve(&manifest, &registry).await;
+        // THEN — both go through registry lookup path, both missing → Degraded with 2 warnings
+        let report = result.expect("should succeed");
+        assert!(matches!(report.status, ResolutionStatus::Degraded));
+        assert_eq!(report.warnings.len(), 2);
+        assert!(report.resolved.is_empty());
         registry.shutdown().await;
     }
 
