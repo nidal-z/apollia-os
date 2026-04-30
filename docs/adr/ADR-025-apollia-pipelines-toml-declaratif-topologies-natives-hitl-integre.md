@@ -1,7 +1,7 @@
 # ADR-025 — apollia-pipelines : TOML déclaratif, 5 topologies natives par graph `depends_on`, HITL intégré via EventBus
 
 **Date :** 2026-03-10
-**Statut :** Accepté
+**Statut :** SUPERSEDED — La crate `apollia-pipelines` a été retirée du workspace. La coordination multi-agent passe désormais par les triggers + agents ReAct autonomes (`apollia-oria`). Conservé pour l'historique.
 **Décideur :** Nidal (solo)
 **Sprint :** 12
 

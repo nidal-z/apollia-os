@@ -1,7 +1,7 @@
 # ADR-053 — Pipeline fan-out et boucles conditionnelles
 
 **Date :** 2026-04-03
-**Statut :** Accepté
+**Statut :** SUPERSEDED — La crate `apollia-pipelines` a été retirée du workspace ; cette décision n'est plus applicable. Conservé pour l'historique.
 **Décideur :** Nidal (solo)
 **Sprint :** 34 — Beta Hardening
 

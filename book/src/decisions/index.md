@@ -29,7 +29,7 @@
 | ADR-022 | [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](./adr-022-oria-mode-orchestre-option-b.md) | Accepté |
 | ADR-023 | [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](./adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md) | Accepté |
 | ADR-024 | [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](./adr-024-apollia-notifications-trait-channel-json-fixe.md) | Accepté |
-| ADR-025 | [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](./adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) | Accepté |
+| ADR-025 | [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](./adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) | Superseded (crate retirée) |
 | ADR-026 | [ADR-026 — Observabilité complète : persistance, timeline, troncature](./adr-026-observabilite-complete-persistance-timeline-troncature.md) | Accepté |
 | ADR-027 | [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](./adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md) | Accepté |
 | ADR-028 | [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](./adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md) | Accepté |
@@ -57,7 +57,7 @@
 | ADR-050 | [ADR-050 — Distribution Worker Agents : bundled vs communautaire](./adr-050-distribution-worker-agents.md) | Accepté |
 | ADR-051 | [ADR-051 — Authentification API REST TCP : token statique + restriction loopback](./adr-051-api-auth.md) | Accepté |
 | ADR-052 | [ADR-052 — Sandbox Windows : modèle Chromium 3 couches](./adr-052-windows-sandbox.md) | Accepté |
-| ADR-053 | [ADR-053 — Pipeline fan-out et boucles conditionnelles](./adr-053-pipeline-fanout-loops.md) | Accepté |
+| ADR-053 | [ADR-053 — Pipeline fan-out et boucles conditionnelles](./adr-053-pipeline-fanout-loops.md) | Superseded (crate retirée) |
 | ADR-054 | [ADR-054 — Consolidation mémoire épisodique : report justifié post-v1](./adr-054-memory-episodic-consolidation.md) | Accepté |
 | ADR-055 | [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./adr-055-community-registry.md) | Accepté |
 | ADR-056 | [ADR-056 — Workspace Context Assembly : subprocess git, TTL, APOLLIA.md](./adr-056-workspace-context-assembly.md) | Accepté |

@@ -54,19 +54,19 @@
 
 {#if loaded && recentInsights.length > 0}
   <div
-    class="rounded-xl glass-card glass-border p-4 space-y-3"
+    class="rounded-xl border border-border/60 bg-card overflow-hidden"
     data-testid="recent-extractions"
   >
-    <div class="flex items-center gap-2">
-      <Sparkles size={14} class="text-secondary" />
-      <h3 class="text-xs font-medium uppercase tracking-wider text-muted-foreground/60">
+    <div
+      class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2"
+    >
+      <Sparkles size={12} class="text-secondary" />
+      <h3 class="m-0 text-[10.5px] font-semibold tracking-[1px] uppercase text-muted-foreground/70 font-mono">
         {sectionTitle}
       </h3>
-      <span class="rounded-full bg-secondary/15 px-1.5 text-[10px] font-medium text-secondary">
-        {recentInsights.length}
-      </span>
+      <span class="text-[10.5px] text-muted-foreground/70 font-mono">{recentInsights.length}</span>
     </div>
-    <div class="space-y-2">
+    <div class="divide-y divide-border/60">
       {#each recentInsights as insight (insight.id)}
         <InsightEntryRow
           {insight}

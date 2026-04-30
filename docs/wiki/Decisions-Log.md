@@ -447,7 +447,7 @@
 ## ADR-025 — apollia-pipelines : TOML déclaratif, 5 topologies natives par graph `depends_on`, HITL intégré via EventBus
 
 **Date :** 2026-03-10
-**Statut :** Accepté
+**Statut :** SUPERSEDED — crate retirée du workspace v0.1.0 (composition multi-agent désormais via triggers + agents ReAct autonomes)
 
 **Contexte :** Sprint 12 introduit `apollia-pipelines` pour la coordination multi-agent. Quatre décisions structurantes engagent des interfaces difficiles à inverser : (1) format de déclaration des pipelines, (2) expression des topologies (séquentiel, fan-out, fan-in, conditionnel, fallback), (3) intégration du HITL Sprint 11 dans le cycle de vie pipeline, (4) rendu des templates `{{steps.x.output}}` entre steps.
 
@@ -930,7 +930,7 @@
 ## ADR-053 — Pipeline fan-out et boucles conditionnelles
 
 **Date :** 2026-04-03
-**Statut :** Accepté
+**Statut :** SUPERSEDED — crate `apollia-pipelines` retirée du workspace v0.1.0
 
 **Contexte :** Le Pipeline Engine (ADR-025) supporte les DAG linéaires. Deux topologies manquent pour les cas PME avancés : fan-out sur tableau (un step produit une liste, chaque élément traité en parallèle) et boucles conditionnelles (plusieurs passes jusqu'à convergence).
 

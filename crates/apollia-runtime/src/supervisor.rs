@@ -92,7 +92,7 @@ pub struct SupervisorConfig {
     pub hitl_config: HitlConfig,
     /// Répertoire de données du runtime (ex: `~/.apollia/`).
     ///
-    /// Utilisé pour localiser les bases SQLite (`triggers.db`, `pipelines.db`,
+    /// Utilisé pour localiser les bases SQLite (`triggers.db`,
     /// `notifications.db`, etc.). Doit exister et être accessible en écriture.
     /// Sert de `base_dir` pour l'ouverture des repositories au boot.
     pub data_dir: std::path::PathBuf,
@@ -2362,78 +2362,15 @@ mod tests {
             .await
             .expect("start should succeed");
 
-        // THEN les 3 fichiers DB sont créés dans data_dir
+        // THEN les fichiers DB sont créés dans data_dir
         assert!(
             tmp_dir.path().join("triggers_def.db").exists(),
             "triggers_def.db should be created"
         );
         assert!(
-            tmp_dir.path().join("pipelines_def.db").exists(),
-            "pipelines_def.db should be created"
-        );
-        assert!(
             tmp_dir.path().join("notifications.db").exists(),
             "notifications.db should be created"
         );
-
-        // Cleanup
-        handles.trigger_engine.shutdown().await;
-        handles.api_handle.shutdown();
-        handles.router_handle.shutdown();
-        handles.tool_registry_handle.shutdown().await;
-        handles.registry_handle.shutdown();
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let _ = std::fs::remove_file(&socket_path);
-    }
-
-    // Aucun pipeline défini → PipelineEngine non démarré, pas d'erreur
-    #[tokio::test]
-    async fn test_ac3_no_pipelines_no_engine() {
-        // GIVEN une config sans section [[pipelines]]
-        let port = free_port().await;
-        let socket_path = temp_socket_path();
-        let config = SupervisorConfig {
-            api_config: APIServerConfig {
-                socket_path: socket_path.clone(),
-                bind_addr: "127.0.0.1".to_owned(),
-                tcp_port: port,
-                api_token: None,
-            },
-            startup_timeout_secs: 10,
-            llm_config: None,
-            config_path: None,
-            runtime_config: apollia_core::RuntimeConfig::default(),
-            hitl_config: apollia_core::HitlConfig::default(),
-            data_dir: {
-                let d = tempfile::tempdir().expect("tempdir");
-                let p = d.path().to_path_buf();
-                std::mem::forget(d);
-                p
-            },
-            obs_config: apollia_core::ObservabilityConfig::default(),
-            agent_repository: None,
-            package_repository: None,
-            bundled_agents_path: None,
-        };
-        let supervisor = Supervisor::new(config);
-
-        // WHEN start() est appelé
-        let result = supervisor
-            .start(
-                MockBackend,
-                Arc::new(crate::api::routes_agents::StubAgentLoader),
-                None,
-                None,
-            )
-            .await;
-
-        // THEN le démarrage réussit
-        assert!(
-            result.is_ok(),
-            "démarrage doit réussir, erreur: {:?}",
-            result.err()
-        );
-        let handles = result.unwrap();
 
         // Cleanup
         handles.trigger_engine.shutdown().await;

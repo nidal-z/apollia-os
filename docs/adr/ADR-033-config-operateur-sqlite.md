@@ -35,7 +35,7 @@ Le runtime expose un endpoint `POST /webhooks/{id}` accessible depuis l'extérie
 
 `apollia.toml` = config structurelle uniquement (runtime, memory, tools, budget, llm, agents). Lecture seule dans l'app desktop (ADR-029 inchangé). Nécessite un redémarrage.
 
-SQLite = config opérationnelle (`triggers.db`, `pipelines.db`, `notifications.db`). CRUD depuis l'API REST et l'app desktop. Application immédiate via reload acteur.
+SQLite = config opérationnelle (`triggers.db`, `notifications.db`). CRUD depuis l'API REST et l'app desktop. Application immédiate via reload acteur.
 
 Le pattern de modification dynamique est **API handler → SQLite → Handle.reload()** :
 
@@ -55,10 +55,10 @@ Pas de watch, pas de polling, pas de cache invalidation. L'API handler est le se
 | Question | Décision | Justification |
 |---|---|---|
 | Pattern de notification acteurs | Option A — handler → SQLite → Handle.reload() | Plus simple que EventBus ou watch file |
-| Granularité API | CRUD par domaine (triggers, pipelines, notifications) | Cohérent avec les routes existantes |
+| Granularité API | CRUD par domaine (triggers, notifications) | Cohérent avec les routes existantes |
 | Organisation DBs | Une DB par sous-système | Déjà le cas, cohérent avec l'architecture |
 | Repositories dans AppState | `Arc<Mutex<Repository>>` | rusqlite Connection n'est pas Sync, mutations rares |
-| Validation métier | Dans les crates domaine | apollia-triggers, apollia-pipelines, apollia-notifications |
+| Validation métier | Dans les crates domaine | apollia-triggers, apollia-notifications |
 
 ### 2 — HMAC-SHA256 avec comparaison constante-time pour les webhooks
 

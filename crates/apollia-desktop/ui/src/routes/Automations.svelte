@@ -1,20 +1,16 @@
 <script lang="ts">
   /**
-   * Operator route `/automations` — card-based overview of every rule that
+   * Operator route `/automations` — table-style overview of every rule that
    * starts an assistant automatically (cron, interval, file-watch, webhook).
    *
-   * The underlying backend entity is still a "trigger" — here we surface it
-   * in operator vocabulary: "automation", "run now", "history", "target
-   * assistant". The builder view (`/triggers`) keeps the raw terminology.
+   * The underlying backend entity is a "trigger". The operator vocabulary
+   * surfaces it as "automation" / "run now" / "history" / "target assistant".
    */
   import { t, locale } from "svelte-i18n";
-  import { fly } from "svelte/transition";
-  import { flip } from "svelte/animate";
   import { triggers } from "$lib/stores/triggers";
   import { currentRoute } from "$lib/stores/navigation";
   import type { TriggerStatus } from "$lib/types";
-  import AutomationCard from "../components/automations/AutomationCard.svelte";
-  import AutomationGroup from "../components/automations/AutomationGroup.svelte";
+  import AutomationRow from "../components/automations/AutomationRow.svelte";
   import AutomationEmptyState from "../components/automations/AutomationEmptyState.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
   import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
@@ -22,47 +18,52 @@
   import DeleteAutomationDialog from "../components/automations/DeleteAutomationDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { invoke } from "@tauri-apps/api/core";
+  import {
+    PageHeader,
+    Chip,
+    StatusDot,
+    BtnPrimary,
+    BtnSecondary,
+    EmptyState,
+  } from "$lib/components/operator";
+  import { Plus, RefreshCw, Sparkles } from "lucide-svelte";
+
+  type Filter = "all" | "active" | "paused" | "error";
 
   let logsTriggerId = $state<string | null>(null);
   let showWizard = $state(false);
   let showAdvancedDialog = $state(false);
   let deleteCandidate = $state<{ id: string; fireCount: number } | null>(null);
   let deleting = $state(false);
+  let activeFilter = $state<Filter>("all");
+  let refreshing = $state(false);
+
   const DELETE_SKIP_KEY = "apollia.delete_automation.skip";
 
-  /** Group triggers by agent, remembering insertion order. */
-  const grouped = $derived.by(() => {
-    const groups = new Map<string, TriggerStatus[]>();
-    for (const trigger of $triggers) {
-      const existing = groups.get(trigger.agent);
-      if (existing) {
-        existing.push(trigger);
-      } else {
-        groups.set(trigger.agent, [trigger]);
-      }
+  function statusOf(t: TriggerStatus): "active" | "paused" | "error" {
+    return !t.enabled ? "paused" : "active";
+  }
+
+  const counts = $derived.by(() => {
+    const c: Record<Filter, number> = { all: $triggers.length, active: 0, paused: 0, error: 0 };
+    for (const trig of $triggers) {
+      c[statusOf(trig)] = (c[statusOf(trig)] ?? 0) + 1;
     }
-    return [...groups.entries()];
+    return c;
   });
 
-  /** Default-open group = assistant with the most-recent `last_fired`. */
-  const defaultOpenAgent = $derived.by(() => {
-    let bestAgent: string | null = null;
-    let bestTime = -Infinity;
-    for (const [agent, list] of grouped) {
-      for (const trig of list) {
-        if (trig.last_fired) {
-          const t = new Date(trig.last_fired).getTime();
-          if (t > bestTime) {
-            bestTime = t;
-            bestAgent = agent;
-          }
-        }
-      }
-    }
-    // Fall back to the first group when no runs have been recorded yet.
-    if (!bestAgent && grouped.length > 0) return grouped[0][0];
-    return bestAgent;
-  });
+  const filteredTriggers = $derived(
+    activeFilter === "all"
+      ? $triggers
+      : $triggers.filter((t) => statusOf(t) === activeFilter),
+  );
+
+  const FILTERS: { key: Filter; label: string; tone: "primary" | "success" | "neutral" | "danger"; color: string }[] = [
+    { key: "all",    label: "Toutes", tone: "primary", color: "hsl(var(--muted-foreground))" },
+    { key: "active", label: "Actives", tone: "success", color: "hsl(var(--success))" },
+    { key: "paused", label: "En pause", tone: "neutral", color: "hsl(var(--muted-foreground))" },
+    { key: "error",  label: "Erreur",  tone: "danger", color: "hsl(var(--destructive))" },
+  ];
 
   function handleFired(taskId: string) {
     addToast(
@@ -84,7 +85,6 @@
   }
 
   function handleBrowseTemplates() {
-    // deep-link to the gallery scoped to automations.
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.search = "?kind=automation";
@@ -98,10 +98,18 @@
     showAdvancedDialog = true;
   }
 
+  async function handleRefresh() {
+    refreshing = true;
+    try {
+      // Trigger store auto-refreshes via SSE — manual refresh is a no-op
+      // hint to the user. Add real reload call here if/when exposed.
+      await new Promise((r) => setTimeout(r, 250));
+    } finally {
+      refreshing = false;
+    }
+  }
+
   $effect(() => {
-    // Listen for delete requests emitted by automation cards / context menus.
-    // Decoupled via `window` event so cards (and future UI like context menus)
-    // don't need to know about the route-level dialog state.
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ triggerId: string }>).detail;
       if (detail?.triggerId) handleRequestDelete(detail.triggerId);
@@ -155,53 +163,118 @@
     }
     await performDelete(deleteCandidate.id);
   }
-
 </script>
 
-<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="automations-page">
-  <header class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold" data-testid="automations-title">
-        {$t("automations.title")}
-      </h1>
-      <p class="mt-0.5 text-sm text-muted-foreground">{$t("automations.subtitle")}</p>
-    </div>
-    {#if $triggers.length > 0}
-      <button
-        class="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-        onclick={handleCreate}
-        data-testid="automations-create-cta"
-      >
+<div class="mx-auto w-full max-w-6xl" data-testid="automations-page">
+  <PageHeader
+    kicker="AUTOMATISATIONS"
+    title={$t("automations.title")}
+    subtitle={$t("automations.subtitle")}
+  >
+    {#snippet actions()}
+      <BtnSecondary onclick={handleRefresh} disabled={refreshing}>
+        {#snippet icon()}<RefreshCw size={12} class={refreshing ? "animate-spin" : ""} />{/snippet}
+        {$t("common.refresh")}
+      </BtnSecondary>
+      <BtnPrimary onclick={handleCreate}>
+        {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("automations.new")}
-      </button>
-    {/if}
-  </header>
+      </BtnPrimary>
+    {/snippet}
+  </PageHeader>
 
   {#if $triggers.length === 0}
-    <AutomationEmptyState onCreate={handleCreate} onBrowseTemplates={handleBrowseTemplates} />
+    <div class="px-8 pt-6">
+      <AutomationEmptyState onCreate={handleCreate} onBrowseTemplates={handleBrowseTemplates} />
+    </div>
   {:else}
-    <div class="space-y-4" data-testid="automations-list">
-      {#each grouped as [agentName, list] (agentName)}
-        <div animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 180 }}>
-          <AutomationGroup
-            {agentName}
-            count={list.length}
-            defaultOpen={agentName === defaultOpenAgent}
+    <!-- Status filter chip row -->
+    <div
+      class="flex flex-wrap items-center gap-2 px-8 pt-5 pb-4"
+      role="tablist"
+      aria-label="Filtres de statut"
+      data-testid="automations-filter-bar"
+    >
+      {#each FILTERS as f (f.key)}
+        {@const isActive = activeFilter === f.key}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isActive}
+          onclick={() => (activeFilter = f.key)}
+          class="cursor-pointer border-0 bg-transparent p-0"
+          data-testid="automations-filter-{f.key}"
+          data-active={isActive}
+        >
+          <Chip
+            tone={isActive ? f.tone : "neutral"}
+            outline={!isActive}
+            size="md"
           >
-            {#each list as trigger (trigger.id)}
-              <AutomationCard
-                {trigger}
-                locale={$locale ?? "en"}
-                onfire={handleFired}
-                onlogs={handleOpenHistory}
-              />
-            {/each}
-          </AutomationGroup>
-        </div>
+            {#snippet icon()}
+              <StatusDot color={f.color} glow={isActive && f.key === "active"} />
+            {/snippet}
+            {f.label} · {counts[f.key]}
+          </Chip>
+        </button>
       {/each}
     </div>
-  {/if}
 
+    <!-- Automations table -->
+    <div class="px-8 pb-10">
+      {#if filteredTriggers.length === 0}
+        <div
+          class="rounded-xl border border-border/60 bg-card overflow-hidden"
+          data-testid="automations-empty-filter"
+        >
+          <EmptyState
+            title={activeFilter === "all"
+              ? $t("automations.empty.title")
+              : $t("automations.empty_filter_title")}
+            desc={activeFilter === "all"
+              ? $t("automations.empty.description")
+              : $t("automations.empty_filter_desc")}
+          >
+            {#snippet icon()}<Sparkles size={22} />{/snippet}
+            {#snippet action()}
+              {#if activeFilter !== "all"}
+                <BtnSecondary onclick={() => (activeFilter = "all")}>
+                  {$t("automations.filter_show_all")}
+                </BtnSecondary>
+              {/if}
+            {/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        <div
+          class="rounded-xl border border-border/60 bg-card overflow-hidden"
+          data-testid="automations-table"
+        >
+          <!-- Column headers -->
+          <div
+            class="px-4 py-2.5 border-b border-border/60 flex items-center gap-2.5 text-[10.5px] uppercase tracking-[1px] font-semibold text-muted-foreground/70"
+          >
+            <div class="flex-[2] min-w-0">{$t("automations.col_automation")}</div>
+            <div class="w-[160px]">{$t("automations.col_assistant")}</div>
+            <div class="w-[160px]">{$t("automations.col_next_run")}</div>
+            <div class="w-[110px]">{$t("automations.col_status")}</div>
+            <div class="w-[90px] text-right">{$t("automations.col_last_run")}</div>
+            <div class="w-[64px]"></div>
+          </div>
+
+          {#each filteredTriggers as trigger (trigger.id)}
+            <AutomationRow
+              {trigger}
+              locale={$locale ?? "en"}
+              onfire={handleFired}
+              onlogs={handleOpenHistory}
+              ondelete={handleRequestDelete}
+            />
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 {#if logsTriggerId}

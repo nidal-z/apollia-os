@@ -6,8 +6,7 @@
 //!
 //! Les sections opérationnelles (`[[triggers]]`, `[notifications]`, `[stt]`) ne sont
 //! plus gérées par le fichier TOML — elles sont désormais stockées en SQLite et
-//! administrées via l'API REST ou l'application desktop. Les sections `[pipelines]`
-//! et `[[pipelines]]` sont obsolètes — l'engine pipelines a été retiré.
+//! administrées via l'API REST ou l'application desktop.
 //! Si un ancien fichier TOML contient ces sections, un warning est émis mais le boot
 //! continue normalement.
 //!
@@ -124,7 +123,7 @@ pub struct ApolliaCConfig {
 ///
 /// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
 /// si un ancien fichier `apollia.toml` contient encore ces sections.
-const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt", "pipelines"];
+const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 
 // ─────────────────────────────────────────────
 // Fonctions publiques
@@ -155,9 +154,8 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 ///
 /// Après le parsing TOML :
 /// - Les chemins `model_path` des backends embarqués sont normalisés via [`expand_tilde`].
-/// - Les sections obsolètes (`[[triggers]]`, `[pipelines]` / `[[pipelines]]`,
-///   `[notifications]`, `[stt]`) sont détectées et émettent un warning sans bloquer
-///   le démarrage.
+/// - Les sections obsolètes (`[[triggers]]`, `[notifications]`, `[stt]`) sont
+///   détectées et émettent un warning sans bloquer le démarrage.
 ///
 /// La section `[llm]` est **optionnelle** : son absence produit `config.llm = None`
 /// sans erreur.
@@ -226,9 +224,9 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
 
 /// Détecte et signale les sections TOML obsolètes.
 ///
-/// Les sections `[[triggers]]`, `[notifications]`, `[stt]`, `[pipelines]` /
-/// `[[pipelines]]` sont obsolètes. Si le fichier TOML les contient encore, un
-/// warning est émis pour chaque section détectée.
+/// Les sections `[[triggers]]`, `[notifications]`, `[stt]` sont obsolètes.
+/// Si le fichier TOML les contient encore, un warning est émis pour chaque
+/// section détectée.
 fn check_deprecated_sections(content: &str) {
     for section in DEPRECATED_SECTIONS {
         let bracket_single = format!("[{section}]");
@@ -583,42 +581,12 @@ events = ["task.completed"]
 
     // GIVEN la constante DEPRECATED_SECTIONS
     // WHEN on l'inspecte
-    // THEN elle contient triggers, notifications, stt et pipelines (engine retiré)
+    // THEN elle contient triggers, notifications et stt (gérés via SQLite)
     #[test]
     fn test_deprecated_sections_constant() {
         assert!(DEPRECATED_SECTIONS.contains(&"triggers"));
         assert!(DEPRECATED_SECTIONS.contains(&"notifications"));
         assert!(DEPRECATED_SECTIONS.contains(&"stt"));
-        assert!(DEPRECATED_SECTIONS.contains(&"pipelines"));
-    }
-
-    // GIVEN un TOML qui contient [[pipelines]] obsolète (format tableau)
-    // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit — le tableau [[pipelines]] est silencieusement ignoré.
-    #[test]
-    fn test_deprecated_pipelines_array_section_does_not_block_parsing() {
-        // GIVEN — [[pipelines]] array is the old pipeline-definitions format
-        let toml = r#"
-[[pipelines]]
-id          = "old-pipeline"
-description = "obsolete"
-
-[[pipelines.steps]]
-id    = "step-1"
-agent = "a"
-input = "x"
-"#;
-        let file = write_toml(toml);
-
-        // WHEN
-        let result = parse_apollia_toml(file.path());
-
-        // THEN — array format is silently skipped; parsing succeeds
-        assert!(
-            result.is_ok(),
-            "parsing should succeed — [[pipelines]] array is ignored, error: {:?}",
-            result.err()
-        );
     }
 
     // GIVEN apollia.toml contient [mcp], [permissions] et [filesystem.journal]

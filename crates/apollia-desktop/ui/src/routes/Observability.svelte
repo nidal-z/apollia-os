@@ -17,18 +17,19 @@
   let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
 
+  // Operator: 3 tabs — Timeline · Coûts · Audit (lecture non-technique).
+  // Builder: 5 tabs — ajoute Delegation et Plan-Cache (inspection exhaustive).
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },
       { key: "llm-costs", label: $t("observability.tab_llm_costs") },
       { key: "audit-trail", label: $t("observability.tab_audit_trail") },
-      { key: "delegation", label: $t("observability.tab_delegation") },
     ];
     if ($uiMode === "builder") {
-      base.push({
-        key: "plan-cache",
-        label: $t("observability.tab_plan_cache"),
-      });
+      base.push(
+        { key: "delegation", label: $t("observability.tab_delegation") },
+        { key: "plan-cache", label: $t("observability.tab_plan_cache") },
+      );
     }
     return base;
   });
@@ -48,7 +49,7 @@
   });
 
   $effect(() => {
-    if ($uiMode !== "builder" && activeTab === "plan-cache") {
+    if ($uiMode !== "builder" && (activeTab === "plan-cache" || activeTab === "delegation")) {
       activeTab = "timeline";
       timelineLoaded = true;
     }

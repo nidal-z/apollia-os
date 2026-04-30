@@ -8,7 +8,7 @@
    * product call so the OP/Builder toggle stays in the cockpit.
    */
   import { t } from "svelte-i18n";
-  import { Menu, Search, Inbox, Settings as SettingsIcon } from "lucide-svelte";
+  import { Menu, Search, ShieldCheck, Settings as SettingsIcon } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
@@ -86,11 +86,11 @@
       type="button"
       class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       onclick={() => navigateTo("inbox")}
-      aria-label={$t("nav.inbox_builder")}
+      aria-label={$t("nav.approvals")}
       data-testid="topbar-inbox"
-      title={$t("nav.inbox_builder")}
+      title={$t("nav.approvals")}
     >
-      <Inbox size={14} strokeWidth={1.5} />
+      <ShieldCheck size={14} strokeWidth={1.5} />
     </button>
 
     <button

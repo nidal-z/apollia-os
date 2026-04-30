@@ -12,7 +12,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { addToast } from "$lib/components/ui/toast/store";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
-  import UserMemoryEntryCard from "../../components/memory/UserMemoryEntryCard.svelte";
+  import MemoryRow from "../../components/memory/MemoryRow.svelte";
   import EmptyState from "../../components/common/EmptyState.svelte";
   import { Brain } from "lucide-svelte";
 
@@ -240,9 +240,9 @@
 
           <!-- Accordion body -->
           {#if expandedCategories[cat]}
-            <div class="border-t border-border/30 px-4 py-3 space-y-2">
+            <div class="border-t border-border/30">
               {#each catEntries as entry (entry.key)}
-                <UserMemoryEntryCard
+                <MemoryRow
                   {entry}
                   onupdate={handleUpdate}
                   ondelete={requestDelete}

@@ -374,38 +374,6 @@ apollia-os trigger logs daily-report
 
 ---
 
-## Multi-agent Pipelines
-
-Pipelines chain agents with explicit dependencies. Steps in the same topological layer run in parallel; downstream steps wait for their `depends_on` to complete.
-
-```toml
-[[pipelines]]
-id          = "review-and-report"
-description = "Review code then write a summary"
-on_failure  = "fail"    # "fail" | "continue"
-
-[[pipelines.steps]]
-id    = "review"
-agent = "code-reviewer"
-input = "{{trigger.payload}}"
-
-[[pipelines.steps]]
-id         = "report"
-agent      = "standup-scribe"
-input      = "Summarise this review: {{steps.review.output}}"
-depends_on = ["review"]
-```
-
-```bash
-apollia-os pipeline run review-and-report "path/to/repo"
-apollia-os pipeline runs review-and-report
-apollia-os pipeline status <run-id>
-```
-
-A pipeline suspended for HITL approval is resumed automatically once the approval is submitted via the CLI or the desktop app.
-
----
-
 ## Human-in-the-Loop (HITL)
 
 Declare sensitive tools in `tools_requiring_approval`. The runtime suspends the task before execution and waits for a human decision:
@@ -441,7 +409,7 @@ cd crates/apollia-desktop
 cargo tauri dev
 ```
 
-**10 routes:** Agents · Tasks · Approvals · LLM · Triggers · Pipelines · Memory · Notifications · Observability · Settings
+**Routes principales:** Dashboard · Agents · Tasks · Chat · Approvals · LLM · Automations · Memory · Notifications · Observability · Settings
 
 All views update in real time via SSE streams. The system tray shows pending approval count and supports graceful quit.
 
@@ -491,7 +459,6 @@ crates/
   apollia-aip/           # AIP Bridge (PyO3, ToolProxy, MemoryInterface, LlmProxy)
   apollia-llm/           # LLM Router + backends (embedded GGUF, Anthropic, OpenAI-compatible)
   apollia-triggers/      # Trigger Engine (cron, interval, file_watch, webhook)
-  apollia-pipelines/     # Pipeline Engine (topological execution, HITL, fallback)
   apollia-notifications/ # Notification Engine (desktop, webhook channels)
   apollia-desktop/       # Desktop App (Tauri v2 + Svelte 5)
   apollia-cli/           # CLI binary (clap v4)

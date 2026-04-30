@@ -295,7 +295,7 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 
 ## Sprint 12 — Orchestration multi-agent (Pipelines)
 
-**Statut :** LIVRÉ ✅ | **Stories :** 18/18 | **Crate :** `apollia-pipelines` créée
+**Statut :** LIVRÉ ✅ | **Stories :** 18/18 | **Crate :** `apollia-pipelines` créée — ⚠️ **retirée du workspace v0.1.0** (composition multi-agent désormais via triggers + agents ReAct autonomes, ADR-066)
 
 ### Ce qui a été implémenté
 - Types : `PipelineDefinition`, `PipelineRun`, `StepRun`, `PipelineStatus`, `StepRunStatus`

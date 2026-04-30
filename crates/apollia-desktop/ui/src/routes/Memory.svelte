@@ -11,11 +11,13 @@
   import RecentExtractions from "../components/memory/RecentExtractions.svelte";
   import ToolSchemaPanel from "../components/tools/ToolSchemaPanel.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
-  import { Database, Wrench, Brain } from "lucide-svelte";
+  import { Database, Wrench } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { PageHeader, Card } from "$lib/components/operator";
+  import { TabBar } from "$lib/components/ui/tabs";
 
   type Tab = "user_memory" | "memory" | "tools";
 
@@ -50,6 +52,23 @@
       ? $t("memory.user_memory.tab_operator")
       : $t("memory.user_memory.tab_builder")
   );
+
+  let tabItems = $derived.by(() => {
+    const items = [{ key: "user_memory", label: userMemoryLabel }];
+    if ($uiMode === "builder") {
+      items.push(
+        { key: "memory", label: $t("memory.tab_memory") },
+        { key: "tools", label: $t("memory.tab_tools") },
+      );
+    }
+    return items;
+  });
+
+  $effect(() => {
+    if ($uiMode !== "builder" && (activeTab === "memory" || activeTab === "tools")) {
+      activeTab = "user_memory";
+    }
+  });
 
   // ── Memory functions ──
   async function loadNamespaces(): Promise<void> {
@@ -161,97 +180,79 @@
     }
   }
 
+  function handleTabChange(key: string): void {
+    switchTab(key as Tab);
+  }
+
   onMount(async () => {
     loadTools();
   });
 </script>
 
-<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="memory-page">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">{$t('memory.title')}</h1>
-      <p class="text-xs text-muted-foreground" data-testid="memory-subtitle">{$t('memory.subtitle')}</p>
-    </div>
+<div class="mx-auto w-full max-w-6xl" data-testid="memory-page">
+  <PageHeader
+    kicker="MÉMOIRE"
+    title={$t('memory.title')}
+    subtitle={$t('memory.subtitle')}
+  />
+
+  <div class="px-8 pt-6">
+    <TabBar
+      items={tabItems}
+      activeTab={activeTab}
+      ontabchange={handleTabChange}
+      testidPrefix="memory"
+    />
   </div>
 
-  <!-- Tabs -->
-  <div class="flex gap-1 rounded-lg bg-muted/50 p-1 w-fit" data-testid="memory-tabs">
-    <button
-      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'user_memory' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => switchTab("user_memory")}
-      data-testid="memory-tab-user-memory"
-    >
-      <span class="flex items-center gap-1.5">
-        <Brain size={13} />
-        {userMemoryLabel}
-      </span>
-    </button>
-    <button
-      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'memory' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => switchTab("memory")}
-      data-testid="memory-tab-memory"
-    >
-      <span class="flex items-center gap-1.5">
-        <Database size={13} />
-        {$t('memory.tab_memory')}
-      </span>
-    </button>
-    <button
-      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'tools' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => switchTab("tools")}
-      data-testid="memory-tab-tools"
-    >
-      <span class="flex items-center gap-1.5">
-        <Wrench size={13} />
-        {$t('memory.tab_tools')}
-        {#if !loadingTools}
-          <span class="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{tools.length}</span>
-        {/if}
-      </span>
-    </button>
-  </div>
-
-  <!-- User Memory Tab -->
+  <!-- User Memory Tab — visible operator + builder -->
   {#if activeTab === "user_memory"}
-    <RecentExtractions mode={$uiMode} />
-    <UserMemoryDashboard mode={$uiMode} />
+    <div class="px-8 pt-4 space-y-6">
+      <RecentExtractions mode={$uiMode} />
+      <UserMemoryDashboard mode={$uiMode} />
+    </div>
   {/if}
 
-  <!-- Memory Tab -->
+  <!-- Memory Tab — Builder only -->
   {#if activeTab === "memory"}
-    {#if !loadingMemory && namespaces.length === 0}
-      <EmptyState
-        icon={Database}
-        title={$t('memory.empty_title')}
-        subtitle={$t('memory.empty_subtitle')}
-        page="memory"
-      />
-    {:else}
-      <div class="flex items-center gap-4">
-        <NamespaceSelector
-          {namespaces}
-          selected={selectedNamespace}
-          onselect={handleNamespaceChange}
+    <div class="px-8 pt-4 space-y-4">
+      {#if !loadingMemory && namespaces.length === 0}
+        <EmptyState
+          icon={Database}
+          title={$t('memory.empty_title')}
+          subtitle={$t('memory.empty_subtitle')}
+          page="memory"
         />
-        <MemorySearch value={searchQuery} onsearch={handleSearch} />
-      </div>
-
-      {#if loadingMemory}
-        <div class="space-y-2 py-4">
-          <LoadingShimmer width="100%" height="2.5rem" />
-          <LoadingShimmer width="100%" height="2.5rem" />
-          <LoadingShimmer width="100%" height="2.5rem" />
-          <LoadingShimmer width="80%" height="2.5rem" />
-        </div>
       {:else}
-        <MemoryTable {entries} {searching} ondelete={handleDelete} />
+        <Card class="overflow-hidden">
+          <div class="px-5 pt-4 pb-3 flex items-center gap-4 border-b border-border/40">
+            <NamespaceSelector
+              {namespaces}
+              selected={selectedNamespace}
+              onselect={handleNamespaceChange}
+            />
+            <MemorySearch value={searchQuery} onsearch={handleSearch} />
+          </div>
+          <div class="p-4">
+            {#if loadingMemory}
+              <div class="space-y-2">
+                <LoadingShimmer width="100%" height="2.5rem" />
+                <LoadingShimmer width="100%" height="2.5rem" />
+                <LoadingShimmer width="100%" height="2.5rem" />
+                <LoadingShimmer width="80%" height="2.5rem" />
+              </div>
+            {:else}
+              <MemoryTable {entries} {searching} ondelete={handleDelete} />
+            {/if}
+          </div>
+        </Card>
       {/if}
-    {/if}
+    </div>
   {/if}
 
-  <!-- Tools Tab -->
+  <!-- Tools Tab — Builder only -->
   {#if activeTab === "tools"}
+    <div class="px-8 pt-4">
     {#if !loadingTools && tools.length === 0}
       <EmptyState
         icon={Wrench}
@@ -281,16 +282,19 @@
         { key: "description", header: $t("memory.tools_col_description"), hideOn: "sm", cell: descCell },
       ] as Array<Column<ToolSummary>>}
 
-      <DataTable
-        data={tools}
-        columns={toolColumns}
-        rowKey={(t) => t.name}
-        loading={loadingTools}
-        onrowclick={(t) => selectTool(t.name)}
-        emptyLabel={$t('memory.tools_empty_title')}
-        class="min-w-0"
-      />
+      <Card class="overflow-hidden">
+        <DataTable
+          data={tools}
+          columns={toolColumns}
+          rowKey={(t) => t.name}
+          loading={loadingTools}
+          onrowclick={(t) => selectTool(t.name)}
+          emptyLabel={$t('memory.tools_empty_title')}
+          class="min-w-0"
+        />
+      </Card>
     {/if}
+    </div>
   {/if}
 </div>
 

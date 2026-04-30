@@ -50,7 +50,6 @@ crates/
 ├── apollia-notifications/ ← Notification Engine (desktop notify-rust, webhook reqwest)
 ├── apollia-oria/          ← ORIA Engine (Observer-Reasoner-Actor, StepBudget, ResilienceLayer, plan cache)
 ├── apollia-permissions/   ← Permission rules engine (prefix-scoped, 3 scopes : session/project/global)
-├── apollia-pipelines/     ← Pipeline Engine (topologie DAG, fan-out/fan-in, HITL, fallback)
 ├── apollia-runtime/       ← Runtime Core (acteurs Tokio, API axum, EventBus, Supervisor)
 ├── apollia-stt/           ← Speech-to-Text (trait SttBackend, whisper-rs, audio pipeline)
 ├── apollia-tools/         ← Tool Registry (13 outils natifs, sandbox, audit trail, governance.db)
