@@ -90,6 +90,20 @@ function createOnboardingStore() {
 
 export const onboardingStore = createOnboardingStore();
 
+/**
+ * Controls visibility of the agent-driven onboarding modal.
+ *
+ * Set to `true` by:
+ *  - `App.svelte` on first-launch detection (state has no `started_at`),
+ *  - the `runtime-event` listener when the supervisor emits
+ *    `OnboardingRequired` (category `onboarding-changed`),
+ *  - the command palette ("Restart onboarding" action).
+ *
+ * Set to `false` by the modal itself when the user dismisses it or when
+ * `OnboardingCompleted` is emitted.
+ */
+export const onboardingModalOpen = writable(false);
+
 /** Whether the sidebar onboarding badge should be visible. */
 export const showOnboardingBadge = derived(
   onboardingStore,

@@ -46,7 +46,7 @@ import { navigateToSettings } from "$lib/router";
 import { uiMode, type UIMode } from "$lib/stores/mode";
 import { themeMode } from "$lib/stores/theme";
 import { companionStore } from "$lib/stores/companion";
-import { onboardingStore } from "$lib/stores/onboarding";
+import { onboardingModalOpen } from "$lib/stores/onboarding";
 import { openNewChatRequested } from "$lib/stores/chat";
 import { openNewTaskRequested } from "$lib/stores/tasks";
 
@@ -301,7 +301,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: RefreshCcw,
       kind: "help",
       execute: () => {
-        void onboardingStore.advancePhase("welcome").catch(() => {});
+        onboardingModalOpen.set(true);
       },
     },
     {

@@ -407,9 +407,10 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       void refreshSttStatus();
       void refreshTranscriptions();
       break;
-    case "onboarding-required":
-      // Refresh onboarding state — App.svelte will automatically display
-      // the onboarding UI based on $onboardingStore.phase.
+    case "onboarding-changed":
+      // Keeps the legacy store in sync with backend phases. The agent-driven
+      // modal listens directly to the "runtime-event" channel for
+      // OnboardingRequired / OnboardingCompleted variants in App.svelte.
       onboardingStore.setRequired();
       break;
     case "system":
