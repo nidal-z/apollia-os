@@ -570,6 +570,7 @@ fn main() {
             commands::tasks::list_tasks,
             commands::tasks::submit_task,
             commands::tasks::get_task_timeline,
+            commands::tasks::get_delegation_tree,
             commands::session::get_session_metrics,
             commands::session::list_session_metrics_ids,
             commands::session_meta::compute_session_meta,

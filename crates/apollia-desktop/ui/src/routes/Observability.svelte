@@ -6,13 +6,15 @@
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
   import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
   import PlanCacheStats from "../components/observability/PlanCacheStats.svelte";
+  import DelegationTree from "../components/observability/DelegationTree.svelte";
 
-  type ObsTab = "timeline" | "llm-costs" | "audit-trail" | "plan-cache";
+  type ObsTab = "timeline" | "llm-costs" | "audit-trail" | "delegation" | "plan-cache";
 
   let activeTab = $state<ObsTab>("timeline");
   let timelineLoaded = $state(false);
   let costsLoaded = $state(false);
   let auditLoaded = $state(false);
+  let delegationLoaded = $state(false);
   let planCacheLoaded = $state(false);
 
   let tabItems = $derived.by(() => {
@@ -20,6 +22,7 @@
       { key: "timeline", label: $t("observability.tab_timeline") },
       { key: "llm-costs", label: $t("observability.tab_llm_costs") },
       { key: "audit-trail", label: $t("observability.tab_audit_trail") },
+      { key: "delegation", label: $t("observability.tab_delegation") },
     ];
     if ($uiMode === "builder") {
       base.push({
@@ -36,6 +39,7 @@
     if (tab === "timeline") timelineLoaded = true;
     if (tab === "llm-costs") costsLoaded = true;
     if (tab === "audit-trail") auditLoaded = true;
+    if (tab === "delegation") delegationLoaded = true;
     if (tab === "plan-cache") planCacheLoaded = true;
   }
 
@@ -80,6 +84,10 @@
   {:else if activeTab === "audit-trail"}
     {#if auditLoaded}
       <AuditTrailTable />
+    {/if}
+  {:else if activeTab === "delegation"}
+    {#if delegationLoaded}
+      <DelegationTree />
     {/if}
   {:else if activeTab === "plan-cache"}
     {#if planCacheLoaded}

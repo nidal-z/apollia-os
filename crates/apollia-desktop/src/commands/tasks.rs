@@ -272,9 +272,172 @@ pub async fn get_task_timeline(
     }
 }
 
+/// Nœud de l'arbre de délégation A2A retourné au frontend.
+#[derive(Debug, Serialize)]
+pub struct DelegationTreeNode {
+    /// Identifiant de l'agent (UUID runtime ou nom si la résolution échoue).
+    pub agent_id: String,
+    /// Nom lisible de l'agent.
+    pub agent_name: String,
+    /// Statut courant : `submitted`, `working`, `completed`, `failed`, `running`, etc.
+    pub status: String,
+    /// Horodatage ISO 8601 de début (None pour la racine si inconnu).
+    pub started_at: Option<String>,
+    /// Délégations enfants (sous-tâches A2A).
+    pub children: Vec<DelegationTreeNode>,
+}
+
+/// Récupère l'arbre de délégation A2A pour une tâche.
+///
+/// La racine est la tâche parente ; les enfants sont les délégations enregistrées
+/// dans `task_sidechains` via `GET /api/v1/tasks/{id}/sidechains`.
+///
+/// Si aucune délégation n'a été enregistrée pour la tâche (404 ou liste vide),
+/// retourne un arbre racine sans enfants.
+#[tauri::command]
+pub async fn get_delegation_tree(
+    state: State<'_, RuntimeHandle>,
+    task_id: String,
+) -> Result<DelegationTreeNode, String> {
+    // 1. Résolution de la racine (agent_id, agent_name, status, started_at).
+    let mut root_agent_id = String::new();
+    let mut root_agent_name = String::new();
+    let mut root_status = String::from("unknown");
+    let mut root_started_at: Option<String> = None;
+
+    // a) Essayer le runtime (tâche active en mémoire).
+    if let Ok(all) = state.router_handle.all_tasks().await {
+        if let Some((_, agent_id, status)) = all.iter().find(|(tid, _, _)| tid.as_str() == task_id)
+        {
+            root_agent_id = agent_id.to_string();
+            root_status = status_to_string(status);
+            if let Ok(Some(entry)) = state.registry_handle.get_agent(agent_id.as_str()).await {
+                root_agent_name = entry.manifest.name.clone();
+            }
+        }
+    }
+
+    // b) Fallback : chercher dans les tâches persistées.
+    if root_agent_name.is_empty() {
+        if let Some(repo) = state.task_repository.as_ref() {
+            if let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await {
+                if let Some(row) = persisted.into_iter().find(|r| r.task_id == task_id) {
+                    if root_agent_name.is_empty() {
+                        root_agent_name = row.agent_name;
+                    }
+                    if root_status == "unknown" {
+                        root_status = row.status;
+                    }
+                    root_started_at = Some(row.created_at);
+                }
+            }
+        }
+    }
+
+    if root_agent_name.is_empty() {
+        root_agent_name = task_id.clone();
+    }
+
+    // 2. Récupérer les délégations via l'API REST interne.
+    let path = format!("/api/v1/tasks/{task_id}/sidechains");
+    let children = match http_get_json(state.api_port, &path).await {
+        Ok(json) => parse_sidechains(json),
+        Err(e) if e.contains("404") => Vec::new(),
+        Err(e) => return Err(e),
+    };
+
+    Ok(DelegationTreeNode {
+        agent_id: if root_agent_id.is_empty() {
+            task_id
+        } else {
+            root_agent_id
+        },
+        agent_name: root_agent_name,
+        status: root_status,
+        started_at: root_started_at,
+        children,
+    })
+}
+
+/// Convertit la réponse JSON `/sidechains` en nœuds enfants.
+fn parse_sidechains(json: serde_json::Value) -> Vec<DelegationTreeNode> {
+    let arr = match json.as_array() {
+        Some(arr) => arr,
+        None => return Vec::new(),
+    };
+    arr.iter()
+        .map(|row| {
+            let agent_name = row
+                .get("agent_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let status = row
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let started_at = row
+                .get("started_at")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            DelegationTreeNode {
+                agent_id: agent_name.clone(),
+                agent_name,
+                status,
+                started_at,
+                children: Vec::new(),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_sidechains_extracts_fields() {
+        // GIVEN a JSON array of sidechain rows
+        let json = serde_json::json!([
+            {
+                "sidechain_n": 1,
+                "agent_name": "agent-recherche",
+                "status": "completed",
+                "input_summary": "...",
+                "output_summary": "...",
+                "started_at": "2026-04-30T10:00:00Z",
+                "completed_at": "2026-04-30T10:00:02Z"
+            },
+            {
+                "sidechain_n": 2,
+                "agent_name": "agent-synthese",
+                "status": "running",
+                "started_at": "2026-04-30T10:00:03Z"
+            }
+        ]);
+
+        // WHEN parsed
+        let nodes = parse_sidechains(json);
+
+        // THEN one node per row, with agent_name/status/started_at populated
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].agent_name, "agent-recherche");
+        assert_eq!(nodes[0].status, "completed");
+        assert_eq!(nodes[0].started_at.as_deref(), Some("2026-04-30T10:00:00Z"));
+        assert!(nodes[0].children.is_empty());
+        assert_eq!(nodes[1].status, "running");
+    }
+
+    #[test]
+    fn test_parse_sidechains_handles_non_array() {
+        // GIVEN a non-array JSON value
+        let json = serde_json::json!({ "error": "boom" });
+        // WHEN parsed
+        let nodes = parse_sidechains(json);
+        // THEN no children produced
+        assert!(nodes.is_empty());
+    }
 
     #[test]
     fn test_status_to_string_all_variants() {
