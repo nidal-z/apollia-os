@@ -1,6 +1,6 @@
 # Les outils natifs
 
-Apollia OS embarque 13 outils natifs disponibles sans configuration : 6 outils fichiers, 1 shell, 1 Python, 3 réseau/web, 1 mémoire, 1 interaction utilisateur, 2 notebooks. Tous s'appellent de la même façon depuis `run()` :
+Apollia OS embarque 16 outils natifs disponibles sans configuration : 6 outils fichiers, 1 shell, 1 Python, 3 réseau/web, 1 mémoire, 1 interaction utilisateur, 2 notebooks, 3 gouvernance des permissions. Tous s'appellent de la même façon depuis `run()` :
 
 ```python
 result = await ctx.tools.call("nom_outil", { ...paramètres... })
@@ -12,7 +12,7 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 
 ---
 
-## Les 13 outils en un coup d'œil
+## Les 16 outils en un coup d'œil
 
 | Catégorie | Outil | Usage typique |
 |---|---|---|
@@ -31,6 +31,9 @@ L'appel est asynchrone — ORIA l'intercepte, applique le `StepBudget` et la `Re
 | **Interaction** | `ask_user` | Demander une information à l'utilisateur (HITL léger) |
 | **Notebooks** | `notebook_read` | Lire un notebook Jupyter (.ipynb) cellule par cellule |
 | | `notebook_edit` | Modifier une cellule de notebook Jupyter |
+| **Gouvernance** | `permission_rule_add` | Proposer une nouvelle règle de permission (HITL obligatoire) |
+| | `permission_rule_remove` | Supprimer une règle par ID (HITL obligatoire) |
+| | `permission_rule_list` | Lister les règles actives (lecture seule) |
 
 Tous les outils fichiers valident le chemin contre la `SandboxRoot` de l'agent avant toute opération disque. `web_search` et `web_read` nécessitent les feature flags `web-search` et `web-read` à la compilation. `http_fetch` et `web_read` appliquent tous deux un **garde anti-SSRF** : toute URL pointant vers un hôte privé (loopback, RFC 1918, link-local, metadata cloud) est rejetée avant l'envoi du moindre octet réseau.
 
@@ -171,8 +174,11 @@ await ctx.tools.call("web_search",       {"query": "...", "max_results": 10})
 await ctx.tools.call("web_read",         {"url": "https://..."})
 await ctx.tools.call("memory_search",    {"query": "..."})
 await ctx.tools.call("ask_user",         {"prompt": "..."})
-await ctx.tools.call("notebook_read",    {"path": "...", "cell_index": 0})
-await ctx.tools.call("notebook_edit",    {"path": "...", "cell_index": 0, "new_source": "..."})
+await ctx.tools.call("notebook_read",         {"path": "...", "cell_index": 0})
+await ctx.tools.call("notebook_edit",         {"path": "...", "cell_index": 0, "new_source": "..."})
+await ctx.tools.call("permission_rule_list",  {"created_by": "onboarding-agent"})
+await ctx.tools.call("permission_rule_add",   {"tool_name": "bash_executor", "action": "allow", "scope": "global"})
+await ctx.tools.call("permission_rule_remove", {"rule_id": 42})
 ```
 
 > **Référence complète :** [Outils-Reference](https://github.com/nidal-z/apollia-os/wiki/Outils-Reference) — pour chaque outil : signature complète, tous les paramètres optionnels, structure de retour JSON, codes d'erreur, et contraintes sandbox.

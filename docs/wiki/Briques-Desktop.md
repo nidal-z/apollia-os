@@ -95,10 +95,10 @@ crates/apollia-desktop/
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
-        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte
+        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte, DelegationTree.svelte
         │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
-        │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
+        │   └── onboarding/    ← OnboardingModal.svelte
         └── routes/            ← 14 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
 ```
 
@@ -161,13 +161,16 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 
 `AgentListItem` (source : `commands/agents.rs`) inclut notamment : `name`, `description`, `version`, `status`, `execution_mode`, `tools_required`, `tools_optional`, `tags`, `skills`, `examples`, `limitations`, `setup_notes`, et `agent_class: Option<String>` — nom de la classe Python source de l'agent (ex: `"ReActAgent"`), extrait par le validateur AIP et affiché comme badge *Direct / Conversational / Orchestrated / Worker* dans la vue Agents.
 
-### Tasks (3)
+### Tasks (4)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_tasks` | `filter: Option<TaskFilter>` | `Result<Vec<TaskSummary>, String>` |
 | `submit_task` | `agent_id: String, input: String` | `Result<String, String>` (task_id) |
 | `get_task_timeline` | `task_id: String` | `Result<Vec<Value>, String>` |
+| `get_delegation_tree` | `task_id: String` | `Result<DelegationTreeNode, String>` |
+
+`DelegationTreeNode` — nœud de l'arbre de délégation A2A : `agent_id`, `agent_name`, `status`, `started_at: Option<String>`, `children: Vec<DelegationTreeNode>`. La racine correspond à la tâche parente ; les enfants sont les délégations enregistrées via `GET /api/v1/tasks/{id}/sidechains`.
 
 ### HITL (3)
 
@@ -388,7 +391,7 @@ type Route =
   | "settings";      // Configuration lecture seule (ADR-029)
 ```
 
-Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side. L'onboarding est gere séparément par `App.svelte` via le store `onboardingStore.showOnboarding` (overlay fullscreen, pas une route).
+Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side. L'onboarding est gere separement par `App.svelte` via le store `onboardingModalOpen` (modal overlay, pas une route).
 
 ### 4.3 Sidebar
 
@@ -515,47 +518,24 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 ---
 
-## 5. Onboarding multi-phases
+## 5. Onboarding agent-driven (modal)
 
-Onboarding interactif affiche au premier lancement si `get_onboarding_state` retourne `phase != "done"`. Ecrans fullscreen séquentiels avec machine a etats persistee.
+L'onboarding s'affiche au premier lancement sous forme de modal overlay pilote par l'agent `onboarding-agent` v2.1.0. Il n'y a plus de machine a etats ni d'ecrans fullscreen sequentiels.
 
-### 5.1 Machine a etats — 7 phases
+### 5.1 Composant unique
 
-```
-welcome → llm_setup → ai_setup → acquaintance → guided_tour → graduation → done
-```
+`OnboardingModal.svelte` — modal centree (`max-width: 720px`, `height: min(80vh, 720px)`, `z-index: 80`). Affiche `ChatConversation` embarque avec un indicateur de 4 tours. Fermeture automatique sur evenement `OnboardingCompleted` ou via le bouton "Configurer plus tard" (`dismiss_onboarding`).
 
-Chaque transition est persisted via `advance_onboarding_phase(phase)`. L'interruption est possible a tout moment — la barre de reprise `OnboardingResumeBar` s'affiche a la prochaine ouverture.
+### 5.2 Ouverture du modal
 
-### 5.2 Composants Svelte (onboarding/)
+Le store `onboardingModalOpen: Writable<boolean>` (dans `lib/stores/onboarding.ts`) est mis a `true` si :
+- Au demarrage : `get_onboarding_state` retourne `!completed && !skipped && started_at === null`
+- Via le canal `runtime-event` : categorie `onboarding-changed`, type `OnboardingRequired`
+- Via la commande palette (action "Relancer l'onboarding")
 
-| Composant | Phase | Description |
-|---|---|---|
-| `OnboardingWelcome` | `welcome` | Accroche + selection profil (Operator / Builder) |
-| `OnboardingLlmSetup` | `llm_setup` | File picker `.gguf` ou "configurer plus tard" |
-| `OnboardingAiSetup` | `ai_setup` | Scan auto LLM + STT, selection avec badge Recommande |
-| `OnboardingAcquaintance` | `acquaintance` | Chat embarque avec agent d'onboarding |
-| `OnboardingGuidedTour` | `guided_tour` | Tour interactif (voir §5.3) |
-| `OnboardingGraduation` | `graduation` | Stats parcours + quick-cards + toggle companion |
-| `OnboardingResumeBar` | toutes | Bandeau de reprise post-interruption |
+### 5.3 IPC Onboarding
 
-### 5.3 Tour guide
-
-Le `OnboardingGuidedTour` orchestre :
-- `TourSpotlight` — overlay SVG avec decoupage de zone
-- `TourStepCard` — carte flottante positionnee via `calculateCardPosition`
-- `TourProgressRail` — barre de progression verticale fixe a gauche
-- `VoiceIndicator` — indicateur STT push-to-talk
-
-**Etapes :** 8 etapes pour Operator, 10 pour Builder. La sequence est chargee via `get_tour_steps(profile)`.
-
-**Interactions :** navigation clavier (→ / ← / Echap), commandes vocales STT (suivant / precedent / passer / question libre), actions interactives per-etape avec timeout auto-skip (30s).
-
-Voir [Onboarding-Tour-Steps](./Onboarding-Tour-Steps) pour les tables completes des etapes.
-
-### 5.4 IPC Onboarding (17 commandes)
-
-Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete, les types TypeScript, les cles UserMemory et les RuntimeEvents.
+Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete, les types TypeScript et les RuntimeEvents.
 
 ---
 

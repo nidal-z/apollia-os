@@ -293,19 +293,22 @@ $ apollia-os tools register ./tools/erp_connector.py
   ✔ erp_acme v1.0.0 enregistré dans le registry local
 
 $ apollia-os tools list
-  NOM                TYPE     VERSION  SANTÉ   SANDBOX
-  bash_executor      natif    0.1.0    ✔       FileSystem
-  python_executor    natif    0.1.0    ✔       FileSystem
-  file_read          natif    0.2.0    ✔       FileSystem
-  file_write         natif    0.2.0    ✔       FileSystem
-  file_edit          natif    0.2.0    ✔       FileSystem
-  file_list          natif    0.2.0    ✔       FileSystem
-  file_glob          natif    0.2.0    ✔       FileSystem
-  file_grep          natif    0.2.0    ✔       FileSystem
-  http_fetch         natif    0.2.0    ✔       NetworkRestricted
-  memory_search      natif    0.2.0    ✔       ReadOnly
-  mcp_consumer       mcp      0.1.0    ✔       FileSystem
-  erp_acme           custom   1.0.0    ✔       NetworkRestricted
+  NOM                       TYPE     VERSION  SANTÉ   SANDBOX
+  bash_executor             natif    0.1.0    ✔       FileSystem
+  python_executor           natif    0.1.0    ✔       FileSystem
+  file_read                 natif    0.2.0    ✔       FileSystem
+  file_write                natif    0.2.0    ✔       FileSystem
+  file_edit                 natif    0.2.0    ✔       FileSystem
+  file_list                 natif    0.2.0    ✔       FileSystem
+  file_glob                 natif    0.2.0    ✔       FileSystem
+  file_grep                 natif    0.2.0    ✔       FileSystem
+  http_fetch                natif    0.2.0    ✔       NetworkRestricted
+  memory_search             natif    0.2.0    ✔       ReadOnly
+  permission_rule_add       natif    0.1.0    ✔       ReadOnly
+  permission_rule_remove    natif    0.1.0    ✔       ReadOnly
+  permission_rule_list      natif    0.1.0    ✔       ReadOnly
+  mcp_consumer              mcp      0.1.0    ✔       FileSystem
+  erp_acme                  custom   1.0.0    ✔       NetworkRestricted
 ```
 
 > Note : `file_io` n'apparaît plus dans cette liste (déprécié, non enregistré).
@@ -717,6 +720,7 @@ pub struct ToolDescriptor {
 | `file_list` | Listage, lecture seule |
 | `memory_search` | SELECT-only FTS5 |
 | `git_status` | `git status --porcelain`, lecture seule |
+| `permission_rule_list` | SELECT-only sur `permission_rules` |
 
 **Outils NON marqués (`is_read_only = false`) :**
 
@@ -1098,7 +1102,7 @@ impl ToolRegistry {
 }
 ```
 
-**`NATIVE_TOOL_NAMES`** — liste canonique des 13 outils natifs du runtime :
+**`NATIVE_TOOL_NAMES`** — liste canonique des 16 outils natifs du runtime :
 
 ```rust
 pub const NATIVE_TOOL_NAMES: &[&str] = &[
@@ -1108,6 +1112,10 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_search", "web_read",
     "memory_search",
     "ask_user",
+    // ADR-086 — gouvernance agent-driven des permissions.
+    "permission_rule_add",
+    "permission_rule_remove",
+    "permission_rule_list",
 ];
 ```
 
@@ -1214,6 +1222,9 @@ pub struct NativeDispatcherConfig {
     /// Configuration de l'outil `web_read` issue de `[tools.web_read]` dans `apollia.toml`.
     /// Pilote le timeout HTTP, la taille maximale de réponse et le garde anti-SSRF.
     pub web_read_config: WebReadConfig,
+    /// Chemin vers `governance.db` pour les outils `permission_rule_*` (ADR-086).
+    /// Quand `None`, ces trois outils ne sont pas enregistrés dans le dispatcher.
+    pub governance_db_path: Option<PathBuf>,
 }
 ```
 

@@ -1,219 +1,148 @@
 # Systeme d'Onboarding — Spec technique
 
-> *Reference technique exhaustive du systeme d'onboarding multi-phases d'Apollia OS Desktop.*
+> *Reference technique du systeme d'onboarding agent-driven d'Apollia OS Desktop (v2.1.0).*
 
 ---
 
-## 1. Machine a etats — 7 phases
+## 1. Architecture generale
 
-```mermaid
-stateDiagram-v2
-    [*] --> welcome : premier demarrage (!onboarded)
-    welcome --> llm_setup : profil selectionne
-    llm_setup --> ai_setup : LLM configure ou skip
-    ai_setup --> acquaintance : continuer ou skip
-    acquaintance --> guided_tour : conversation terminee ou skip
-    guided_tour --> graduation : toutes etapes completees
-    graduation --> done : CTA clique
-    done --> [*]
+Depuis la v2.1.0, l'onboarding est entierement pilote par l'agent `onboarding-agent`. Le frontend ne gere plus de machine a etats ni d'ecrans sequentiels — il affiche un simple modal de chat et se ferme quand l'agent signale la completion.
 
-    guided_tour --> guided_tour : interaction etape
-    acquaintance --> guided_tour : dismiss
+```
+App.svelte
+  │
+  ├── get_onboarding_state()   ← verif au demarrage
+  │     └── si !completed && !skipped && started_at == null
+  │           └── onboardingModalOpen.set(true)
+  │
+  ├── listen("runtime-event")  ← canal live
+  │     ├── OnboardingRequired  → onboardingModalOpen.set(true)
+  │     └── OnboardingCompleted → onboardingModalOpen.set(false)
+  │
+  └── {#if $onboardingModalOpen}
+        └── <OnboardingModal onclose={...} />
+              │
+              ├── trigger_onboarding()        ← demarre la session agent
+              ├── send_chat_message("Bonjour !") ← kick initial
+              ├── setInterval(pollSession, 3s)  ← comptage des tours
+              └── listen("OnboardingCompleted") ← auto-close
 ```
 
-### Transitions valides
+---
 
-| Phase depuis | Phase vers | Condition |
+## 2. Condition d'ouverture
+
+```typescript
+function shouldOpenOnboarding(state: OnboardingState): boolean {
+  return !state.completed && !state.skipped && state.started_at === null;
+}
+```
+
+Le modal ne s'affiche qu'au tout premier lancement (`started_at == null`). Les relances ulterieures passent par la commande palette ("Relancer l'onboarding").
+
+---
+
+## 3. Composant `OnboardingModal`
+
+Fichier : `ui/src/components/onboarding/OnboardingModal.svelte`
+
+| Propriete | Valeur |
+|---|---|
+| Type | Overlay modal (`role="dialog"`, `aria-modal`) |
+| Taille | `max-width: 720px`, `height: min(80vh, 720px)` |
+| z-index | `80` |
+| Fermeture | `OnboardingCompleted` (auto) ou bouton "Configurer plus tard" (skip) |
+| Indicateur progression | Barre de `TOTAL_TURNS = 4` cercles + coche finale |
+| `data-testid` | `onboarding-modal` / `onboarding-skip` / `onboarding-bootstrap` |
+
+### Cycle de vie
+
+1. `onMount` → `trigger_onboarding({ topic: null, profile: null })` → `sessionId`
+2. `send_chat_message(sessionId, "Bonjour !")` pour amorcer l'agent sans attendre l'utilisateur
+3. `setInterval(pollSession, 3000)` → `get_chat_session(sessionId)` → comptage des messages `role: "user"` → `userTurns`
+4. Completion : `userTurns >= TOTAL_TURNS` OR evenement `OnboardingCompleted` → `onclose()`
+
+---
+
+## 4. Store `onboardingModalOpen`
+
+```typescript
+// ui/src/lib/stores/onboarding.ts
+export const onboardingModalOpen: Writable<boolean>;
+```
+
+Mis a `true` par :
+- `App.svelte` au demarrage si `shouldOpenOnboarding(state)`
+- L'ecouteur `runtime-event` quand `OnboardingRequired` est emis
+- La commande palette (action "Relancer l'onboarding")
+
+Mis a `false` par :
+- Le modal lui-meme sur `onclose` (skip ou completion)
+- L'ecouteur `runtime-event` quand `OnboardingCompleted` est emis
+
+---
+
+## 5. Commandes IPC utilisees par le frontend
+
+| Commande | Parametres | Retour | Contexte |
+|---|---|---|---|
+| `get_onboarding_state` | — | `OnboardingState` | Verif au demarrage |
+| `trigger_onboarding` | `topic: null, profile: null` | `TriggerResult` | Demarre la session chat |
+| `send_chat_message` | `sessionId: String, content: String` | `String` | Kick initial |
+| `get_chat_session` | `sessionId: String` | `ChatSessionDetail` | Comptage tours |
+| `dismiss_onboarding` | — | `()` | Bouton "Configurer plus tard" |
+| `reset_onboarding` | — | `()` | Reinitialise vers l'etat initial |
+
+### Commandes utilitaires (commandes/onboarding.rs)
+
+| Commande | Retour | Description |
 |---|---|---|
-| `welcome` | `llm_setup` | Profil selectionne (operator \| builder) |
-| `llm_setup` | `ai_setup` | LLM configure OU skip |
-| `ai_setup` | `acquaintance` | Continuer ou skip |
-| `acquaintance` | `guided_tour` | Conversation completee OU skip/dismiss |
-| `guided_tour` | `graduation` | `tour_step_index` >= `total_steps` |
-| `graduation` | `done` | Bouton CTA clique |
-
-Toute phase peut etre interrompue — l'etat est persiste et la barre de reprise s'affiche.
+| `check_onboarded` | `bool` | `true` si completed |
+| `mark_onboarded` | `()` | Force l'etat complete |
+| `check_python` | `bool` | Python disponible |
+| `check_llm_configured` | `bool` | LLM configure |
+| `check_hello_agent_exists` | `Option<String>` | Path de l'agent demo |
 
 ---
 
-## 2. Commandes IPC Tauri
-
-### Onboarding core (6 commandes)
-
-| Commande | Parametres | Retour | Description |
-|---|---|---|---|
-| `get_onboarding_state` | — | `OnboardingState` | Etat complet depuis la DB |
-| `advance_onboarding_phase` | `phase: String` | `OnboardingState` | Avance vers la phase cible |
-| `get_onboarding_status` | — | `OnboardingStatus` | Topics couverts, statut completion |
-| `dismiss_onboarding` | — | `` | Marque la conversation comme dismissee |
-| `check_onboarded` | — | `bool` | `true` si `done` |
-| `reset_onboarding` | — | `` | Reinitialise vers `welcome` et purge les données de progression stale (voir §8) |
-
-### Tour guidé (4 commandes)
-
-| Commande | Parametres | Retour | Description |
-|---|---|---|---|
-| `get_tour_steps` | `profile: String` | `Vec<TourStep>` | Etapes pour le profil donne |
-| `set_tour_step` | `index: u32` | `` | Persiste la position courante |
-| `complete_tour_action` | `step_key: String` | `TourActionResult` | Marque l'action de l'etape comme accomplie |
-| `trigger_onboarding` | `topic: Option<String>, profile: Option<String>` | `TriggerResult` | Demarre une session de chat onboarding |
-
-### Setup IA (5 commandes)
-
-| Commande | Parametres | Retour | Description |
-|---|---|---|---|
-| `get_ai_setup_info` | — | `SystemInfo` | RAM, OS, arch, GPU |
-| `scan_for_gguf_models` | — | `Vec<GgufModelInfo>` | Scan `~/.apollia/models/` + `~/Downloads/` |
-| `scan_for_whisper_models` | — | `Vec<WhisperModelInfo>` | Scan modeles Whisper |
-| `setup_local_llm` | `gguf_path: String` | `` | Configure le backend LLM local |
-| `setup_whisper_model` | `model_path: String` | `` | Configure le modele STT |
-
-### Companion (3 commandes)
-
-| Commande | Parametres | Retour | Description |
-|---|---|---|---|
-| `set_companion_enabled` | `enabled: bool` | `` | Active/desactive le companion post-onboarding |
-| `get_companion_state` | — | `CompanionState` | Etat du companion (enabled, session_id) |
-| `start_tour_recording` / `stop_tour_recording` | — | `` | Push-to-talk STT pendant le tour |
-
-### Voice (1 commande)
-
-| Commande | Parametres | Retour | Description |
-|---|---|---|---|
-| `process_tour_voice_command` | `transcript: String` | `TourVoiceAction` | Clasifie la transcription en action tour |
-
----
-
-## 3. Types TypeScript
+## 6. Types TypeScript
 
 ```typescript
 interface OnboardingState {
-  phase: OnboardingPhase;
-  profile: "operator" | "builder" | null;
-  tour_step_index: number;
-  companion_session_id: string | null;
-  stats: OnboardingStats;
+  completed: boolean;
+  skipped: boolean;
+  started_at: string | null;   // ISO8601, null si jamais demarre
 }
 
-type OnboardingPhase =
-  | "welcome"
-  | "llm_setup"
-  | "ai_setup"
-  | "acquaintance"
-  | "guided_tour"
-  | "graduation"
-  | "done";
-
-interface TourStep {
-  key: string;
-  route: Route;
-  spotlight_selector: string | null;
-  companion_message_key: string;
-  interaction_type: "navigate" | "click" | "observe";
-  action_event: string | null;
-}
-
-type TourVoiceAction =
-  | { action: "NextStep" }
-  | { action: "PreviousStep" }
-  | { action: "SkipTour" }
-  | { action: "AskCompanion"; message: string }
-  | { action: "Unrecognized" };
-
-interface OnboardingStats {
-  actions_completed: number;
-  total_time_sec: number;
+interface TriggerResult {
+  session_id: string;
 }
 ```
 
+La progression est trackee cote client uniquement via le comptage de messages `role: "user"` dans `ChatSessionDetail.messages`.
+
 ---
 
-## 4. Cles UserMemory
+## 7. RuntimeEvents
 
-L'onboarding ecrit dans le namespace `onboarding` de la UserMemory :
+Tous emis sur le canal Tauri `"runtime-event"` avec `category: "onboarding-changed"`.
 
-| Cle | Type | Description |
+| `event_type` | Moment | Effet frontend |
 |---|---|---|
-| `phase` | `String` | Phase courante |
-| `profile` | `String` | Profil selectionne (`operator` \| `builder`) |
-| `tour_step_index` | `u32` | Position dans le tour |
-| `topics_covered` | `Vec<String>` | Topics abordes en conversation |
-| `companion_session_id` | `Option<String>` | Session chat du companion |
-| `stats.actions_completed` | `u32` | Compteur d'actions realisees |
-| `stats.total_time_sec` | `u64` | Temps total d'onboarding |
+| `OnboardingRequired` | Premier lancement, avant l'UI prete | `onboardingModalOpen = true` |
+| `OnboardingCompleted` | Agent ecrit `onboarding.completed_at` | `onboardingModalOpen = false` (auto-close modal) |
 
 ---
 
-## 5. RuntimeEvents emis
+## 8. Reinitialisation — `reset_onboarding`
 
-| Event | Payload | Moment |
-|---|---|---|
-| `onboarding-phase-changed` | `{ phase: String }` | Chaque transition de phase |
-| `onboarding-tour-step` | `{ index: u32, total: u32 }` | Chaque avancement d'etape |
-| `onboarding-completed` | `{ profile: String }` | Phase `done` atteinte |
-| `stt-transcribed` | `String` | Transcription STT disponible |
+La commande IPC `reset_onboarding` (appelee aussi par la commande palette) :
 
----
-
-## 6. Companion Apollia
-
-Le Companion est un panneau flottant (draggable, resizable) qui fournit une aide contextuelle en utilisant une session de chat ordinaire.
-
-### Etats
-
-| Etat | Description |
-|---|---|
-| `hidden` | Masque completement |
-| `minimized` | Bouton "Restaurer" visible en bas a droite |
-| `visible` | Panneau complet affiche |
-
-### Contexte par route
-
-Le `CompanionContextProvider` ecoute le store de navigation et injecte un message contextuel selon la route active. Durant le tour guide, le message est override par `tourCompanionOverride` (store dedié).
-
-### Post-onboarding
-
-Apres la graduation, le companion reste disponible si `companion_enabled = true` (persiste via `set_companion_enabled`). La session est creee a la demande via `create_chat_session` avec `mode: "free"`.
-
----
-
-## 7. Support Voice (STT)
-
-Les commandes vocales sont disponibles pendant la phase `guided_tour` uniquement, si `stt_status.enabled && stt_status.model_loaded`.
-
-### Flux
-
-```
-mousedown mic-btn → invoke("start_tour_recording")
-mouseup mic-btn   → invoke("stop_tour_recording")
-                  → event "stt-transcribed" recu
-                  → invoke("process_tour_voice_command", transcript)
-                  → TourVoiceAction dispatche
-```
-
-### Actions reconnues
-
-| Utterance (FR/EN) | Action |
-|---|---|
-| suivant / next / continue | `NextStep` |
-| precedent / back / previous | `PreviousStep` |
-| passer / skip / quitter | `SkipTour` |
-| tout autre texte | `AskCompanion` |
-| transcription vide | `Unrecognized` |
-
----
-
-## 8. Reinitialisation de la progression — `reset_onboarding_progress`
-
-Appelee automatiquement par `trigger_onboarding` (sans `topic`) avant chaque nouvelle session d'onboarding, et invoquee explicitement via la commande IPC `reset_onboarding`.
-
-**Deux sources de progression stale sont purgees :**
-
-1. **`UserMemoryRepository`** — efface toutes les cles `onboarding_topic_{topic}` (une par topic couvert). Sans ce nettoyage, la barre de completion afficherait 100% des l'arrivee, avant meme le premier message.
-
-2. **Base semantique de l'agent d'onboarding** (`~/.apollia/memory/onboarding-agent.db`) — efface toutes les entrees dont la cle commence par `user.*` (profil collecte en conversation) et les cles `onboarding.*` sauf `onboarding.active_profile` (preserve pour conserver le profil de la session en cours).
+1. Purge `UserMemoryRepository` — efface les cles `onboarding_topic_*`
+2. Purge la base semantique de l'agent (`~/.apollia/memory/onboarding-agent.db`) — efface `user.*` et `onboarding.*` (sauf `onboarding.active_profile`)
+3. Remet `started_at = null` pour que `shouldOpenOnboarding` s'evalue a `true` au prochain demarrage
 
 **Garanties :**
-- Si la DB semantique est absente ou illisible, la purge est ignoree silencieusement (warning tracing uniquement).
-- `onboarding.active_profile` est preserve — il est ecrit juste apres le reset et doit survivre.
-- Les donnees des autres namespaces (episodique, procedural) ne sont pas touchees.
+- Si la DB semantique est absente ou illisible, la purge est ignoree silencieusement
+- `onboarding.active_profile` est preserve
+- Les donnees des autres namespaces (episodique, procedural) ne sont pas touchees

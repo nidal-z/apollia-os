@@ -130,6 +130,11 @@ impl PrefixRuleEngine {
     pub fn remove_rules_by_agent(&mut self, agent_id: &str) -> Result<u32, PermissionError> { ... }
     /// Liste les règles `scope = 'agent'` filtrées par `agent_id`.
     pub fn list_rules_for_agent(&self, agent_id: &str) -> Result<Vec<PrefixRule>, PermissionError> { ... }
+    /// Liste les règles persistées dont `created_by` correspond. N'inclut pas les règles session (RAM).
+    pub fn list_rules_by_creator(&self, created_by: &str) -> Result<Vec<PrefixRule>, PermissionError> { ... }
+    /// Supprime toutes les règles persistées dont `created_by` correspond. Retourne le nombre supprimé.
+    /// Utilisé pour les resets ciblés (ex : remplacer toutes les règles d'un agent avant réécriture).
+    pub fn remove_rules_by_creator(&mut self, created_by: &str) -> Result<u32, PermissionError> { ... }
 }
 ```
 

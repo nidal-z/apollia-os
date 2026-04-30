@@ -1,6 +1,6 @@
 # Outils natifs — Référence rapide
 
-> Référence des 12 outils natifs Apollia OS. Version.
+> Référence des outils natifs Apollia OS. Version.
 
 ---
 
@@ -20,6 +20,9 @@
 | `web_search` | Réseau | `web-search` | Recherche web (DuckDuckGo / Brave) |
 | `web_read` | Réseau | `web-read` | Extraction texte d'une URL publique |
 | `memory_search` | Mémoire | `memory-search` | Recherche FTS5/BM25 en mémoire locale |
+| `permission_rule_add` | Gouvernance | — | Ajouter une règle de permission dans `governance.db` (HITL) |
+| `permission_rule_remove` | Gouvernance | — | Supprimer une règle par ID (HITL) |
+| `permission_rule_list` | Gouvernance | — | Lister les règles (lecture seule, filtre par `created_by`/`scope`) |
 
 ---
 
@@ -669,7 +672,116 @@ Recherche en mémoire locale par full-text search (FTS5/BM25). Accès restreint 
 
 ---
 
+---
+
+## Outils Gouvernance (ADR-086)
+
+Ces trois outils permettent aux agents de lire et de proposer des règles de permission dans `governance.db`. Les écritures (`add` / `remove`) passent systématiquement par le HITL standard — l'utilisateur valide chaque règle.
+
+### `permission_rule_add`
+
+Persiste une nouvelle règle `Allow` ou `Deny` dans `governance.db`. HITL obligatoire (ADR-082).
+
+**Input**
+
+```json
+{
+  "tool_name":    "String          — outil ciblé (ex. 'bash_executor')",
+  "action":       "String          — 'allow' | 'deny'",
+  "arg_prefix":   "String?         — préfixe d'argument (None = tout argument)",
+  "scope":        "String          — 'global' (défaut) | 'project' | 'agent'",
+  "project_path": "String?         — requis si scope='project'",
+  "agent_id":     "String?         — requis si scope='agent'",
+  "expires_at":   "i64?            — Unix timestamp d'expiration (None = permanent)"
+}
+```
+
+**Output**
+
+```json
+{
+  "rule_id":  "i64    — identifiant SQLite de la règle créée",
+  "tool_name": "String",
+  "action":   "String",
+  "scope":    "String"
+}
+```
+
+**Erreurs**
+
+| Code | Description |
+|---|---|
+| `invalid_action` | `action` n'est ni `'allow'` ni `'deny'` |
+| `invalid_scope` | `scope` non reconnu |
+| `missing_project_path` | `scope='project'` sans `project_path` |
+| `missing_agent_id` | `scope='agent'` sans `agent_id` |
+| `engine_error` | Erreur SQLite |
+
+---
+
+### `permission_rule_remove`
+
+Supprime une règle par son identifiant SQLite. HITL obligatoire.
+
+**Input**
+
+```json
+{
+  "rule_id": "i64 — identifiant SQLite de la règle à supprimer"
+}
+```
+
+**Output**
+
+```json
+{
+  "rule_id": "i64",
+  "removed": "bool — false si la règle n'existait pas"
+}
+```
+
+---
+
+### `permission_rule_list`
+
+Liste les règles persistées. Lecture seule, pas de HITL.
+
+**Input**
+
+```json
+{
+  "tool_name":  "String? — filtre sur le nom d'outil",
+  "created_by": "String? — filtre sur l'auteur (ex. 'onboarding-agent', 'user-hitl')",
+  "scope":      "String? — filtre sur la portée"
+}
+```
+
+**Output**
+
+```json
+{
+  "rules": [
+    {
+      "id":           "i64",
+      "tool_name":    "String",
+      "arg_prefix":   "String?",
+      "action":       "'allow' | 'deny'",
+      "scope":        "String",
+      "project_path": "String?",
+      "agent_id":     "String?",
+      "created_by":   "String?",
+      "created_at":   "i64",
+      "expires_at":   "i64?"
+    }
+  ],
+  "count": "usize"
+}
+```
+
+---
+
 ## Voir aussi
 
 - [Briques-Tool-Registry.md](Briques-Tool-Registry.md) — spécification complète du Tool Registry : cycle de vie, sandbox, StepBudget, feature flags, et implémentation des outils natifs
 - [Agents-RuntimeContext-Guide.md](Agents-RuntimeContext-Guide.md) — guide complet du RuntimeContext : comment les agents déclarent leurs besoins en outils et interagissent avec le runtime
+- [Briques-Permissions.md](Briques-Permissions.md) — moteur de permissions 3 couches, gouvernance `governance.db`, ADR-086

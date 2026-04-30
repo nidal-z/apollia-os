@@ -1,6 +1,10 @@
 # Onboarding — Tables des etapes du tour guide
 
-> *Tables de reference exhaustives des etapes du tour guide pour chaque profil.*
+> **⚠️ Archive — Tour guidé supprimé.** Le tour interactif multi-etapes a ete supprime lors de la refonte de l'onboarding (v2.1.0). L'onboarding est desormais une conversation agent-driven dans `OnboardingModal`. Cette page est conservee a titre d'archive historique.
+>
+> Voir [Onboarding-System](./Onboarding-System) pour la spec actuelle.
+
+---
 
 ---
 

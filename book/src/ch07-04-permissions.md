@@ -116,4 +116,28 @@ Lorsque vous publiez un agent qui touche au shell, votre `manifest()` doit décl
 
 Pensez aussi à fournir, dans la documentation de votre agent, un exemple de `[permissions]` minimal pour qu'il fonctionne sans interruption sur les commandes attendues. C'est ce qui transforme une bonne idée en un agent réellement utilisable.
 
+## Permissions proposées par l'agent lui-même
+
+Un agent ReAct peut aussi **proposer des règles de permission** sans intervention manuelle de l'opérateur. C'est le mécanisme qui permet à l'onboarding-agent de préconfigurer les règles au premier démarrage.
+
+```python
+# Lister les règles que cet agent a déjà créées
+existing = await ctx.tools.call("permission_rule_list", {
+    "created_by": ctx.agent_id
+})
+
+# Proposer une nouvelle règle (déclenche une carte HITL — l'opérateur valide)
+if not any(r["tool_name"] == "bash_executor" for r in existing["rules"]):
+    await ctx.tools.call("permission_rule_add", {
+        "tool_name": "bash_executor",
+        "action":    "allow",
+        "arg_prefix": "git ",
+        "scope":     "global",
+    })
+```
+
+Chaque appel à `permission_rule_add` ou `permission_rule_remove` déclenche une approbation HITL standard : l'opérateur voit la règle proposée dans la vue **Boîte de réception** et choisit de valider ou de refuser. Le runtime enregistre l'auteur de chaque règle dans le champ `created_by` de `governance.db` — visible dans **Réglages › Autorisations**.
+
+Le moteur de permissions reste le seul décideur lors d'une invocation d'outil : la proposition d'une règle par un agent n'ouvre pas de court-circuit au HITL.
+
 > **Référence technique :** [Briques-Permissions](https://github.com/nidal-z/apollia-os/wiki/Briques-Permissions) — schéma SQLite complet, signatures Rust, codes d'erreur, couches détaillées.
