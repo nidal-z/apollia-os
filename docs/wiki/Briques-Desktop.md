@@ -519,7 +519,10 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 ### 4.6 Vues
 
-**Agents** — Liste temps reel avec badges d'etat (ACTIVE/vert, DEGRADED/orange, STOPPED/gris). File picker natif Tauri pour enregistrer un agent `.py`. Drawer avec les 20 dernieres taches de l'agent.
+**Agents** — Vue en deux colonnes : colonne gauche liste les assistants individuels et les packages installés ; colonne droite affiche le panneau détail selon la sélection.
+
+- **Agents individuels** — badges d'état temps réel (ACTIVE/vert, DEGRADED/orange, STOPPED/gris). File picker natif Tauri pour enregistrer un agent `.py`. Boutons Démarrer/Arrêter inline (`start_agent` / `stop_agent` IPC) avec spinner `busyKeys` par agent. Drawer avec les 20 dernières tâches de l'agent.
+- **Packages** — chaque package affiche un `PackageRuntimeState` agrégé en temps réel : `runningAgents/totalAgents`, `enabledTriggers/totalTriggers`, statut global `running` | `partial` | `stopped`. Boutons **Démarrer** / **Arrêter** inline pilotent `startPackage()` / `stopPackage()` (store `agentPackages.ts`) : démarrage dans l'ordre workers → assistants/director ; arrêt dans l'ordre inverse. Sélectionner un package ouvre son panneau détail dans la colonne droite (meta informations, liste des agents avec état runtime individuel et lien vers le détail agent, triggers actifs/inactifs issus du store SSE `triggers`).
 
 **Tasks** — Liste filtrable par onglets (All/Running/Completed/Failed/Pending). Detail avec input/output complets. Timeline interactive avec 8 types d'evenements (task_transition, step_started, step_completed, llm_call, tool_call, hitl_suspended, hitl_resolved, task_completed).
 
