@@ -1221,5 +1221,15 @@ Le crate `apollia-pipelines` (TOML déclaratif, topologies DAG natives, HITL —
 
 ---
 
+## ADR-086 — Permissions agent-driven : `governance.db` comme source unique
+
+**Date :** 2026-04-29 — **Statut :** Accepté
+
+Abandon d'une story prévoyant un *derivation engine* Rust qui mappait automatiquement le profil onboarding (`user.constraints.sovereignty`, `user.agents.hitl`, `user.tech.integrations`) vers des règles `governance.db`. Trois raisons : (1) violation du principe #6 — la mémoire utilisateur devenait un effet runtime invisible ; (2) incompatibilité technique réelle — `RuleAction` ne supporte ni `Approval` ni wildcard `tool_name="*"`, le derivation engine aurait imposé une réécriture du moteur de permissions ; (3) conflit avec la value proposition — un mapping déterministe est l'inverse de la philosophie ReAct (cf. ADR-085). L'onboarding-agent reçoit deux nouveaux outils natifs (`permission_rule_add`, `permission_rule_list`) et **propose** explicitement les règles via HITL. La `SafeList` du TOML est ingérée dans `governance.db` au boot avec `created_by="config-import"`. `governance.db` devient l'unique source de décision runtime ; le champ `created_by` discrimine l'auteur (`onboarding-agent`, `user-hitl`, `user-settings`, `config-import`).
+
+[Détail → docs/adr/ADR-086-permissions-agent-driven-source-unique.md](adr/ADR-086-permissions-agent-driven-source-unique.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

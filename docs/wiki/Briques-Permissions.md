@@ -307,7 +307,66 @@ pub enum PermissionError {
 
 ---
 
-## 8. Structure de la crate
+## 8. ADR-086 — Source unique `governance.db` & permissions agent-driven
+
+Depuis ADR-086, `~/.apollia/governance.db` est la **source de vérité unique** lue par
+`PermissionEngine.decide()` à chaque invocation. Tous les producteurs convergent vers
+cette table via le même point d'entrée logique :
+
+```
+              ┌──────────────────────────────────────────┐
+              │  governance.db (table permission_rules)   │
+              │  source de vérité unique en lecture       │
+              └──────────────────┬───────────────────────┘
+                                 ▲
+                  écrit via PrefixRuleEngine::add_rule()
+                                 │
+        ┌─────────────────┬──────┴───────────────┬─────────────────────┐
+        │                 │                      │                     │
+   Agents ReAct       UI HITL                UI Settings          Couche système
+   (ctx.tools.call    (« toujours            (édition manuelle)   (migration boot,
+    permission_       autoriser »)                                  imports CLI)
+    rule_*)
+   created_by =       created_by =           created_by =          created_by =
+   "<agent_name>"     "user-hitl"            "user-settings"       "config-import"
+```
+
+Le champ `created_by` (`permission_rules.created_by`) discrimine systématiquement
+l'auteur. Il est consommé par :
+
+- l'UI Settings → Permissions (colonne « Auteur ») pour audit ;
+- la CLI `apollia permissions list` ;
+- l'outil natif `permission_rule_list(created_by="…")` pour qu'un agent puisse
+  inspecter ses propres règles avant d'en proposer de nouvelles.
+
+### 8.1 Outils natifs `permission_rule_*`
+
+Trois outils exposent l'API CRUD aux agents :
+
+| Outil | Paramètres clés | HITL | `is_read_only` |
+|---|---|---|---|
+| `permission_rule_add` | `tool_name`, `action`, `arg_prefix?`, `scope`, `project_path?`, `agent_id?`, `expires_at?` | **Oui** (ADR-082) | `false` |
+| `permission_rule_remove` | `rule_id` | **Oui** | `false` |
+| `permission_rule_list` | `tool_name?`, `created_by?`, `scope?` | Non | `true` |
+
+L'écriture passe par le HITL standard : l'utilisateur valide chaque règle dans le
+dialogue desktop. Le bouton « toujours accepter pour cette session » couvre les
+séries (`PermissionEngine::add_session_rule`).
+
+### 8.2 Migration `safe_list` → `governance.db` au boot
+
+Au démarrage de `PermissionEngine::new()`, les entrées de
+`PermissionsConfig.safe_commands` (TOML opérateur historique) sont ingérées en
+règles `RuleAction::Allow`, `scope=Global`, `created_by="config-import"`.
+Idempotent : un marqueur (présence de règles avec ce `created_by`) court-circuite
+l'import. La couche 1 SafeList runtime reste branchée 1-2 sprints le temps de
+valider l'absence de régression, puis sera supprimée.
+
+> **Référence ADR :** [ADR-086](../adr/ADR-086-permissions-agent-driven-source-unique.md)
+
+---
+
+## 9. Structure de la crate
 
 ```
 crates/apollia-permissions/src/

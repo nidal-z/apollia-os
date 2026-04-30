@@ -230,6 +230,9 @@ impl AgentRunner for BridgeRunner {
                 brave_api_key: snapshot.brave_api_key,
                 web_search_config: apollia_core::WebSearchConfig::default(),
                 web_read_config: apollia_core::WebReadConfig::default(),
+                governance_db_path: Some(
+                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+                ),
             }));
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {

@@ -44,6 +44,10 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_read",
     "memory_search",
     "ask_user",
+    // ADR-086 — gouvernance agent-driven des permissions.
+    "permission_rule_add",
+    "permission_rule_remove",
+    "permission_rule_list",
 ];
 
 /// Erreur retournée par [`ToolRegistry`] et [`ToolCredentialStore`].

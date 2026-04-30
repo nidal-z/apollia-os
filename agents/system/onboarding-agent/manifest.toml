@@ -3,7 +3,7 @@
 
 [agent]
 name = "onboarding-agent"
-version = "2.0.0"
+version = "2.1.0"
 description = "Premier contact utilisateur — initiaée"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
@@ -12,7 +12,11 @@ tags = ["onboarding", "conversational", "system"]
 [agent.manifest]
 agent_type = "system"
 execution_mode = "auto"
-tools_required = []
+# ADR-086 — l'onboarding-agent propose les règles de permissions correspondant
+# aux préférences collectées (sovereignty, hitl, integrations) via des appels
+# d'outils HITL-gated. permission_rule_remove n'est volontairement pas exposé
+# (moindre privilège : reset/cleanup passe par UI Settings ou CLI).
+tools_required = ["permission_rule_add", "permission_rule_list"]
 tools_optional = []
 memory_namespace = "onboarding"
 supports_streaming = false

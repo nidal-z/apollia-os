@@ -85,6 +85,10 @@
             <th class="px-3 py-2">{$t("permissions.rules.col_tool")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_scope")}</th>
             <th class="px-3 py-2">{$t("permissions.rules.col_agent")}</th>
+            <!-- ADR-086 — colonne auteur (created_by) -->
+            <th class="px-3 py-2" title="Auteur ayant créé la règle (HITL, agent, config…)">
+              Auteur
+            </th>
             <th class="px-3 py-2">{$t("permissions.rules.col_created")}</th>
             <th class="px-3 py-2"></th>
           </tr>
@@ -95,6 +99,7 @@
               <td class="px-3 py-2 font-mono text-[12px]">{rule.tool}</td>
               <td class="px-3 py-2">{scopeLabel(rule.scope)}</td>
               <td class="px-3 py-2 text-muted-foreground">{rule.agent_id ?? "—"}</td>
+              <td class="px-3 py-2 text-muted-foreground font-mono text-[11px]">{rule.created_by ?? "—"}</td>
               <td class="px-3 py-2 text-muted-foreground">{formatDate(rule.created_at)}</td>
               <td class="px-3 py-2 text-right">
                 <Button

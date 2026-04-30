@@ -48,7 +48,15 @@ from apollia.agents import AIPResult, ConversationalAgent
 # ---------------------------------------------------------------------------
 
 MEMORY_SOURCE: str = "onboarding"
-ONBOARDING_VERSION: str = "2.0"
+ONBOARDING_VERSION: str = "2.1"
+
+# ADR-086 — l'agent propose les règles de permissions correspondant aux
+# préférences profil collectées, en passant par les outils natifs HITL-gated
+# `permission_rule_add` / `permission_rule_list`. La table ci-dessous décrit
+# l'intention par défaut ; chaque appel d'outil est confirmé par l'utilisateur
+# via le dialogue HITL desktop, donc l'utilisateur garde la main même quand le
+# mapping est conservatif.
+ONBOARDING_AGENT_CREATOR: str = "onboarding-agent"
 
 CONFIDENCE_EXPLICIT: float = 0.9
 CONFIDENCE_INFERRED: float = 0.6
@@ -150,11 +158,23 @@ Si user.name ET user.role sont collectés :
   - Résume en 2 phrases ce que tu as compris.
   - Émets [PROFILE operator] ou [PROFILE builder] (voir règle profil).
   - Émets un [SUGGEST <slug>] par agent recommandé (voir règle suggestions).
+  - Mentionne brièvement à l'utilisateur que tu vas appliquer les règles \
+de permissions correspondant à ses préférences (souveraineté, supervision) \
+et qu'il verra une confirmation pour chacune. Pas besoin d'énumérer les \
+règles — l'application est gérée immédiatement après ta réponse.
   - Termine par une phrase d'orientation ("Tu peux maintenant ouvrir /agents…").
 Si l'un des deux manque :
   - Termine par : "Nous pourrons reprendre depuis les Settings quand tu le \
 souhaites."
   - N'émets AUCUN tag de clôture.
+
+### Application des permissions (post-Tour 4, transparent)
+
+Après ton message de clôture, le runtime applique automatiquement les règles \
+de permissions correspondant aux préférences collectées via des appels \
+`permission_rule_add` HITL-gated (cf. ADR-086). L'utilisateur valide chaque \
+règle dans une boîte de dialogue. Tu n'as pas besoin d'émettre ces appels \
+dans ton message — ils sont déclenchés par le code de finalisation.
 
 ## Tags
 
@@ -347,12 +367,84 @@ async def _all_gate_keys_present(ctx: Any) -> bool:
     return True
 
 
+async def _propose_permission_rules(ctx: Any) -> None:
+    """Propose les règles de permissions correspondant au profil collecté (ADR-086).
+
+    Lit ``user.constraints.sovereignty`` et ``user.agents.hitl`` depuis la
+    mémoire et appelle ``permission_rule_add`` pour chaque règle dérivée. Les
+    appels traversent la couche HITL desktop : l'utilisateur confirme chaque
+    règle avant qu'elle n'atterrisse dans ``governance.db``.
+
+    L'idempotence est assurée via un appel préalable à ``permission_rule_list``
+    filtré par ``created_by="onboarding-agent"`` : si des règles de l'agent
+    existent déjà, on ne re-propose rien (l'utilisateur peut révoquer puis
+    relancer l'onboarding s'il veut un reset, ou utiliser la CLI/UI Settings).
+
+    Aucune exception ne propage — toute erreur est loggée et silencieuse pour
+    ne pas bloquer la complétion onboarding.
+    """
+    if getattr(ctx, "tools", None) is None:
+        return
+
+    # Idempotence : ne propose rien si l'onboarding-agent a déjà des règles.
+    try:
+        existing = await ctx.tools.call(
+            "permission_rule_list",
+            {"created_by": ONBOARDING_AGENT_CREATOR},
+        )
+        rules = existing.get("rules", []) if isinstance(existing, dict) else []
+        if rules:
+            return
+    except Exception:
+        # On considère que l'absence de retour exploitable = pas d'historique,
+        # et on continue. Aucune règle ne sera créée si l'outil est indisponible.
+        pass
+
+    sovereignty = await ctx.memory.recall("user.constraints.sovereignty")
+    hitl = await ctx.memory.recall("user.agents.hitl")
+
+    proposals: list[dict[str, object]] = []
+
+    # Souveraineté → encadre l'accès réseau sortant.
+    if sovereignty == "local-only":
+        proposals.append({
+            "tool_name": "http_fetch",
+            "action": "deny",
+            "arg_prefix": "https://",
+            "scope": "global",
+        })
+        proposals.append({
+            "tool_name": "http_fetch",
+            "action": "deny",
+            "arg_prefix": "http://",
+            "scope": "global",
+        })
+
+    # HITL=never → l'utilisateur a explicitement choisi l'autonomie maximale
+    # pour ses agents. On ne propose pas d'allow wildcard (le moteur ne le
+    # supporte pas et ce serait dangereux). À la place, on s'abstient d'écrire
+    # quoi que ce soit : la couche 1 SafeList migrée gère les exceptions
+    # opérateur, le HITL standard couvre le reste.
+
+    for prop in proposals:
+        try:
+            await ctx.tools.call("permission_rule_add", prop)
+        except Exception:
+            # Le HITL a pu refuser, l'outil être désactivé, etc. — on n'arrête
+            # pas la finalisation pour autant.
+            pass
+
+
 async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str]) -> None:
     """Write the meta keys in strict order — completed_at LAST.
 
     The strict ordering matters: ``onboarding.completed_at`` is the desktop's
     completion signal, so it must only land after every dependent meta key is
     durably persisted.
+
+    Just before writing ``completed_at`` (and so before the desktop unlocks),
+    the agent proposes the permission rules derived from the profile via
+    ``permission_rule_add`` (ADR-086). Each call is HITL-gated.
     """
     role = await ctx.memory.recall("user.role")
     hitl = await ctx.memory.recall("user.agents.hitl")
@@ -364,6 +456,9 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
 
     suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
+
+    # ADR-086 — propose les règles de permissions avant le signal de complétion.
+    await _propose_permission_rules(ctx)
 
     now_iso = datetime.now(timezone.utc).isoformat()
     await _remember(ctx, "onboarding.completed_at", now_iso)
@@ -384,11 +479,13 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "2.0.0",
+            "version": "2.1.0",
             "description": "Premier contact utilisateur — initiaée",
             "execution_mode": "auto",
             "agent_type": "system",
-            "tools_required": [],
+            # ADR-086 — accès aux outils permission_rule_* pour proposer les
+            # règles dérivées du profil (HITL-gated).
+            "tools_required": ["permission_rule_add", "permission_rule_list"],
             "tools_optional": [],
             "memory_namespace": "onboarding",
             "max_concurrent_tasks": 1,

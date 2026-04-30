@@ -18,6 +18,7 @@ pub mod http_fetch;
 pub mod memory_search;
 pub mod notebook_edit;
 pub mod notebook_read;
+pub mod permission_rules;
 pub mod persistent_bash;
 pub mod python_executor;
 pub mod risk_classifier;

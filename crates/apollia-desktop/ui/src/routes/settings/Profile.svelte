@@ -11,7 +11,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { User, BookOpen } from "lucide-svelte";
+  import { User, BookOpen, ShieldCheck } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { addToast } from "$lib/components/ui/toast/store";
@@ -56,6 +56,25 @@
     }
   }
 
+  // ADR-086 — relancer un onboarding ciblé pour réviser les permissions
+  // après modification d'une préférence (souveraineté, supervision HITL).
+  let triggeringOnboarding = $state(false);
+  async function triggerPermissionsOnboarding() {
+    if (triggeringOnboarding) return;
+    triggeringOnboarding = true;
+    try {
+      await invoke("trigger_onboarding", { topic: "permissions", profile: null });
+      addToast(
+        "L'onboarding-agent va te proposer les ajustements de permissions correspondant à ton profil actuel.",
+        "success",
+      );
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      triggeringOnboarding = false;
+    }
+  }
+
   function countEntries(map: Record<string, string>): number {
     return Object.keys(map).length;
   }
@@ -90,6 +109,41 @@
           <Button size="sm" onclick={saveName} disabled={saving}>
             {saving ? $t("settings.profile_saving") : $t("common.save")}
           </Button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Permissions banner — ADR-086 -->
+    <div class="glass-card glass-border rounded-lg p-4 space-y-3 border-primary/20">
+      <div class="flex items-start gap-3">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <ShieldCheck size={20} strokeWidth={1.75} />
+        </div>
+        <div class="flex-1 space-y-2">
+          <p class="text-sm font-medium">Permissions dérivées du profil</p>
+          <p class="text-xs text-muted-foreground">
+            Si tu modifies ta préférence de souveraineté ou de supervision (HITL), tu peux
+            demander à l'onboarding-agent de réviser les règles correspondantes. Chaque
+            ajustement passera par une confirmation HITL standard.
+          </p>
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={triggerPermissionsOnboarding}
+              disabled={triggeringOnboarding}
+              data-testid="profile-permissions-trigger"
+            >
+              {triggeringOnboarding ? "Démarrage..." : "Réviser les permissions"}
+            </Button>
+            <button
+              type="button"
+              class="text-[11px] text-primary hover:text-primary/80"
+              onclick={() => goToSettingsSubRoute("memories/permissions")}
+            >
+              Voir les règles actuelles →
+            </button>
+          </div>
         </div>
       </div>
     </div>

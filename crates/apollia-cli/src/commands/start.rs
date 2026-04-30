@@ -172,6 +172,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             brave_api_key: snapshot.brave_api_key,
             web_search_config: self.tools_config.web_search.clone(),
             web_read_config: self.tools_config.web_read.clone(),
+            governance_db_path: Some(
+                self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+            ),
         }));
 
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
@@ -526,6 +529,9 @@ impl AgentRunner for BridgeRunner {
                 brave_api_key: snapshot.brave_api_key,
                 web_search_config: tools_config.web_search.clone(),
                 web_read_config: tools_config.web_read.clone(),
+                governance_db_path: Some(
+                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+                ),
             }));
 
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())

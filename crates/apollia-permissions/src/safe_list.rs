@@ -109,6 +109,19 @@ impl SafeList {
             .iter()
             .any(|p| p.matches(tool_name, first_arg))
     }
+
+    /// Retourne les patterns parsés sous forme `(tool_name, arg)` pour permettre
+    /// la migration vers `governance.db` au démarrage du moteur.
+    ///
+    /// Utilisé exclusivement par `PermissionEngine::new()` pour ingérer la `SafeList`
+    /// TOML dans la table `permission_rules` avec `created_by="config-import"`
+    /// (cf. ADR-086).
+    pub fn parsed_patterns(&self) -> Vec<(String, Option<String>)> {
+        self.patterns
+            .iter()
+            .map(|p| (p.tool_name.clone(), p.arg.clone()))
+            .collect()
+    }
 }
 
 // ─────────────────────────────────────────────

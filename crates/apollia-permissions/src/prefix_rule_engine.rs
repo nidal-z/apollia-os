@@ -447,6 +447,56 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
+    /// Supprime toutes les règles dont le champ `created_by` correspond à `created_by`.
+    ///
+    /// Utilisé pour les opérations d'audit ou de reset ciblé (ex : nettoyer toutes
+    /// les règles écrites par un agent particulier avant qu'il en propose de
+    /// nouvelles). Les règles `session` (RAM) ne sont pas concernées : elles ne sont
+    /// pas persistées.
+    ///
+    /// Retourne le nombre de lignes supprimées.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    pub fn remove_rules_by_creator(
+        &mut self,
+        created_by: &str,
+    ) -> Result<u32, PermissionError> {
+        let affected = self.db.execute(
+            "DELETE FROM permission_rules WHERE created_by = ?",
+            params![created_by],
+        )?;
+        Ok(affected as u32)
+    }
+
+    /// Liste les règles persistées dont le champ `created_by` correspond.
+    ///
+    /// Renvoie les règles triées par identifiant croissant. N'inclut pas les
+    /// règles de session (RAM uniquement, jamais persistées).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
+    pub fn list_rules_by_creator(
+        &self,
+        created_by: &str,
+    ) -> Result<Vec<PrefixRule>, PermissionError> {
+        let mut stmt = self.db.prepare(
+            "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
+                    scope, project_path, agent_id, expires_at \
+             FROM permission_rules \
+             WHERE created_by = ? \
+             ORDER BY id ASC",
+        )?;
+        let rules = stmt
+            .query_map(params![created_by], row_to_rule)?
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .collect::<Result<Vec<_>, PermissionError>>()?;
+        Ok(rules)
+    }
+
     /// Liste les règles `scope = 'agent'` filtrées par `agent_id`.
     ///
     /// # Errors
@@ -885,6 +935,116 @@ mod tests {
             .expect("add_rule");
         let rules = engine.list_rules().expect("list_rules");
         assert_eq!(rules.len(), 2);
+    }
+
+    fn rule_with_creator(
+        tool: &str,
+        action: RuleAction,
+        creator: &str,
+    ) -> PrefixRule {
+        PrefixRule {
+            tool_name: tool.into(),
+            action,
+            created_at: now(),
+            created_by_agent: Some(creator.into()),
+            ..PrefixRule::default()
+        }
+    }
+
+    #[test]
+    fn list_rules_by_creator_returns_only_matching() {
+        // GIVEN trois règles : deux par "onboarding-agent", une par "user-hitl"
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule_with_creator(
+                "tool_a",
+                RuleAction::Allow,
+                "onboarding-agent",
+            ))
+            .expect("add_rule");
+        engine
+            .add_rule(&rule_with_creator(
+                "tool_b",
+                RuleAction::Deny,
+                "onboarding-agent",
+            ))
+            .expect("add_rule");
+        engine
+            .add_rule(&rule_with_creator("tool_c", RuleAction::Allow, "user-hitl"))
+            .expect("add_rule");
+
+        // WHEN on liste par créateur
+        let rules = engine
+            .list_rules_by_creator("onboarding-agent")
+            .expect("list_rules_by_creator");
+
+        // THEN seules les deux règles de l'onboarding-agent reviennent
+        assert_eq!(rules.len(), 2);
+        assert!(rules
+            .iter()
+            .all(|r| r.created_by_agent.as_deref() == Some("onboarding-agent")));
+    }
+
+    #[test]
+    fn list_rules_by_creator_unknown_returns_empty() {
+        // GIVEN engine vide
+        let (engine, _tmp) = tmp_engine();
+        // WHEN on liste un créateur inconnu
+        let rules = engine
+            .list_rules_by_creator("ghost")
+            .expect("list_rules_by_creator");
+        // THEN aucune règle
+        assert!(rules.is_empty());
+    }
+
+    #[test]
+    fn remove_rules_by_creator_deletes_only_matching() {
+        // GIVEN deux règles "onboarding-agent" + une "user-hitl"
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule_with_creator(
+                "tool_a",
+                RuleAction::Allow,
+                "onboarding-agent",
+            ))
+            .expect("add_rule");
+        engine
+            .add_rule(&rule_with_creator(
+                "tool_b",
+                RuleAction::Deny,
+                "onboarding-agent",
+            ))
+            .expect("add_rule");
+        engine
+            .add_rule(&rule_with_creator("tool_c", RuleAction::Allow, "user-hitl"))
+            .expect("add_rule");
+
+        // WHEN on supprime par créateur
+        let removed = engine
+            .remove_rules_by_creator("onboarding-agent")
+            .expect("remove_rules_by_creator");
+
+        // THEN deux règles supprimées, la règle user-hitl reste
+        assert_eq!(removed, 2);
+        let remaining = engine.list_rules().expect("list_rules");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].created_by_agent.as_deref(), Some("user-hitl"));
+    }
+
+    #[test]
+    fn remove_rules_by_creator_unknown_returns_zero() {
+        // GIVEN une règle existante
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule_with_creator("tool_a", RuleAction::Allow, "user-hitl"))
+            .expect("add_rule");
+        // WHEN on supprime un créateur inexistant
+        let removed = engine
+            .remove_rules_by_creator("ghost")
+            .expect("remove_rules_by_creator");
+        // THEN zéro suppression, la règle reste
+        assert_eq!(removed, 0);
+        assert_eq!(engine.list_rules().expect("list").len(), 1);
     }
 
     #[test]

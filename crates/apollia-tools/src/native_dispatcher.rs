@@ -29,6 +29,7 @@ use crate::tools::file_read::FileRead;
 use crate::tools::file_write::FileWrite;
 use crate::tools::notebook_edit::NotebookEdit;
 use crate::tools::notebook_read::NotebookRead;
+use crate::tools::permission_rules::{PermissionRuleAdd, PermissionRuleList, PermissionRuleRemove};
 use crate::tools::python_executor::PythonExecutor;
 
 #[cfg(feature = "http")]
@@ -81,6 +82,10 @@ pub struct NativeDispatcherConfig {
     /// Operator-supplied configuration for the `web_read` tool. Drives the
     /// HTTP timeout, the maximum response size, and the SSRF guard toggle.
     pub web_read_config: WebReadConfig,
+    /// Chemin vers `governance.db` pour les outils `permission_rule_*` (ADR-086).
+    /// Quand `None`, ces outils ne sont pas enregistrés — l'agent recevra
+    /// `UnknownTool` s'il tente de les invoquer.
+    pub governance_db_path: Option<PathBuf>,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -208,6 +213,22 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
     if is_active("ask_user") {
         if let Some(pending) = cfg.pending_user_inputs.as_ref() {
             executors.push(Box::new(AskUserExecutor::new(pending)));
+        }
+    }
+
+    // ADR-086 — gouvernance des permissions : outils agent-driven gated par HITL.
+    if let Some(db_path) = cfg.governance_db_path.as_ref() {
+        if is_active("permission_rule_add") {
+            executors.push(Box::new(PermissionRuleAdd::new(
+                db_path.clone(),
+                cfg.agent_id.clone(),
+            )));
+        }
+        if is_active("permission_rule_remove") {
+            executors.push(Box::new(PermissionRuleRemove::new(db_path.clone())));
+        }
+        if is_active("permission_rule_list") {
+            executors.push(Box::new(PermissionRuleList::new(db_path.clone())));
         }
     }
 

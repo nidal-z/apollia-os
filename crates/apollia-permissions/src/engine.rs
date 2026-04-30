@@ -26,8 +26,14 @@ use serde_json::Value;
 use crate::audit_log::PermissionAuditLog;
 use crate::error::PermissionError;
 use crate::injection_detector::InjectionDetector;
-use crate::prefix_rule_engine::{PermissionScope, PrefixRule, PrefixRuleEngine, ScopeContext};
+use crate::prefix_rule_engine::{
+    PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,
+};
 use crate::safe_list::SafeList;
+
+/// Marqueur `created_by` apposé aux règles ingérées depuis `PermissionsConfig.safe_commands`
+/// au démarrage du moteur (ADR-086 — source unique `governance.db`).
+pub const CONFIG_IMPORT_CREATOR: &str = "config-import";
 
 // ─────────────────────────────────────────────
 // PermissionDecision
@@ -88,9 +94,19 @@ impl PermissionEngine {
     ///
     /// - [`PermissionError::Database`] si l'initialisation SQLite échoue.
     pub fn new(config: &PermissionsConfig, db_path: &Path) -> Result<Self, PermissionError> {
+        let mut prefix_rules = PrefixRuleEngine::new(db_path)?;
+        let safe_list = SafeList::from_config(config);
+
+        // ADR-086 — Migration idempotente de la SafeList TOML vers governance.db.
+        // Au premier boot avec une SafeList non vide, on ingère chaque pattern en
+        // tant que règle Allow scope=Global avec created_by="config-import". Les
+        // boots suivants détectent les règles déjà présentes et n'en réécrivent
+        // aucune.
+        migrate_safe_list_to_governance(&mut prefix_rules, &safe_list)?;
+
         Ok(Self {
-            safe_list: SafeList::from_config(config),
-            prefix_rules: PrefixRuleEngine::new(db_path)?,
+            safe_list,
+            prefix_rules,
             injection_detector: InjectionDetector::new(),
             audit_log: PermissionAuditLog::new(db_path)?,
             injection_detection_enabled: config.injection_detection,
@@ -275,6 +291,63 @@ fn find_suspicious_string(input: &Value, detector: &InjectionDetector) -> Option
         Value::Array(arr) => arr.iter().find_map(|v| find_suspicious_string(v, detector)),
         _ => None,
     }
+}
+
+// ─────────────────────────────────────────────
+// Migration SafeList → governance.db (ADR-086)
+// ─────────────────────────────────────────────
+
+/// Ingère les patterns `SafeList` parsés en règles `permission_rules` avec
+/// `created_by="config-import"` lorsqu'aucune règle de cet auteur n'existe encore.
+///
+/// Idempotent : un second appel après une migration réussie est un no-op (la
+/// présence d'au moins une règle `created_by="config-import"` court-circuite
+/// l'import).
+fn migrate_safe_list_to_governance(
+    prefix_rules: &mut PrefixRuleEngine,
+    safe_list: &SafeList,
+) -> Result<(), PermissionError> {
+    let patterns = safe_list.parsed_patterns();
+    if patterns.is_empty() {
+        return Ok(());
+    }
+
+    let already_imported = prefix_rules
+        .list_rules_by_creator(CONFIG_IMPORT_CREATOR)?
+        .len();
+    if already_imported > 0 {
+        tracing::debug!(
+            already_imported,
+            "safe_list migration skipped (governance.db already contains config-import rules)"
+        );
+        return Ok(());
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let mut imported = 0u32;
+    for (tool_name, arg_prefix) in patterns {
+        let rule = PrefixRule {
+            tool_name,
+            arg_prefix,
+            action: RuleAction::Allow,
+            created_at: now,
+            created_by_agent: Some(CONFIG_IMPORT_CREATOR.to_string()),
+            scope: PermissionScope::Global,
+            ..PrefixRule::default()
+        };
+        prefix_rules.add_rule(&rule)?;
+        imported += 1;
+    }
+
+    tracing::info!(
+        count = imported,
+        "safe_list migrated to governance.db (ADR-086)"
+    );
+    Ok(())
 }
 
 // ─────────────────────────────────────────────
@@ -491,5 +564,89 @@ mod tests {
     fn extract_first_arg_empty_object_returns_none() {
         let input = json!({});
         assert!(extract_first_arg(&input).is_none());
+    }
+
+    // ─────────────────────────────────────────────
+    // Migration SafeList → governance.db (ADR-086)
+    // ─────────────────────────────────────────────
+
+    fn config_with_safe_cmds(cmds: Vec<&str>) -> PermissionsConfig {
+        PermissionsConfig {
+            safe_commands: cmds.into_iter().map(String::from).collect(),
+            injection_detection: true,
+            prefix_rule_ttl_hours: 168,
+            db_path: PathBuf::from("/tmp/test.db"),
+        }
+    }
+
+    #[test]
+    fn migrate_safe_list_imports_patterns_on_first_boot() {
+        // GIVEN une config avec deux entrées safe_commands et une DB fraîche
+        let db_file = NamedTempFile::new().expect("tempfile");
+        let config = config_with_safe_cmds(vec![
+            "bash_executor(git status)",
+            "file_read",
+        ]);
+
+        // WHEN on construit le moteur
+        let engine = PermissionEngine::new(&config, db_file.path()).expect("engine init");
+
+        // THEN deux règles config-import existent en DB
+        let imported = engine
+            .prefix_rules
+            .list_rules_by_creator(CONFIG_IMPORT_CREATOR)
+            .expect("list");
+        assert_eq!(imported.len(), 2);
+        assert!(imported.iter().all(|r| r.action == RuleAction::Allow));
+        assert!(imported.iter().all(|r| r.scope == PermissionScope::Global));
+
+        let bash_rule = imported
+            .iter()
+            .find(|r| r.tool_name == "bash_executor")
+            .expect("bash rule");
+        assert_eq!(bash_rule.arg_prefix.as_deref(), Some("git status"));
+
+        let read_rule = imported
+            .iter()
+            .find(|r| r.tool_name == "file_read")
+            .expect("file_read rule");
+        assert!(read_rule.arg_prefix.is_none());
+    }
+
+    #[test]
+    fn migrate_safe_list_is_idempotent() {
+        // GIVEN une DB partagée et une config avec un pattern
+        let db_file = NamedTempFile::new().expect("tempfile");
+        let config = config_with_safe_cmds(vec!["bash_executor(pwd)"]);
+
+        // WHEN on construit le moteur deux fois sur la même DB
+        {
+            let _engine = PermissionEngine::new(&config, db_file.path()).expect("init 1");
+        }
+        let engine2 = PermissionEngine::new(&config, db_file.path()).expect("init 2");
+
+        // THEN une seule règle config-import existe (pas de doublons)
+        let imported = engine2
+            .prefix_rules
+            .list_rules_by_creator(CONFIG_IMPORT_CREATOR)
+            .expect("list");
+        assert_eq!(imported.len(), 1);
+    }
+
+    #[test]
+    fn migrate_safe_list_empty_config_creates_no_rule() {
+        // GIVEN une config sans safe_commands
+        let db_file = NamedTempFile::new().expect("tempfile");
+        let config = empty_config();
+
+        // WHEN on construit le moteur
+        let engine = PermissionEngine::new(&config, db_file.path()).expect("init");
+
+        // THEN aucune règle config-import
+        let imported = engine
+            .prefix_rules
+            .list_rules_by_creator(CONFIG_IMPORT_CREATOR)
+            .expect("list");
+        assert!(imported.is_empty());
     }
 }

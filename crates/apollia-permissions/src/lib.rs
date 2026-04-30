@@ -33,7 +33,7 @@ pub mod prefix_rule_engine;
 pub mod safe_list;
 
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
-pub use engine::{PermissionDecision, PermissionEngine};
+pub use engine::{PermissionDecision, PermissionEngine, CONFIG_IMPORT_CREATOR};
 pub use error::PermissionError;
 pub use injection_detector::{InjectionDetector, StructuralInjectionDetector};
 pub use prefix_rule_engine::{

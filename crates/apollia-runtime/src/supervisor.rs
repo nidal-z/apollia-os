@@ -1405,6 +1405,10 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
+        // ADR-086 — gouvernance agent-driven des permissions.
+        apollia_tools::tools::permission_rules::PermissionRuleAdd::descriptor(),
+        apollia_tools::tools::permission_rules::PermissionRuleRemove::descriptor(),
+        apollia_tools::tools::permission_rules::PermissionRuleList::descriptor(),
     ];
 
     // Web tools are always advertised in the catalogue (so the UI and agent
