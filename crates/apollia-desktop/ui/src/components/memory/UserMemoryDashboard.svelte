@@ -61,7 +61,13 @@
   let isDeleting = $state(false);
 
   // ── Derived ──
-  let entries = $derived(searchResults ?? profile?.entries ?? []);
+  /** Internal keys that should not be shown to the user. */
+  const HIDDEN_KEY_PREFIXES = ["onboarding_topic_", "onboarding_skipped"];
+
+  let rawEntries = $derived(searchResults ?? profile?.entries ?? []);
+  let entries = $derived(
+    rawEntries.filter((e) => !HIDDEN_KEY_PREFIXES.some((p) => e.key.startsWith(p))),
+  );
   let isSearching = $derived(searchResults !== null);
   let isNewKeyValid = $derived(newKey.trim().length > 0);
 
@@ -109,6 +115,19 @@
   }
 
   // ── CRUD handlers ──
+  async function handleValidate(key: string): Promise<void> {
+    try {
+      await invoke("validate_user_memory", { key });
+      addToast($t("memory.user_memory.toast_validated"), "success");
+      await loadProfile();
+      if (isSearching && searchQuery.trim() !== "") {
+        searchResults = await invoke("search_user_memory", { query: searchQuery.trim() });
+      }
+    } catch (e) {
+      addToast(`${$t("memory.user_memory.toast_validate_failed")}: ${e}`, "error");
+    }
+  }
+
   async function handleUpdate(key: string, value: string): Promise<void> {
     const existing = entries.find((e) => e.key === key);
     if (!existing) return;
@@ -330,6 +349,7 @@
             onupdate={handleUpdate}
             ondelete={requestDelete}
             onrecategorize={handleRecategorize}
+            onvalidate={handleValidate}
           />
         {/each}
       </div>
