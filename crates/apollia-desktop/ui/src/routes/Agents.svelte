@@ -5,31 +5,36 @@
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
   import { agents } from "$lib/stores/agents";
-  import { connectionStatus } from "$lib/stores/sse";
+  import { connectionStatus, triggers } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { tourOpenAgentDetail } from "$lib/stores/tour";
   import {
+    AlertTriangle,
     Bot,
+    Clock,
     Download,
+    FolderOpen,
+    Loader2,
     Package,
+    Play,
     Plus,
     Search,
     Sparkles,
+    Square,
     MessageSquare,
     Settings,
+    Trash2,
+    Users,
     Zap,
   } from "lucide-svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
-  import AgentPackageCard from "../components/agents/AgentPackageCard.svelte";
-  import AgentPackageDetail from "../components/agents/AgentPackageDetail.svelte";
   import ApolliaChatConfigPanel from "../components/agents/ApolliaChatConfigPanel.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import {
     PageHeader,
-    SectionTitle,
     BtnPrimary,
     BtnSecondary,
     Chip,
@@ -49,6 +54,9 @@
     refreshPackages,
     uninstallPackage,
     getPackageDetail,
+    startPackage,
+    stopPackage,
+    packageRuntimeState,
   } from "$lib/stores/agentPackages";
   import { addToast } from "$lib/components/ui/toast/store";
 
@@ -61,15 +69,21 @@
   let detailOpen = $state(false);
 
   let installPackageOpen = $state(false);
-  let pkgDetail = $state<AgentPackageDetailView | null>(null);
-  let pkgDetailOpen = $state(false);
 
   // ── New V3 state ─────────────────────────────────────────────────────
   let query = $state("");
   let selectedName = $state<string | null>(null);
+  /** Nom du package sélectionné, ou null. Mutuellement exclusif avec selectedName. */
+  let selectedPackageName = $state<string | null>(null);
+  /** Détail du package sélectionné, chargé à la volée. */
+  let pkgDetail = $state<AgentPackageDetailView | null>(null);
   /** Pinned synthetic system agent — when true, the right column shows the
    * Apollia Chat config panel instead of an `AgentListItem` detail. */
   let apolliaChatSelected = $state(false);
+  /** Action start/stop en cours, par identifiant ("agent:NAME" ou "pkg:NAME"). */
+  let busyKeys = $state<Record<string, boolean>>({});
+  /** Confirmation désinstallation inline. */
+  let confirmUninstallPkg = $state<string | null>(null);
 
   $effect(() => {
     refreshPackages();
@@ -91,8 +105,10 @@
     );
   });
 
-  // Auto-select the first assistant when the list refreshes.
+  // Auto-select the first assistant when the list refreshes (sauf si un package ou
+  // l'agent système Apollia Chat est déjà sélectionné).
   $effect(() => {
+    if (selectedPackageName !== null || apolliaChatSelected) return;
     if (
       filteredAssistants.length > 0 &&
       (selectedName === null ||
@@ -102,6 +118,37 @@
     }
     if (filteredAssistants.length === 0) {
       selectedName = null;
+    }
+  });
+
+  // Filtered packages (same query as assistants).
+  const filteredPackages = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length === 0) return $agentPackages;
+    return $agentPackages.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q),
+    );
+  });
+
+  const selectedPackage = $derived(
+    selectedPackageName === null
+      ? null
+      : ($agentPackages.find((p) => p.name === selectedPackageName) ?? null),
+  );
+
+  const selectedPackageState = $derived(
+    selectedPackage
+      ? packageRuntimeState(selectedPackage, $agents, $triggers)
+      : null,
+  );
+
+  // If the selected package gets uninstalled, clear selection.
+  $effect(() => {
+    if (selectedPackageName !== null && selectedPackage === null) {
+      selectedPackageName = null;
+      pkgDetail = null;
     }
   });
 
@@ -228,25 +275,111 @@
     }
   }
 
-  async function openPkgDetail(pkg: AgentPackageListItem) {
+  async function selectPackage(pkg: AgentPackageListItem) {
+    selectedPackageName = pkg.name;
+    selectedName = null;
+    apolliaChatSelected = false;
+    pkgDetail = null;
+    confirmUninstallPkg = null;
     try {
       pkgDetail = await getPackageDetail(pkg.name);
-      pkgDetailOpen = true;
-    } catch {
-      pkgDetailOpen = false;
-    }
-  }
-
-  async function handleUninstallPkg(pkg: AgentPackageListItem) {
-    try {
-      await uninstallPackage(pkg.name);
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     }
   }
 
+  async function handleUninstallPkg(name: string) {
+    try {
+      await uninstallPackage(name);
+      if (selectedPackageName === name) {
+        selectedPackageName = null;
+        pkgDetail = null;
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      confirmUninstallPkg = null;
+    }
+  }
+
   async function handlePkgInstalled(_result: InstallPackageResponse) {
     await refreshPackages();
+  }
+
+  // ── Inline start/stop actions ────────────────────────────────────────
+  function setBusy(key: string, value: boolean) {
+    busyKeys = { ...busyKeys, [key]: value };
+  }
+
+  async function toggleAgentRuntime(a: AgentListItem) {
+    const key = `agent:${a.name}`;
+    if (busyKeys[key]) return;
+    setBusy(key, true);
+    try {
+      if (isActive(a)) {
+        if (a.id) await invoke("stop_agent", { agentId: a.id });
+      } else {
+        if (a.install_path) {
+          await invoke("start_agent", { path: a.install_path });
+        } else {
+          addToast(
+            `Impossible de démarrer ${a.name} : install_path manquant.`,
+            "error",
+          );
+        }
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBusy(key, false);
+    }
+  }
+
+  async function togglePackageRuntime(pkg: AgentPackageListItem) {
+    const key = `pkg:${pkg.name}`;
+    if (busyKeys[key]) return;
+    const state = packageRuntimeState(pkg, $agents, $triggers);
+    setBusy(key, true);
+    try {
+      const result =
+        state.status === "running" || state.status === "partial"
+          ? await stopPackage(pkg, $agents, $triggers)
+          : await startPackage(pkg, $agents, $triggers);
+      if (result.errors.length > 0) {
+        addToast(
+          `Package ${pkg.name} : ${result.errors.length} erreur(s) — ${result.errors[0]}`,
+          "error",
+        );
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBusy(key, false);
+    }
+  }
+
+  function packageStatusTone(
+    s: ReturnType<typeof packageRuntimeState>,
+  ): "success" | "warning" | "neutral" {
+    if (s.status === "running") return "success";
+    if (s.status === "partial") return "warning";
+    return "neutral";
+  }
+
+  function packageStatusLabel(
+    s: ReturnType<typeof packageRuntimeState>,
+  ): string {
+    if (s.status === "running") return "actif";
+    if (s.status === "partial") return "partiel";
+    return "arrêté";
+  }
+
+  function packageStatusColor(
+    s: ReturnType<typeof packageRuntimeState>,
+  ): string {
+    if (s.status === "running") return "hsl(var(--success))";
+    if (s.status === "partial") return "hsl(var(--warning))";
+    return "hsl(var(--muted-foreground))";
   }
 
   // Open the agent detail panel when the tour requests it programmatically.
@@ -313,11 +446,6 @@
     >
       <div class="px-[18px] pb-[10px] pt-4">
         <div
-          class="font-mono mb-2.5 text-[10.5px] font-semibold uppercase tracking-[1.5px] text-muted-foreground/80"
-        >
-          Mes assistants · {filteredAssistants.length}
-        </div>
-        <div
           class="flex items-center gap-[7px] rounded-md border border-border bg-surface-1 px-2.5 py-[7px]"
         >
           <Search size={11} class="text-muted-foreground" />
@@ -332,12 +460,19 @@
       </div>
 
       <div class="flex-1 overflow-y-auto px-2.5 pb-2">
+        <!-- Section header: assistants -->
+        <div
+          class="font-mono mb-1.5 mt-1 px-2 text-[10px] font-semibold uppercase tracking-[1.4px] text-muted-foreground/80"
+        >
+          Mes assistants · {filteredAssistants.length}
+        </div>
         <!-- Pinned system agent: Apollia Chat -->
         <button
           type="button"
           onclick={() => {
             apolliaChatSelected = true;
             selectedName = null;
+            selectedPackageName = null;
           }}
           class="mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors {apolliaChatSelected
             ? 'bg-primary/10'
@@ -407,52 +542,165 @@
           </div>
         {:else}
           {#each filteredAssistants as agent (agent.name)}
-            {@const active = agent.name === selectedName}
-            <button
-              type="button"
-              onclick={() => {
-                selectedName = agent.name;
-                apolliaChatSelected = false;
-              }}
-              class="mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors {active
+            {@const active = agent.name === selectedName && !apolliaChatSelected && selectedPackageName === null}
+            {@const running = isActive(agent)}
+            {@const transitioning = agent.runtime_status === "initializing" || agent.runtime_status === "stopping"}
+            {@const busy = busyKeys[`agent:${agent.name}`] === true || transitioning}
+            <div
+              class="group mb-0.5 flex w-full items-center gap-1 rounded-lg pr-1 transition-colors {active
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
-              data-testid="agent-list-row"
-              data-agent-name={agent.name}
             >
-              <div
-                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                style="background: {isActive(agent)
-                  ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
-                  : 'hsl(var(--surface-1))'}; color: {isActive(agent)
-                  ? 'white'
-                  : 'hsl(var(--primary))'}; border: {isActive(agent)
-                  ? 'none'
-                  : '1px solid hsl(var(--border))'};"
+              <button
+                type="button"
+                onclick={() => {
+                  selectedName = agent.name;
+                  apolliaChatSelected = false;
+                  selectedPackageName = null;
+                }}
+                class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
+                data-testid="agent-list-row"
+                data-agent-name={agent.name}
               >
-                <Sparkles size={13} />
-              </div>
-              <div class="min-w-0 flex-1">
                 <div
-                  class="flex items-center gap-1.5 text-[12.5px] {active
-                    ? 'font-semibold text-foreground'
-                    : 'font-medium text-foreground'}"
+                  class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                  style="background: {running
+                    ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
+                    : 'hsl(var(--surface-1))'}; color: {running
+                    ? 'white'
+                    : 'hsl(var(--primary))'}; border: {running
+                    ? 'none'
+                    : '1px solid hsl(var(--border))'};"
                 >
-                  <span class="truncate">{agent.name}</span>
-                  {#if isActive(agent)}
-                    <StatusDot color={statusColor(agent)} glow size={5} />
-                  {:else if isIdle(agent)}
-                    <StatusDot color={statusColor(agent)} size={5} />
-                  {/if}
+                  <Sparkles size={13} />
                 </div>
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="flex items-center gap-1.5 text-[12.5px] {active
+                      ? 'font-semibold text-foreground'
+                      : 'font-medium text-foreground'}"
+                  >
+                    <span class="truncate">{agent.name}</span>
+                    {#if running}
+                      <StatusDot color={statusColor(agent)} glow size={5} />
+                    {:else if isIdle(agent)}
+                      <StatusDot color={statusColor(agent)} size={5} />
+                    {/if}
+                  </div>
+                  <div class="truncate text-[10.5px] text-muted-foreground">
+                    {agent.description ?? statusLabel(agent)}
+                  </div>
+                </div>
+                <Chip size="sm" tone="neutral">{kindLabel(agent)}</Chip>
+              </button>
+              <button
+                type="button"
+                onclick={() => toggleAgentRuntime(agent)}
+                disabled={busy || (!running && !agent.install_path)}
+                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                aria-label={running ? `Arrêter ${agent.name}` : `Démarrer ${agent.name}`}
+                title={running ? "Arrêter" : "Démarrer"}
+                data-testid="agent-list-toggle"
+                data-agent-name={agent.name}
+              >
+                {#if busy}
+                  <Loader2 size={13} class="animate-spin" />
+                {:else if running}
+                  <Square size={12} fill="currentColor" />
+                {:else}
+                  <Play size={13} fill="currentColor" />
+                {/if}
+              </button>
+            </div>
+          {/each}
+        {/if}
+
+        <!-- Section header: packages -->
+        <div
+          class="font-mono mb-1.5 mt-4 px-2 text-[10px] font-semibold uppercase tracking-[1.4px] text-muted-foreground/80"
+        >
+          Mes packages · {filteredPackages.length}
+        </div>
+        {#if filteredPackages.length === 0}
+          <div class="px-2 py-3 text-[11px] text-muted-foreground/70">
+            {query.length > 0
+              ? "Aucun package."
+              : "Aucun package installé."}
+          </div>
+        {:else}
+          {#each filteredPackages as pkg (pkg.name)}
+            {@const pkgActive = pkg.name === selectedPackageName}
+            {@const pkgState = packageRuntimeState(pkg, $agents, $triggers)}
+            {@const pkgRunning = pkgState.status === "running" || pkgState.status === "partial"}
+            {@const pkgBusy = busyKeys[`pkg:${pkg.name}`] === true}
+            <div
+              class="group mb-0.5 flex w-full items-center gap-1 rounded-lg pr-1 transition-colors {pkgActive
+                ? 'bg-primary/10'
+                : 'hover:bg-surface-1'}"
+            >
+              <button
+                type="button"
+                onclick={() => selectPackage(pkg)}
+                class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
+                data-testid="package-list-row"
+                data-package-name={pkg.name}
+              >
                 <div
-                  class="truncate text-[10.5px] text-muted-foreground"
+                  class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                  style="background: {pkgState.status === 'running'
+                    ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
+                    : 'hsl(var(--surface-1))'}; color: {pkgState.status === 'running'
+                    ? 'white'
+                    : 'hsl(var(--primary))'}; border: {pkgState.status === 'running'
+                    ? 'none'
+                    : '1px solid hsl(var(--border))'};"
                 >
-                  {agent.description ?? statusLabel(agent)}
+                  <Package size={13} />
                 </div>
-              </div>
-              <Chip size="sm" tone="neutral">{kindLabel(agent)}</Chip>
-            </button>
+                <div class="min-w-0 flex-1">
+                  <div
+                    class="flex items-center gap-1.5 text-[12.5px] {pkgActive
+                      ? 'font-semibold text-foreground'
+                      : 'font-medium text-foreground'}"
+                  >
+                    <span class="truncate">{pkg.name}</span>
+                    {#if pkg.root_missing}
+                      <AlertTriangle size={10} class="shrink-0 text-destructive/70" />
+                    {:else}
+                      <StatusDot
+                        color={packageStatusColor(pkgState)}
+                        glow={pkgState.status === "running"}
+                        size={5}
+                      />
+                    {/if}
+                  </div>
+                  <div class="truncate text-[10.5px] text-muted-foreground">
+                    {pkgState.runningAgents}/{pkgState.totalAgents} agents · {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
+                  </div>
+                </div>
+                <Chip size="sm" tone={packageStatusTone(pkgState)}>
+                  {packageStatusLabel(pkgState)}
+                </Chip>
+              </button>
+              <button
+                type="button"
+                onclick={() => togglePackageRuntime(pkg)}
+                disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
+                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                aria-label={pkgRunning ? `Arrêter ${pkg.name}` : `Démarrer ${pkg.name}`}
+                title={pkgRunning ? "Tout arrêter" : "Tout démarrer"}
+                data-testid="package-list-toggle"
+                data-package-name={pkg.name}
+              >
+                {#if pkgBusy}
+                  <Loader2 size={13} class="animate-spin" />
+                {:else if pkgRunning}
+                  <Square size={12} fill="currentColor" />
+                {:else}
+                  <Play size={13} fill="currentColor" />
+                {/if}
+              </button>
+            </div>
           {/each}
         {/if}
       </div>
@@ -490,6 +738,234 @@
 
         <div class="px-8 pt-[18px] pb-8">
           <ApolliaChatConfigPanel />
+        </div>
+      {:else if selectedPackage}
+        {@const pkg = selectedPackage}
+        {@const pkgState = selectedPackageState!}
+        {@const pkgRunning = pkgState.status === "running" || pkgState.status === "partial"}
+        {@const pkgBusy = busyKeys[`pkg:${pkg.name}`] === true}
+        <!-- Header -->
+        <div class="border-b border-border/40 px-8 pb-4 pt-[22px]">
+          <div class="flex items-start gap-3.5">
+            <div
+              class="inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl"
+              style="background: {pkgState.status === 'running'
+                ? 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))'
+                : 'hsl(var(--surface-1))'}; color: {pkgState.status === 'running'
+                ? 'white'
+                : 'hsl(var(--primary))'}; border: {pkgState.status === 'running'
+                ? 'none'
+                : '1px solid hsl(var(--border))'};"
+            >
+              <Package size={20} />
+            </div>
+            <div class="min-w-0 flex-1">
+              <h2
+                class="m-0 text-foreground"
+                style="font-size: 22px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.2;"
+                data-testid="package-detail-title"
+              >
+                {pkg.name}
+              </h2>
+              <p class="mt-1 max-w-[540px] text-[12.5px] leading-[1.5] text-muted-foreground">
+                {pkg.description || "Package d'agents Apollia."}
+              </p>
+            </div>
+            <div class="flex shrink-0 gap-1.5">
+              {#if confirmUninstallPkg === pkg.name}
+                <BtnSecondary onclick={() => (confirmUninstallPkg = null)}>
+                  Annuler
+                </BtnSecondary>
+                <BtnPrimary onclick={() => handleUninstallPkg(pkg.name)}>
+                  {#snippet icon()}
+                    <Trash2 size={12} />
+                  {/snippet}
+                  Confirmer
+                </BtnPrimary>
+              {:else}
+                <BtnSecondary
+                  onclick={() => (confirmUninstallPkg = pkg.name)}
+                >
+                  {#snippet icon()}
+                    <Trash2 size={12} />
+                  {/snippet}
+                  Désinstaller
+                </BtnSecondary>
+                <BtnPrimary
+                  onclick={() => togglePackageRuntime(pkg)}
+                  disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
+                >
+                  {#snippet icon()}
+                    {#if pkgBusy}
+                      <Loader2 size={12} class="animate-spin" />
+                    {:else if pkgRunning}
+                      <Square size={12} fill="currentColor" />
+                    {:else}
+                      <Play size={12} fill="currentColor" />
+                    {/if}
+                  {/snippet}
+                  {pkgRunning ? "Tout arrêter" : "Tout démarrer"}
+                </BtnPrimary>
+              {/if}
+            </div>
+          </div>
+          <div class="mt-3.5 flex flex-wrap gap-2">
+            <Chip size="sm" tone={packageStatusTone(pkgState)}>
+              {#snippet icon()}
+                <StatusDot
+                  color={packageStatusColor(pkgState)}
+                  glow={pkgState.status === "running"}
+                  size={5}
+                />
+              {/snippet}
+              {packageStatusLabel(pkgState)}
+            </Chip>
+            <Chip size="sm" tone="neutral">v{pkg.version}</Chip>
+            <Chip size="sm" tone="neutral">
+              {pkgState.runningAgents}/{pkgState.totalAgents} agents
+            </Chip>
+            <Chip size="sm" tone="neutral">
+              {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
+            </Chip>
+            {#if pkg.root_missing}
+              <Chip size="sm" tone="warning">
+                {#snippet icon()}
+                  <AlertTriangle size={10} />
+                {/snippet}
+                source manquante
+              </Chip>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="px-8 pt-[18px] pb-8">
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <!-- Meta -->
+            <Card class="p-[14px_16px]">
+              <div class="mb-2 text-[12.5px] font-semibold text-foreground">
+                Informations
+              </div>
+              <div class="flex flex-col gap-2 text-[11.5px] text-muted-foreground">
+                <div class="flex items-center gap-1.5">
+                  <Clock size={11} />
+                  <span>
+                    Installé le {new Date(pkg.installed_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <FolderOpen size={11} class="shrink-0" />
+                  <span class="truncate font-mono text-[11px]" title={pkg.root_path}>
+                    {pkg.root_path}
+                  </span>
+                </div>
+                {#if pkgDetail?.author}
+                  <div class="flex items-center gap-1.5">
+                    <Users size={11} />
+                    <span>{pkgDetail.author}</span>
+                  </div>
+                {/if}
+              </div>
+            </Card>
+
+            <!-- Agents -->
+            <Card class="p-[14px_16px]">
+              <div class="mb-2.5 flex items-center justify-between">
+                <span class="text-[12.5px] font-semibold text-foreground">
+                  Agents · {pkg.agents.length}
+                </span>
+              </div>
+              {#if pkg.agents.length === 0}
+                <div class="py-4 text-center text-[11.5px] text-muted-foreground">
+                  Aucun agent.
+                </div>
+              {:else}
+                {#each pkg.agents as pa, i (pa.name)}
+                  {@const linked = $agents.find((x) => x.name === pa.name) ?? null}
+                  {@const linkedRunning = linked ? isActive(linked) : false}
+                  <div
+                    class="flex items-center gap-2.5 py-2 {i === pkg.agents.length - 1
+                      ? ''
+                      : 'border-b border-border/40'}"
+                  >
+                    <div class="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onclick={() => {
+                          if (linked) {
+                            selectedName = linked.name;
+                            selectedPackageName = null;
+                          }
+                        }}
+                        disabled={!linked}
+                        class="block w-full truncate text-left text-[12.5px] font-medium text-foreground hover:underline disabled:no-underline disabled:opacity-60"
+                      >
+                        {pa.name}
+                      </button>
+                      <div class="mt-0.5 truncate text-[10.5px] text-muted-foreground">
+                        {pa.entry}
+                      </div>
+                    </div>
+                    <Chip size="sm" tone={pa.role === "director" ? "info" : "neutral"}>
+                      {pa.role}
+                    </Chip>
+                    {#if linked}
+                      <StatusDot
+                        color={statusColor(linked)}
+                        glow={linkedRunning}
+                        size={5}
+                      />
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
+            </Card>
+
+            <!-- Triggers -->
+            <Card class="p-[14px_16px] lg:col-span-2">
+              {@const pkgNamesSet = new Set(pkg.agents.map((x) => x.name))}
+              {@const pkgTriggers = $triggers.filter((t) => pkgNamesSet.has(t.agent))}
+              <div class="mb-2.5 flex items-center justify-between">
+                <span class="text-[12.5px] font-semibold text-foreground">
+                  Triggers · {pkgTriggers.length}
+                </span>
+                <span class="font-mono text-[10.5px] text-muted-foreground">
+                  {pkgState.enabledTriggers} actifs
+                </span>
+              </div>
+              {#if pkgTriggers.length === 0}
+                <div class="py-4 text-center text-[11.5px] text-muted-foreground">
+                  Aucun trigger configuré.
+                </div>
+              {:else}
+                {#each pkgTriggers as tr, i (tr.id)}
+                  <div
+                    class="flex items-center gap-2.5 py-2 {i === pkgTriggers.length - 1
+                      ? ''
+                      : 'border-b border-border/40'}"
+                  >
+                    <div
+                      class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-primary/10 text-primary"
+                    >
+                      <Zap size={11} />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="font-mono truncate text-[12px] font-medium text-foreground">
+                        {tr.id}
+                      </div>
+                      <div class="truncate text-[10.5px] text-muted-foreground">
+                        {tr.agent} · {tr.source_kind}
+                        {tr.source_config ? ` · ${tr.source_config}` : ""}
+                      </div>
+                    </div>
+                    <Chip size="sm" tone={tr.enabled ? "success" : "neutral"}>
+                      {tr.enabled ? "actif" : "inactif"}
+                    </Chip>
+                  </div>
+                {/each}
+              {/if}
+            </Card>
+          </div>
         </div>
       {:else if selected}
         {@const a = selected}
@@ -756,24 +1232,6 @@
               </BtnSecondary>
             </div>
           {/if}
-
-          <!-- Packages section -->
-          {#if $agentPackages.length > 0}
-            <div class="mt-8">
-              <SectionTitle>Packages installés · {$agentPackages.length}</SectionTitle>
-              <div
-                class="mt-3 grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-              >
-                {#each $agentPackages as pkg (pkg.name)}
-                  <AgentPackageCard
-                    {pkg}
-                    ondetail={openPkgDetail}
-                    onuninstall={handleUninstallPkg}
-                  />
-                {/each}
-              </div>
-            </div>
-          {/if}
         </div>
       {:else if $connectionStatus === "connecting"}
         <div class="flex flex-1 items-center justify-center px-8">
@@ -822,17 +1280,4 @@
   open={installPackageOpen}
   onclose={() => (installPackageOpen = false)}
   oninstalled={handlePkgInstalled}
-/>
-
-<AgentPackageDetail
-  pkg={pkgDetail}
-  open={pkgDetailOpen}
-  onclose={() => (pkgDetailOpen = false)}
-  onuninstall={async (name) => {
-    try {
-      await uninstallPackage(name);
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), "error");
-    }
-  }}
 />

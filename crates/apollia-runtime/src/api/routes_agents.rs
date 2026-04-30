@@ -240,6 +240,11 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 /// to Active (or Degraded if optional tools are missing), and creates an
 /// [`ExecutionCoordinator`] registered with the [`TaskRouter`].
 ///
+/// Tool resolution is delegated to [`apollia_tools::resolve`] which handles
+/// the `a2a:` prefix correctly (A2A dependencies live in the ToolProxy
+/// allowed_tools list, not in the ToolRegistry, and must not trigger
+/// DEGRADED). A missing `tools_required` entry returns 400 Bad Request.
+///
 /// Returns 201 Created with the agent_id and state.
 /// Returns 400 Bad Request if the Python module is invalid.
 pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
@@ -248,19 +253,28 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
     let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
 
+    // Délègue la résolution des outils à `apollia_tools::resolve` (source unique).
+    // Le resolver gère les dépendances A2A (préfixe `a2a:`) qui ne sont pas dans
+    // le ToolRegistry et ne doivent pas faire passer l'agent en DEGRADED.
     let has_missing_optional = match &state.tool_registry_handle {
-        Some(registry) => {
-            let mut missing = false;
-            for name in &manifest.tools_optional {
-                if registry.get(name).await.ok().flatten().is_none() {
-                    missing = true;
-                    break;
-                }
+        Some(registry) => match apollia_tools::resolve(&manifest, registry).await {
+            Ok(report) => matches!(report.status, apollia_tools::ResolutionStatus::Degraded),
+            Err(e) => {
+                // tools_required manquant → 400 Bad Request (Principe #4 fail-fast).
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: format!("tool resolution failed: {e}"),
+                    }),
+                ));
             }
-            missing
-        }
-        // No registry available — treat all optional tools as missing.
-        None => !manifest.tools_optional.is_empty(),
+        },
+        // No registry available (test harness fallback) — treat non-A2A optional tools
+        // as missing. A2A deps are resolved at invocation, never at boot.
+        None => manifest
+            .tools_optional
+            .iter()
+            .any(|name| !name.starts_with("a2a:")),
     };
     let max_concurrent = manifest.max_concurrent_tasks;
     // Clone manifest before consuming it in register() — needed for factory below.
@@ -1119,5 +1133,112 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
         assert_eq!(json["state"], "degraded");
+    }
+
+    #[tokio::test]
+    async fn test_start_agent_with_a2a_optional_dep_is_active() {
+        // GIVEN — un agent qui ne déclare que des dépendances A2A en tools_optional.
+        // Le ToolRegistry est vide ; la résolution A2A se fait à l'invocation, pas au boot.
+        // L'agent doit donc démarrer en Active, pas Degraded.
+        struct A2aOnlyLoader;
+        impl AgentLoader for A2aOnlyLoader {
+            fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
+                Ok(AgentManifest {
+                    name: "a2a-director".to_string(),
+                    version: "1.0.0".to_string(),
+                    description: "director with only A2A optional deps".to_string(),
+                    tools_required: vec![],
+                    tools_optional: vec![
+                        "a2a:search-and-extract".to_string(),
+                        "a2a:synthesize-report".to_string(),
+                    ],
+                    supports_streaming: false,
+                    supports_a2a: true,
+                    memory_namespace: None,
+                    shared_memory_namespaces: vec![],
+                    max_concurrent_tasks: 1,
+                    step_budget: None,
+                    network_allowlist: None,
+                    dangerous_tools_allowed: false,
+                    tags: vec![],
+                    skills: vec![],
+                    execution_mode: "direct".to_string(),
+                    system_prompt: None,
+                    tools_requiring_approval: vec![],
+                    llm_backend: None,
+                    packages: vec![],
+                    memory_config: None,
+                    agent_type: None,
+                    examples: vec![],
+                    limitations: vec![],
+                    setup_notes: None,
+                    agent_class: None,
+                    user_memory_write: false,
+                })
+            }
+        }
+
+        let (event_tx, _) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        let tool_registry = apollia_tools::ToolRegistryHandle::start();
+        let state = AppState {
+            router_handle,
+            registry_handle: registry_handle.clone(),
+            event_sender: event_tx,
+            agent_loader: Arc::new(A2aOnlyLoader),
+            backend: MockBackend,
+            llm_router: None,
+            trigger_engine: None,
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            notification_config: None,
+            backend_factory: None,
+            tool_registry_handle: Some(tool_registry.clone()),
+            audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: None,
+            notification_repo: None,
+            notification_engine_handle: None,
+            chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
+            user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
+            mcp_handle: None,
+            mcp_server_repo: None,
+            llm_backend_repo: None,
+            stt_config_repo: None,
+            a2a_invoker: None,
+        };
+        let router = Router::new()
+            .route(
+                "/api/v1/agents",
+                get(list_agents::<MockBackend>).post(start_agent::<MockBackend>),
+            )
+            .with_state(state);
+
+        let body = serde_json::json!({"agent_path": "/path/to/a2a_director.py"});
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/agents")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 201 avec state "active" (pas "degraded")
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let json = body_json(resp).await;
+        assert_eq!(
+            json["state"], "active",
+            "agent with only A2A optional deps must be Active, not Degraded — got: {json}"
+        );
+
+        tool_registry.shutdown().await;
     }
 }
