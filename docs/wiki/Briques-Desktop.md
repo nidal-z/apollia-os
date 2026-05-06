@@ -98,7 +98,7 @@ crates/apollia-desktop/
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte, DelegationTree.svelte
         │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte
-        │   └── onboarding/    ← OnboardingModal.svelte
+        │   └── onboarding/    ← OnboardingModal + Welcome/ProfileSelector/AiSetup/ChatStep
         └── routes/            ← 14 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
 ```
 
@@ -557,13 +557,22 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 ---
 
-## 5. Onboarding agent-driven (modal)
+## 5. Onboarding multi-etapes (v2.2.0)
 
-L'onboarding s'affiche au premier lancement sous forme de modal overlay pilote par l'agent `onboarding-agent` v2.1.0. Il n'y a plus de machine a etats ni d'ecrans fullscreen sequentiels.
+L'onboarding s'affiche au premier lancement (et apres une reinitialisation) sous forme de modal overlay multi-etapes. Quatre etapes consecutives, orchestrees cote frontend avec persistance backend de la phase courante.
 
-### 5.1 Composant unique
+### 5.1 Composants
 
-`OnboardingModal.svelte` — modal centree (`max-width: 720px`, `height: min(80vh, 720px)`, `z-index: 80`). Affiche `ChatConversation` embarque avec un indicateur de 4 tours. Fermeture automatique sur evenement `OnboardingCompleted` ou via le bouton "Configurer plus tard" (`dismiss_onboarding`).
+`OnboardingModal.svelte` — orchestrateur central. Modal centree (`max-width: 720px`, `max-height: 90vh`, `z-index: 80`, hauteur etendue `min(86vh, 760px)` pour les etapes `ai-setup` et `chat`). Maintient l'etat local `currentStep` et synchronise la phase backend via `advance_onboarding_phase`.
+
+| # | Etape | Composant |
+|---|---|---|
+| 1 | Accueil | `OnboardingWelcome.svelte` |
+| 2 | Profil (operator/builder) | `OnboardingProfileSelector.svelte` |
+| 3 | Modeles (LLM + STT + HuggingFace) | `OnboardingAiSetup.svelte` |
+| 4 | Calibrage agent (chat 4 tours) | `OnboardingChatStep.svelte` |
+
+Rail de progression visible en haut du modal (4 etapes nommees). Chaque etape est un composant autonome qui emet `onnext` / `onback` / `onskip` / `onopencloud` selon les besoins.
 
 ### 5.2 Ouverture du modal
 
@@ -571,10 +580,15 @@ Le store `onboardingModalOpen: Writable<boolean>` (dans `lib/stores/onboarding.t
 - Au demarrage : `get_onboarding_state` retourne `!completed && !skipped && started_at === null`
 - Via le canal `runtime-event` : categorie `onboarding-changed`, type `OnboardingRequired`
 - Via la commande palette (action "Relancer l'onboarding")
+- Lorsque `$llmBackends` passe de 0 a >=1 et que l'onboarding doit encore se faire (cas du retour apres ajout d'un backend cloud)
 
-### 5.3 IPC Onboarding
+### 5.3 Reprise de parcours
 
-Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete, les types TypeScript et les RuntimeEvents.
+Au montage, `restoreStepFromBackend()` lit `get_onboarding_state` et saute directement a l'etape correspondant a la phase persistee (`welcome` -> Accueil, `profile_choice` -> Profil, `ai_setup` -> Modeles, `acquaintance`/`guided_tour`/`graduation`/`done` -> Calibrage). Le parcours est donc resumable across restarts et apres une sortie vers `/llm`.
+
+### 5.4 IPC Onboarding
+
+Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete (incluant les commandes specifiques a l'etape `ai-setup` : `get_ai_setup_info`, `scan_for_gguf_models`, `start_model_download`, `search_hf_models`, etc.), les types TypeScript et les RuntimeEvents.
 
 ---
 

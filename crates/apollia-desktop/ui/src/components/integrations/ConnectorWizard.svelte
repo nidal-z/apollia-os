@@ -84,7 +84,6 @@
       void isDisclaimerVersionAccepted().then((v) => {
         disclaimerVersionOk = v;
         if (v) {
-          // Auto-populate so the user doesn't have to re-click.
           disclaimerChecks = {
             code_on_machine: true,
             external_data: true,

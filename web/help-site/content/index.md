@@ -1,1 +1,1 @@
-/Users/nidalzoumita/dev/apollia-v2/help/index.md
+/Users/nidalzoumita/dev/apollia-v2/docs/help/index.md

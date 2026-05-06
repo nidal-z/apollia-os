@@ -19,24 +19,24 @@ participant "Worker Agent" as worker #2d4a22
 director -> ctx : ctx.tools.call("a2a:read-excel", args)
 ctx -> ctx : name starts with "a2a:" ?\n→ route to A2AInvoker
 
-ctx -> invoker : invoke("read-excel", args,\ncaller="director", depth=0,\nchain_deadline=None)
+ctx -> invoker : invoke("read-excel", args,\ncaller="director",\nparent_chain=[])
 
-== Garde-fou 1 : Profondeur maximale ==
+== Garde-fou 1 : Limite de hops (max_hops=5) ==
 
-invoker -> invoker : depth (0) >= max_depth (3) ?\n→ Non → passe
+invoker -> invoker : parent_chain.len() (0) >= max_hops (5) ?\n→ Non → passe
 note right of invoker #FFCCCC
-  Si depth >= max_depth :
-  return Err(MaxDepthExceeded)
-  + emit A2AGuardTriggered
+  Si parent_chain.len() >= max_hops :
+  return Err(MaxHopsExceeded { limit: 5 })
+  (ADR-D7, défaut runtime : 5)
 end note
 
-== Garde-fou 2 : Chain deadline ==
+== Garde-fou 2 : Cycle detection ==
 
-invoker -> invoker : chain_deadline = None ?\n→ Oui → init à now() + 300s
+invoker -> invoker : parent_chain contains "director" ?\n→ Non → passe
 note right of invoker #FFCCCC
-  Si chain_deadline expirée :
-  return Err(ChainTimeoutExceeded)
-  + emit A2AGuardTriggered
+  Si current_agent in parent_chain :
+  return Err(CycleDetected)
+  Protège contre A → B → A
 end note
 
 == Garde-fou 3 : Résolution skill ==
@@ -50,15 +50,15 @@ invoker -> invoker : caller == target ?\n"director" != "excel-worker"\n→ Non �
 note right of invoker #FFCCCC
   Si caller == target :
   return Err(SelfInvocation)
-  + emit A2AGuardTriggered
 end note
 
 == Invocation effective ==
 
 invoker -> bus : A2AInvocationStarted\n{caller, skill_id, target}
 
-invoker -> worker : delegate(task, ctx_a2a)\ntimeout = min(120s, chain_remaining)
-note over worker : user_memory_read_only = true\na2a_depth = 1
+invoker -> invoker : child_chain = [*parent_chain, "director"]
+invoker -> worker : delegate(task, ctx_a2a)\ndelegation_chain = ["director"]
+note over worker : user_memory_read_only = true\ndelegation_chain.len() = 1
 
 worker --> invoker : A2AInvocationResult\n{result, duration_ms}
 

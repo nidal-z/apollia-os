@@ -9,6 +9,7 @@ export const sidebar: DefaultTheme.Sidebar = [
     text: 'Installation',
     collapsed: false,
     items: [
+      { text: 'Configurer votre profil', link: '/installation/configurer-votre-profil' },
       { text: 'Connecter un fournisseur d\'IA', link: '/installation/connecter-un-fournisseur-d-ia' },
       { text: 'Télécharger des modèles locaux', link: '/installation/telecharger-des-modeles-locaux' },
     ],
@@ -53,14 +54,6 @@ export const sidebar: DefaultTheme.Sidebar = [
     items: [
       { text: 'Programmer un trigger', link: '/automatisations/programmer-un-trigger' },
       { text: 'Suivre l\'historique d\'un trigger', link: '/automatisations/suivre-l-historique-d-un-trigger' },
-    ],
-  },
-  {
-    text: 'Pipelines',
-    collapsed: false,
-    items: [
-      { text: 'Lancer un pipeline', link: '/pipelines/lancer-un-pipeline' },
-      { text: 'Approuver une étape HITL', link: '/pipelines/approuver-une-etape-hitl' },
     ],
   },
   {

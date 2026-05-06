@@ -37,15 +37,17 @@ Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques se
 
 ## Étape 4 — Après la réinitialisation
 
-1. Apollia redémarre automatiquement et affiche l'écran d'accueil initial. Si le redémarrage automatique échoue (environnement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
-2. Reconfigurez votre fournisseur d'IA : voir [Connecter un fournisseur d'IA](../installation/connecter-un-fournisseur-d-ia.md).
-3. Réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
-4. Si vous avez exporté votre mémoire via la CLI, réimportez-la avec `apollia-os memory import`.
+1. Apollia redémarre automatiquement. Si le redémarrage automatique échoue (environnement de développement sans bundle packagé), un bandeau orange vous invite à relancer l'application manuellement.
+2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
+3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) — la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un fournisseur d'IA](../installation/connecter-un-fournisseur-d-ia.md) si vous préférez ne pas passer par le parcours intégré.
+4. Une fois le parcours terminé, réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
+5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import`.
 
 ## Si quelque chose se passe mal
 
 - **Apollia ne redémarre pas après la réinitialisation :** lancez l'application manuellement depuis votre menu d'applications.
-- **L'écran d'onboarding ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Contactez le support en précisant l'instant exact du reset.
+- **Le parcours de configuration ne s'affiche pas :** la réinitialisation a peut-être échoué partiellement. Vérifiez que `~/.apollia/` est absent ou vide — sinon, supprimez-le manuellement et relancez. Si le problème persiste, contactez le support en précisant l'instant exact du reset.
+- **Le bouton Continuer reste grisé à l'étape Modèles :** c'est normal tant qu'aucun LLM n'est configuré. Téléchargez un modèle GGUF depuis la liste curée, ou cliquez sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic, OpenAI ou Ollama. Le parcours reprend automatiquement après l'ajout du backend.
 - **Vous regrettez la suppression :** restaurez vos sauvegardes de l'étape 1. Sans sauvegarde, les données sont définitivement perdues.
 
 > **Concept :** [Securite-Donnees-Locales](https://github.com/nidal-z/apollia-os/wiki/Securite-Donnees-Locales) — comprendre où Apollia stocke vos données et ce qui est effacé exactement lors d'une réinitialisation.

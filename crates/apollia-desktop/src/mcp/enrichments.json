@@ -17,7 +17,15 @@
     },
     "default_requires_approval": true,
     "remote_url": "https://mcp.notion.com/mcp",
-    "remote_transport": "streamable-http"
+    "remote_transport": "streamable-http",
+    "remote_headers": [
+      {
+        "name": "Authorization",
+        "description": "Notion integration token (format: Bearer secret_xxxxxx)",
+        "is_required": true,
+        "is_secret": true
+      }
+    ]
   },
   {
     "package_identifier": "@anthropic/mcp-server-brave-search",

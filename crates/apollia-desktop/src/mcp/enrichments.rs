@@ -44,6 +44,29 @@ pub struct ConnectorEnrichment {
     /// Environment variable names required by this package (for synthetic entries).
     #[serde(default)]
     pub package_env_vars: Vec<EnrichmentEnvVar>,
+    /// Fallback auth headers for remote connectors when the registry entry
+    /// does not declare its own headers. Registry data takes precedence.
+    #[serde(default)]
+    pub remote_headers: Vec<EnrichmentRemoteHeader>,
+}
+
+/// An HTTP header required by a remote enrichment connector.
+///
+/// Used as a fallback when the MCP Registry entry does not declare its auth
+/// headers. Publishers are the primary source; this field is only consulted
+/// when the registry returns an empty `headers` array for a known connector.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichmentRemoteHeader {
+    /// Header name (e.g. `Authorization`).
+    pub name: String,
+    /// Human-readable description shown in the auth wizard step.
+    pub description: Option<String>,
+    /// Whether the header must be provided before connecting.
+    #[serde(default)]
+    pub is_required: bool,
+    /// Whether the value should be stored in the OS keychain.
+    #[serde(default)]
+    pub is_secret: bool,
 }
 
 /// An environment variable declared in an enrichment for synthetic package entries.

@@ -22,8 +22,11 @@
   import { CommandPalette } from "./components/command-palette";
   import { installGlobalShortcuts } from "$lib/keyboard/globalShortcuts";
   import { openNewTaskRequested } from "$lib/stores/tasks";
+  import { llmBackends } from "$lib/stores/sse";
+  import { get } from "svelte/store";
 
   let ready = $state(false);
+  let prevLlmCount = 0;
 
   const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 
@@ -113,6 +116,24 @@
 
     void companionStore.initFromMemory();
 
+    // When the user finishes configuring an LLM after the onboarding modal
+    // showed its "configure LLM" gate (post factory-reset / fresh install),
+    // reopen the modal automatically so the agent chat can resume.
+    prevLlmCount = get(llmBackends).length;
+    const unsubscribeLlm = llmBackends.subscribe((list) => {
+      const count = list.length;
+      const justBecameAvailable = prevLlmCount === 0 && count > 0;
+      prevLlmCount = count;
+      if (!justBecameAvailable) return;
+      void invoke<OnboardingState>("get_onboarding_state")
+        .then((state) => {
+          if (shouldOpenOnboarding(state)) {
+            onboardingModalOpen.set(true);
+          }
+        })
+        .catch(() => {});
+    });
+
     window.addEventListener("keydown", handleAncillaryKeydown);
 
     return () => {
@@ -120,6 +141,7 @@
       window.removeEventListener("keydown", handleAncillaryKeydown);
       disposeShortcuts();
       unlistenRuntime?.();
+      unsubscribeLlm();
     };
   });
 

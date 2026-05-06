@@ -730,6 +730,8 @@
 
 [Détail → docs/adr/ADR-040-onboarding-conversational-agent.md](adr/ADR-040-onboarding-conversational-agent.md)
 
+> **Évolution v2.2.0 (mai 2026) — onboarding hybride.** Le parcours actuel est un compromis entre wizard et agent : les choix techniques structurés (profil opérateur/builder, configuration LLM/STT, téléchargement de modèles) ont été ré-encadrés dans des écrans dédiés (`OnboardingWelcome`, `OnboardingProfileSelector`, `OnboardingAiSetup`) qui précèdent la conversation calibrage de l'agent (`OnboardingChatStep`). Motivation : un formulaire avec validation immédiate bat un parsing LLM sur des décisions sans ambiguïté (clés API, sélection de modèle GGUF, choix de profil). Le principe #6 reste tenu — l'agent reste seul maître des décisions sémantiques (rôle, supervision, souveraineté) qu'il persiste lui-même. Spec frontend complète : [Onboarding-System](Onboarding-System).
+
 ---
 
 ## ADR-041 — Moteur STT embarqué : whisper-rs V1, trait SttBackend, roadmap candle-whisper/Voxtral

@@ -16,7 +16,7 @@ result = await ctx.delegate(
 
 - `skill_id` : l'identifiant du skill à invoquer — doit correspondre exactement à l'`id` déclaré dans le manifest d'un Worker actif
 - `payload` : un dict avec la même structure qu'une `AIPTask` normale
-- `timeout_secs` : timeout de cette invocation individuelle — indépendant du `chain_timeout_secs` global
+- `timeout_secs` : timeout de cette invocation individuelle
 
 Le résultat est un dict avec la même structure qu'un `AIPResult` :
 
@@ -133,17 +133,20 @@ if result["status"] == "failed":
 
 Les garde-fous A2A sont appliqués par le runtime à **chaque** invocation, sans exception. Ils protègent contre les scénarios d'abus les plus courants dans les architectures multi-agents.
 
-### Profondeur maximale (`max_depth`)
+### Nombre maximal de hops (`max_hops`)
 
 ```
-Director (depth=0)
-  └── csv-data-worker (depth=1)
-        └── autre-worker (depth=2)
-              └── encore-un-worker (depth=3)
-                    └── BLOQUÉ — MaxDepthExceeded (depth=4 > max_depth=3)
+Director (delegation_chain=[])
+  └── csv-data-worker (delegation_chain=["director"])
+        └── autre-worker (delegation_chain=["director", "csv-data-worker"])
+              └── encore-un-worker (delegation_chain=["director", "csv-data-worker", "autre-worker"])
+                    └── ...
+                          └── BLOQUÉ — MaxHopsExceeded (len >= max_hops=5)
 ```
 
-Configurable dans `apollia.toml` : `[a2a] max_depth = 3` (défaut).
+L'algorithme détecte également les cycles : si l'agent cible figure déjà dans `delegation_chain`, `CycleDetected` est retourné immédiatement, indépendamment du nombre de hops.
+
+Configurable dans `apollia.toml` : `[a2a] max_hops = 5` (défaut).
 
 ### Self-invocation bloquée
 
@@ -155,17 +158,12 @@ result = await ctx.delegate("analyze-csv", payload)
 # RuntimeError: SelfInvocation — agent 'csv-data-worker' cannot invoke itself
 ```
 
-### Timeout cumulé de la chaîne (`chain_timeout_secs`)
-
-Le `chain_timeout_secs` (défaut 300s) est le budget temps total alloué à toute la chaîne A2A depuis la première invocation. Il est propagé à chaque niveau — le timeout effectif par invocation est `min(invocation_timeout_secs, chain_remaining)`.
-
 Configurable dans `apollia.toml` :
 
 ```toml
 [a2a]
-max_depth               = 3    # profondeur max
-invocation_timeout_secs = 120  # timeout par invocation
-chain_timeout_secs      = 300  # budget cumulé toute la chaîne
+max_hops                = 5    # nombre maximal de hops dans la chaîne
+invocation_timeout_secs = 120  # timeout par invocation individuelle
 ```
 
 Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` sur l'EventBus avec `guard_type`, `caller`, `skill_id` et `detail` — observable via les notifications et l'audit log.

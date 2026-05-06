@@ -38,7 +38,12 @@
   let registry = $state<RegistryServerView[]>([]);
   let agents = $state<AgentListItem[]>([]);
   let loading = $state(false);
+  let registryLoading = $state(false);
   let loadError = $state<string | null>(null);
+
+  // Catalog pagination — show 48 cards initially, expand 48 at a time.
+  const CATALOG_PAGE = 48;
+  let catalogLimit = $state(CATALOG_PAGE);
 
   // Filter state
   type StatusFilter = "all" | "active" | "error" | "idle";
@@ -56,31 +61,43 @@
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
+  /** Phase 1: load servers + enrichments immediately (fast, no network call).
+   *  Phase 2: fetch the full registry catalogue in background. */
   async function loadAll(): Promise<void> {
     loading = true;
     loadError = null;
     try {
-      const [serverList, enrichmentEntries, registryEntries, agentList] =
-        await Promise.all([
-          invoke<McpServerStatusView[]>("list_mcp_servers"),
-          invoke<Array<{ package_identifier: string; enrichment: ConnectorEnrichmentView }>>(
-            "list_mcp_enrichments",
-          ),
-          invoke<RegistryServerView[]>("fetch_mcp_registry").catch(
-            () => [] as RegistryServerView[],
-          ),
-          invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
-        ]);
+      const [serverList, enrichmentEntries, agentList] = await Promise.all([
+        invoke<McpServerStatusView[]>("list_mcp_servers"),
+        invoke<Array<{ package_identifier: string; enrichment: ConnectorEnrichmentView }>>(
+          "list_mcp_enrichments",
+        ),
+        invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
+      ]);
       servers = serverList;
       enrichmentMap = new Map(
         enrichmentEntries.map((e) => [e.package_identifier, e.enrichment]),
       );
-      registry = registryEntries;
       agents = agentList;
     } catch (err: unknown) {
       loadError = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
+    }
+    // Phase 2: fetch registry in background — page renders immediately above.
+    void loadRegistry();
+  }
+
+  async function loadRegistry(): Promise<void> {
+    registryLoading = true;
+    try {
+      registry = await invoke<RegistryServerView[]>("fetch_mcp_registry").catch(
+        () => [] as RegistryServerView[],
+      );
+      // Reset pagination so curated enrichments aren't pushed off the first page.
+      catalogLimit = CATALOG_PAGE;
+    } finally {
+      registryLoading = false;
     }
   }
 
@@ -180,6 +197,15 @@
       return true;
     }),
   );
+
+  // Visible slice — reset catalogLimit when filter changes to avoid showing 0 results.
+  $effect(() => {
+    void mcpFilter;
+    catalogLimit = CATALOG_PAGE;
+  });
+
+  const visibleMcp = $derived(filteredMcp.slice(0, catalogLimit));
+  const hasMoreMcp = $derived(filteredMcp.length > catalogLimit);
 
   const heroKicker = $derived(
     `INTÉGRATIONS · ${activeCount} ACTIVE${activeCount > 1 ? "S" : ""}` +
@@ -434,7 +460,7 @@
           class="bg-transparent border-0 p-0 cursor-pointer"
           onclick={() => (mcpFilter = "all")}
         >
-          Tous · {mcpEntries.length}
+          Tous{mcpEntries.length > 0 ? ` · ${mcpEntries.length}` : registryLoading ? " · …" : ""}
         </button>
       </Chip>
       <Chip
@@ -460,7 +486,7 @@
           class="bg-transparent border-0 p-0 cursor-pointer"
           onclick={() => (mcpFilter = "official")}
         >
-          Officiels · {officialCount}
+          Officiels{officialCount > 0 ? ` · ${officialCount}` : ""}
         </button>
       </Chip>
       <Chip
@@ -473,17 +499,23 @@
           class="bg-transparent border-0 p-0 cursor-pointer"
           onclick={() => (mcpFilter = "community")}
         >
-          Communauté · {communityCount}
+          Communauté{communityCount > 0 ? ` · ${communityCount}` : ""}
         </button>
       </Chip>
     </div>
 
     <div class="px-8 pb-8">
-      {#if loading}
-        <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-loading">
-          {#each Array(8) as _, i (i)}
-            <div class="h-20 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
-          {/each}
+      {#if loading || (registryLoading && mcpEntries.length === 0)}
+        <div class="space-y-4">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground">
+            <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true"></span>
+            Chargement du catalogue MCP…
+          </div>
+          <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-loading">
+            {#each Array(12) as _, i (i)}
+              <div class="h-20 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+            {/each}
+          </div>
         </div>
       {:else if mcpEntries.length === 0}
         <EmptyState
@@ -507,7 +539,7 @@
         </EmptyState>
       {:else}
         <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-grid">
-          {#each filteredMcp as entry (entry.name)}
+          {#each visibleMcp as entry (entry.name)}
             {@const installed = entry.is_installed || installedNames.has(entry.name)}
             {@const isOfficial =
               entry.trust_level === "verified_official" ||
@@ -536,6 +568,20 @@
             </div>
           {/each}
         </div>
+        {#if hasMoreMcp}
+          <div class="mt-4 flex items-center justify-center gap-3">
+            <BtnSecondary onclick={() => (catalogLimit += CATALOG_PAGE)}>
+              Voir plus ({filteredMcp.length - catalogLimit} restants)
+            </BtnSecondary>
+            {#if registryLoading}
+              <span class="text-xs text-muted-foreground">Chargement du catalogue…</span>
+            {/if}
+          </div>
+        {:else if registryLoading}
+          <div class="mt-4 flex justify-center">
+            <span class="text-xs text-muted-foreground">Chargement du catalogue…</span>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>

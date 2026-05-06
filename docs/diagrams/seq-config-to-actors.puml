@@ -19,17 +19,16 @@ participant "ToolRegistry\n+ native tools (pos 3)" as tools #1a1a2e/e0e0ff
 participant "LlmRouter\n(pos 4)" as llm #4a3728/f5e6d3
 participant "TaskRouter\n(pos 5)" as router #1a1a2e/e0e0ff
 participant "TriggerEngine\n(pos 6)" as trig #1a1a2e/e0e0ff
-participant "PipelineEngine\n(pos 7)" as pipe #1a1a2e/e0e0ff
-participant "APIServer\n(pos 8)" as api #1a1a2e/e0e0ff
-participant "NotificationEngine\n(pos 9)" as notif #1a1a2e/e0e0ff
+participant "APIServer\n(pos 7)" as api #1a1a2e/e0e0ff
+participant "NotificationEngine\n(pos 8)" as notif #1a1a2e/e0e0ff
 
 == Parsing (apollia-cli) ==
 
 toml -> cfg : std::fs::read_to_string(path)
 cfg -> cfg : toml::from_str::<RawApolliaCConfig>(content)
-note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnelle\nTriggers/pipelines/notifications → SQLite (Sprint 17)
+note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnelle\nTriggers/notifications → SQLite (Sprint 17, ADR-033)
 
-cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/pipelines/notifications\nlus depuis SQLite (ADR-033, Sprint 17)
+cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/notifications\nlus depuis SQLite (ADR-033, Sprint 17)
 
 == Supervisor::start() — Démarrage séquentiel ==
 
@@ -57,17 +56,8 @@ sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
 sup -> trig : TriggerEngineHandle::spawn(\n  defs_from_sqlite,\n  router_handle,\n  event_sender,\n  ...\n)
 note right : Position 6 — définitions depuis SQLite\n(Sprint 17, ADR-033)\nRepository → Arc<Mutex<>> dans AppState
 
-sup -> sup : PipelineDefinitionRepository::open(\n  data_dir/pipelines_def.db\n)
-alt définitions enabled dans SQLite
-  sup -> pipe : PipelineEngine::spawn(\n  defs_from_sqlite,\n  repo (SQLite pipelines.db),\n  submitter (router_handle),\n  event_sender\n)
-  note right : Position 7 — définitions depuis SQLite\n(Sprint 17, ADR-033)\nReprend runs interrompus\n(find_running_runs)
-  pipe --> sup : PipelineEngineHandle
-else base SQLite vide
-  sup -> sup : pipeline_engine = None
-end
-
-sup -> api : APIServer::bind(\n  api_config (socket_path + tcp_port),\n  AppState { registry, router, tools,\n    llm_router, trigger_engine,\n    pipeline_engine, ... }\n)
-note right : Position 8 — écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,pipelines,\ntriggers,llm,dashboard,runs,health,shutdown}
+sup -> api : APIServer::bind(\n  api_config (socket_path + tcp_port),\n  AppState { registry, router, tools,\n    llm_router, trigger_engine, ... }\n)
+note right : Position 7 — écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,\ntriggers,llm,dashboard,health,shutdown}
 
 sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
 alt canaux dans SQLite
@@ -78,7 +68,7 @@ else base SQLite vide
 end
 
 sup -> sup : emit RuntimeEvent::AllReady
-sup --> sup : SupervisorHandles {\n  event_sender,\n  registry_handle,\n  tool_registry_handle,\n  router_handle,\n  api_handle,\n  llm_router,\n  trigger_engine,\n  pipeline_engine,\n}
+sup --> sup : SupervisorHandles {\n  event_sender,\n  registry_handle,\n  tool_registry_handle,\n  router_handle,\n  api_handle,\n  llm_router,\n  trigger_engine,\n}
 
 note over sup : Rollback partiel si APIServer échoue :\nTriggerEngine, TaskRouter, ToolRegistry,\nAgentRegistry arrêtés en ordre inverse
 

@@ -38,7 +38,8 @@ end note
 
 == 3. Build A2A Context ==
 
-invoker -> invoker : build A2AContext {\n  caller: "director",\n  skill_id: "read-excel",\n  user_memory_read_only: true,\n  timeout: configured\n}
+invoker -> invoker : validate_chain(\n  parent_chain=[],\n  current="director",\n  target="excel-worker",\n  max_hops=5\n)
+invoker -> invoker : child_chain = ["director"]\nbuild A2AContext {\n  caller: "director",\n  skill_id: "read-excel",\n  delegation_chain: ["director"],\n  user_memory_read_only: true,\n  timeout: configured\n}
 
 == 4. Event — Invocation Started ==
 

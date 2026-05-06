@@ -10,7 +10,7 @@
 ## C4 — Vue Contexte
 ![C4 Context](c4-context-runtime.svg)
 
-## C4 — Vue Container (14 crates)
+## C4 — Vue Container (16 crates)
 ![C4 Container](c4-container-runtime.svg)
 
 ## C4 — Composants Runtime Core (acteurs Tokio)
@@ -141,8 +141,21 @@
 ## Séquence — Discovery + Invocation A2A (happy path)
 ![A2A Discovery Invoke](seq-a2a-discovery-invoke.svg)
 
-## Séquence — Garde-fous A2A (max_depth, self-invocation, chain_timeout)
+## Séquence — Garde-fous A2A (max_hops, cycle_detected)
 ![A2A Guards](seq-a2a-guards.svg)
+
+## Séquence — Chaîne A2A complète (A -> B -> C, happy path + CycleDetected)
+![A2A Full Chain](seq-a2a-full-chain.svg)
+
+## Séquence — Onboarding v2.1 complet (ADR-086)
+![Onboarding v2.1](seq-onboarding-v2-detail.svg)
+
+---
+
+## Permissions & Sécurité
+
+## Séquence — Moteur de permissions 3 couches (SafeList / PrefixRules / HITL)
+![Permission Engine](seq-permission-engine.svg)
 
 ---
 

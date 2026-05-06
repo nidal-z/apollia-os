@@ -9,11 +9,9 @@
 
 <script lang="ts">
   import { uiMode } from "$lib/stores/mode";
-  import RecentExtractions from "../../components/memory/RecentExtractions.svelte";
   import UserMemoryDashboard from "../../components/memory/UserMemoryDashboard.svelte";
 </script>
 
-<section class="space-y-6" data-testid="memories-section-system">
-  <RecentExtractions mode={$uiMode} />
+<section data-testid="memories-section-system">
   <UserMemoryDashboard mode={$uiMode} />
 </section>

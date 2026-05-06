@@ -14,14 +14,43 @@ use tauri::State;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
+use crate::mcp::enrichments::{load_builtin_enrichments, ConnectorEnrichment, TrustLevel};
 use crate::mcp::registry_client::{
     McpRegistryClient, RegistryEnvVar, RegistryIcon, RegistryPackage, RegistryRemote,
-    RegistryRepository, RegistryServer, RegistryTransport,
+    RegistryRemoteHeader, RegistryRepository, RegistryServer, RegistryTransport,
 };
 use crate::mcp::secret_store::SecretStore;
 
 use super::{http_delete_json, http_get_json, http_patch_json, http_post_json};
+
+/// Apply enrichment `remote_headers` as fallback on remotes that have no headers.
+///
+/// Publisher registry data is preferred (primary source); this fallback is only
+/// activated when the registry entry omits the `headers` field for a remote that
+/// the enrichment knows about. Keeps curated connectors installable even when the
+/// registry is incomplete, without preventing future registry-sourced improvements.
+fn apply_remote_header_fallback(
+    remotes: &mut Vec<RegistryRemote>,
+    enrichment: &ConnectorEnrichment,
+) {
+    if enrichment.remote_headers.is_empty() {
+        return;
+    }
+    for remote in remotes.iter_mut() {
+        if remote.headers.is_empty() {
+            remote.headers = enrichment
+                .remote_headers
+                .iter()
+                .map(|h| RegistryRemoteHeader {
+                    name: h.name.clone(),
+                    description: h.description.clone(),
+                    is_required: h.is_required,
+                    is_secret: h.is_secret,
+                })
+                .collect();
+        }
+    }
+}
 
 /// Infer a category from a server's name and description using keyword matching.
 ///
@@ -507,6 +536,8 @@ pub async fn fetch_mcp_registry(
                         .and_then(|m| m.get("en").cloned()),
                     default_requires_approval: enrichment.default_requires_approval,
                 });
+                // Apply enrichment header fallback when the registry entry omits headers.
+                apply_remote_header_fallback(&mut view.remotes, enrichment);
             }
 
             // Auto-categorize by keywords when no enrichment provided a category.
@@ -610,7 +641,18 @@ pub async fn fetch_mcp_registry(
                     (Some(url), Some(transport)) => vec![RegistryRemote {
                         transport_type: transport.clone(),
                         url: url.clone(),
-                        headers: vec![],
+                        // Synthetic entries have no registry data — use enrichment
+                        // fallback headers directly as the sole source.
+                        headers: enrichment
+                            .remote_headers
+                            .iter()
+                            .map(|h| RegistryRemoteHeader {
+                                name: h.name.clone(),
+                                description: h.description.clone(),
+                                is_required: h.is_required,
+                                is_secret: h.is_secret,
+                            })
+                            .collect(),
                     }],
                     _ => vec![],
                 },
@@ -619,6 +661,85 @@ pub async fn fetch_mcp_registry(
     }
 
     Ok(result)
+}
+
+/// Fetch fresh detail for a single MCP server directly from the registry.
+///
+/// Used by the wizard when the server's remote auth headers are absent from
+/// the bulk-cached catalogue. Skips the local cache so the result is always
+/// current — auth requirements are defined by the publisher, not by Apollia.
+#[tauri::command]
+pub async fn refresh_mcp_server_detail(
+    registry: State<'_, McpRegistryClient>,
+    state: State<'_, RuntimeHandle>,
+    server_name: String,
+) -> Result<Option<RegistryServerView>, String> {
+    let raw = registry
+        .fetch_server_by_name(&server_name)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let Some(raw_server) = raw else {
+        return Ok(None);
+    };
+
+    let enrichments = load_builtin_enrichments();
+    let enrichment_by_pkg: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
+        enrichments
+            .iter()
+            .map(|e| (e.package_identifier.as_str(), e))
+            .collect();
+    let enrichment_by_name: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
+        enrichments
+            .iter()
+            .flat_map(|e| e.registry_names.iter().map(move |name| (name.as_str(), e)))
+            .collect();
+
+    let installed_names: std::collections::HashSet<String> =
+        match http_get_json(state.api_port, "/api/v1/mcp/servers").await {
+            Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.name)
+                .collect(),
+            Err(_) => std::collections::HashSet::new(),
+        };
+
+    let mut view = RegistryServerView::from(raw_server);
+
+    let matched = enrichment_by_name
+        .get(view.name.as_str())
+        .copied()
+        .or_else(|| {
+            view.packages.as_ref().and_then(|pkgs| {
+                pkgs.iter()
+                    .find_map(|pkg| enrichment_by_pkg.get(pkg.identifier.as_str()).copied())
+            })
+        });
+
+    if let Some(enrichment) = matched {
+        view.trust_level = trust_level_str(&enrichment.trust_level);
+        view.category = Some(enrichment.category.clone());
+        view.enrichment = Some(ConnectorEnrichmentView {
+            operator_label: enrichment.operator_label.get("en").cloned().unwrap_or_default(),
+            category: enrichment.category.clone(),
+            icon_name: enrichment.icon_name.clone(),
+            trust_level: enrichment.trust_level.clone(),
+            auth_help_url: enrichment.auth_help_url.clone(),
+            auth_help_text: enrichment
+                .auth_help_text
+                .as_ref()
+                .and_then(|m| m.get("en").cloned()),
+            default_requires_approval: enrichment.default_requires_approval,
+        });
+        apply_remote_header_fallback(&mut view.remotes, enrichment);
+    }
+
+    if installed_names.contains(&view.name) {
+        view.is_installed = true;
+    }
+
+    Ok(Some(view))
 }
 
 /// Store a secret in the OS keychain for an MCP server environment variable.

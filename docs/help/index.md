@@ -7,11 +7,11 @@ hero:
   tagline: Guides pas-à-pas pour configurer, automatiser et contrôler votre IA au quotidien.
   actions:
     - theme: brand
-      text: Connecter votre IA en 5 min
-      link: /installation/connecter-un-fournisseur-d-ia
+      text: Premiers pas — configurer votre profil
+      link: /installation/configurer-votre-profil
     - theme: alt
-      text: Voir tous les guides
-      link: /agents/installer-un-agent
+      text: Connecter un fournisseur d'IA
+      link: /installation/connecter-un-fournisseur-d-ia
 features:
   - icon: 🚀
     title: Démarrer

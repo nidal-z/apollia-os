@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — Workspace — Apollia OS
+title C4 Container — Workspace (16 crates) — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -67,9 +67,12 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
     component "CronTrigger · IntervalTrigger\nOneshotTrigger · FileWatchTrigger\nWebhook (axum route HMAC-SHA256)" as trigsources
   }
 
-  rectangle "apollia-pipelines\n(Pipelines Engine)" as pipelines #1a1a2e {
-    component "PipelineEngine (acteur Tokio pos.7)\nPipelineEngineHandle\nPipelineRepository (SQLite)" as pipeengine
-    component "PipelineExecutor (FuturesUnordered)\nTopologicalLayers (Kahn BFS)\nTemplateContext ({{steps.x.output}})" as pipeexec
+  rectangle "apollia-workspace\n(Workspace Isolation)" as workspace_crate #1a1a2e {
+    component "WorkspaceManager\nAgentWorkspace\nContextProvider\nProjectScoping" as wsmanager
+  }
+
+  rectangle "apollia-auth\n(OAuth2 PKCE)" as auth #1a1a2e {
+    component "OAuth2 PKCE flow\nToken Keyring\nAuto-refresh (ADR-064)" as authengine
   }
 
   rectangle "apollia-notifications\n(Notifications Engine)" as notifications #1a1a2e {
@@ -83,7 +86,7 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   }
 
   rectangle "apollia-core\n(types partagés)" as core #1a1a2e {
-    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (TriggerFired…\nPipelineStarted…)" as types
+    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (TriggerFired…\nTaskCompleted…)\ndelegation_chain: Vec<AgentId>" as types
   }
 }
 
@@ -122,10 +125,7 @@ runtime --> mcp_crate : McpClientManagerHandle\n(Phase 3b startup)
 memory --> sqlite : INSERT / FTS5 MATCH
 triggers --> runtime : TriggerEvent → TaskRouter\n(submit AIPTask)
 triggers --> sqlite : trigger_history\ntrigger_state
-triggers --> pipelines : TriggerFired → PipelineEngine\n(run_pipeline si trigger.pipeline)
-pipelines --> runtime : TaskSubmitter → TaskRouter\n(submit step tasks)
-pipelines --> sqlite : pipeline_runs\npipeline_step_runs
-notifications --> runtime : abonnement EventBus\n(TaskCompleted / PipelineCompleted...)
+notifications --> runtime : abonnement EventBus\n(TaskCompleted / TriggerFired...)
 llm --> cloudllm : HTTP REST\n(feature = cloud)
 desktop --> stt : SttFlow\n(hotkey → record → transcribe)
 runtime --> stt : SttEngine actor\n(Phase 15)

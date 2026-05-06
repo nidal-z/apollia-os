@@ -278,6 +278,19 @@ impl McpRegistryClient {
     /// Cache TTL — skip network fetch if cache is younger than this.
     const CACHE_TTL: Duration = Duration::from_secs(15 * 60); // 15 minutes
 
+    /// Fetch a single server by its exact registry name.
+    ///
+    /// Uses the registry `search` parameter as a targeted lookup. Returns
+    /// `None` when the server is not found or the registry is unreachable.
+    /// Does not read or write the local bulk cache.
+    pub async fn fetch_server_by_name(
+        &self,
+        name: &str,
+    ) -> Result<Option<RegistryServer>, RegistryClientError> {
+        let servers = self.fetch_from_network(Some(name)).await?;
+        Ok(servers.into_iter().find(|s| s.server.name == name))
+    }
+
     pub async fn fetch_servers(
         &self,
         search: Option<&str>,

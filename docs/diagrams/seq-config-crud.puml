@@ -12,8 +12,8 @@ title Séquence — CRUD Config opérationnelle (ADR-033, Sprint 17) — Apollia
 participant "Opérateur\n(Desktop / curl)" as op #3a3a3a/ffffff
 participant "APIServer\n(routes CRUD)" as api #1a1a2e/e0e0ff
 participant "Repository\n(Arc<Mutex<>>)" as repo #2a3a4a/cce5ff
-participant "SQLite\n(triggers_def.db /\npipelines_def.db /\nnotifications.db)" as db #2a3a4a/cce5ff
-participant "Engine\n(TriggerEngine /\nPipelineEngine /\nNotificationEngine)" as engine #2d4a22/d4edda
+participant "SQLite\n(triggers_def.db /\nnotifications.db)" as db #2a3a4a/cce5ff
+participant "Engine\n(TriggerEngine /\nNotificationEngine)" as engine #2d4a22/d4edda
 participant "EventBus" as bus #2a3a4a/cce5ff
 
 == Création (POST) ==
@@ -21,7 +21,7 @@ participant "EventBus" as bus #2a3a4a/cce5ff
 op -> api : POST /api/v1/triggers\n{ id, agent, source, ... }
 api -> api : désérialiser + valider payload
 api -> repo : lock() → insert(def)
-repo -> repo : validate_trigger(def)\n(XOR agent/pipeline,\ncron syntax, webhook secret)
+repo -> repo : validate_trigger(def)\n(cron syntax, webhook secret)
 repo -> db : INSERT INTO trigger_definitions
 db --> repo : Ok
 repo --> api : Ok(row)

@@ -1,0 +1,143 @@
+@startuml seq-onboarding-v2-detail
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowThickness 1.5
+skinparam roundcorner 6
+skinparam defaultFontSize 12
+skinparam defaultFontName "Helvetica"
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+title Séquence Onboarding v2.1 (ADR-086) — Flux complet — Apollia OS
+
+participant "Desktop (UI)" as ui #2d4a22
+participant "Supervisor" as sup #1a1a2e
+participant "OnboardingAgent\n(Python)" as agent #1a1a2e
+participant "MemoryInterface" as mem #2a3a4a
+participant "ToolRegistry\n(permission_rule_add)" as tools #2a3a4a
+participant "User" as user #2d4a22
+
+== Étape 1 — Détection premier lancement ==
+
+sup -> mem : recall("onboarding.completed_at")
+mem --> sup : None (mémoire vide)
+sup -> sup : emit RuntimeEvent::\nOnboardingRequired
+
+sup -> ui : RuntimeEvent::OnboardingRequired
+
+== Étape 2 — Desktop ouvre la modal ==
+
+ui -> ui : open OnboardingModal
+ui -> user : affiche modal d'onboarding
+
+== Étapes 3-6 — Boucle conversationnelle (≤ 4 turns) ==
+
+note over agent
+  ≤ 4 turns, < 2 minutes
+  Tier 1 keys collectées progressivement
+end note
+
+group Turn 1-2 — Questions légères
+
+user -> ui : message utilisateur (Turn 1)
+ui -> agent : converse(user_message, history=[])
+agent -> agent : LLM.complete(messages)
+
+note right of agent #d4f0d4
+  Turn 1 — Identité :
+  [REMEMBER user.name=Prénom]
+  [REMEMBER user.role=description]
+end note
+
+agent -> mem : remember_user("user.name", value,\n  source="onboarding", confidence=0.9)
+agent -> mem : remember_user("user.role", value,\n  source="onboarding", confidence=0.9)
+agent --> ui : response_text (tags strippés)
+ui --> user : affiche réponse
+
+user -> ui : message utilisateur (Turn 2)
+ui -> agent : converse(user_message, history)
+agent -> agent : LLM.complete(messages)
+agent --> ui : response_text
+ui --> user : affiche réponse
+
+end
+
+group Turn 3-4 — Questions sensibles
+
+user -> ui : message utilisateur (Turn 3)
+ui -> agent : converse(user_message, history)
+agent -> agent : LLM.complete(messages)
+
+note right of agent #d4f0d4
+  Turn 3 — Supervision :
+  [REMEMBER user.agents.hitl=always|critical-only|never]
+end note
+
+agent -> mem : remember_user("user.agents.hitl", value,\n  source="onboarding", confidence=0.9)
+agent --> ui : response_text
+ui --> user : affiche réponse
+
+user -> ui : message utilisateur (Turn 4)
+ui -> agent : converse(user_message, history)
+agent -> agent : LLM.complete(messages)
+
+note right of agent #d4f0d4
+  Turn 4 — Souveraineté :
+  [REMEMBER user.constraints.sovereignty=local-only|...]
+  [PROFILE operator|builder]
+  [SUGGEST email-triage]
+end note
+
+agent -> mem : remember_user("user.constraints.sovereignty", value,\n  source="onboarding", confidence=0.9)
+agent -> agent : _all_gate_keys_present() ?\n→ user.name et user.role présents → true
+
+end
+
+== Étape 7 — Idempotence check (phase 2 permissions) ==
+
+agent -> tools : permission_rule_list(\n  {"created_by": "onboarding-agent"}\n)
+tools --> agent : rules=[] (aucune règle existante)
+
+note right of agent #d4f0d4
+  Idempotence : si des règles
+  existent déjà, on ne re-propose rien.
+end note
+
+== Étape 8 — Proposition des règles HITL-gated ==
+
+agent -> mem : recall("user.constraints.sovereignty")
+mem --> agent : "local-only"
+agent -> mem : recall("user.agents.hitl")
+mem --> agent : "always"
+
+agent -> tools : permission_rule_add({\n  tool_name: "http_fetch",\n  action: "deny",\n  arg_prefix: "https://",\n  scope: "global"\n})
+
+note over tools #ffe0d4
+  L'appel passe par la couche HITL desktop :
+  RuntimeEvent::PermissionRequired émis
+  → Desktop affiche dialogue de confirmation
+end note
+
+tools -> ui : RuntimeEvent::PermissionRequired\n{tool: "permission_rule_add", ...}
+ui -> user : affiche dialogue HITL\n"Autoriser la règle de permission ?"
+user -> ui : [Approuver]
+ui -> tools : confirmed
+tools --> agent : Ok (règle écrite dans governance.db)
+
+== Étape 9 — Complétion onboarding ==
+
+agent -> mem : remember("onboarding.profile_type", "operator")
+agent -> mem : remember("onboarding.version", "2.1")
+agent -> mem : remember("onboarding.suggested_agents", '["email-triage"]')
+agent -> mem : remember("onboarding.completed_at", "2026-05-01T...")
+
+note right of mem #d4f0d4
+  completed_at LAST — signal de complétion
+  observé par le desktop (onboarding.rs)
+end note
+
+mem -> sup : RuntimeEvent::OnboardingCompleted\n(via EventBus, observé par Supervisor)
+sup -> ui : RuntimeEvent::OnboardingCompleted
+ui -> ui : close OnboardingModal
+ui --> user : affiche écran principal
+
+@enduml

@@ -4,16 +4,15 @@ Dans une architecture multi-agents, un Director Agent peut déléguer une tâche
 
 Agent A invoque Agent B. Agent B invoque Agent C. Agent C invoque Agent A. La chaîne tourne indéfiniment, consommant des ressources jusqu'à épuisement. Ou pire : Agent A s'invoque lui-même, créant une boucle infinie d'auto-délégation.
 
-Les **A2A Guards** sont les trois garde-fous non contournables qui protègent les chaînes d'invocations inter-agents.
+Les **A2A Guards** sont les deux garde-fous non contournables qui protègent les chaînes d'invocations inter-agents.
 
 ---
 
-## Les trois protections
+## Les deux protections
 
 | Garde-fou | Défaut | Protection contre |
 |---|---|---|
-| `max_depth` | 3 | Récursivité infinie (`A → B → C → A →...`) |
-| `chain_timeout_secs` | 300 (5 min) | Chaîne monopolisant les ressources indéfiniment |
+| `max_hops` | 5 | Récursivité infinie (`A → B → C → A →...`) |
 | Self-invocation | Bloqué | Agent qui s'invoque lui-même via A2A |
 
 Ces protections s'appliquent automatiquement à chaque `ctx.delegate`. L'agent Python ne peut pas les désactiver.
@@ -24,24 +23,23 @@ Ces protections s'appliquent automatiquement à chaque `ctx.delegate`. L'agent P
 
 ```toml
 [a2a]
-max_depth = 3                  # Profondeur maximale de la chaîne
+max_hops = 5                   # Nombre maximal de hops dans la chaîne
 invocation_timeout_secs = 120  # Timeout par invocation individuelle
-chain_timeout_secs = 300       # Budget cumulé pour toute la chaîne
 ```
 
-Le `chain_timeout_secs` est le budget total de la chaîne entière — pas par invocation. Si une chaîne `A → B → C` prend 280 secondes sur les 300 allouées, l'invocation suivante de C a seulement 20 secondes disponibles.
+Le timeout wall-clock sur l'exécution complète d'un agent est géré par le `StepBudget` (`wall_clock_timeout_secs`) côté Python — il n'existe pas de `chain_deadline` ni de `chain_timeout_secs` au niveau A2A.
 
 ---
 
-## Ordre d'application des garde-fous
+## Algorithme de validation
 
-À chaque `ctx.delegate`, le runtime vérifie dans cet ordre :
+À chaque `ctx.delegate`, le runtime appelle `validate_chain` dans cet ordre :
 
 ```
-1. max_depth atteint ?      → MaxDepthExceeded
-2. chain_deadline expirée ? → ChainTimeoutExceeded
-3. caller == target ?       → SelfInvocation
-4. Skill résolu             → invocation normale
+1. len(delegation_chain) >= max_hops ? → MaxHopsExceeded
+2. agent_id cible dans delegation_chain ?  → CycleDetected
+3. caller == target ?                      → CycleDetected (auto-invocation)
+4. Skill résolu                            → invocation normale
 ```
 
 La vérification est effectuée en Rust avant que l'agent Worker soit instancié — pas de coût d'exécution inutile en cas de refus.
@@ -50,25 +48,18 @@ La vérification est effectuée en Rust avant que l'agent Worker soit instancié
 
 ## Erreurs retournées
 
-Quand un garde-fou se déclenche, l'invocation retourne immédiatement une erreur structurée `A2AError` :
+Quand un garde-fou se déclenche, l'invocation retourne immédiatement une erreur structurée `A2aError` :
 
 ```rust
-// apollia-runtime/src/a2a/invoker.rs
-pub enum A2AError {
-    MaxDepthExceeded {
-        current_depth: u32,
-        max_depth: u32,
-        caller: String,
-        skill_id: String,
+// apollia-runtime/src/a2a/mod.rs
+pub enum A2aError {
+    MaxHopsExceeded {
+        limit: usize,
     },
-    SelfInvocation {
-        agent_name: String,
-        skill_id: String,
+    CycleDetected {
+        agent_id: AgentId,
     },
-    ChainTimeoutExceeded {
-        caller: String,
-        skill_id: String,
-    },
+    // ...
 }
 ```
 
@@ -77,7 +68,7 @@ Un événement `RuntimeEvent::A2AGuardTriggered` est simultanément émis sur l'
 ```rust
 // apollia-core/src/events.rs
 A2AGuardTriggered {
-    guard_type: String,  // "max_depth" | "self_invocation" | "chain_timeout"
+    guard_type: String,  // "max_hops" | "cycle_detected" | "self_invocation"
     caller: String,
     skill_id: String,
     detail: String,
@@ -96,12 +87,12 @@ async def run(self, task, ctx):
 
     if result.error:
         code = result.error.code
-        if code == "A2A_MAX_DEPTH_EXCEEDED":
+        if code == "A2A_MAX_HOPS_EXCEEDED":
             # Traiter localement plutôt que de déléguer
             return await self._process_locally(task["data"], ctx)
-        elif code == "A2A_CHAIN_TIMEOUT":
-            return AIPResult.failed("TIMEOUT",
-                                    "Chaîne A2A expirée avant la fin du traitement")
+        elif code == "A2A_CYCLE_DETECTED":
+            return AIPResult.failed("CYCLE",
+                                    "Cycle détecté dans la chaîne de délégation A2A")
         else:
             return AIPResult.failed(code, result.error.message)
 
@@ -119,11 +110,11 @@ Director (budget: 10 steps, 20 tool_calls)
   │
   ├── Step 1 : raisonnement LLM          (-1 step)
   ├── Step 2 : ctx.delegate("worker")    (-1 step, démarre la chaîne A2A)
-  │               Worker exécute...      (chain_timeout s'écoule)
+  │               Worker exécute...
   └── Step 3 : traitement du résultat    (-1 step)
 ```
 
-Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `STEP_BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A (`invocation_timeout_secs`).
+Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `STEP_BUDGET_EXCEEDED` — le Worker est interrompu par le timeout d'invocation (`invocation_timeout_secs`).
 
 **Règle pratique** : pour chaque `ctx.delegate` dans votre agent, comptez au minimum 2 steps (avant et après la délégation) et ajustez `max_steps` dans votre manifest en conséquence.
 
@@ -131,13 +122,12 @@ Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche d
 
 ## Visualiser la chaîne A2A
 
-Le diagramme de séquence des A2A Guards est disponible dans `docs/diagrams/seq-a2a-guards.puml`. Il illustre le flux complet d'une invocation `A → B → C` avec déclenchement de `MaxDepthExceeded` à la profondeur 4.
+Le diagramme de séquence des A2A Guards est disponible dans `docs/diagrams/seq-a2a-guards.puml`. Il illustre le flux complet d'une invocation `A → B → C` avec validation de la `delegation_chain` et déclenchement de `MaxHopsExceeded` au-delà de `max_hops=5` (ADR-D7).
 
 ```bash
 # Observer les événements A2A en temps réel
 apollia-os audit stats --filter a2a
 #  GARDE-FOU            DÉCLENCHEMENTS   DERNIER
-#  max_depth            2                14:32:01
+#  max_hops             2                14:32:01
 #  self_invocation      0                —
-#  chain_timeout        1                09:17:44
 ```

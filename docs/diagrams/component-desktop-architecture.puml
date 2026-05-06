@@ -19,8 +19,8 @@ rectangle "Apollia Desktop" as app #1a1a2e {
   }
 
   rectangle "Svelte 5 (WebView)" as svelte #2d4a22 {
-    rectangle "12 Routes\nAgents · Tasks · Chat\nLLM · Triggers · Pipelines\nMemory · Notifications\nSettings · Integrations\nTranscriptions · Observability" as routes #2d4a22
-    rectangle "SSE Stores\nagents · tasks · chat\nllm · triggers · pipelines" as stores #2d4a22
+    rectangle "15 Routes\nAgents · Tasks · Chat\nLLM · Automations · Memory\nNotifications · Settings\nConnections · Observability\nTranscriptions · Projects\nTemplates · Inbox · Dashboard" as routes #2d4a22
+    rectangle "SSE Stores\nagents · tasks · chat\nllm · automations" as stores #2d4a22
     rectangle "shadcn-svelte\ni18n FR/EN\nLight + Dark" as design #2d4a22
   }
 }

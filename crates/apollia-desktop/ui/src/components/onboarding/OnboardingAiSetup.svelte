@@ -1,0 +1,1581 @@
+<script lang="ts">
+  /**
+   * Onboarding step 3 — AI Setup.
+   *
+   * Configures the local LLM (llama.cpp + GGUF) and the optional STT engine
+   * (whisper.cpp). Scans `~/.apollia/models/` and `~/Downloads/` for
+   * existing weights, exposes a curated list of recommended models with
+   * one-click download, and surfaces a HuggingFace search for power users.
+   *
+   * Designed to render inline inside the {@link OnboardingModal} overlay
+   * (no own backdrop or fixed positioning).
+   */
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import {
+    Cpu,
+    HardDrive,
+    Mic,
+    Check,
+    ChevronRight,
+    AlertCircle,
+    MemoryStick,
+    MonitorCog,
+    Download,
+    X,
+    Search,
+    ArrowLeft,
+    RefreshCw,
+    Cloud,
+  } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Button } from "$lib/components/ui/button";
+  import { llmBackends } from "$lib/stores/sse";
+  import { navigateTo } from "$lib/stores/navigation";
+
+  interface Props {
+    onnext: () => void;
+    onback: () => void;
+    onskip: () => void;
+    /** Called when the user wants to add a cloud backend; modal should close. */
+    onopencloud: () => void;
+  }
+
+  const { onnext, onback, onskip, onopencloud }: Props = $props();
+
+  // ─── Types ────────────────────────────────────────────────────────────────
+
+  interface SystemInfo {
+    total_ram_gb: number;
+    available_ram_gb: number;
+    os: string;
+    arch: string;
+    gpu_available: boolean;
+  }
+
+  interface GgufModelInfo {
+    path: string;
+    filename: string;
+    size_bytes: number;
+    size_human: string;
+    recommended: boolean;
+  }
+
+  interface WhisperModelInfo {
+    path: string;
+    filename: string;
+    size_bytes: number;
+    model_size: string;
+    recommended: boolean;
+  }
+
+  interface DownloadProgress {
+    id: string;
+    downloaded_bytes: number;
+    total_bytes: number | null;
+    speed_bps: number;
+    dest_path: string;
+    status: "in_progress" | "completed" | "cancelled" | "failed";
+  }
+
+  interface HfFile {
+    filename: string;
+    size_bytes: number;
+    size_human: string;
+    compatibility: "fits" | "might_fit" | "too_large" | null;
+    download_url: string;
+  }
+
+  interface HfModelCard {
+    repo_id: string;
+    gated: boolean;
+    gguf_files: HfFile[];
+    compatibility_issue: "embedding_model" | "unknown_architecture" | "no_gguf_files" | null;
+  }
+
+  interface CuratedLlmModel {
+    name: string;
+    filename: string;
+    url: string;
+    size_label: string;
+    ram_required: number;
+  }
+
+  interface CuratedSttModel {
+    name: string;
+    filename: string;
+    url: string;
+    repo: string;
+    size_label: string;
+    ram_required: number;
+    quality_label: string;
+    lang: string;
+  }
+
+  // ─── Curated catalogs ─────────────────────────────────────────────────────
+  // Qwen3 (April 2025): native tool calling via llama.cpp jinja templates.
+  // Whisper turbo-q5 is the sweet spot: pruned from large-v3, 6× faster.
+
+  const CURATED_LLM_MODELS: CuratedLlmModel[] = [
+    {
+      name: "Qwen3 4B",
+      filename: "Qwen3-4B-Q4_K_M.gguf",
+      url: "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+      size_label: "2.5 GB",
+      ram_required: 4,
+    },
+    {
+      name: "Qwen3 8B",
+      filename: "Qwen3-8B-Q4_K_M.gguf",
+      url: "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
+      size_label: "4.7 GB",
+      ram_required: 8,
+    },
+    {
+      name: "Qwen3 14B",
+      filename: "Qwen3-14B-Q4_K_M.gguf",
+      url: "https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf",
+      size_label: "8.4 GB",
+      ram_required: 16,
+    },
+    {
+      name: "Qwen3 30B-A3B",
+      filename: "Qwen3-30B-A3B-Q4_K_M.gguf",
+      url: "https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/resolve/main/Qwen3-30B-A3B-Q4_K_M.gguf",
+      size_label: "18.6 GB",
+      ram_required: 24,
+    },
+  ];
+
+  const CURATED_STT_MODELS: CuratedSttModel[] = [
+    {
+      name: "Whisper Tiny",
+      filename: "ggml-tiny.bin",
+      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+      repo: "ggerganov/whisper.cpp",
+      size_label: "75 MB",
+      ram_required: 1,
+      quality_label: "Ultra-rapide",
+      lang: "99 langues",
+    },
+    {
+      name: "Whisper Base",
+      filename: "ggml-base.bin",
+      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+      repo: "ggerganov/whisper.cpp",
+      size_label: "142 MB",
+      ram_required: 2,
+      quality_label: "Équilibré",
+      lang: "99 langues",
+    },
+    {
+      name: "Whisper Large-v3 Turbo Q5",
+      filename: "ggml-large-v3-turbo-q5_0.bin",
+      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+      repo: "ggerganov/whisper.cpp",
+      size_label: "547 MB",
+      ram_required: 4,
+      quality_label: "Haute qualité · 6× rapide",
+      lang: "99 langues",
+    },
+    {
+      name: "Whisper Large-v3 Q5",
+      filename: "ggml-large-v3-q5_0.bin",
+      url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+      repo: "ggerganov/whisper.cpp",
+      size_label: "1.1 GB",
+      ram_required: 8,
+      quality_label: "Précision maximale",
+      lang: "99 langues",
+    },
+    {
+      name: "Whisper Large-v3 French",
+      filename: "ggml-model-q5_0.bin",
+      url: "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model-q5_0.bin",
+      repo: "bofenghuang/whisper-large-v3-french",
+      size_label: "~1.1 GB",
+      ram_required: 8,
+      quality_label: "Fine-tuné français",
+      lang: "🇫🇷 Français",
+    },
+  ];
+
+  // ─── State ────────────────────────────────────────────────────────────────
+
+  let loading = $state(true);
+  let sysInfo = $state<SystemInfo | null>(null);
+  let ggufModels = $state<GgufModelInfo[]>([]);
+  let whisperModels = $state<WhisperModelInfo[]>([]);
+
+  let selectedGguf = $state<GgufModelInfo | null>(null);
+  let llmConfiguring = $state(false);
+  let llmSuccess = $state(false);
+  let llmError = $state<string | null>(null);
+
+  let sttEnabled = $state(false);
+  let selectedWhisper = $state<WhisperModelInfo | null>(null);
+
+  let llmDownloadId = $state<string | null>(null);
+  let llmDownloadProgress = $state<DownloadProgress | null>(null);
+  let llmDownloadingModel = $state<CuratedLlmModel | HfFile | null>(null);
+  let llmDownloadError = $state<string | null>(null);
+
+  let sttDownloadId = $state<string | null>(null);
+  let sttDownloadProgress = $state<DownloadProgress | null>(null);
+  let sttDownloadingModel = $state<CuratedSttModel | null>(null);
+  let sttDownloadError = $state<string | null>(null);
+
+  let showSearch = $state(false);
+  let searchQuery = $state("");
+  let searchLoading = $state(false);
+  let searchResults = $state<HfModelCard[]>([]);
+  let searchError = $state<string | null>(null);
+  let expandedModel = $state<string | null>(null);
+  let expandedDetail = $state<HfModelCard | null>(null);
+  let expandLoading = $state(false);
+
+  let advancing = $state(false);
+  let advanceError = $state<string | null>(null);
+
+  // ─── Derived ──────────────────────────────────────────────────────────────
+
+  const availableLlmModels = $derived(
+    CURATED_LLM_MODELS.filter((m) => !sysInfo || sysInfo.total_ram_gb >= m.ram_required),
+  );
+
+  const recommendedLlm = $derived.by((): CuratedLlmModel | null => {
+    if (!sysInfo) return CURATED_LLM_MODELS[1] ?? null;
+    const fitting = CURATED_LLM_MODELS.filter((m) => sysInfo!.total_ram_gb >= m.ram_required);
+    return fitting[fitting.length - 1] ?? fitting[0] ?? null;
+  });
+
+  const availableSttModels = $derived(
+    CURATED_STT_MODELS.filter((m) => !sysInfo || sysInfo.total_ram_gb >= m.ram_required),
+  );
+
+  const recommendedStt = $derived.by((): CuratedSttModel | null => {
+    if (!sysInfo) return CURATED_STT_MODELS[2] ?? null;
+    const turbo = CURATED_STT_MODELS.find((m) => m.filename.includes("turbo"));
+    if (turbo && sysInfo!.total_ram_gb >= turbo.ram_required) return turbo;
+    const fitting = CURATED_STT_MODELS.filter((m) => sysInfo!.total_ram_gb >= m.ram_required);
+    return fitting[fitting.length - 1] ?? fitting[0] ?? null;
+  });
+
+  /**
+   * The continue button should only enable once the runtime can actually
+   * answer the agent's first turn — i.e. either the local LLM was wired up
+   * during this session, or a backend (cloud or pre-existing local) is
+   * already registered in the runtime.
+   */
+  const hasUsableLlm = $derived(llmSuccess || $llmBackends.length > 0);
+
+  // ─── Effects ──────────────────────────────────────────────────────────────
+
+  $effect(() => {
+    void loadData();
+  });
+
+  $effect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<DownloadProgress>("model-download-progress", (event) => {
+      const p = event.payload;
+      if (p.id === llmDownloadId) {
+        llmDownloadProgress = p;
+        if (p.status === "completed") {
+          llmDownloadId = null;
+          llmDownloadingModel = null;
+          void loadData();
+        } else if (p.status === "cancelled" || p.status === "failed") {
+          llmDownloadId = null;
+          llmDownloadingModel = null;
+          llmDownloadProgress = null;
+          if (p.status === "failed") llmDownloadError = "Le téléchargement a échoué.";
+        }
+      } else if (p.id === sttDownloadId) {
+        sttDownloadProgress = p;
+        if (p.status === "completed") {
+          sttDownloadId = null;
+          sttDownloadingModel = null;
+          void rescanStt();
+        } else if (p.status === "cancelled" || p.status === "failed") {
+          sttDownloadId = null;
+          sttDownloadingModel = null;
+          sttDownloadProgress = null;
+          if (p.status === "failed") sttDownloadError = "Le téléchargement a échoué.";
+        }
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  });
+
+  // ─── Data loading ─────────────────────────────────────────────────────────
+
+  async function loadData(): Promise<void> {
+    try {
+      const [sys, gguf, whisper] = await Promise.all([
+        invoke<SystemInfo>("get_ai_setup_info"),
+        invoke<GgufModelInfo[]>("scan_for_gguf_models"),
+        invoke<WhisperModelInfo[]>("scan_for_whisper_models"),
+      ]);
+      sysInfo = sys;
+      ggufModels = gguf;
+      whisperModels = whisper;
+      if (whisper.length > 0) {
+        selectedWhisper = whisper[0];
+        sttEnabled = whisper[0].recommended;
+      }
+    } catch {
+      /* leave empty */
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function rescanStt(): Promise<void> {
+    try {
+      const whisper = await invoke<WhisperModelInfo[]>("scan_for_whisper_models");
+      whisperModels = whisper;
+      if (whisper.length > 0) {
+        selectedWhisper = whisper[0];
+        sttEnabled = whisper[0].recommended;
+      }
+    } catch {
+      /* leave empty */
+    }
+  }
+
+  // ─── LLM local model selection ────────────────────────────────────────────
+
+  async function selectGgufModel(model: GgufModelInfo): Promise<void> {
+    if (llmConfiguring || llmSuccess) return;
+    selectedGguf = model;
+    llmConfiguring = true;
+    llmError = null;
+    try {
+      await invoke("setup_local_llm", { ggufPath: model.path });
+      await invoke("reload_llm");
+      llmSuccess = true;
+    } catch (err: unknown) {
+      llmError = err instanceof Error ? err.message : String(err);
+      llmConfiguring = false;
+    }
+  }
+
+  // ─── LLM download (curated) ───────────────────────────────────────────────
+
+  async function downloadLlmModel(model: CuratedLlmModel): Promise<void> {
+    if (llmDownloadId) return;
+    llmDownloadError = null;
+    llmDownloadProgress = null;
+    llmDownloadingModel = model;
+    try {
+      const id = await invoke<string>("start_model_download", {
+        request: { url: model.url, filename: model.filename },
+      });
+      llmDownloadId = id;
+    } catch (err: unknown) {
+      llmDownloadError = err instanceof Error ? err.message : String(err);
+      llmDownloadingModel = null;
+    }
+  }
+
+  async function cancelLlmDownload(): Promise<void> {
+    if (!llmDownloadId) return;
+    try {
+      await invoke("cancel_model_download", { downloadId: llmDownloadId });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // ─── LLM HuggingFace search ───────────────────────────────────────────────
+
+  async function searchHf(): Promise<void> {
+    if (!searchQuery.trim() || searchLoading) return;
+    searchLoading = true;
+    searchError = null;
+    searchResults = [];
+    expandedModel = null;
+    expandedDetail = null;
+    try {
+      const data = await invoke<{ models: HfModelCard[]; next_cursor: string | null }>(
+        "search_hf_models",
+        { params: { query: searchQuery.trim(), limit: 8 } },
+      );
+      searchResults = data.models;
+    } catch (err: unknown) {
+      searchError = err instanceof Error ? err.message : String(err);
+    } finally {
+      searchLoading = false;
+    }
+  }
+
+  async function expandSearchModel(repoId: string): Promise<void> {
+    if (expandedModel === repoId) {
+      expandedModel = null;
+      expandedDetail = null;
+      return;
+    }
+    expandedModel = repoId;
+    expandedDetail = null;
+    expandLoading = true;
+    try {
+      expandedDetail = await invoke<HfModelCard>("get_hf_model", { repoId });
+    } catch {
+      /* show what we have */
+    } finally {
+      expandLoading = false;
+    }
+  }
+
+  async function downloadHfFile(file: HfFile): Promise<void> {
+    if (llmDownloadId) return;
+    llmDownloadError = null;
+    llmDownloadProgress = null;
+    llmDownloadingModel = file;
+    try {
+      const id = await invoke<string>("start_model_download", {
+        request: { url: file.download_url, filename: file.filename },
+      });
+      llmDownloadId = id;
+      showSearch = false;
+    } catch (err: unknown) {
+      llmDownloadError = err instanceof Error ? err.message : String(err);
+      llmDownloadingModel = null;
+    }
+  }
+
+  // ─── STT download ─────────────────────────────────────────────────────────
+
+  async function downloadSttModel(model: CuratedSttModel): Promise<void> {
+    if (sttDownloadId) return;
+    sttDownloadError = null;
+    sttDownloadProgress = null;
+    sttDownloadingModel = model;
+    try {
+      const id = await invoke<string>("start_model_download", {
+        request: { url: model.url, filename: model.filename },
+      });
+      sttDownloadId = id;
+    } catch (err: unknown) {
+      sttDownloadError = err instanceof Error ? err.message : String(err);
+      sttDownloadingModel = null;
+    }
+  }
+
+  async function cancelSttDownload(): Promise<void> {
+    if (!sttDownloadId) return;
+    try {
+      await invoke("cancel_model_download", { downloadId: sttDownloadId });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // ─── Cloud backend redirect ───────────────────────────────────────────────
+
+  function openCloudSettings(): void {
+    navigateTo("llm");
+    onopencloud();
+  }
+
+  // ─── Navigation ───────────────────────────────────────────────────────────
+
+  async function handleContinue(): Promise<void> {
+    if (advancing) return;
+    advancing = true;
+    advanceError = null;
+    try {
+      if (sttEnabled && selectedWhisper) {
+        await invoke("setup_whisper_model", { modelPath: selectedWhisper.path });
+      }
+      onnext();
+    } catch (err: unknown) {
+      advanceError = err instanceof Error ? err.message : String(err);
+      advancing = false;
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  function ramLabel(gb: number): string {
+    return gb >= 1 ? `${Math.round(gb)} GB` : `${Math.round(gb * 1024)} MB`;
+  }
+
+  function osLabel(os: string): string {
+    if (os === "macos") return "macOS";
+    if (os === "linux") return "Linux";
+    if (os === "windows") return "Windows";
+    return os;
+  }
+
+  function dlBytes(p: DownloadProgress): string {
+    const dl = (p.downloaded_bytes / 1e9).toFixed(2);
+    if (!p.total_bytes) return `${dl} GB`;
+    const total = (p.total_bytes / 1e9).toFixed(2);
+    const pct = Math.round((p.downloaded_bytes / p.total_bytes) * 100);
+    return `${dl} / ${total} GB · ${pct}%`;
+  }
+
+  function dlSpeed(bps: number): string {
+    return bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : `${Math.round(bps / 1000)} KB/s`;
+  }
+
+  function dlPct(p: DownloadProgress): number {
+    if (!p.total_bytes) return 0;
+    return Math.min(100, Math.round((p.downloaded_bytes / p.total_bytes) * 100));
+  }
+
+  function hfFileLabel(f: HfFile): string {
+    if (f.compatibility === "fits") return "fits";
+    if (f.compatibility === "might_fit") return "might fit";
+    if (f.compatibility === "too_large") return "too large";
+    return "";
+  }
+</script>
+
+<div class="ai-setup" data-testid="onboarding-ai-setup">
+  <header class="setup-header">
+    <h2 class="setup-title">Configurons ton IA</h2>
+    <p class="setup-subtitle">
+      Choisis un modèle local pour rester souverain, ou utilise un fournisseur cloud.
+    </p>
+  </header>
+
+  {#if sysInfo}
+    <div class="sys-info-bar" data-testid="system-info-bar">
+      <span class="sys-chip">
+        <MemoryStick size={11} strokeWidth={2} />{ramLabel(sysInfo.total_ram_gb)} RAM
+      </span>
+      <span class="sys-chip">
+        <MonitorCog size={11} strokeWidth={2} />{osLabel(sysInfo.os)} · {sysInfo.arch}
+      </span>
+      {#if sysInfo.gpu_available}<span class="sys-chip sys-chip-gpu">GPU</span>{/if}
+    </div>
+  {/if}
+
+  {#if loading}
+    <div class="scan-loading" data-testid="scan-loading">
+      <Spinner size={18} />
+      <span>Analyse de ton environnement…</span>
+    </div>
+  {:else}
+    <!-- ─── LLM section ──────────────────────────────────────────────── -->
+    <section class="setup-section" data-testid="llm-section">
+      <div class="section-header">
+        <HardDrive size={14} strokeWidth={2} class="text-primary" />
+        <span class="section-title">Modèle de langage (LLM)</span>
+        {#if llmSuccess}
+          <span class="section-badge-ok">
+            <Check size={10} strokeWidth={2.5} /> Configuré
+          </span>
+        {:else if $llmBackends.length > 0}
+          <span class="section-badge-ok">
+            <Check size={10} strokeWidth={2.5} /> {$llmBackends.length} backend{$llmBackends.length > 1 ? "s" : ""}
+          </span>
+        {/if}
+      </div>
+
+      {#if ggufModels.length === 0 && !llmSuccess}
+        <p class="empty-hint" data-testid="llm-empty-hint">
+          Aucun modèle GGUF détecté. Choisis-en un ci-dessous, ou place un .gguf dans
+          <code>~/.apollia/models/</code> ou <code>~/Downloads/</code>, puis
+          <button class="inline-link" onclick={loadData}>re-scanner</button>.
+        </p>
+
+        {#if llmDownloadId}
+          <div class="download-block" data-testid="llm-download-progress">
+            <div class="dl-header">
+              <span class="dl-filename">
+                {"filename" in (llmDownloadingModel ?? {})
+                  ? (llmDownloadingModel as CuratedLlmModel | HfFile).filename
+                  : "…"}
+              </span>
+              <button class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label="Annuler le téléchargement">
+                <X size={12} strokeWidth={2} />
+              </button>
+            </div>
+            <div class="progress-track">
+              {#if llmDownloadProgress}
+                <div class="progress-fill" style="width:{dlPct(llmDownloadProgress)}%"></div>
+              {:else}
+                <div class="progress-fill indeterminate"></div>
+              {/if}
+            </div>
+            {#if llmDownloadProgress}
+              <div class="dl-meta">
+                <span>{dlBytes(llmDownloadProgress)}</span>
+                <span>{dlSpeed(llmDownloadProgress.speed_bps)}</span>
+              </div>
+            {/if}
+          </div>
+        {:else if showSearch}
+          <div class="search-bar">
+            <button class="btn-back" onclick={() => { showSearch = false; searchResults = []; }} aria-label="Retour">
+              <ArrowLeft size={12} strokeWidth={2} />
+            </button>
+            <input
+              class="search-input"
+              type="text"
+              placeholder="Rechercher un modèle GGUF sur HuggingFace…"
+              bind:value={searchQuery}
+              onkeydown={(e) => e.key === "Enter" && searchHf()}
+            />
+            <button class="btn-search" onclick={searchHf} disabled={searchLoading} aria-label="Rechercher">
+              {#if searchLoading}<Spinner size={12} />{:else}<Search size={12} strokeWidth={2} />{/if}
+            </button>
+          </div>
+
+          {#if searchError}
+            <p class="inline-error" role="alert"><AlertCircle size={12} />{searchError}</p>
+          {/if}
+
+          {#if searchResults.length > 0}
+            <ul class="model-list" data-testid="search-results">
+              {#each searchResults as model (model.repo_id)}
+                {@const isExpanded = expandedModel === model.repo_id}
+                {@const detail = isExpanded ? expandedDetail : null}
+                <li class="search-result-item" class:is-expanded={isExpanded}>
+                  <button
+                    class="search-result-header"
+                    onclick={() => expandSearchModel(model.repo_id)}
+                    disabled={model.compatibility_issue === "embedding_model" || model.compatibility_issue === "no_gguf_files"}
+                  >
+                    <div class="model-icon">
+                      <Cpu size={12} strokeWidth={1.75} />
+                    </div>
+                    <span class="model-name">{model.repo_id}</span>
+                    {#if model.gated}
+                      <span class="badge-gated">gated</span>
+                    {/if}
+                    <ChevronRight
+                      size={12}
+                      class="text-muted-foreground/50 transition-transform {isExpanded ? 'rotate-90' : ''}"
+                    />
+                  </button>
+
+                  {#if isExpanded}
+                    <div class="search-result-files">
+                      {#if expandLoading && !detail}
+                        <div class="files-loading"><Spinner size={12} /></div>
+                      {:else}
+                        {@const files = (detail ?? model).gguf_files.slice(0, 6)}
+                        {#each files as file (file.filename)}
+                          <button
+                            class="file-row"
+                            class:compat-fits={file.compatibility === "fits"}
+                            class:compat-large={file.compatibility === "too_large"}
+                            onclick={() => downloadHfFile(file)}
+                            disabled={file.compatibility === "too_large"}
+                          >
+                            <Download size={10} strokeWidth={2} />
+                            <span class="file-name">{file.filename}</span>
+                            <span class="file-size">{file.size_human}</span>
+                            {#if file.compatibility}
+                              <span class="compat-chip compat-chip-{file.compatibility}">
+                                {hfFileLabel(file)}
+                              </span>
+                            {/if}
+                          </button>
+                        {/each}
+                      {/if}
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {:else if !searchLoading}
+            <p class="empty-hint" style="text-align:center">
+              {searchQuery ? "Aucun résultat." : "Tape un nom de modèle pour commencer."}
+            </p>
+          {/if}
+        {:else}
+          <div class="curated-divider"><span>Modèles recommandés</span></div>
+          <ul class="model-list" data-testid="curated-llm-list">
+            {#each availableLlmModels as model (model.filename)}
+              <li>
+                <button class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
+                  <div class="model-icon"><Download size={12} strokeWidth={1.75} /></div>
+                  <div class="model-info">
+                    <span class="model-name">{model.name}</span>
+                    <span class="model-meta">{model.size_label}</span>
+                  </div>
+                  {#if model.filename === recommendedLlm?.filename}
+                    <span class="badge-recommended">Recommandé</span>
+                  {/if}
+                  <ChevronRight size={13} class="text-muted-foreground/50" />
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <div class="alt-row">
+            <button class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
+              <Search size={11} strokeWidth={2} />
+              Rechercher sur HuggingFace
+            </button>
+            <button class="btn-search-hf btn-cloud" onclick={openCloudSettings} data-testid="onboarding-open-cloud">
+              <Cloud size={11} strokeWidth={2} />
+              Utiliser un fournisseur cloud
+            </button>
+          </div>
+        {/if}
+
+        {#if llmDownloadError}
+          <p class="inline-error" role="alert" data-testid="llm-download-error">
+            <AlertCircle size={12} />{llmDownloadError}
+          </p>
+        {/if}
+      {:else if llmSuccess}
+        <div class="success-row" data-testid="llm-success">
+          <div class="success-icon-sm"><Check size={13} strokeWidth={2.5} /></div>
+          <span class="success-filename">{selectedGguf?.filename}</span>
+        </div>
+      {:else}
+        <ul class="model-list" data-testid="llm-model-list">
+          {#each ggufModels as model (model.path)}
+            <li>
+              <button
+                class="model-row"
+                class:is-selected={selectedGguf?.path === model.path && llmConfiguring}
+                onclick={() => selectGgufModel(model)}
+                disabled={llmConfiguring || llmSuccess}
+                data-testid="llm-model-row"
+              >
+                <div class="model-icon">
+                  {#if selectedGguf?.path === model.path && llmConfiguring}
+                    <Spinner size={13} />
+                  {:else}
+                    <Cpu size={13} strokeWidth={1.75} />
+                  {/if}
+                </div>
+                <div class="model-info">
+                  <span class="model-name">{model.filename}</span>
+                  <span class="model-meta">{model.size_human}</span>
+                </div>
+                {#if model.recommended}
+                  <span class="badge-recommended">Recommandé</span>
+                {/if}
+                <ChevronRight size={13} class="text-muted-foreground/50" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+        {#if llmError}
+          <p class="inline-error" role="alert" data-testid="llm-error"><AlertCircle size={12} />{llmError}</p>
+        {/if}
+      {/if}
+    </section>
+
+    <!-- ─── STT section ──────────────────────────────────────────────── -->
+    <section class="setup-section" data-testid="stt-section">
+      <div class="section-header">
+        <Mic size={14} strokeWidth={2} class="text-secondary" />
+        <span class="section-title">Reconnaissance vocale (optionnel)</span>
+        <button class="btn-rescan" onclick={rescanStt} aria-label="Re-scanner les modèles Whisper" title="Re-scanner">
+          <RefreshCw size={11} strokeWidth={2} />
+        </button>
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            class="toggle-input"
+            bind:checked={sttEnabled}
+            disabled={whisperModels.length === 0}
+            data-testid="stt-toggle"
+          />
+          <span class="toggle-track" class:on={sttEnabled}></span>
+        </label>
+      </div>
+
+      {#if whisperModels.length === 0}
+        <p class="empty-hint" data-testid="stt-empty-hint">
+          Aucun modèle Whisper détecté. Télécharge-en un pour activer la dictée vocale.
+        </p>
+
+        {#if sttDownloadId}
+          <div class="download-block" data-testid="stt-download-progress">
+            <div class="dl-header">
+              <span class="dl-filename">{sttDownloadingModel?.filename ?? "…"}</span>
+              <button class="btn-cancel-dl" onclick={cancelSttDownload} aria-label="Annuler le téléchargement">
+                <X size={12} strokeWidth={2} />
+              </button>
+            </div>
+            <div class="progress-track">
+              {#if sttDownloadProgress}
+                <div class="progress-fill" style="width:{dlPct(sttDownloadProgress)}%"></div>
+              {:else}
+                <div class="progress-fill indeterminate"></div>
+              {/if}
+            </div>
+            {#if sttDownloadProgress}
+              <div class="dl-meta">
+                <span>{dlBytes(sttDownloadProgress)}</span>
+                <span>{dlSpeed(sttDownloadProgress.speed_bps)}</span>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="curated-divider"><span>Modèles Whisper</span></div>
+          <ul class="model-list" data-testid="curated-stt-list">
+            {#each availableSttModels as model (model.filename)}
+              <li>
+                <button class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
+                  <div class="model-icon model-icon-stt"><Download size={12} strokeWidth={1.75} /></div>
+                  <div class="model-info">
+                    <span class="model-name">{model.name}</span>
+                    <span class="model-meta">
+                      {model.size_label} · {model.quality_label} ·
+                      <span class="model-lang">{model.lang}</span>
+                    </span>
+                  </div>
+                  {#if model.filename === recommendedStt?.filename}
+                    <span class="badge-recommended badge-recommended-stt">Recommandé</span>
+                  {/if}
+                  <ChevronRight size={13} class="text-muted-foreground/50" />
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if sttDownloadError}
+          <p class="inline-error" role="alert" data-testid="stt-download-error">
+            <AlertCircle size={12} />{sttDownloadError}
+          </p>
+        {/if}
+      {:else if sttEnabled}
+        <ul class="model-list" data-testid="whisper-model-list">
+          {#each whisperModels as model (model.path)}
+            <li>
+              <button
+                class="model-row"
+                class:is-selected={selectedWhisper?.path === model.path}
+                onclick={() => { selectedWhisper = model; }}
+                data-testid="whisper-model-row"
+              >
+                <div class="model-icon model-icon-stt"><Mic size={12} strokeWidth={1.75} /></div>
+                <div class="model-info">
+                  <span class="model-name">{model.filename}</span>
+                  <span class="model-meta capitalize">{model.model_size}</span>
+                </div>
+                {#if model.recommended}
+                  <span class="badge-recommended badge-recommended-stt">Recommandé</span>
+                {/if}
+                {#if selectedWhisper?.path === model.path}
+                  <Check size={13} strokeWidth={2.5} class="text-secondary" />
+                {:else}
+                  <ChevronRight size={13} class="text-muted-foreground/50" />
+                {/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  {/if}
+
+  {#if advanceError}
+    <p class="inline-error" role="alert" data-testid="advance-error">
+      <AlertCircle size={12} />{advanceError}
+    </p>
+  {/if}
+
+  <footer class="setup-footer">
+    <button class="btn-secondary" onclick={onback} disabled={advancing} data-testid="ai-setup-back">
+      ← Retour
+    </button>
+    <div class="footer-right">
+      <button class="btn-tertiary" onclick={onskip} disabled={advancing} data-testid="ai-setup-skip">
+        Configurer plus tard
+      </button>
+      <Button
+        variant="primary-gradient"
+        size="default"
+        onclick={handleContinue}
+        disabled={advancing || loading || !hasUsableLlm}
+        loading={advancing}
+        data-testid="ai-setup-continue"
+      >
+        Continuer
+      </Button>
+    </div>
+  </footer>
+</div>
+
+<style>
+  .ai-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* Header */
+  .setup-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    text-align: center;
+  }
+  .setup-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    margin: 0;
+    letter-spacing: -0.015em;
+  }
+  .setup-subtitle {
+    font-size: 0.8125rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* Sys chips */
+  .sys-info-bar {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .sys-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted));
+    padding: 0.2rem 0.55rem;
+    border-radius: 99px;
+  }
+  .sys-chip-gpu {
+    color: hsl(var(--secondary));
+    background: hsl(var(--secondary) / 0.12);
+  }
+
+  /* Scan loading */
+  .scan-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem 0;
+    font-size: 0.8125rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Section */
+  .setup-section {
+    background: hsl(var(--muted) / 0.4);
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    padding: 0.875rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-title {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+  .section-badge-ok {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: hsl(142 71% 35%);
+    background: hsl(142 71% 35% / 0.12);
+    padding: 0.15rem 0.45rem;
+    border-radius: 99px;
+  }
+
+  /* Model list */
+  .model-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease;
+  }
+  .model-row:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.04);
+    border-color: hsl(var(--primary) / 0.25);
+  }
+  .model-row:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .model-row.is-selected {
+    border-color: hsl(var(--primary) / 0.4);
+    background: hsl(var(--primary) / 0.04);
+  }
+
+  .model-icon {
+    width: 1.625rem;
+    height: 1.625rem;
+    border-radius: 0.375rem;
+    background: hsl(var(--primary) / 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--primary));
+    flex-shrink: 0;
+  }
+  .model-icon-stt {
+    background: hsl(var(--secondary) / 0.12);
+    color: hsl(var(--secondary));
+  }
+
+  .model-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    min-width: 0;
+  }
+  .model-name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-meta {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+  }
+  .model-lang {
+    font-weight: 500;
+  }
+  .capitalize {
+    text-transform: capitalize;
+  }
+
+  .badge-recommended {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.1);
+    padding: 0.18rem 0.4rem;
+    border-radius: 99px;
+    flex-shrink: 0;
+  }
+  .badge-recommended-stt {
+    color: hsl(var(--secondary));
+    background: hsl(var(--secondary) / 0.12);
+  }
+
+  /* Success */
+  .success-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .success-icon-sm {
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 50%;
+    background: hsl(142 71% 35%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .success-filename {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(142 71% 35%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Rescan */
+  .btn-rescan {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .btn-rescan:hover {
+    background: hsl(var(--secondary) / 0.08);
+    color: hsl(var(--secondary));
+  }
+
+  /* Toggle */
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .toggle-track {
+    width: 2rem;
+    height: 1.125rem;
+    border-radius: 99px;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    position: relative;
+    transition: background 150ms ease;
+  }
+  .toggle-track::after {
+    content: "";
+    position: absolute;
+    top: 0.125rem;
+    left: 0.125rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: white;
+    transition: transform 150ms ease;
+    box-shadow: 0 1px 3px hsl(0 0% 0% / 0.2);
+  }
+  .toggle-track.on {
+    background: hsl(var(--secondary));
+    border-color: hsl(var(--secondary));
+  }
+  .toggle-track.on::after {
+    transform: translateX(0.875rem);
+  }
+
+  /* Empty hints */
+  .empty-hint {
+    font-size: 0.8125rem;
+    color: hsl(var(--muted-foreground));
+    margin: 0;
+    line-height: 1.5;
+  }
+  .empty-hint code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85em;
+    background: hsl(var(--muted));
+    padding: 0.1em 0.3em;
+    border-radius: 0.25rem;
+    color: hsl(var(--foreground) / 0.85);
+  }
+  .inline-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: hsl(var(--primary));
+    cursor: pointer;
+    font-size: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* Curated divider */
+  .curated-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .curated-divider::before,
+  .curated-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: hsl(var(--border));
+  }
+  .curated-divider span {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+
+  /* Alt row */
+  .alt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: stretch;
+  }
+  @media (min-width: 540px) {
+    .alt-row {
+      flex-direction: row;
+      justify-content: center;
+    }
+  }
+  .btn-search-hf {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    background: hsl(var(--card));
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease;
+  }
+  .btn-search-hf:hover {
+    background: hsl(var(--muted));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--primary) / 0.25);
+  }
+  .btn-cloud:hover {
+    color: hsl(var(--secondary));
+    border-color: hsl(var(--secondary) / 0.35);
+  }
+
+  /* Search bar */
+  .search-bar {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+  }
+  .btn-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 0.4rem;
+    border: 1px solid hsl(var(--border));
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 120ms ease;
+  }
+  .btn-back:hover {
+    background: hsl(var(--muted));
+  }
+  .search-input {
+    flex: 1;
+    height: 1.875rem;
+    padding: 0 0.625rem;
+    border-radius: 0.4rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    font-size: 0.8125rem;
+    outline: none;
+    transition: border-color 120ms ease;
+  }
+  .search-input:focus {
+    border-color: hsl(var(--primary) / 0.5);
+  }
+  .btn-search {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 0.4rem;
+    border: none;
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 120ms ease;
+  }
+  .btn-search:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.2);
+  }
+  .btn-search:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Search results */
+  .search-result-item {
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: hsl(var(--card));
+  }
+  .search-result-item.is-expanded {
+    border-color: hsl(var(--primary) / 0.3);
+  }
+  .search-result-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.45rem 0.625rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms ease;
+  }
+  .search-result-header:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.04);
+  }
+  .search-result-header:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .badge-gated {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(45 100% 35%);
+    background: hsl(45 100% 35% / 0.12);
+    padding: 0.15rem 0.4rem;
+    border-radius: 99px;
+    flex-shrink: 0;
+  }
+  .search-result-files {
+    padding: 0 0.625rem 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .files-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+  }
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.35rem;
+    border: 1px solid transparent;
+    background: hsl(var(--muted) / 0.5);
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    transition:
+      background 100ms ease,
+      border-color 100ms ease;
+  }
+  .file-row:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.06);
+    border-color: hsl(var(--primary) / 0.18);
+  }
+  .file-row:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .file-row.compat-fits {
+    border-color: hsl(142 71% 35% / 0.25);
+  }
+  .file-row.compat-large {
+    opacity: 0.4;
+  }
+  .file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-size {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+  }
+  .compat-chip {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.35rem;
+    border-radius: 99px;
+    flex-shrink: 0;
+  }
+  .compat-chip-fits {
+    color: hsl(142 71% 35%);
+    background: hsl(142 71% 35% / 0.12);
+  }
+  .compat-chip-might_fit {
+    color: hsl(45 100% 35%);
+    background: hsl(45 100% 35% / 0.12);
+  }
+  .compat-chip-too_large {
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.1);
+  }
+
+  /* Download block */
+  .download-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--primary) / 0.2);
+    background: hsl(var(--primary) / 0.05);
+  }
+  .dl-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .dl-filename {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .btn-cancel-dl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    border: none;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .btn-cancel-dl:hover {
+    background: hsl(var(--destructive) / 0.12);
+    color: hsl(var(--destructive));
+  }
+  .progress-track {
+    height: 0.25rem;
+    border-radius: 99px;
+    background: hsl(var(--primary) / 0.15);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
+    transition: width 300ms ease;
+  }
+  .progress-fill.indeterminate {
+    width: 40%;
+    animation: indeterminate 1.4s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(350%);
+    }
+  }
+  .dl-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Errors */
+  .inline-error {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.05);
+    border: 1px solid hsl(var(--destructive) / 0.2);
+    border-radius: 0.4rem;
+    padding: 0.45rem 0.625rem;
+    margin: 0;
+  }
+
+  /* Footer */
+  .setup-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid hsl(var(--border));
+  }
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-secondary,
+  .btn-tertiary {
+    background: none;
+    border: none;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.8125rem;
+    cursor: pointer;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.4rem;
+    transition:
+      color 150ms ease,
+      background 150ms ease;
+  }
+  .btn-secondary:hover:not(:disabled),
+  .btn-tertiary:hover:not(:disabled) {
+    color: hsl(var(--foreground));
+    background: hsl(var(--muted));
+  }
+  .btn-secondary:disabled,
+  .btn-tertiary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>

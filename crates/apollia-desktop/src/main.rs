@@ -737,6 +737,7 @@ fn main() {
             commands::mcp::test_mcp_connection,
             commands::mcp::restart_mcp_server,
             commands::mcp::fetch_mcp_registry,
+            commands::mcp::refresh_mcp_server_detail,
             commands::mcp::store_mcp_secret,
             commands::mcp::delete_mcp_secret,
             commands::mcp::set_mcp_server_approval,

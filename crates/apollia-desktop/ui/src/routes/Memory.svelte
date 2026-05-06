@@ -8,7 +8,6 @@
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
   import UserMemoryDashboard from "../components/memory/UserMemoryDashboard.svelte";
-  import RecentExtractions from "../components/memory/RecentExtractions.svelte";
   import ToolSchemaPanel from "../components/tools/ToolSchemaPanel.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
   import { Database, Wrench } from "lucide-svelte";
@@ -207,8 +206,7 @@
 
   <!-- User Memory Tab — visible operator + builder -->
   {#if activeTab === "user_memory"}
-    <div class="px-8 pt-4 space-y-6">
-      <RecentExtractions mode={$uiMode} />
+    <div class="px-8 pt-4">
       <UserMemoryDashboard mode={$uiMode} />
     </div>
   {/if}

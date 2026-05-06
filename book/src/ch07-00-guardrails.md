@@ -26,7 +26,7 @@ Le circuit se referme automatiquement après la période de cooldown.
 
 ### A2A Guards — les garde-fous inter-agents
 
-Quand un Director Agent invoque un Worker via `ctx.delegate`, trois garde-fous supplémentaires s'appliquent : profondeur maximale de chaîne (`max_depth`), timeout cumulé de toute la chaîne A2A, et blocage de l'auto-invocation. Ces protections empêchent les récursions infinies entre agents.
+Quand un Director Agent invoque un Worker via `ctx.delegate`, deux garde-fous supplémentaires s'appliquent : nombre maximal de hops dans la chaîne (`max_hops`) et détection de cycles (y compris l'auto-invocation). Ces protections empêchent les récursions infinies entre agents.
 
 ---
 
@@ -55,4 +55,4 @@ async def run(self, task, ctx):
 
 - **Section 1 — StepBudget** : les trois dimensions, la configuration dans le manifest, les plafonds runtime, comment lire le budget depuis l'agent
 - **Section 2 — ResilienceLayer** : la machine à états du circuit breaker, la RetryPolicy avec backoff exponentiel, l'observabilité via les logs et l'audit
-- **Section 3 — A2A Guards** : les trois protections pour les chaînes inter-agents, la configuration dans `apollia.toml`, l'interaction avec le StepBudget
+- **Section 3 — A2A Guards** : les deux protections pour les chaînes inter-agents (max_hops + détection de cycles), la configuration dans `apollia.toml`, l'interaction avec le StepBudget
