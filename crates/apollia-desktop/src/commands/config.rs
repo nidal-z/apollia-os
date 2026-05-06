@@ -293,8 +293,8 @@ pub async fn reset_onboarding(
             .lock()
             .map_err(|e| format!("mutex poisoned: {e}"))?;
 
-        // List of all onboarding state keys persisted in UserMemory.
-        let keys = [
+        // 1. Desktop UI state keys (`onboarding_*`) — phase machine + stats.
+        let ui_keys = [
             "onboarding_phase",
             "onboarding_profile",
             "onboarding_llm_configured",
@@ -315,11 +315,58 @@ pub async fn reset_onboarding(
             "onboarding_stats_companion_questions",
             "onboarding_stats_voice_commands_used",
         ];
-
-        for key in &keys {
+        for key in &ui_keys {
             // forget() searches across all categories and deletes the first
-            // match. All onboarding keys are in Context, so this is safe.
+            // match. NotFound is fine — the key may simply not have been
+            // collected yet.
             let _ = repo.forget(key);
+        }
+        drop(repo);
+
+        // 2. Agent-collected Tier 1 facts. The onboarding-agent writes them
+        // directly via `remember_user("user.name", ...)`, which goes through
+        // `remember_inner(namespace="__user__", key="user.name", ...)` —
+        // i.e. the **raw** key, not the compound `<category>.<key>` shape
+        // produced by `UserMemoryRepository`. Calling `repo.forget("user.name")`
+        // therefore can't find these entries (it searches for
+        // `profile.user.name`, `context.user.name`, …). We have to bypass
+        // the repository abstraction and hit the SemanticMemory directly,
+        // otherwise the next onboarding session resumes mid-flow because
+        // `_build_progress_note` keeps reading the stale facts.
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let user_db_path = std::path::PathBuf::from(home)
+            .join(".apollia")
+            .join("memory")
+            .join("__user__.db");
+
+        if user_db_path.exists() {
+            match apollia_memory::store::MemoryStore::open(&user_db_path) {
+                Ok(store) => {
+                    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+                    let tier1_keys = [
+                        "user.name",
+                        "user.role",
+                        "user.agents.hitl",
+                        "user.constraints.sovereignty",
+                    ];
+                    for key in &tier1_keys {
+                        if let Err(e) = sem.forget("__user__", key) {
+                            tracing::warn!(
+                                key = %key,
+                                error = %e,
+                                "failed to wipe Tier 1 user.* key during reset_onboarding"
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        path = %user_db_path.display(),
+                        error = %e,
+                        "could not open __user__.db during reset_onboarding"
+                    );
+                }
+            }
         }
 
         Ok::<_, String>(())

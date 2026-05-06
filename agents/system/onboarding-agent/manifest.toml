@@ -3,8 +3,8 @@
 
 [agent]
 name = "onboarding-agent"
-version = "2.1.0"
-description = "Premier contact utilisateur — initiaée"
+version = "2.2.0"
+description = "Premier contact utilisateur — calibrage en 3 questions (identité, supervision, souveraineté)"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
 tags = ["onboarding", "conversational", "system"]

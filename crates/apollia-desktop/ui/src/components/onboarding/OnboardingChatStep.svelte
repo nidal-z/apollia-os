@@ -19,27 +19,48 @@
   import type { ChatSessionDetail, TriggerResult } from "$lib/types";
   import { llmBackends } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
-  import { AlertCircle } from "lucide-svelte";
+  import { AlertCircle, CheckCircle2 } from "lucide-svelte";
 
   interface Props {
     onback: () => void;
-    /** Reserved for future use — currently the modal owns close lifecycle. */
-    onclose?: () => void;
+    /** Called when the user clicks "Terminer" or auto-close fires. */
+    onclose: () => void;
   }
 
-  const { onback }: Props = $props();
+  const { onback, onclose }: Props = $props();
 
   let sessionId = $state<string | null>(null);
   let bootstrapping = $state(false);
   let bootstrapError = $state<string | null>(null);
   let userTurns = $state(0);
+  let agentFinalized = $state(false);
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let bootstrapStarted = false;
 
   const TOTAL_TURNS = 4;
+  // The first user message is the auto-kick "Bonjour !" injected by this
+  // component to prime the agent. We don't count it when judging whether
+  // the user has actually engaged.
+  const KICK_MESSAGES = 1;
+  // Minimum *real* user replies (excluding the kick) required before we
+  // trust the agent's `completed_at` signal — guards against stale memory
+  // state from a previous broken session triggering the wrap-up panel
+  // before the conversation has even started.
+  const MIN_REAL_REPLIES = 2;
+
   const turnIndex = $derived(Math.min(userTurns, TOTAL_TURNS));
-  const completed = $derived(turnIndex >= TOTAL_TURNS);
+  const realReplies = $derived(Math.max(0, userTurns - KICK_MESSAGES));
+  const completed = $derived(
+    (agentFinalized && realReplies >= MIN_REAL_REPLIES) || turnIndex >= TOTAL_TURNS,
+  );
   const llmReady = $derived($llmBackends.length > 0);
+
+  // Show the wrap-up panel either because the agent wrote
+  // `onboarding.completed_at` to memory (authoritative signal AFTER the
+  // user has actually answered) or because the conversation ran the full
+  // 4 turns without a finalize tag (safety net — never leave the user
+  // stranded in chat).
+  const showWrapUp = $derived(completed && sessionId !== null);
 
   $effect(() => {
     if (llmReady && !bootstrapStarted && !sessionId && !bootstrapping) {
@@ -58,6 +79,35 @@
     } catch {
       // Non-critical — retry on next tick.
     }
+
+    // Authoritative completion signal: the agent has written
+    // `onboarding.completed_at` to its semantic memory. Once true, we stop
+    // polling and switch to the wrap-up panel.
+    if (!agentFinalized) {
+      try {
+        const done = await invoke<boolean>("check_onboarding_finalized");
+        if (done) {
+          agentFinalized = true;
+          if (pollTimer !== undefined) {
+            clearInterval(pollTimer);
+            pollTimer = undefined;
+          }
+        }
+      } catch {
+        // Non-critical — try again next tick.
+      }
+    }
+  }
+
+  async function handleFinish(): Promise<void> {
+    // Best-effort: persist that the user has seen the onboarding to
+    // completion so the modal won't reopen on next launch.
+    try {
+      await invoke("mark_onboarded");
+    } catch {
+      /* non-blocking */
+    }
+    onclose();
   }
 
   async function startChat(): Promise<void> {
@@ -145,6 +195,32 @@
       />
     {/if}
   </div>
+
+  {#if showWrapUp}
+    <div class="chat-wrapup" data-testid="onboarding-wrapup">
+      <div class="chat-wrapup-icon">
+        <CheckCircle2 size={18} strokeWidth={2} aria-hidden="true" />
+      </div>
+      <div class="chat-wrapup-text">
+        <p class="chat-wrapup-title">
+          {agentFinalized ? "Calibrage terminé" : "Tu peux passer à la suite"}
+        </p>
+        <p class="chat-wrapup-detail">
+          {agentFinalized
+            ? "L'agent a enregistré ton profil. Tu peux désormais ouvrir Apollia et explorer."
+            : "Si tu as répondu aux questions principales, on peut clore ici."}
+        </p>
+      </div>
+      <Button
+        variant="primary-gradient"
+        size="default"
+        onclick={handleFinish}
+        data-testid="onboarding-finish"
+      >
+        Terminer
+      </Button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -240,5 +316,49 @@
   }
   .chat-status-error .chat-status-detail {
     color: hsl(var(--muted-foreground));
+  }
+
+  .chat-wrapup {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1.25rem;
+    border-top: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--muted) / 0.4);
+    flex-shrink: 0;
+  }
+
+  .chat-wrapup-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: hsl(142 71% 35% / 0.12);
+    color: hsl(142 71% 35%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .chat-wrapup-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .chat-wrapup-title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+
+  .chat-wrapup-detail {
+    margin: 0;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.4;
   }
 </style>

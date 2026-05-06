@@ -1,7 +1,7 @@
-"""onboarding-agent v2.0 — 4-turn calibration of new Apollia OS users.
+"""onboarding-agent v2.2 — 4-turn calibration of new Apollia OS users.
 
-Drives a short conversation (≤ 4 turns, < 2 minutes) that captures the four
-Tier 1 facts required to unlock the desktop UI completion gate:
+Drives a short conversation (≤ 4 turns / 3 questions, < 2 minutes) that
+captures the four Tier 1 facts required to finalize the onboarding:
 
   user.name                         (prénom, confidence=0.9)
   user.role                         (rôle, confidence=0.9)
@@ -48,7 +48,7 @@ from apollia.agents import AIPResult, ConversationalAgent
 # ---------------------------------------------------------------------------
 
 MEMORY_SOURCE: str = "onboarding"
-ONBOARDING_VERSION: str = "2.1"
+ONBOARDING_VERSION: str = "2.2"
 
 # ADR-086 — l'agent propose les règles de permissions correspondant aux
 # préférences profil collectées, en passant par les outils natifs HITL-gated
@@ -70,8 +70,16 @@ TIER1_KEYS: tuple[str, ...] = (
     "user.constraints.sovereignty",
 )
 
-# Keys whose presence triggers the desktop completion gate (onboarding.rs:789-795).
+# Keys whose presence unlocks the desktop *gate* (the UI considers the user
+# "named" once these are stored — see onboarding.rs:789-795). They are the
+# bare minimum to acknowledge the user's identity, NOT the completion bar.
 GATE_KEYS: tuple[str, ...] = ("user.name", "user.role")
+
+# Keys whose presence is required to **finalize** onboarding. We only emit
+# ``onboarding.completed_at`` (and propose permission rules) when every Tier 1
+# fact is collected — otherwise suggested_agents / permission proposals run
+# on a half-empty profile.
+FINALIZE_KEYS: tuple[str, ...] = TIER1_KEYS
 
 # PII categories that MUST NOT be collected by the onboarding flow.
 PII_KEY_PREFIXES: tuple[str, ...] = (
@@ -109,8 +117,8 @@ VALID_SOVEREIGNTY = {"local-only", "local-preferred", "cloud-ok"}
 
 SYSTEM_PROMPT = """\
 Tu es l'agent d'onboarding d'Apollia OS — un runtime local-first pour agents \
-IA autonomes. Ta mission : calibrer les agents en 4 tours, en moins de 2 \
-minutes. Tu DOIS suivre le flux ci-dessous à la lettre.
+IA autonomes. Ta mission : calibrer les agents en 3 questions (≈ 4 tours), \
+en moins de 2 minutes. Tu DOIS suivre le flux ci-dessous à la lettre.
 
 ## Règles de communication
 
@@ -119,22 +127,35 @@ minutes. Tu DOIS suivre le flux ci-dessous à la lettre.
 - Pas de listes numérotées de questions, pas de "et aussi…".
 - Ton chaleureux, direct, sans flatterie ni formules creuses.
 
+## Règle d'avancement (CRITIQUE)
+
+Tu ne peux **JAMAIS** clore l'onboarding tant que les **trois** clés \
+suivantes ne sont pas toutes collectées :
+  - `user.name` (Tour 1)
+  - `user.role` (Tour 1)
+  - `user.agents.hitl` (Tour 2)
+  - `user.constraints.sovereignty` (Tour 3)
+
+À chaque tour, **regarde l'historique** et identifie quelle est la prochaine \
+clé manquante. Pose la question correspondant à cette clé. Si toutes les \
+clés sont déjà collectées, et seulement dans ce cas, passe au Tour 4 \
+(clôture). N'invente jamais d'avoir collecté une valeur que l'utilisateur \
+ne t'a pas donnée.
+
 ## Flux strict — 4 tours
 
-### Tour 0 — Accueil (premier message, aucune mémoire)
-Texte exact à inclure :
-"Je vais te poser 4 questions rapides pour calibrer les agents. Tes réponses \
-seront modifiables à tout moment depuis les Settings."
-Enchaîne immédiatement avec la question du Tour 1.
-
-### Tour 1 — Identité
-Une seule question ouverte demandant prénom + rôle (ex : "Pour commencer — \
-ton prénom et ce que tu fais au quotidien ?").
-Quand l'utilisateur répond, émets en fin de message :
+### Tour 1 — Accueil + Identité (premier message)
+Inclus l'accroche exacte :
+"Je vais te poser 3 questions rapides pour calibrer les agents. Tes \
+réponses seront modifiables à tout moment depuis les Settings."
+Enchaîne immédiatement avec une question ouverte demandant prénom + rôle \
+(ex : "Pour commencer — ton prénom et ce que tu fais au quotidien ?").
+Quand l'utilisateur répond, émets en fin de ton message suivant :
   [REMEMBER user.name=Prénom]
   [REMEMBER user.role=description courte du rôle]
 
 ### Tour 2 — Supervision des agents
+**Pré-requis :** `user.name` et `user.role` collectés.
 Question exacte :
 "Quand un agent est sur le point d'envoyer un email ou modifier un fichier, \
 tu préfères : (1) toujours valider, (2) valider les actions critiques \
@@ -143,8 +164,10 @@ Mappe la réponse vers une seule valeur :
   (1) → always · (2) → critical-only · (3) → never
 Émets : [REMEMBER user.agents.hitl=always|critical-only|never]
 
-### Tour 3 — Souveraineté des données
-Question exacte :
+### Tour 3 — Souveraineté des données (NE PAS SAUTER)
+**Pré-requis :** `user.agents.hitl` collecté.
+Tu DOIS poser cette question avant la clôture, même si l'utilisateur \
+répond brièvement à la question précédente. Question exacte :
 "Tes agents peuvent-ils utiliser des APIs cloud (OpenAI, Anthropic…), ou \
 tout doit rester sur ta machine ? (local uniquement / local par défaut / \
 cloud OK)"
@@ -153,17 +176,23 @@ Mappe vers :
 cloud OK → cloud-ok
 Émets : [REMEMBER user.constraints.sovereignty=local-only|local-preferred|cloud-ok]
 
-### Tour 4 — Clôture
-Si user.name ET user.role sont collectés :
+### Tour 4 — Clôture (SEULEMENT si les 4 clés sont là)
+Vérifie d'abord que `user.name`, `user.role`, `user.agents.hitl` ET \
+`user.constraints.sovereignty` ont toutes été données par l'utilisateur \
+dans les tours précédents. Si une seule manque, **ne clos pas** : repose la \
+question correspondante au lieu de fermer.
+
+Si les 4 clés sont collectées :
   - Résume en 2 phrases ce que tu as compris.
   - Émets [PROFILE operator] ou [PROFILE builder] (voir règle profil).
   - Émets un [SUGGEST <slug>] par agent recommandé (voir règle suggestions).
-  - Mentionne brièvement à l'utilisateur que tu vas appliquer les règles \
-de permissions correspondant à ses préférences (souveraineté, supervision) \
-et qu'il verra une confirmation pour chacune. Pas besoin d'énumérer les \
-règles — l'application est gérée immédiatement après ta réponse.
+  - Mentionne brièvement que tu vas appliquer les règles de permissions \
+correspondant aux préférences collectées et qu'il verra une confirmation \
+pour chacune. Pas besoin d'énumérer les règles.
   - Termine par une phrase d'orientation ("Tu peux maintenant ouvrir /agents…").
-Si l'un des deux manque :
+
+Si `user.name` ou `user.role` manque toujours après avoir tenté de les \
+recollecter :
   - Termine par : "Nous pourrons reprendre depuis les Settings quand tu le \
 souhaites."
   - N'émets AUCUN tag de clôture.
@@ -374,9 +403,9 @@ async def _remember(
         )
 
 
-async def _all_gate_keys_present(ctx: Any) -> bool:
-    """True iff user.name and user.role are both stored."""
-    for key in GATE_KEYS:
+async def _all_keys_present(ctx: Any, keys: tuple[str, ...]) -> bool:
+    """True iff every ``key`` in ``keys`` resolves to a non-empty memory entry."""
+    for key in keys:
         try:
             value = await ctx.memory.recall(key)
         except Exception:
@@ -384,6 +413,127 @@ async def _all_gate_keys_present(ctx: Any) -> bool:
         if not value:
             return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Progress note — state-driven prompting
+# ---------------------------------------------------------------------------
+
+# Deterministic verbatim questions used when the agent code overrides a
+# hallucinated closure (cf. ``_force_question_if_premature_closure``). These
+# are the exact strings the user must see at Tour 2 and Tour 3 — the LLM
+# would otherwise be tempted to infer the answer from earlier replies and
+# skip the question entirely (observed with smaller local models).
+_DETERMINISTIC_QUESTION: dict[str, str] = {
+    "user.agents.hitl": (
+        "Question 2 sur 3 — Quand un agent est sur le point d'envoyer un email "
+        "ou modifier un fichier, tu préfères : (1) toujours valider, "
+        "(2) valider les actions critiques seulement, ou (3) laisser l'agent "
+        "agir en autonomie ?"
+    ),
+    "user.constraints.sovereignty": (
+        "Question 3 sur 3 — Tes agents peuvent-ils utiliser des APIs cloud "
+        "(OpenAI, Anthropic…), ou tout doit rester sur ta machine ? "
+        "(local uniquement / local par défaut / cloud OK)"
+    ),
+}
+
+# Heuristic markers that flag the LLM trying to close the onboarding. The
+# detection is intentionally generous — false positives are fine because
+# the override only kicks in when state is provably incomplete.
+_CLOSURE_MARKERS: tuple[str, ...] = (
+    "tu peux maintenant",
+    "/agents",
+    "calibrage est terminé",
+    "calibrage terminé",
+    "configuration est terminée",
+    "[profile",
+    "[suggest",
+    "nous pourrons reprendre depuis les settings",
+)
+
+
+def _looks_like_closure(text: str) -> bool:
+    """Return True when the LLM response reads like a Tour 4 closure."""
+    low = text.lower()
+    return any(marker in low for marker in _CLOSURE_MARKERS)
+
+
+# Per-key instruction injected verbatim into the model context whenever the
+# corresponding fact is the next one to collect. Keeping this here (rather
+# than in the system prompt) lets us be very explicit at run time without
+# bloating the static prompt. Small-model behaviour is much more reliable
+# when the "what to do now" is computed from real state instead of inferred
+# from chat history.
+_NEXT_QUESTION: dict[str, str] = {
+    "user.name": (
+        "Tour 1 — pose UNE question ouverte demandant prénom + rôle "
+        "(ex : « Pour commencer, ton prénom et ce que tu fais au quotidien ? »)."
+    ),
+    "user.role": (
+        "Tour 1 — pose UNE question ouverte demandant prénom + rôle "
+        "(ex : « Pour commencer, ton prénom et ce que tu fais au quotidien ? »)."
+    ),
+    "user.agents.hitl": (
+        "Tour 2 — pose la question EXACTE : « Quand un agent est sur le "
+        "point d'envoyer un email ou modifier un fichier, tu préfères : "
+        "(1) toujours valider, (2) valider les actions critiques seulement, "
+        "ou (3) laisser l'agent agir en autonomie ? » Mappe la réponse "
+        "vers always | critical-only | never et émets "
+        "[REMEMBER user.agents.hitl=...]."
+    ),
+    "user.constraints.sovereignty": (
+        "Tour 3 — pose la question EXACTE : « Tes agents peuvent-ils "
+        "utiliser des APIs cloud (OpenAI, Anthropic…), ou tout doit "
+        "rester sur ta machine ? (local uniquement / local par défaut / "
+        "cloud OK) » Mappe la réponse vers "
+        "local-only | local-preferred | cloud-ok et émets "
+        "[REMEMBER user.constraints.sovereignty=...]."
+    ),
+}
+
+
+async def _build_progress_note(ctx: Any) -> str:
+    """Compose a runtime system note with the agent's progress + next action.
+
+    The note is injected as an extra ``system`` message right before the
+    user's input so the LLM sees authoritative state instead of having to
+    infer it from the conversation history. This is how we keep small
+    local models on rails — they are unreliable at multi-step planning,
+    but very reliable at executing an explicit instruction.
+    """
+    collected: list[str] = []
+    missing: list[str] = []
+    for key in TIER1_KEYS:
+        try:
+            value = await ctx.memory.recall(key)
+        except Exception:
+            value = None
+        if value:
+            collected.append(key)
+        else:
+            missing.append(key)
+
+    if not missing:
+        return (
+            "ÉTAT INTERNE — toutes les clés requises sont collectées : "
+            f"{', '.join(collected)}. Tu peux maintenant passer au Tour 4 "
+            "(clôture) : résumé en 2 phrases, [PROFILE …], [SUGGEST …], "
+            "puis termine par « Tu peux maintenant ouvrir /agents… »."
+        )
+
+    next_key = missing[0]
+    instruction = _NEXT_QUESTION.get(next_key, "")
+    collected_str = ", ".join(collected) if collected else "aucune"
+    missing_str = ", ".join(missing)
+    return (
+        f"ÉTAT INTERNE — clés déjà collectées : {collected_str}. "
+        f"Clés encore manquantes : {missing_str}. "
+        f"Action attendue : {instruction} "
+        "INTERDIT de clore l'onboarding tant que les 4 clés "
+        "(user.name, user.role, user.agents.hitl, "
+        "user.constraints.sovereignty) ne sont pas TOUTES collectées."
+    )
 
 
 async def _propose_permission_rules(ctx: Any) -> None:
@@ -498,8 +648,8 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "2.1.0",
-            "description": "Premier contact utilisateur — initiaée",
+            "version": "2.2.0",
+            "description": "Premier contact utilisateur — calibrage en 3 questions (identité, supervision, souveraineté)",
             "execution_mode": "auto",
             "agent_type": "system",
             # ADR-086 — accès aux outils permission_rule_* pour proposer les
@@ -534,6 +684,25 @@ class OnboardingAgent(ConversationalAgent):
         messages: list[dict[str, str]] = list(history) if history else []
         if not messages or messages[0].get("role") != "system":
             messages.insert(0, {"role": "system", "content": self.SYSTEM_PROMPT})
+
+        # Inject a runtime progress note right before the user message so
+        # the LLM has explicit, machine-checked state about what to do next
+        # (cf. ``_build_progress_note``). This is significantly more reliable
+        # than asking small local models to infer progress from history.
+        if ctx.memory is not None:
+            try:
+                progress_note = await _build_progress_note(ctx)
+                messages.append({"role": "system", "content": progress_note})
+            except Exception as exc:
+                # Non-fatal — fall back to history-only prompting.
+                # The static SYSTEM_PROMPT alone still gives reasonable
+                # behaviour, just less robust against premature closure.
+                # Logged so flakey persistence surfaces rather than hiding.
+                import logging
+                logging.getLogger(__name__).warning(
+                    "onboarding progress note skipped: %s", exc
+                )
+
         messages.append({"role": "user", "content": user_message})
 
         response = await ctx.llm.complete(messages)
@@ -561,9 +730,35 @@ class OnboardingAgent(ConversationalAgent):
                 await _remember(ctx, key, value, explicit=False)
 
             # --- Conditional finalize ---------------------------------------
+            # Finalize only when the FULL Tier 1 set is collected — otherwise
+            # we'd write ``onboarding.completed_at`` after just the identity
+            # turn, locking in suggested_agents and permission proposals on a
+            # half-empty profile (cf. v2.2 fix).
             already_done = await ctx.memory.recall("onboarding.completed_at")
-            if not already_done and await _all_gate_keys_present(ctx):
+            if not already_done and await _all_keys_present(ctx, FINALIZE_KEYS):
                 await _finalize(ctx, profile_hint, suggested_hint)
+
+        # --- Premature-closure override --------------------------------------
+        # Small local models routinely jump to Tour 4 the moment they have
+        # captured user.name + user.role — they "guess" the remaining answers
+        # from prior context (e.g. "solo founder of a sovereign runtime →
+        # local-only + builder") and emit [PROFILE] / [SUGGEST] tags. We
+        # detect that pattern and substitute the model output with the
+        # deterministic next-question text. The user therefore *always* sees
+        # the three structured questions in order, regardless of model size.
+        if ctx.memory is not None:
+            tier1_complete = await _all_keys_present(ctx, FINALIZE_KEYS)
+            if not tier1_complete and _looks_like_closure(raw_text):
+                missing_key: str | None = None
+                for key in TIER1_KEYS:
+                    if not await ctx.memory.recall(key):
+                        missing_key = key
+                        break
+                if missing_key in _DETERMINISTIC_QUESTION:
+                    raw_text = (
+                        "Merci pour ta réponse. "
+                        + _DETERMINISTIC_QUESTION[missing_key]
+                    )
 
         processed_text = self.on_response(raw_text)
         messages.append({"role": "assistant", "content": processed_text})

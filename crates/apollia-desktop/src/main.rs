@@ -698,6 +698,7 @@ fn main() {
             commands::user::get_user_memory,
             commands::user::forget_user_memory,
             commands::onboarding::get_onboarding_state,
+            commands::onboarding::check_onboarding_finalized,
             commands::onboarding::advance_onboarding_phase,
             commands::onboarding::set_onboarding_profile,
             commands::onboarding::get_onboarding_status,

@@ -6,7 +6,7 @@
    * Designed to fit inside the shared {@link OnboardingModal} overlay (no
    * own backdrop or fixed positioning).
    */
-  import { Sparkles, ShieldCheck, Cpu } from "lucide-svelte";
+  import { ShieldCheck, Cpu, Sparkles } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
@@ -17,9 +17,11 @@
 </script>
 
 <div class="flex flex-col items-center gap-6 px-2 py-4 text-center" data-testid="onboarding-welcome">
-  <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary shadow-lg">
-    <Sparkles size={28} strokeWidth={1.75} class="text-primary-foreground" />
-  </div>
+  <img
+    src="/logo.svg"
+    alt="Apollia OS"
+    class="h-20 w-20 object-contain drop-shadow-[0_8px_24px_hsl(var(--primary)/0.35)]"
+  />
 
   <div class="space-y-2">
     <h2 class="text-xl font-semibold tracking-tight text-foreground">

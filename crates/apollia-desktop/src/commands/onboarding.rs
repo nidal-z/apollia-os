@@ -293,6 +293,60 @@ pub async fn get_onboarding_state(
     })
 }
 
+/// Checks whether the onboarding-agent has written `onboarding.completed_at`
+/// in its semantic memory.
+///
+/// Used by the desktop's onboarding chat step to detect that the agent has
+/// finished its 4-turn calibration and finalized the user profile, so the
+/// modal can switch to the wrap-up screen and offer the "Terminer" CTA.
+///
+/// Looks under both the current namespace (`onboarding`, since manifest
+/// v2.x) and the legacy one (`onboarding-agent`, kept for backwards-compat
+/// with installs that ran an older agent).
+#[tauri::command]
+pub async fn check_onboarding_finalized() -> Result<bool, String> {
+    let memory_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home).join(".apollia").join("memory")
+    };
+
+    if !memory_dir.exists() {
+        return Ok(false);
+    }
+
+    // (db_filename, namespace_in_table) — the manifest namespace also names
+    // the SQLite file (see `MemoryManager::db_path`), but the semantic table
+    // carries a redundant namespace column we must filter on.
+    let candidates: [(&str, &str); 2] = [
+        ("onboarding.db", "onboarding"),
+        ("onboarding-agent.db", "onboarding-agent"),
+    ];
+
+    let result = tokio::task::spawn_blocking(move || -> bool {
+        for (filename, namespace) in candidates {
+            let db_path = memory_dir.join(filename);
+            if !db_path.exists() {
+                continue;
+            }
+            let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+                continue;
+            };
+            let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+            let Ok(entries) = sem.recall_all(namespace, None) else {
+                continue;
+            };
+            if entries.iter().any(|e| e.key == "onboarding.completed_at") {
+                return true;
+            }
+        }
+        false
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?;
+
+    Ok(result)
+}
+
 /// Attempts to advance the onboarding flow to `target_phase`.
 ///
 /// The transition is rejected with [`OnboardingError::InvalidTransition`]
@@ -920,33 +974,52 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
         let _ = repo.forget(&key);
     }
 
+    // Both filename/namespace pairs are wiped — the manifest namespace was
+    // renamed from "onboarding-agent" to "onboarding" in v2.x and an install
+    // upgraded across that change can have entries in either file. Forgetting
+    // to clean the new file caused stale `onboarding.completed_at` to leak
+    // into fresh sessions and trigger the wrap-up panel before the user
+    // could answer a single question.
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let db_path = std::path::PathBuf::from(home)
-        .join(".apollia")
-        .join("memory")
-        .join("onboarding-agent.db");
+    let memory_dir = std::path::PathBuf::from(home).join(".apollia").join("memory");
 
-    if !db_path.exists() {
-        return;
-    }
-    let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
-        tracing::warn!("onboarding agent memory store unreadable — stale entries may persist");
-        return;
-    };
-    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
-        return;
-    };
+    let candidates: [(&str, &str); 2] = [
+        ("onboarding.db", "onboarding"),
+        ("onboarding-agent.db", "onboarding-agent"),
+    ];
 
-    for entry in entries {
-        let is_user = entry.key.starts_with("user.");
-        let is_meta_to_clear = entry.key.starts_with("onboarding.")
-            && entry.key != "onboarding.active_profile";
-        if !is_user && !is_meta_to_clear {
+    for (filename, namespace) in candidates {
+        let db_path = memory_dir.join(filename);
+        if !db_path.exists() {
             continue;
         }
-        if let Err(e) = sem.forget("onboarding-agent", &entry.key) {
-            tracing::warn!(key = %entry.key, error = %e, "failed to wipe stale onboarding entry");
+        let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+            tracing::warn!(
+                file = filename,
+                "onboarding agent memory store unreadable — stale entries may persist"
+            );
+            continue;
+        };
+        let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+        let Ok(entries) = sem.recall_all(namespace, None) else {
+            continue;
+        };
+
+        for entry in entries {
+            let is_user = entry.key.starts_with("user.");
+            let is_meta_to_clear = entry.key.starts_with("onboarding.")
+                && entry.key != "onboarding.active_profile";
+            if !is_user && !is_meta_to_clear {
+                continue;
+            }
+            if let Err(e) = sem.forget(namespace, &entry.key) {
+                tracing::warn!(
+                    key = %entry.key,
+                    namespace = namespace,
+                    error = %e,
+                    "failed to wipe stale onboarding entry",
+                );
+            }
         }
     }
 }

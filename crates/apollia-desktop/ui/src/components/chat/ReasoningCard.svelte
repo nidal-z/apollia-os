@@ -21,8 +21,6 @@
     ExternalLink,
     Compass,
     BookOpen,
-    BrainCircuit,
-    Lightbulb,
     RotateCcw,
     Quote,
     AlertTriangle,
@@ -72,8 +70,10 @@
   }
 
   function defaultForKind(kind: ReasoningItem["kind"]): boolean {
-    // Thinking / rationale / retry expanded by default; tool calls collapsed.
-    return kind === "thinking" || kind === "rationale" || kind === "retry";
+    // All variants collapsed by default — the user can expand on demand.
+    // Retry chains stay open since they are short and signal a problem
+    // worth surfacing immediately.
+    return kind === "retry";
   }
 
   let expanded = $state(loadExpanded());
@@ -446,33 +446,29 @@
     {/snippet}
   </ReasoningCardShell>
 {:else if item.kind === "thinking" || item.kind === "rationale"}
-  <ReasoningCardShell
-    status={item.status}
-    testid={testid}
-    collapsible
-    expanded={expanded}
-    onToggle={toggle}
-  >
-    {#snippet icon()}
-      {#if item.kind === "thinking"}
-        <BrainCircuit class="h-3 w-3 text-primary/70" />
-      {:else}
-        <Lightbulb class="h-3 w-3 text-primary/70" />
-      {/if}
-    {/snippet}
-    {#snippet title()}
-      <span class="italic">
+  <!-- Thinking/rationale render outside the standard ReasoningCardShell:
+       no border, no icon, no status color — just a quiet collapsible header
+       and a muted text block. Tool cards still use the full chrome. -->
+  <div class="my-1.5" data-testid={testid}>
+    <button
+      type="button"
+      class="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      aria-expanded={expanded}
+      onclick={toggle}
+    >
+      <span class="inline-block leading-none transition-transform duration-150" class:rotate-90={expanded}>›</span>
+      <span class="font-medium">
         {item.kind === "thinking"
           ? $t("chat.reasoning.thinking_label", { default: "Thinking" })
           : $t("chat.reasoning.rationale_label", { default: "Rationale" })}
       </span>
-    {/snippet}
-    {#snippet body()}
+    </button>
+    {#if expanded}
       <div
-        class="rounded glass-inset px-2.5 py-2 text-[11px] italic leading-relaxed text-muted-foreground/80 whitespace-pre-wrap"
+        class="mt-1 pl-3 text-[12px] leading-relaxed text-muted-foreground/85 whitespace-pre-wrap"
       >{item.content}</div>
-    {/snippet}
-  </ReasoningCardShell>
+    {/if}
+  </div>
 {:else if item.kind === "retry"}
   <ReasoningCardShell
     status={item.status}

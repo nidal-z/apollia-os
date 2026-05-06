@@ -24,7 +24,13 @@ const ONBOARDING_AGENT_TOML: &str =
 
 /// Bundled version — must match the `manifest()["version"]` in the Python file
 /// and the `[agent].version` in `manifest.toml`.
-const ONBOARDING_AGENT_VERSION: &str = "2.1.0";
+///
+/// **Bump this** every time you change `agent.py` or `manifest.toml`.
+/// `provision_onboarding_agent` skips re-extraction when the installed
+/// version equals this constant, so without a bump, the runtime keeps
+/// loading the previously-extracted code from `~/.apollia/agents/…/`
+/// even after a rebuild.
+const ONBOARDING_AGENT_VERSION: &str = "2.2.0";
 
 /// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");

@@ -26,6 +26,13 @@
     meta?: Snippet;
     body?: Snippet;
     footer?: Snippet;
+    /**
+     * Render the title in monospace. Default `true` for tool-call cards
+     * where the title is a function name. Pass `false` for narrative
+     * variants (thinking, rationale) where mono looks technical and out
+     * of place — those use the standard sans-serif type ramp instead.
+     */
+    monoTitle?: boolean;
   }
 
   let {
@@ -40,7 +47,14 @@
     meta,
     body,
     footer,
+    monoTitle = true,
   }: Props = $props();
+
+  const titleClass = $derived(
+    monoTitle
+      ? "min-w-0 flex-1 truncate font-medium font-mono text-[12px] text-foreground"
+      : "min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/85",
+  );
 
   const borderClass = $derived.by(() => {
     switch (status) {
@@ -90,7 +104,7 @@
       >
         {@render icon()}
       </span>
-      <span class="min-w-0 flex-1 truncate font-medium font-mono text-[12px] text-foreground">
+      <span class={titleClass}>
         {@render title()}
       </span>
       {#if meta}
@@ -106,7 +120,7 @@
       >
         {@render icon()}
       </span>
-      <span class="min-w-0 flex-1 truncate font-medium font-mono text-[12px] text-foreground">
+      <span class={titleClass}>
         {@render title()}
       </span>
       {#if meta}
