@@ -28,6 +28,14 @@
 
 ## Outils Filesystem
 
+> **Convention de chemins partagée.** Tous les outils filesystem (`file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `notebook_read`, `notebook_edit`) résolvent les chemins via le même `SandboxRoot`. Les chemins acceptent trois formats :
+>
+> - **Relatif au sandbox** — ex. `output/result.txt` (joint à la racine sandbox).
+> - **Absolu sous le sandbox** — ex. `/Users/alice/.apollia/agents/foo/output.txt` accepté si la racine sandbox couvre `/Users/alice`.
+> - **Préfixe tilde `~` ou `~/...`** — expansé vers `$HOME` puis vérifié contre la racine sandbox. `~user` (lookup passwd) n'est pas supporté ; un tilde au milieu du chemin (`foo/~/bar`) reste littéral.
+>
+> Toute tentative d'évasion (path traversal `../..`, absolu hors racine, tilde vers un HOME hors sandbox) lève `sandbox_violation`.
+
 ### `file_read`
 
 Lit le contenu d'un fichier texte. Supporte la lecture partielle via offset et limit.

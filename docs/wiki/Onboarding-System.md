@@ -192,7 +192,7 @@ Filtrage dynamique par RAM disponible (`sysInfo.total_ram_gb`). Le badge "Recomm
 | `setup_local_llm({ ggufPath })` | Enregistre un backend `local` (TOML + DB) |
 | `reload_llm` | Recharge le router LLM |
 | `setup_whisper_model({ modelPath })` | Wire le modèle Whisper actif |
-| `start_model_download({ url, filename })` | Démarre un téléchargement, retourne `downloadId` |
+| `start_model_download({ url, filename, hf_token?, dest_dir?, repo_id? })` | Démarre un téléchargement, retourne `downloadId`. Quand `repo_id` est fourni (`org/name`), le downloader fetch ensuite `generation_config.json` depuis HF (avec retry sur `cardData.base_model` pour les quanteurs Bartowski/Unsloth/mradermacher) et persiste les sampling defaults officiels dans `~/.apollia/models/sampling-defaults.json`. Voir [LLM-Sampling-Defaults](./LLM-Sampling-Defaults). |
 | `cancel_model_download({ downloadId })` | Annule un téléchargement actif |
 | `search_hf_models({ query, limit })` | Recherche HuggingFace |
 | `get_hf_model({ repoId })` | Métadonnées détaillées + liste des fichiers GGUF |
@@ -292,7 +292,7 @@ Mis à `false` par :
 | `setup_local_llm` | `ggufPath: String` | `()` | Etape 3 (ai-setup) LLM |
 | `reload_llm` | — | `()` | Etape 3 (ai-setup) LLM |
 | `setup_whisper_model` | `modelPath: String` | `()` | Etape 3 (ai-setup) STT |
-| `start_model_download` | `request: { url, filename }` | `String` (downloadId) | Etape 3 (ai-setup) télé. |
+| `start_model_download` | `request: { url, filename, hf_token?, dest_dir?, repo_id? }` | `String` (downloadId) | Etape 3 (ai-setup) télé. `repo_id` déclenche l'auto-persistance des sampling defaults officiels HF. |
 | `cancel_model_download` | `downloadId: String` | `()` | Etape 3 (ai-setup) télé. |
 | `search_hf_models` | `params: { query, limit }` | `{ models, next_cursor }` | Etape 3 (ai-setup) HF |
 | `get_hf_model` | `repoId: String` | `HfModelCard` | Etape 3 (ai-setup) HF |

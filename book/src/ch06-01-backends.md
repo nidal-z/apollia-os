@@ -163,6 +163,21 @@ Cas d'usage typiques :
 
 ---
 
+## Sampling — temperature, top_p, top_k par modèle
+
+Apollia applique automatiquement les paramètres de sampling officiels recommandés par l'éditeur de chaque famille (Qwen3 préfère `top_p=0.8 top_k=20`, Llama 3 préfère `temperature=0.6 top_p=0.9`, etc.). La résolution combine quatre sources :
+
+1. La requête appelante (`req.temperature` explicite gagne toujours).
+2. `~/.apollia/models/sampling-defaults.json` — overrides locaux, **auto-rempli au téléchargement** d'un modèle via le Hub : Apollia récupère le `generation_config.json` depuis HuggingFace (avec retry sur le `base_model` pour les quanteurs Bartowski/Unsloth) et persiste les valeurs officielles.
+3. Une table embarquée couvrant ~10 familles populaires.
+4. Un fallback global `temperature=0.7 / top_p=0.95 / top_k=40`.
+
+Un sampler stochastique avec graine dérivée de l'horloge nanoseconde (par défaut) garantit que deux runs identiques produisent des sorties différentes. Pour un replay reproductible, passer `req.seed = Some(n)` ; la graine effective est tracée à `debug` dans les logs (`embedded sampler stochastique seed=…`).
+
+> **Référence technique :** [LLM-Sampling-Defaults](https://github.com/nidal-z/apollia-os/wiki/LLM-Sampling-Defaults) — table embedded complète, format des overrides, auto-fetch HF, types Rust publics.
+
+---
+
 ## Suivi des coûts
 
 Chaque appel LLM est persisté dans `~/.apollia/llm_calls.db`. Consultez les coûts cumulés :

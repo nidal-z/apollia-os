@@ -36,6 +36,7 @@
 - [[Briques-User-Memory|User Memory]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
+- [[LLM-Sampling-Defaults|LLM — Sampling Defaults]]
 - [[Briques-Auth|Auth OAuth2 PKCE]]
 - [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Notifications|Notifications Engine]]

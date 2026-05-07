@@ -386,6 +386,84 @@ Sortie JSON (`apollia model list --json`) :
 
 Décision architecturale : voir [ADR-075 — Chargement de modèles GGUF multi-fichiers](../adr/ADR-075-gguf-multi-file-loading.md).
 
+### 6.1 Sampler stochastique avec seed dynamique
+
+Le backend embedded n'utilise jamais `LlamaSampler::greedy()` par défaut — un sampler purement déterministe rendrait les sorties parfaitement reproductibles entre appels (deux runs donnent token-pour-token la même réponse), ce qui est antithétique avec l'usage agentique attendu.
+
+`build_tail_sampler(temperature, top_p, top_k, seed)` construit la chaîne de sampling :
+
+| `req.temperature` | Comportement |
+|---|---|
+| `Some(0.0)` | `LlamaSampler::greedy()` strict — argmax pur, déterministe, ignore `seed`. Opt-in explicite quand l'opérateur veut du replay token-pour-token. |
+| `None` ou `Some(t > 0)` | Chaîne `top_k(40) → top_p(0.95, min_keep=1) → temp(t) → dist(seed)`. |
+
+`top_p` et `top_k` proviennent de la résolution `model_defaults` (override utilisateur > table embarquée). Quand un champ reste `None`, retombée sur les constantes `DEFAULT_TOP_P = 0.95`, `DEFAULT_TOP_K = 40`.
+
+**Seed.** Quand `req.seed` est `Some(n)` (champ ajouté dans `CompletionRequest`), la séquence est rejouable. Sans seed fournie, on dérive une graine de l'horloge nanoseconde (`SystemTime::now().as_nanos()`) — chaque run diverge. La graine effective est tracée à `debug` pour permettre le replay manuel :
+
+```
+DEBUG apollia_llm::backends::embedded: embedded sampler stochastique
+      seed=1778163098044545000 temperature=0.7 top_p=0.8 top_k=20
+```
+
+`LlamaSampler::dist(u32)` consomme un `u32` ; les 64 bits de `req.seed` sont xor-pliés (`(seed >> 32) ^ seed as u32`) pour préserver l'entropie disponible.
+
+### 6.2 Résolution des sampling defaults par modèle
+
+Au début de chaque `complete()` / `stream()`, `EmbeddedBackend::resolve_sampler_defaults()` lit deux clés GGUF via `LlamaModel::meta_val_str` :
+
+- `general.architecture` → `"qwen3"`, `"llama"`, `"phi3"`…
+- `general.name` → `"Qwen3-30B-A3B"`, `"Mistral-7B-Instruct-v0.3"`…
+
+Combinées avec le `model_id` du backend (filename GGUF sans extension), elles forment les `ModelHints` passés à `apollia_llm::model_defaults::resolve()`. Le résultat est superposé champ par champ avec `req.temperature` (caller explicite gagne) :
+
+```rust
+let resolved = self.resolve_sampler_defaults();
+let temperature = req.temperature.or(resolved.temperature);
+let top_p = resolved.top_p;
+let top_k = resolved.top_k;
+```
+
+**Précédence de la résolution** :
+
+1. `~/.apollia/models/sampling-defaults.json` — overrides utilisateur (auto-rempli au download HF).
+2. `embedded.toml` — table curated shippée (Qwen3, Llama 3, Mistral, Phi-3, Gemma, DeepSeek…).
+3. Constantes globales `DEFAULT_TEMPERATURE = 0.7`, `DEFAULT_TOP_P = 0.95`, `DEFAULT_TOP_K = 40`.
+
+Voir [LLM-Sampling-Defaults](./LLM-Sampling-Defaults) pour le détail complet du module, le format des overrides, l'auto-fetch HF au téléchargement et la matrice de modèles couverts.
+
+### 6.3 Résolution `max_tokens` et clamping `n_ctx`
+
+Quand `req.max_tokens` est `None`, le défaut n'est pas une constante plate mais dérivé de la fenêtre native du modèle :
+
+```rust
+fn resolve_default_max_tokens(model: &LlamaModel) -> u32 {
+    let trained = model.n_ctx_train();
+    if trained == 0 { return FALLBACK_MAX_TOKENS; }
+    (trained / 2).clamp(FALLBACK_MAX_TOKENS, AUTO_MAX_TOKENS_CEILING)
+}
+```
+
+| Modèle | `n_ctx_train` | `max_tokens` par défaut |
+|---|---|---|
+| Qwen3-30B-A3B | 32 768 | 16 384 (plafond) |
+| Mistral-7B-Instruct-v0.3 | 32 768 | 16 384 (plafond) |
+| Phi-3-mini-4k | 4 096 | 2 048 (plancher) |
+| Modèle minuscule sans métadonnée | 0 | 2 048 (`FALLBACK_MAX_TOKENS`) |
+
+Constantes : `FALLBACK_MAX_TOKENS = 2048`, `AUTO_MAX_TOKENS_CEILING = 16_384`.
+
+**Justification.** Les modèles thinking (Qwen3, DeepSeek-R1) consomment 1 à 4K tokens en raisonnement avant la moindre sortie utile. Un budget plat de 2048 tokens tronquait régulièrement la réponse au milieu du bloc `<think>…</think>` — le runtime ne voyait alors aucun JSON et remontait `Réponse du modèle incompréhensible`. Le calcul `n_ctx_train / 2` laisse au moins autant de place pour le prompt que pour la réponse, et le plafond 16K évite de saturer le KV-cache Metal/CUDA.
+
+`clamp_ctx_size(model, prompt + max_tokens)` borne `n_ctx` :
+
+| Borne | Valeur | Raison |
+|---|---|---|
+| Min | `MIN_CTX_SIZE = 4096` | Performance dégradée sur prompts très courts si KV-cache trop petit. |
+| Max | `model.n_ctx_train()` | Au-delà, llama.cpp accepte mais le modèle hallucine hors entraînement. |
+
+L'agent qui a vraiment besoin d'un budget plus élevé peut passer `req.max_tokens` explicitement.
+
 ---
 
 ## 7. OpenAICompatibleClient — Feature `cloud`
