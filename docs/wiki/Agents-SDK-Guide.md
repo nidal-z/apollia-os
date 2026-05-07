@@ -32,7 +32,7 @@ sdk/apollia/
 ├── types.py          AIPResult (dataclass)
 ├── bootstrap.py      ContextBootstrap (abstract class) ⚠️ non livré encore
 ├── utils/            parsing, formatting, HITL helpers
-├── tools/            NATIVE_TOOL_SCHEMAS, build_tools_block()
+├── tools/            build_tools_block_from_ctx(), NATIVE_TOOL_SCHEMAS (legacy fallback)
 ├── testing/          mocks, assertions
 ├── stubs/            RuntimeContext, ToolProxy, LlmProxy, MemoryInterface (PEP 561)
 └── py.typed          PEP 561 marker
@@ -206,14 +206,34 @@ Résultat retourné par `run()` pour le runtime.
 
 ## 6. Tool Schemas (`apollia.tools`)
 
-| Objet | Type | Description |
-|---|---|---|
-| `NATIVE_TOOL_SCHEMAS` | `dict[str, dict]` | Dict des 13 outils natifs : `bash_executor`, `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `ask_user`, `memory_search`, `http_fetch`, `python_executor`, `notebook_read`, `notebook_edit` ; chaque valeur = spec JSON complète |
+Le **runtime tool registry** (Rust) est la source unique de vérité pour les
+descripteurs d'outils : nom, description, JSON Schema des paramètres, schéma
+de sortie, tags, profil sandbox, niveau de risque. Ces descripteurs sont
+exposés à Python via la coroutine `ctx.tools.describe(name)` (binding PyO3).
 
-| Fonction | Signature | Paramètres | Retour | Notes |
-|---|---|---|---|---|
-| `describe_tool` | `(name: str) -> str` | `name`: outil natif | Description texte court | Utile pour affichage CLI |
-| `build_tools_block` | `(tools: list[str]) -> str` | `tools`: noms outils | Bloc système prompt | Formate les specs pour injection dans system prompt |
+`BaseReActAgent.react()` construit son bloc d'outils dans le system prompt
+en interrogeant le registry pour chaque outil autorisé — pas de duplication
+côté SDK, pas de drift possible entre ce que le LLM voit et ce que le
+runtime enforce au dispatch.
+
+### API préférée (runtime-driven)
+
+| Fonction | Signature | Retour | Notes |
+|---|---|---|---|
+| `build_tools_block_from_ctx` | `async (ctx, tool_names: list[str]) -> str` | Bloc `Available tools:` formaté | Appelle `ctx.tools.describe()` pour chaque nom. Dégrade silencieusement vers le fallback offline si `ctx.tools` est `None` ou si `describe()` échoue. |
+| `render_descriptor` | `(name: str, descriptor: dict \| None) -> str` | Bloc d'un outil | Formate un descripteur (dict retourné par `ctx.tools.describe()`) en bloc prompt-friendly avec parameters et example. Si `descriptor=None`, retombe sur le renderer legacy. |
+
+### API legacy (fallback offline)
+
+À utiliser uniquement en tests, dry-runs ou contextes sans runtime. Best-effort,
+non autoritaire : la validation des paramètres se fait toujours contre le
+descripteur Rust au dispatch.
+
+| Objet / Fonction | Description |
+|---|---|
+| `NATIVE_TOOL_SCHEMAS: dict[str, dict]` | Miroir statique des descripteurs Rust (15 outils natifs : `bash_executor`, `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `ask_user`, `memory_search`, `http_fetch`, `python_executor`, `notebook_read`, `notebook_edit`, `web_search`, `web_read`). |
+| `describe_tool(name) -> str` | Renderer synchrone basé sur `NATIVE_TOOL_SCHEMAS`. |
+| `build_tools_block(tool_names) -> str` | Builder synchrone basé sur `NATIVE_TOOL_SCHEMAS`. |
 
 ---
 

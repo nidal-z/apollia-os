@@ -64,46 +64,18 @@ Les erreurs d'outil sont **absorbées** : si un outil échoue, son message d'err
 
 ## Décrire les outils pour le LLM
 
-`tools` est une liste de descripteurs JSON Schema. Le LLM utilise ces descriptions pour décider quand et comment appeler chaque outil.
+Le **Tool Registry** Rust est la source unique de vérité pour les descripteurs d'outils. `BaseReActAgent.react()` interroge le registry au démarrage de la boucle et injecte les descriptions dans le system prompt — vous n'avez **rien à déclarer manuellement**, il suffit de lister les outils dans `tools_required` / `tools_optional` du manifeste.
+
+Si vous écrivez un agent ReAct from scratch (sans hériter de `BaseReActAgent`), vous pouvez interroger le registry directement :
 
 ```python
-FILE_READ_SPEC = {
-    "name": "file_read",
-    "description": "Lit le contenu d'un fichier texte. "
-                   "Utilise offset et limit pour les fichiers volumineux.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "path":   {"type": "string",  "description": "Chemin absolu du fichier"},
-            "offset": {"type": "integer", "description": "Ligne de départ (1-based, optionnel)"},
-            "limit":  {"type": "integer", "description": "Nombre maximum de lignes (optionnel)"},
-        },
-        "required": ["path"],
-    },
-}
-
-FILE_WRITE_SPEC = {
-    "name": "file_write",
-    "description": "Écrit ou remplace un fichier. Crée les répertoires parents si nécessaire.",
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "path":    {"type": "string", "description": "Chemin du fichier à écrire"},
-            "content": {"type": "string", "description": "Contenu complet à écrire"},
-        },
-        "required": ["path", "content"],
-    },
-}
+schema = await ctx.tools.describe("file_read")
+# schema : dict avec name, version, description, input_schema, output_schema, tags
 ```
 
-> **La qualité de la description compte.** Un LLM utilise le champ `description` pour décider quand appeler l'outil. Une description vague produit des appels incorrects. Soyez précis sur ce que l'outil fait et ce qu'il retourne.
+Le dict retourné mirroir 1:1 le `ToolDescriptor` Rust (`crates/apollia-tools/src/tools/file_read.rs`). Pas de duplication, pas de drift entre le prompt LLM et la validation runtime — le même schéma sert au LLM pour formuler l'appel et au dispatcher pour le valider.
 
-Astuce : utilisez `ctx.tools.describe` pour récupérer le schéma directement depuis le Tool Registry — vous n'avez pas à le dupliquer manuellement :
-
-```python
-file_read_schema = await ctx.tools.describe("file_read")
-# file_read_schema : dict avec name, description, input_schema
-```
+> **La qualité de la description compte.** Le LLM utilise le champ `description` du descripteur pour décider quand appeler l'outil. Si vous ajoutez un outil personnalisé au registry, soyez précis sur ce qu'il fait et ce qu'il retourne — c'est le même texte qui guide le LLM.
 
 ---
 

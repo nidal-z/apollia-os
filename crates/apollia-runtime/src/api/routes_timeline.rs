@@ -227,7 +227,8 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
             events.push((
                 last_ts.clone(),
                 TimelineEvent::TaskCompleted {
-                    output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW)),
+                    output_preview: output_text
+                        .map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
                     duration_ms,
                     timestamp: last_ts,
                 },
@@ -428,7 +429,8 @@ fn read_plan_steps(
                 TimelineEvent::StepStarted {
                     step_id: step_id.clone(),
                     tool: tool.clone(),
-                    input_preview: input_rendered.map(|t| truncate_preview(&t, MAX_INPUT_PREVIEW)),
+                    input_preview: input_rendered
+                        .map(|t| truncate_preview(&t, MAX_INPUT_PREVIEW).0),
                     timestamp: ts.clone(),
                 },
             ));
@@ -554,11 +556,11 @@ fn read_tool_calls(
         };
 
         let raw_input = args_json.as_deref().unwrap_or("");
-        let input_truncated = raw_input.len() > MAX_TOOL_INPUT_PREVIEW;
-        let input_preview: Option<String> = if raw_input.is_empty() {
-            None
+        let (input_preview, input_truncated): (Option<String>, bool) = if raw_input.is_empty() {
+            (None, false)
         } else {
-            Some(truncate_preview(raw_input, MAX_TOOL_INPUT_PREVIEW))
+            let (p, t) = truncate_preview(raw_input, MAX_TOOL_INPUT_PREVIEW);
+            (Some(p), t)
         };
 
         let combined_output = match (stdout.as_deref(), stderr.as_deref()) {
@@ -569,12 +571,13 @@ fn read_tool_calls(
             (_, Some(err)) if !err.is_empty() => err.to_string(),
             _ => String::new(),
         };
-        let output_truncated = combined_output.len() > MAX_TOOL_OUTPUT_PREVIEW;
-        let output_preview: Option<String> = if combined_output.is_empty() {
-            None
-        } else {
-            Some(truncate_preview(&combined_output, MAX_TOOL_OUTPUT_PREVIEW))
-        };
+        let (output_preview, output_truncated): (Option<String>, bool) =
+            if combined_output.is_empty() {
+                (None, false)
+            } else {
+                let (p, t) = truncate_preview(&combined_output, MAX_TOOL_OUTPUT_PREVIEW);
+                (Some(p), t)
+            };
 
         let truncated = input_truncated || output_truncated;
 
@@ -593,12 +596,19 @@ fn read_tool_calls(
     }
 }
 
-/// Truncate a string to `max_chars`, appending `"..."` if truncated.
-fn truncate_preview(text: &str, max_chars: usize) -> String {
-    if text.len() <= max_chars {
-        text.to_string()
+/// Truncate a string to `max_chars` characters (UTF-8 safe), appending `"..."`
+/// if truncated. Returns `(rendered, was_truncated)`.
+///
+/// Slicing by byte index would panic when `max_chars` falls inside a
+/// multi-byte codepoint (e.g. `'à'`, `'â'`, `'é'`), so we walk the
+/// `chars()` iterator in a single pass.
+fn truncate_preview(text: &str, max_chars: usize) -> (String, bool) {
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        (format!("{head}..."), true)
     } else {
-        format!("{}...", &text[..max_chars])
+        (head, false)
     }
 }
 
@@ -755,7 +765,8 @@ mod tests {
             events.push((
                 last_ts.clone(),
                 TimelineEvent::TaskCompleted {
-                    output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW)),
+                    output_preview: output_text
+                        .map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
                     duration_ms,
                     timestamp: last_ts,
                 },
@@ -985,15 +996,51 @@ mod tests {
 
     #[test]
     fn test_truncate_preview_short() {
-        assert_eq!(truncate_preview("hello", 10), "hello");
+        // GIVEN un texte plus court que la limite
+        // WHEN on tronque
+        // THEN le texte est rendu tel quel et le drapeau truncated est false
+        assert_eq!(
+            truncate_preview("hello", 10),
+            ("hello".to_string(), false)
+        );
     }
 
     #[test]
     fn test_truncate_preview_long() {
+        // GIVEN un texte plus long que la limite
+        // WHEN on tronque à 200 caractères
+        // THEN le résultat se termine par "..." et le drapeau truncated est true
         let long = "x".repeat(300);
-        let result = truncate_preview(&long, 200);
-        assert!(result.ends_with("..."));
-        assert_eq!(result.len(), 203);
+        let (rendered, truncated) = truncate_preview(&long, 200);
+        assert!(rendered.ends_with("..."));
+        assert_eq!(rendered.chars().count(), 203);
+        assert!(truncated);
+    }
+
+    #[test]
+    fn test_truncate_preview_utf8_boundary() {
+        // GIVEN un texte avec accents (multi-octets) où la limite tombe
+        // exactement sur la frontière d'un 'à' (2 octets en UTF-8)
+        // WHEN on tronque par nombre de caractères, pas d'octets
+        // THEN aucune panique et la troncature respecte les codepoints
+        // (régression : ancienne version slicait par octet et paniquait avec
+        //  "byte index N is not a char boundary").
+        let text = "à".repeat(300); // 300 chars, 600 octets
+        let (rendered, truncated) = truncate_preview(&text, 200);
+        assert!(rendered.ends_with("..."));
+        assert_eq!(rendered.chars().count(), 203);
+        assert!(truncated);
+    }
+
+    #[test]
+    fn test_truncate_preview_exact_length() {
+        // GIVEN un texte de longueur égale à la limite
+        // WHEN on tronque
+        // THEN aucune troncature n'est appliquée
+        let text = "a".repeat(50);
+        let (rendered, truncated) = truncate_preview(&text, 50);
+        assert_eq!(rendered.chars().count(), 50);
+        assert!(!truncated);
     }
 
     // ── tool_call enrichment (input_preview + output_preview) ────────────

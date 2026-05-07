@@ -48,7 +48,11 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Iterator
 
-from apollia.tools.schemas import NATIVE_TOOL_SCHEMAS, build_tools_block
+from apollia.tools.schemas import (
+    NATIVE_TOOL_SCHEMAS,
+    build_tools_block,
+    build_tools_block_from_ctx,
+)
 from apollia.utils.parsing import (
     ActionParseError,
     ACTION_FINAL_ANSWER,
@@ -354,8 +358,8 @@ class BaseReActAgent(ABC):
         # Try to restore conversation history if this is a HITL resume.
         messages: list[dict[str, Any]] = await self._load_history(task, ctx)
         if not messages:
-            messages = self._initial_messages(
-                user_message, available_tools, extra_context, history=history
+            messages = await self._initial_messages(
+                ctx, user_message, available_tools, extra_context, history=history
             )
 
         # If resuming, execute the deferred tool first before entering the loop.
@@ -552,8 +556,9 @@ class BaseReActAgent(ABC):
 
     # -- Private helpers -------------------------------------------------------
 
-    def _initial_messages(
+    async def _initial_messages(
         self,
+        ctx: Any,
         user_message: str,
         available_tools: list[str],
         extra_context: str,
@@ -566,7 +571,7 @@ class BaseReActAgent(ABC):
         system prompt and the new user_message so the LLM sees prior
         conversational turns (chat mode multi-turn).
         """
-        system = self._build_system_prompt(available_tools)
+        system = await self._build_system_prompt(ctx, available_tools)
         content = user_message
         if extra_context:
             content = f"{extra_context}\n\n{user_message}"
@@ -576,9 +581,16 @@ class BaseReActAgent(ABC):
         messages.append({"role": "user", "content": content})
         return messages
 
-    def _build_system_prompt(self, available_tools: list[str]) -> str:
-        """Combine SYSTEM_PROMPT with tool schemas and the output format."""
-        tools_block = build_tools_block(available_tools)
+    async def _build_system_prompt(
+        self, ctx: Any, available_tools: list[str]
+    ) -> str:
+        """Combine SYSTEM_PROMPT with tool schemas and the output format.
+
+        Tool schemas are pulled live from the runtime tool registry via
+        ``ctx.tools.describe()``. The static SDK mirror is only used as a
+        fallback when ``ctx.tools`` is unavailable (tests, dry-run).
+        """
+        tools_block = await build_tools_block_from_ctx(ctx, available_tools)
         return (
             f"{self.SYSTEM_PROMPT}\n\n"
             f"{tools_block}\n\n"

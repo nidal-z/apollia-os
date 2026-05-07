@@ -170,11 +170,18 @@ Type stubs for IDE autocompletion and mypy validation. These mirror the real PyO
 
 ### `apollia.tools.schemas`
 
+The runtime tool registry is the single source of truth for tool descriptors.
+`BaseReActAgent.react()` builds its system prompt by calling
+`ctx.tools.describe(name)` for every allowed tool, so the LLM always sees the
+same schema the runtime enforces at dispatch.
+
 | Symbol | Description |
 | --- | --- |
-| `NATIVE_TOOL_SCHEMAS` | Dict of built-in tool schemas (`bash_executor`, `file_io`, `python_executor`). |
-| `build_tools_block(tool_names)` | Generate the tools section for LLM system prompts. |
-| `describe_tool(tool_name)` | Return a compact schema string for one tool. |
+| `build_tools_block_from_ctx(ctx, tool_names)` | **Preferred.** Async builder that pulls live descriptors from the runtime. Falls back to the legacy mirror when `ctx.tools` is unavailable. |
+| `render_descriptor(name, descriptor)` | Render one tool's prompt block from a descriptor dict (the result of `ctx.tools.describe()`). |
+| `NATIVE_TOOL_SCHEMAS` | Legacy offline mirror of the Rust descriptors. Used as a fallback in tests, dry-runs and contexts without a runtime. Best-effort, not authoritative. |
+| `build_tools_block(tool_names)` | Synchronous builder over the legacy mirror. Keep for offline use only. |
+| `describe_tool(tool_name)` | Synchronous renderer over the legacy mirror. |
 
 ### `apollia.testing`
 

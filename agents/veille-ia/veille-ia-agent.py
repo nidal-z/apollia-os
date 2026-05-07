@@ -33,8 +33,10 @@ Required A2A skills: search-and-extract (web-search-worker)
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -239,24 +241,98 @@ async def _dual_write_report(ctx: Any, today: str, report_path_default: str, con
         ctx.log("debug", f"dual file_write failed: {e}")
 
 
-async def _persist_seen_articles(ctx: Any, articles: list[dict], run_date: str) -> None:
-    """Store article URL hashes to memory for cross-session deduplication."""
+async def _persist_seen_articles(ctx: Any, articles: list[dict], run_date: str) -> int:
+    """Store article URL hashes to memory for cross-session deduplication.
+
+    Returns the number of articles newly persisted (not already seen).
+    """
     if ctx.memory is None:
-        return
+        return 0
+    new_count = 0
     for article in articles:
-        url_hash = article.get("hash", "")
+        url = article.get("url", "")
+        url_hash = article.get("hash") or (
+            hashlib.sha256(url.encode()).hexdigest()[:12] if url else ""
+        )
         if not url_hash:
+            continue
+        existing = await ctx.memory.recall(f"seen:{url_hash}")
+        if existing:
             continue
         await ctx.memory.remember(
             f"seen:{url_hash}",
             json.dumps({
                 "title": article.get("title", ""),
-                "url": article.get("url", ""),
+                "url": url,
+                "source": article.get("source", ""),
+                "axis": article.get("axis", ""),
                 "date_seen": run_date,
             }),
             source="veille-ia-agent",
             confidence=1.0,
         )
+        new_count += 1
+    return new_count
+
+
+# ---------------------------------------------------------------------------
+# Result parsing & validation
+# ---------------------------------------------------------------------------
+
+# Markdown link pattern: [title](url) — captures title + URL.
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
+# Bare URL pattern as a fallback when the LLM doesn't use markdown links.
+_BARE_URL_RE = re.compile(r"https?://[^\s)\]]+")
+
+
+def _extract_articles_from_report(report_text: str) -> list[dict]:
+    """Pull (title, url, source) tuples from a Markdown report.
+
+    Uses two passes:
+    1. Markdown links `[title](url)` — preferred, gives both title and URL.
+    2. Bare URLs without markdown wrapping — fallback (no title).
+
+    Returns deduped articles by URL hash.
+    """
+    seen_urls: set[str] = set()
+    out: list[dict] = []
+    for m in _MD_LINK_RE.finditer(report_text):
+        title, url = m.group(1).strip(), m.group(2).strip()
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        host = ""
+        try:
+            from urllib.parse import urlparse
+
+            host = (urlparse(url).hostname or "").removeprefix("www.")
+        except Exception:
+            pass
+        out.append({
+            "title": title,
+            "url": url,
+            "source": host,
+            "hash": hashlib.sha256(url.encode()).hexdigest()[:12],
+        })
+    for m in _BARE_URL_RE.finditer(report_text):
+        url = m.group(0).strip().rstrip(".,;")
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
+        host = ""
+        try:
+            from urllib.parse import urlparse
+
+            host = (urlparse(url).hostname or "").removeprefix("www.")
+        except Exception:
+            pass
+        out.append({
+            "title": "",
+            "url": url,
+            "source": host,
+            "hash": hashlib.sha256(url.encode()).hexdigest()[:12],
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -269,57 +345,68 @@ d'Apollia OS.
 
 ## MISSION
 
-Chaque jour, tu orchestre une veille sur deux axes :
-- **Technique** : nouveaux modèles, frameworks, outils, avancées recherche
-- **Concurrentiel** : news sur les concurrents (n8n, Make, Zapier AI, etc.)
+Chaque jour, tu produis une veille fondée sur des **sources réelles**, jamais
+inventées. Deux axes :
+- **Technique** : nouveaux modèles, frameworks, outils, avancées recherche.
+- **Concurrentiel** : news sur les concurrents (n8n, Make, Zapier AI, etc.).
 
-## COMMENT TU TRAVAILLES
+## RÈGLE ABSOLUE — INTERDICTION D'HALLUCINER
 
-Tu es un directeur : tu ne fais pas de recherche toi-même. Tu délègues :
+Tu n'as PAS le droit d'inventer des articles, des titres ou des sources. Toute
+information du rapport doit provenir d'un appel `web_search` ou
+`a2a:search-and-extract` que TU as réellement effectué dans cette session.
 
-1. `a2a:search-and-extract` (web-search-worker) — pour chaque axe, envoie les
-   requêtes et récupère les articles dédupliqués
+Si tu produis un `final_answer` sans avoir effectué au moins **4 appels
+`web_search` réussis** (ou 2 `a2a:search-and-extract` réussis), le runtime
+rejettera le run comme invalide.
 
-2. `a2a:synthesize-report` (synthesis-worker) — envoie tous les articles pour
-   produire le rapport Markdown final
+Symptôme à éviter : "Lancement du Qwen-3 — Mise à jour AgentOS 2.0 —
+Nouvelles fonctionnalités Zapier" sortis sans le moindre appel d'outil.
+C'est une hallucination — refuse de la produire.
 
-3. `file_write` — sauvegarde le rapport dans ~/.apollia/reports/veille-{date}.md
+## COMMENT TU TRAVAILLES — DEUX CHEMINS
 
-## ORCHESTRATION STEP BY STEP
+### Chemin préféré — délégation A2A
 
-Étape 1 — Appelle a2a:search-and-extract pour l'axe tech
-Étape 2 — Appelle a2a:search-and-extract pour l'axe concurrentiel
-Étape 3 — Fusionne les articles des 2 axes
-Étape 4 — Appelle a2a:synthesize-report avec tous les articles
-Étape 5 — Sauvegarde le rapport avec file_write
-Étape 6 — Retourne final_answer avec le résumé et le chemin du rapport
+1. `a2a:search-and-extract` (web-search-worker) — un appel par axe avec les
+   requêtes et `seen_hashes` pour dédup.
+2. `a2a:synthesize-report` (synthesis-worker) — un appel avec tous les
+   articles pour produire le rapport Markdown.
+3. `file_write` — sauvegarde du rapport dans le chemin fourni.
+4. `final_answer` avec le résumé.
 
-## GESTION DES ERREURS
+### Chemin de secours — recherche directe
 
-- Si `a2a:search-and-extract` échoue ou retourne « unknown skill » (workers
-  non démarrés ou A2A indisponible) : **fallback en direct**. Tu disposes
-  des outils `web_search` et `web_read` — exécute toi-même 2 à 3 requêtes
-  par axe, lis les meilleurs résultats, construis la liste d'articles
-  manuellement (titre, url, excerpt, source). N'abandonne JAMAIS la mission
-  sous prétexte que les workers ne répondent pas.
-- Si `a2a:synthesize-report` échoue de la même manière : **fallback en
-  direct** également. Génère toi-même un rapport Markdown structuré
-  (sections "Tech" / "Concurrentiel" / "Top items") à partir des articles
-  collectés.
-- Si `file_write` échoue : retourner le rapport en texte dans final_answer.
-- N'utilise JAMAIS `final_answer` pour annoncer un échec ("Mandatory tools
-  unavailable", "Cannot generate report"…) : tente toujours le fallback
-  direct avant de rendre la main.
+Si `a2a:search-and-extract` retourne « unknown skill » ou échoue, OU si tu
+n'as aucun worker A2A disponible, tu DOIS faire la recherche toi-même :
+
+1. Au moins **2 appels `web_search`** pour l'axe tech (requêtes différentes).
+2. Au moins **2 appels `web_search`** pour l'axe concurrentiel.
+3. Pour chaque résultat pertinent, **`web_read`** pour récupérer le contenu
+   réel (au moins 4 lectures au total).
+4. Synthèse manuelle du rapport Markdown (sections "Tech" / "Concurrentiel" /
+   "Top items"), uniquement à partir des articles que tu as réellement lus.
+   Chaque entrée doit citer son URL source.
+5. `file_write` pour sauvegarder.
+6. `final_answer` avec le résumé.
+
+## INTERDIT
+
+- `final_answer` directement après seulement `file_write` (pas de recherche).
+- `final_answer` annonçant un échec ("Mandatory tools unavailable", "Cannot
+  generate report"…) sans avoir tenté le chemin de secours.
+- Inventer un titre, une source, une URL ou une statistique.
 
 ## FORMAT final_answer
 
 Quand tout est terminé :
-"Veille du {date} générée : {N} articles analysés. Rapport sauvegardé : {path}
+"Veille du {date} générée : {N} articles analysés (dont {K} nouveaux).
+Rapport sauvegardé : {path}
 
 Top items :
-- {top1}
-- {top2}
-- {top3}"
+- {titre1} — {source1}
+- {titre2} — {source2}
+- {titre3} — {source3}"
 """
 
 # ---------------------------------------------------------------------------
@@ -331,7 +418,7 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for veille-ia-agent."""
     return {
         "name": "veille-ia-agent",
-        "version": "1.2.0",
+        "version": "1.4.0",
         "description": (
             "Agent directeur de veille quotidienne IA/LLM. "
             "Orchestre la collecte (web-search-worker via A2A), la synthèse "
@@ -343,6 +430,7 @@ def manifest() -> dict[str, Any]:
         "agent_type": "assistant",
         "tools_required": ["file_write"],
         "tools_optional": [
+            "file_read",
             "file_list",
             "web_search",
             "web_read",
@@ -427,6 +515,13 @@ class VeilleIaAgent(BaseReActAgent):
             )
 
         today = date.today().isoformat()
+        run_started_at = datetime.now()
+
+        # --- Pre-flight: confirm research tools are actually available ---
+        # If the runtime registry can't describe web_search, the LLM will
+        # see no schema for it and bail to file_write hallucinations. Surface
+        # this as a clear diagnostic, not a silent generic failure.
+        await self._check_research_tools(ctx)
 
         # --- Bootstrap competitive landscape ---
         if await _needs_bootstrap(ctx):
@@ -459,13 +554,51 @@ class VeilleIaAgent(BaseReActAgent):
             await self._record_run(ctx, today, 0, success=False)
             return result
 
-        # Extract article count and report path from the final answer text
-        article_count = self._count_articles_in_text(result)
+        # --- Anti-hallucination gate ---
+        # Read the on-disk report (canonical proof of what was synthesized)
+        # to extract the URLs the LLM claims to have consulted. If none
+        # appear, the LLM almost certainly hallucinated the report — refuse
+        # to mark the run as successful so the operator gets a real signal.
         report_path = self._extract_report_path(result, today)
+        report_text, source_label = await self._read_fresh_report(
+            ctx, report_path, run_started_at
+        )
+        # Fall back to the LLM's final_answer text if the file isn't usable.
+        if report_text is None:
+            report_text = result
+            source_label = "final_answer (no fresh report on disk)"
+        articles = _extract_articles_from_report(report_text)
+
+        if not articles:
+            await self._record_run(ctx, today, 0, success=False)
+            # Log the LLM's actual output and a sample of what was parsed —
+            # without this the operator has no way to tell *why* the gate
+            # tripped (LLM bailed? gave a recap? wrote prose without URLs?).
+            preview_llm = result[:500].replace("\n", " ⏎ ")
+            preview_parsed = (report_text or "")[:300].replace("\n", " ⏎ ")
+            ctx.log(
+                "warn",
+                "veille-ia: no source URL found — run rejected. "
+                f"source={source_label} ; "
+                f"final_answer_preview={preview_llm!r} ; "
+                f"parsed_preview={preview_parsed!r}",
+            )
+            return AIPResult.failed(
+                "NO_SOURCES",
+                "Le rapport ne cite aucune URL source. Le director a "
+                "probablement halluciné la veille au lieu d'utiliser "
+                "web_search / a2a:search-and-extract. Vérifie que les "
+                "outils web sont activés (Réglages → Outils) et que les "
+                "workers sont démarrés.",
+            )
+
+        # --- Persist seen articles for cross-day dedup ---
+        new_count = await _persist_seen_articles(ctx, articles, today)
+        article_count = len(articles)
 
         # --- Update memory after successful run ---
         await self._update_memory_post_run(ctx, today, result)
-        await self._record_run(ctx, today, article_count, success=True)
+        await self._record_run(ctx, today, article_count, success=True, new_count=new_count)
 
         # --- v1.1.0: dual write + notify ---
         await _dual_write_report(ctx, today, report_path, result)
@@ -521,12 +654,22 @@ class VeilleIaAgent(BaseReActAgent):
             + json.dumps(tech_queries, ensure_ascii=False)
             + f"\n\n**Requêtes concurrentielles ({len(competitive_queries)}) :**\n"
             + json.dumps(competitive_queries, ensure_ascii=False)
-            + f"\n\n**Hashes déjà vus ({len(seen_hashes)}) :** présents dans la mémoire\n"
-            f"Passes-les aux workers pour éviter les doublons : "
-            + json.dumps(seen_hashes[:50])  # Limit to 50 to avoid huge payloads
+            + f"\n\n**URLs déjà vues lors des runs précédents ({len(seen_hashes)}) "
+            "(hashes 12 chars) :** \n"
+            f"Si un article que tu trouves a un hash dans cette liste, c'est "
+            f"un doublon — saute-le et cherche du contenu nouveau. Voici les "
+            f"hashes à éviter (limité aux 50 plus récents) : "
+            + json.dumps(seen_hashes[:50])
             + f"\n\n**Chemin du rapport à sauvegarder :** `{report_path}`\n\n"
-            "Orchestre les étapes dans l'ordre : search tech → search concurrentiel "
-            "→ synthesize → file_write → final_answer."
+            "**Étapes obligatoires** (chaque article du rapport doit citer "
+            "son URL réelle entre crochets markdown `[titre](url)`) :\n"
+            "1. Effectue la recherche (A2A si workers dispo, sinon `web_search` "
+            "direct — minimum 2 requêtes par axe).\n"
+            "2. Lis les meilleurs résultats avec `web_read`.\n"
+            "3. Synthétise le rapport — chaque entrée porte son lien markdown.\n"
+            "4. `file_write` du rapport.\n"
+            "5. `final_answer` avec résumé.\n\n"
+            "Si aucune URL réelle n'est citée, le run sera rejeté."
         )
 
     async def _update_memory_post_run(
@@ -551,27 +694,93 @@ class VeilleIaAgent(BaseReActAgent):
         today: str,
         article_count: int,
         success: bool,
+        new_count: int = 0,
     ) -> None:
         """Write an episodic memory record for this run."""
         if ctx.memory is None:
             return
         status = "succès" if success else "échec"
-        await ctx.memory.record(
-            f"Run du {today} : {article_count} articles, {status}",
-            importance=0.7,
-        )
+        if success:
+            note = (
+                f"Run du {today} : {article_count} articles "
+                f"({new_count} nouveaux), {status}"
+            )
+        else:
+            note = f"Run du {today} : {status} (aucun article retenu)"
+        await ctx.memory.record(note, importance=0.7)
 
-    @staticmethod
-    def _count_articles_in_text(text: str) -> int:
-        """Try to extract article count from the final answer text."""
-        import re
-        match = re.search(r"(\d+)\s+article", text)
-        return int(match.group(1)) if match else 0
+    async def _check_research_tools(self, ctx: Any) -> None:
+        """Verify that web_search / web_read are actually registered.
+
+        If `ctx.tools.describe(name)` returns None for these tools, the LLM
+        will see no schema and bail to file_write hallucinations. Logging
+        the issue here gives the operator a precise diagnostic instead of
+        a generic NO_SOURCES rejection an hour later.
+        """
+        if ctx.tools is None:
+            return
+        for name in ("web_search", "web_read"):
+            try:
+                desc = await ctx.tools.describe(name)
+            except Exception as e:
+                ctx.log(
+                    "warn",
+                    f"veille-ia: ctx.tools.describe({name!r}) raised {e!r} — "
+                    "research tool unavailable in registry.",
+                )
+                continue
+            if desc is None:
+                ctx.log(
+                    "warn",
+                    f"veille-ia: '{name}' is declared in tools_optional but "
+                    "the runtime registry has no descriptor for it. The LLM "
+                    "will likely fall back to hallucinating. Check that "
+                    "Réglages → Outils has it enabled and that the runtime "
+                    "binary embeds the 'web-search' / 'web-read' features.",
+                )
+
+    async def _read_fresh_report(
+        self,
+        ctx: Any,
+        path: str,
+        run_started_at: datetime,
+    ) -> tuple[str | None, str]:
+        """Re-read the report only if it was written during this run.
+
+        Returns ``(content, source_label)``. If the file pre-dates the
+        current run (left over from a previous successful run, including a
+        hallucinated one), we treat it as stale and return ``(None, …)`` so
+        the gate evaluates the LLM's actual final_answer text instead.
+
+        Without this check the gate would either accept stale output as
+        valid (false success) or reject blindly without telling the operator
+        what was actually compared.
+        """
+        if ctx.tools is None:
+            return None, "no ctx.tools"
+        # Local mtime check — works even when file_read is sandboxed
+        # because ~ expands to the user's home regardless.
+        try:
+            expanded = os.path.expanduser(path)
+            mtime = datetime.fromtimestamp(os.path.getmtime(expanded))
+            if mtime < run_started_at:
+                # Stale — written by an earlier (probably hallucinated) run.
+                return None, f"stale file mtime={mtime.isoformat()}"
+        except FileNotFoundError:
+            return None, "file not written"
+        except Exception as e:
+            # On unexpected errors, fall back to file_read and let it decide.
+            ctx.log("debug", f"veille-ia: mtime check failed for {path}: {e}")
+
+        try:
+            content = await ctx.tools.call("file_read", {"path": path})
+            return str(content), f"fresh report at {path}"
+        except Exception as e:
+            return None, f"file_read failed: {e}"
 
     @staticmethod
     def _extract_report_path(text: str, today: str) -> str:
         """Extract report path from final answer or return default."""
-        import re
         match = re.search(r"(~?/[^\s]+veille[^\s]+\.md)", text)
         if match:
             return match.group(1)

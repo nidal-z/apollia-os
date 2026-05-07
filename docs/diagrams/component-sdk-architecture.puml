@@ -34,7 +34,7 @@ package "sdk/apollia/" as sdk {
   }
 
   package "tools/" as tools {
-    component "schemas.py\nNATIVE_TOOL_SCHEMAS" as schemas #2a3a4a
+    component "schemas.py\nbuild_tools_block_from_ctx()\nrender_descriptor()\nNATIVE_TOOL_SCHEMAS (legacy fallback)" as schemas #2a3a4a
   }
 
   package "testing/" as testing {
@@ -71,7 +71,8 @@ conv --> types : retourne
 orch --> types : retourne
 
 react --> parsing : extract_json
-react --> schemas : build_tools_block
+react --> schemas : build_tools_block_from_ctx(ctx, ...)
+schemas --> tp : ctx.tools.describe(name)\n(single source of truth)
 react --> hitl : resume_pending_tool
 
 mocks ..> pyi : implémente\nles interfaces

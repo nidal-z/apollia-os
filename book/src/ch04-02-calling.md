@@ -153,10 +153,11 @@ if "mcp:notion/search" in ctx.tools.list_tools():
 
 # Obtenir le schéma complet d'un outil (introspection)
 schema = await ctx.tools.describe("file_read")
-# {"name": "file_read", "description": "...", "input_schema": {...}}
+# {"name": ..., "version": ..., "description": ...,
+#  "input_schema": {...}, "output_schema": {...}, "tags": [...]}
 ```
 
-`ctx.tools.describe` est utile quand vous construisez dynamiquement les descripteurs d'outils pour `ctx.llm.run_tools` — vous n'avez pas à dupliquer le schéma manuellement.
+`ctx.tools.describe` est la **source unique de vérité** pour les descripteurs d'outils — il interroge directement le Tool Registry Rust. C'est exactement ce que `BaseReActAgent.react()` utilise sous le capot pour bâtir le bloc *Available tools* du system prompt. Si vous écrivez un agent ReAct from scratch (sans hériter de `BaseReActAgent`), utilisez-le pour construire dynamiquement les descripteurs passés à `ctx.llm.run_tools` — vous n'avez ni à dupliquer le schéma, ni à le maintenir synchro.
 
 ---
 
