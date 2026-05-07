@@ -39,6 +39,7 @@ pub mod tasks;
 pub mod templates;
 pub mod tool_governance;
 pub mod tools;
+pub mod trace;
 pub mod triggers;
 pub mod updates;
 pub mod user;

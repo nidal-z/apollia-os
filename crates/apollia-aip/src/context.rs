@@ -122,6 +122,10 @@ pub struct ToolProxy {
     a2a_depth: u32,
     /// Cumulative deadline for the current A2A chain — `None` before the first invocation.
     chain_deadline: Option<Instant>,
+    /// Event bus pour émettre `ToolCallStarted/Completed/Denied`,
+    /// `A2AInvokeStarted/Completed` (ADR-088, Lot 2). `None` désactive
+    /// l'observabilité runtime sans casser le dispatch.
+    event_bus: Option<apollia_core::events::EventBusSender>,
 }
 
 #[pymethods]
@@ -151,9 +155,35 @@ impl ToolProxy {
 
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
+        // ADR-088 — Émission ToolCallStarted (Lot 2). L'event_id est généré
+        // ici pour servir de parent au futur ToolCallCompleted/Denied.
+        // `event_id` est aussi utilisé comme identifiant de l'A2A invoke
+        // côté chaîne A2A.
+        let started_event_id = uuid::Uuid::now_v7().to_string();
+        if let Some(bus) = self.event_bus.as_ref() {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallStarted {
+                event_id: started_event_id.clone(),
+                task_id: self.task_id.clone().into(),
+                agent_id: self.agent_id.clone().into(),
+                tool_name: tool_name.clone(),
+                args_json: Some(input_str.clone()),
+            });
+        }
+
         // A2A path: intercept before registry lookup
         if let Some(skill_id_ref) = tool_name.strip_prefix("a2a:") {
             if !self.allowed_tools.iter().any(|t| t == &tool_name) {
+                // Émettre ToolCallDenied avant de retourner.
+                if let Some(bus) = self.event_bus.as_ref() {
+                    let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
+                        parent_event_id: started_event_id.clone(),
+                        task_id: self.task_id.clone().into(),
+                        agent_id: self.agent_id.clone().into(),
+                        tool_name: tool_name.clone(),
+                        reason: "not_in_manifest".to_string(),
+                        detail: None,
+                    });
+                }
                 return Err(PyRuntimeError::new_err(
                     ToolProxyError::ToolNotAllowed(tool_name).to_string(),
                 ));
@@ -166,18 +196,104 @@ impl ToolProxy {
             let a2a_depth = self.a2a_depth;
             let chain_deadline = self.chain_deadline;
 
+            // Companion A2AInvokeStarted — `event_id` partagé avec
+            // ToolCallStarted, `correlation_id` neuf pour démarrer la chaîne.
+            let a2a_correlation_id = uuid::Uuid::now_v7().to_string();
+            if let Some(bus) = self.event_bus.as_ref() {
+                let _ = bus.send(apollia_core::events::RuntimeEvent::A2AInvokeStarted {
+                    event_id: started_event_id.clone(),
+                    correlation_id: a2a_correlation_id,
+                    task_id: self.task_id.clone().into(),
+                    caller_agent_id: caller.clone().into(),
+                    skill_id: skill_id.clone(),
+                    child_task_id: None, // Lot 2 : non encore propagé.
+                });
+            }
+
+            let bus_for_async = self.event_bus.clone();
+            let task_id_for_async = self.task_id.clone();
+            let agent_id_for_async = self.agent_id.clone();
+            let parent_id = started_event_id.clone();
+            let tool_name_for_async = tool_name.clone();
+            let skill_id_for_async = skill_id.clone();
+
             return pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                let started_at = std::time::Instant::now();
                 let result = invoke_a2a_tool(
                     &invoker,
-                    &skill_id,
+                    &skill_id_for_async,
                     input_value,
                     &caller,
                     a2a_depth,
                     chain_deadline,
                 )
-                .await
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+                .await;
+                let duration_ms = started_at.elapsed().as_millis() as u64;
 
+                match &result {
+                    Ok(value) => {
+                        if let Some(bus) = bus_for_async.as_ref() {
+                            let output_str = serde_json::to_string(value).ok();
+                            let summary = output_str.as_deref().map(|s| {
+                                let mut out = s.chars().take(200).collect::<String>();
+                                if s.chars().count() > 200 {
+                                    out.push('…');
+                                }
+                                out
+                            });
+                            let _ = bus.send(
+                                apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                                    parent_event_id: parent_id.clone(),
+                                    task_id: task_id_for_async.clone().into(),
+                                    agent_id: agent_id_for_async.clone().into(),
+                                    tool_name: tool_name_for_async.clone(),
+                                    output_json: output_str,
+                                    exit_code: None,
+                                    duration_ms,
+                                    success: true,
+                                },
+                            );
+                            let _ = bus.send(
+                                apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                                    parent_event_id: parent_id.clone(),
+                                    task_id: task_id_for_async.into(),
+                                    skill_id: skill_id_for_async,
+                                    success: true,
+                                    output_summary: summary,
+                                    duration_ms,
+                                },
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        if let Some(bus) = bus_for_async.as_ref() {
+                            let _ = bus.send(
+                                apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                                    parent_event_id: parent_id.clone(),
+                                    task_id: task_id_for_async.clone().into(),
+                                    agent_id: agent_id_for_async.into(),
+                                    tool_name: tool_name_for_async,
+                                    output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
+                                    exit_code: None,
+                                    duration_ms,
+                                    success: false,
+                                },
+                            );
+                            let _ = bus.send(
+                                apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                                    parent_event_id: parent_id,
+                                    task_id: task_id_for_async.into(),
+                                    skill_id: skill_id_for_async,
+                                    success: false,
+                                    output_summary: Some(e.to_string()),
+                                    duration_ms,
+                                },
+                            );
+                        }
+                    }
+                }
+
+                let result = result.map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
                 let json_str = serde_json::to_string(&result)
                     .map_err(|e| PyRuntimeError::new_err(format!("result serialization: {e}")))?;
                 Python::with_gil(|py| {
@@ -200,8 +316,12 @@ impl ToolProxy {
         let allowed = self.allowed_tools.clone();
         let agent_id = self.agent_id.clone();
         let task_id = self.task_id.clone();
+        let bus_for_async = self.event_bus.clone();
+        let started_event_id_clone = started_event_id.clone();
+        let tool_name_for_async = tool_name.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let started_at = std::time::Instant::now();
             let result = execute_tool(
                 &ToolCallContext {
                     registry: &registry,
@@ -215,6 +335,57 @@ impl ToolProxy {
                 input_value,
             )
             .await;
+            let duration_ms = started_at.elapsed().as_millis() as u64;
+
+            // ADR-088 — Émission ToolCallCompleted ou ToolCallDenied selon
+            // l'issue. Sandwich avec le ToolCallStarted émis avant dispatch.
+            if let Some(bus) = bus_for_async.as_ref() {
+                match &result {
+                    Ok(value) => {
+                        let _ = bus.send(
+                            apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                                parent_event_id: started_event_id_clone.clone(),
+                                task_id: task_id.clone().into(),
+                                agent_id: agent_id.clone().into(),
+                                tool_name: tool_name_for_async.clone(),
+                                output_json: serde_json::to_string(value).ok(),
+                                exit_code: None,
+                                duration_ms,
+                                success: true,
+                            },
+                        );
+                    }
+                    Err(ToolProxyError::ToolNotAllowed(name)) => {
+                        let _ = bus.send(
+                            apollia_core::events::RuntimeEvent::ToolCallDenied {
+                                parent_event_id: started_event_id_clone.clone(),
+                                task_id: task_id.clone().into(),
+                                agent_id: agent_id.clone().into(),
+                                tool_name: name.clone(),
+                                reason: "not_in_manifest".to_string(),
+                                detail: None,
+                            },
+                        );
+                    }
+                    Err(e) => {
+                        let _ = bus.send(
+                            apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                                parent_event_id: started_event_id_clone.clone(),
+                                task_id: task_id.clone().into(),
+                                agent_id: agent_id.clone().into(),
+                                tool_name: tool_name_for_async.clone(),
+                                output_json: Some(format!(
+                                    "{{\"error\":{:?}}}",
+                                    e.to_string()
+                                )),
+                                exit_code: None,
+                                duration_ms,
+                                success: false,
+                            },
+                        );
+                    }
+                }
+            }
 
             match result {
                 Ok(value) => {
@@ -305,7 +476,18 @@ impl ToolProxy {
             a2a_invoker: None,
             a2a_depth: 0,
             chain_deadline: None,
+            event_bus: None,
         }
+    }
+
+    /// Branche l'EventBus pour émettre les événements d'observabilité Lot 2
+    /// (`ToolCallStarted/Completed/Denied`, `A2AInvokeStarted/Completed`).
+    ///
+    /// Sans bus, le dispatch fonctionne identiquement mais aucun trace
+    /// runtime n'est produit — utile pour les contextes de test isolés.
+    pub fn with_event_bus(mut self, bus: apollia_core::events::EventBusSender) -> Self {
+        self.event_bus = Some(bus);
+        self
     }
 
     /// Configures A2A routing on this proxy, enabling `"a2a:{skill_id}"` tool calls.
@@ -831,6 +1013,13 @@ pub struct RuntimeContext {
     /// [`crate::context::RuntimeContext::delegate`] avant transmission au
     /// runtime (`a2a::validate_chain`).
     delegation_chain: Vec<AgentId>,
+    /// Identifiant de la tâche courante — injecté par le backend au démarrage
+    /// d'un `call_run` via [`with_task_id`](RuntimeContext::with_task_id).
+    ///
+    /// Utilisé par `ctx.log()` pour étiqueter le `RuntimeEvent::AgentLog` qui
+    /// part vers le persistor `runtime_events` (ADR-088). `None` quand le
+    /// contexte est construit pour des tests qui ne simulent pas une tâche.
+    task_id: Option<String>,
 }
 
 impl RuntimeContext {
@@ -928,6 +1117,7 @@ impl RuntimeContext {
             stt: None,
             agent_id: agent_id_stored,
             delegation_chain: Vec::new(),
+            task_id: None,
         }
     }
 
@@ -959,6 +1149,7 @@ impl RuntimeContext {
             stt: None,
             agent_id: AgentId::new_v4(),
             delegation_chain: Vec::new(),
+            task_id: None,
         }
     }
 
@@ -1018,6 +1209,28 @@ impl RuntimeContext {
     ) -> Self {
         self.chat_session_id = Some(session_id.into());
         self.chat_message_id = Some(message_id.into());
+        self
+    }
+
+    /// Lie ce contexte à l'identifiant de la tâche courante.
+    ///
+    /// Doit être appelé avant `bridge.call_run()` pour que `ctx.log()` puisse
+    /// étiqueter ses événements `RuntimeEvent::AgentLog` avec le bon
+    /// `task_id` et qu'ils soient retrouvables dans la trace de la tâche
+    /// (ADR-088).
+    ///
+    /// Effet de bord : propage aussi le `task_id` au [`LlmProxy`] interne pour
+    /// l'émission des `LlmCallStarted` (Lot 2).
+    pub fn with_task_id(mut self, task_id: impl Into<String>) -> Self {
+        let task_id_str = task_id.into();
+        // Propager au LlmProxy pour observabilité Lot 2.
+        if let Some(llm) = self.llm.take() {
+            self.llm = Some(llm.with_task_context(
+                task_id_str.clone(),
+                self.agent_id.to_string(),
+            ));
+        }
+        self.task_id = Some(task_id_str);
         self
     }
 }
@@ -1415,6 +1628,15 @@ impl RuntimeContext {
     /// Les messages sont émis avec le champ `agent` pour corrélation dans les traces
     /// structurées. Niveaux acceptés : `"debug"`, `"info"`, `"warn"`, `"error"`.
     /// Lève `ValueError` pour tout autre niveau.
+    ///
+    /// **Effet de bord (ADR-088, Lot 1).** En plus de `tracing::*`, émet un
+    /// `RuntimeEvent::AgentLog` sur l'`EventBus` si le contexte connaît son
+    /// `task_id` et a un bus configuré. Le `EventPersistor` côté
+    /// `apollia-runtime` consomme ces événements et les persiste dans
+    /// `runtime_events.db`, ce qui les rend disponibles à l'API
+    /// `GET /api/v1/tasks/{id}/trace` et à la nouvelle vue `ExecutionTrace`.
+    /// Le `tracing::*` continue d'écrire vers stderr en parallèle pour la
+    /// compatibilité ops.
     #[pyo3(text_signature = "(self, level, message)")]
     fn log(&self, level: &str, message: &str) -> PyResult<()> {
         let agent = &self.agent_name;
@@ -1428,6 +1650,86 @@ impl RuntimeContext {
                     "Invalid log level '{other}'. Expected: debug, info, warn, error"
                 )))
             }
+        }
+
+        // Persistance via EventBus → EventPersistor (ADR-088).
+        // Conditionnel : un contexte sans task_id (tests) ou sans bus (CLI
+        // dry-run) reste silencieux côté trace mais émet bien dans tracing.
+        if let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) {
+            // fire-and-forget : un bus saturé est tracé par broadcast,
+            // l'erreur send() est silencieusement ignorée pour ne jamais
+            // bloquer le thread d'agent.
+            let _ = bus.send(RuntimeEvent::AgentLog {
+                task_id: task_id.clone().into(),
+                agent_id: self.agent_id.clone(),
+                level: level.to_string(),
+                message: message.to_string(),
+                extra_fields_json: None,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Émet un événement `Thought` sur l'EventBus (ADR-088, Lot 2).
+    ///
+    /// Appelé par le SDK ReAct (`react.py`) à chaque tour, après le parsing
+    /// JSON de l'action. Le payload `text` contient la `thought` brute
+    /// extraite du LLM. No-op silencieux si `task_id` ou `event_bus` absents
+    /// (mode test / dry-run).
+    #[pyo3(text_signature = "(self, text, step_num)")]
+    fn emit_thought(&self, text: String, step_num: u32) -> PyResult<()> {
+        if let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) {
+            let _ = bus.send(RuntimeEvent::Thought {
+                task_id: task_id.clone().into(),
+                agent_id: self.agent_id.clone(),
+                step_num,
+                text,
+            });
+        }
+        Ok(())
+    }
+
+    /// Émet un événement `Retry` (ADR-088, Lot 2).
+    ///
+    /// Appelé par le SDK ReAct quand un step est retenté (parse error,
+    /// tool error, llm error). `cause` doit être l'une des chaînes
+    /// normalisées : `"action_parse_error" | "tool_error" | "llm_error"
+    /// | "other"`.
+    #[pyo3(text_signature = "(self, step_num, cause, attempt)")]
+    fn emit_retry(&self, step_num: u32, cause: String, attempt: u32) -> PyResult<()> {
+        if let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) {
+            let _ = bus.send(RuntimeEvent::Retry {
+                task_id: task_id.clone().into(),
+                agent_id: self.agent_id.clone(),
+                step_num,
+                cause,
+                attempt,
+            });
+        }
+        Ok(())
+    }
+
+    /// Émet un événement `ActionParseError` (ADR-088, Lot 2).
+    ///
+    /// Appelé par le SDK ReAct quand le LLM renvoie un JSON action invalide
+    /// non-réparable. Le payload `raw_content` permet au builder de voir
+    /// exactement ce que le LLM a produit pour ajuster son system prompt.
+    #[pyo3(text_signature = "(self, step_num, raw_content, repair_attempted)")]
+    fn emit_action_parse_error(
+        &self,
+        step_num: u32,
+        raw_content: String,
+        repair_attempted: bool,
+    ) -> PyResult<()> {
+        if let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) {
+            let _ = bus.send(RuntimeEvent::ActionParseError {
+                task_id: task_id.clone().into(),
+                agent_id: self.agent_id.clone(),
+                step_num,
+                raw_content,
+                repair_attempted,
+            });
         }
         Ok(())
     }

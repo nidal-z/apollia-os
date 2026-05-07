@@ -18,6 +18,7 @@ pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
 pub mod mailbox;
+pub mod observability;
 pub mod registry;
 pub mod router;
 pub mod session;

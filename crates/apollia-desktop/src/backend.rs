@@ -242,14 +242,18 @@ impl AgentRunner for BridgeRunner {
             }));
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {
-                (Some(registry), Some(audit)) => Some(ToolProxy::new(
-                    registry.clone(),
-                    audit.clone(),
-                    Arc::new(DispatcherExecutor::new(dispatcher)),
-                    allowed_tools,
-                    agent_id.clone(),
-                    task.task_id.clone(),
-                )),
+                (Some(registry), Some(audit)) => Some(
+                    ToolProxy::new(
+                        registry.clone(),
+                        audit.clone(),
+                        Arc::new(DispatcherExecutor::new(dispatcher)),
+                        allowed_tools,
+                        agent_id.clone(),
+                        task.task_id.clone(),
+                    )
+                    // ADR-088 — instrumentation tool_call_* sur l'EventBus.
+                    .with_event_bus(event_bus.clone()),
+                ),
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,
@@ -310,6 +314,9 @@ impl AgentRunner for BridgeRunner {
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }
+                // ADR-088 — relier le contexte à la task pour que ctx.log()
+                // étiquette correctement les RuntimeEvent::AgentLog persistés.
+                ctx = ctx.with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")

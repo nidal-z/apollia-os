@@ -1188,6 +1188,208 @@ pub enum RuntimeEvent {
         /// Niveau d'alerte courant en fonction des seuils configurés.
         alert: crate::session_metrics::BudgetAlertLevel,
     },
+
+    // ── Observability — event-sourced runtime trace (ADR-088) ─────────
+    /// Un agent a émis un message via `ctx.log(level, msg, **fields)`.
+    ///
+    /// Premier maillon du Lot 1 de la refonte observabilité : ce qui partait
+    /// jusqu'ici uniquement dans `tracing::*` (stderr) est désormais persisté
+    /// dans `runtime_events.db` via `EventPersistor`, et exposé à l'UI via
+    /// `GET /api/v1/tasks/{id}/trace`.
+    ///
+    /// Ce variant est *fire-and-forget* : ne pas bloquer le thread d'agent
+    /// si le bus est saturé.
+    AgentLog {
+        /// Tâche concernée. Permet de filtrer la trace par task_id.
+        task_id: TaskId,
+        /// Agent qui a émis le log.
+        agent_id: AgentId,
+        /// Niveau standard : `"debug" | "info" | "warn" | "error"`. Validé
+        /// par `apollia-aip::context` avant émission.
+        level: String,
+        /// Message libre fourni par l'agent.
+        message: String,
+        /// Champs supplémentaires structurés (kwargs Python sérialisés en
+        /// JSON) — `None` si l'agent n'a pas fourni de champs structurés.
+        #[serde(default)]
+        extra_fields_json: Option<String>,
+    },
+
+    // ── Observability — Lot 2 : ReAct loop & tools enrichis ───────────
+    /// Le LLM a émis une `thought` ReAct (chaîne de raisonnement).
+    ///
+    /// Capturé dans le SDK Python (`react.py`) à chaque tour, après le
+    /// parsing JSON de l'action. Affiché en mode builder comme bulle de
+    /// raisonnement, masqué en mode operator (sauf si la `thought` est
+    /// signalée comme remarquable par l'agent).
+    Thought {
+        /// Tâche en cours.
+        task_id: TaskId,
+        /// Agent qui a produit la pensée.
+        agent_id: AgentId,
+        /// Numéro du tour ReAct (1-based).
+        step_num: u32,
+        /// Texte brut de la `thought` extrait du JSON action LLM.
+        text: String,
+    },
+    /// Un appel LLM est sur le point de partir (avant `LlmProxy::complete`).
+    ///
+    /// `LlmCallCompleted` (existant) reste émis après. Permet de détecter
+    /// les hangs LLM (started sans completed) et d'ouvrir un timer côté UI.
+    /// Le payload `prompt_text` est `None` sauf si
+    /// `[observability] capture_llm_prompts = true`.
+    LlmCallStarted {
+        /// Tâche en cours.
+        task_id: TaskId,
+        /// Agent appelant.
+        agent_id: AgentId,
+        /// Step ORIA si en mode plan, `None` en mode direct.
+        step_id: Option<String>,
+        /// Backend résolu : `"anthropic" | "openai" | "ollama" | …`.
+        backend: String,
+        /// Modèle résolu (ex. `claude-opus-4-7`).
+        model: String,
+        /// Nombre total de messages dans le contexte (system+user+history).
+        messages_count: u32,
+        /// Taille cumulée des prompts en caractères (proxy de tokens).
+        prompt_chars: u64,
+    },
+    /// Un outil va être invoqué (avant le dispatcher).
+    ///
+    /// Forme un sandwich avec `ToolCallCompleted` ou `ToolCallDenied` ; le
+    /// `event_id` est exposé via le bus pour permettre au persistor de
+    /// chaîner `parent_event_id`.
+    ///
+    /// Le payload `args_json` est `None` si
+    /// `[observability] capture_tool_args = false`.
+    ToolCallStarted {
+        /// Identifiant unique de cet appel (UUID v7) — devient le
+        /// `parent_event_id` du `ToolCallCompleted` correspondant.
+        event_id: String,
+        /// Tâche.
+        task_id: TaskId,
+        /// Agent appelant.
+        agent_id: AgentId,
+        /// Nom de l'outil dispatché (`web_search`, `file_write`, `a2a:*`…).
+        tool_name: String,
+        /// Arguments d'appel sérialisés en JSON.
+        args_json: Option<String>,
+    },
+    /// L'outil a terminé son exécution.
+    ///
+    /// `parent_event_id` lie ce record au `ToolCallStarted` correspondant.
+    /// `output_json` est `None` si `capture_tool_outputs = false` ou si
+    /// l'outil n'a rien retourné.
+    ToolCallCompleted {
+        /// `event_id` du `ToolCallStarted` que ce record clôt.
+        parent_event_id: String,
+        /// Tâche.
+        task_id: TaskId,
+        /// Agent.
+        agent_id: AgentId,
+        /// Nom de l'outil (redondant avec le started, simplifie les
+        /// jointures et les renderers UI).
+        tool_name: String,
+        /// Sortie sérialisée JSON.
+        output_json: Option<String>,
+        /// Code de retour (bash/python). `None` pour les outils JSON pure.
+        exit_code: Option<i32>,
+        /// Durée totale en millisecondes (dispatch + exécution).
+        duration_ms: u64,
+        /// `true` si l'outil a renvoyé un succès logique.
+        success: bool,
+    },
+    /// L'outil a été refusé (manifest, permission rule, HITL).
+    ///
+    /// Émis à la place de `ToolCallCompleted` quand le dispatcher / le
+    /// permissions engine bloque l'invocation. Précieux pour expliquer à
+    /// l'opérateur pourquoi un agent n'a pas pu agir.
+    ToolCallDenied {
+        /// `event_id` du `ToolCallStarted` que ce record clôt.
+        parent_event_id: String,
+        /// Tâche.
+        task_id: TaskId,
+        /// Agent.
+        agent_id: AgentId,
+        /// Outil tenté.
+        tool_name: String,
+        /// Raison normalisée : `"not_in_manifest" | "permission_denied"
+        /// | "hitl_rejected" | "circuit_open" | "other"`.
+        reason: String,
+        /// Message lisible.
+        detail: Option<String>,
+    },
+    /// Une invocation A2A (agent-to-agent) démarre.
+    ///
+    /// Émis en parallèle d'un `ToolCallStarted` pour les outils `a2a:*` ;
+    /// ouvre la sous-trace du callee. Le `correlation_id` partagé sur la
+    /// chaîne A2A complète permet à l'UI de reconstruire l'arbre.
+    A2AInvokeStarted {
+        /// `event_id` (UUID v7) — devient le `parent_event_id` des records
+        /// produits par le callee dans sa propre trace.
+        event_id: String,
+        /// `correlation_id` partagé sur toute la chaîne A2A. Hérité de
+        /// l'invocation parente s'il existe, sinon nouvellement émis.
+        correlation_id: String,
+        /// Tâche racine.
+        task_id: TaskId,
+        /// Agent appelant.
+        caller_agent_id: AgentId,
+        /// Skill A2A demandé (sans le préfixe `a2a:`).
+        skill_id: String,
+        /// `task_id` de la nouvelle tâche créée pour le callee.
+        child_task_id: Option<TaskId>,
+    },
+    /// Une invocation A2A est terminée.
+    A2AInvokeCompleted {
+        /// `event_id` du `A2AInvokeStarted` que ce record clôt.
+        parent_event_id: String,
+        /// Tâche racine.
+        task_id: TaskId,
+        /// Skill A2A.
+        skill_id: String,
+        /// `true` si l'agent appelé a réussi.
+        success: bool,
+        /// Résumé court de la sortie pour rendu list-view (le détail est
+        /// dans la sous-trace du child_task_id).
+        output_summary: Option<String>,
+        /// Durée totale.
+        duration_ms: u64,
+    },
+    /// Le ReAct loop relance un step (parse error, tool failure, etc.).
+    ///
+    /// Émis par le SDK Python (`react.py`) pour signaler qu'un tour a été
+    /// retenté. Distinct de `PlanReplanning` qui s'applique au mode plan.
+    Retry {
+        /// Tâche.
+        task_id: TaskId,
+        /// Agent.
+        agent_id: AgentId,
+        /// Numéro de tour ReAct concerné.
+        step_num: u32,
+        /// Cause normalisée : `"action_parse_error" | "tool_error"
+        /// | "llm_error" | "other"`.
+        cause: String,
+        /// Numéro de tentative (1 = premier retry).
+        attempt: u32,
+    },
+    /// Le LLM a renvoyé un JSON action invalide qui n'a pas pu être réparé.
+    ///
+    /// Émis par le SDK Python avant la prochaine tentative. Permet au
+    /// builder de voir précisément ce que le LLM a sorti et d'ajuster son
+    /// prompt système.
+    ActionParseError {
+        /// Tâche.
+        task_id: TaskId,
+        /// Agent.
+        agent_id: AgentId,
+        /// Numéro de tour ReAct.
+        step_num: u32,
+        /// Contenu brut renvoyé par le LLM.
+        raw_content: String,
+        /// `true` si une réparation heuristique a été tentée.
+        repair_attempted: bool,
+    },
 }
 
 /// Preview du contenu d'une opération filesystem pour la modal HITL.
@@ -1658,6 +1860,83 @@ mod tests {
                     after: "new content".into(),
                     truncated: false,
                 },
+            },
+            RuntimeEvent::AgentLog {
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                level: "info".into(),
+                message: "hello".into(),
+                extra_fields_json: Some("{\"key\":\"value\"}".into()),
+            },
+            RuntimeEvent::Thought {
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                step_num: 3,
+                text: "I should call web_search first.".into(),
+            },
+            RuntimeEvent::LlmCallStarted {
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                step_id: None,
+                backend: "anthropic".into(),
+                model: "claude-opus-4-7".into(),
+                messages_count: 5,
+                prompt_chars: 4321,
+            },
+            RuntimeEvent::ToolCallStarted {
+                event_id: "01900000-0000-7000-8000-000000000001".into(),
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                tool_name: "web_search".into(),
+                args_json: Some("{\"query\":\"hello\"}".into()),
+            },
+            RuntimeEvent::ToolCallCompleted {
+                parent_event_id: "01900000-0000-7000-8000-000000000001".into(),
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                tool_name: "web_search".into(),
+                output_json: Some("{\"results\":[]}".into()),
+                exit_code: Some(0),
+                duration_ms: 412,
+                success: true,
+            },
+            RuntimeEvent::ToolCallDenied {
+                parent_event_id: "01900000-0000-7000-8000-000000000002".into(),
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                tool_name: "bash_executor".into(),
+                reason: "permission_denied".into(),
+                detail: Some("user rejected".into()),
+            },
+            RuntimeEvent::A2AInvokeStarted {
+                event_id: "01900000-0000-7000-8000-000000000003".into(),
+                correlation_id: "01900000-0000-7000-8000-c00000000001".into(),
+                task_id: "task-1".into(),
+                caller_agent_id: "agent-1".into(),
+                skill_id: "search-and-extract".into(),
+                child_task_id: Some("task-2".into()),
+            },
+            RuntimeEvent::A2AInvokeCompleted {
+                parent_event_id: "01900000-0000-7000-8000-000000000003".into(),
+                task_id: "task-1".into(),
+                skill_id: "search-and-extract".into(),
+                success: true,
+                output_summary: Some("3 articles".into()),
+                duration_ms: 1850,
+            },
+            RuntimeEvent::Retry {
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                step_num: 4,
+                cause: "action_parse_error".into(),
+                attempt: 1,
+            },
+            RuntimeEvent::ActionParseError {
+                task_id: "task-1".into(),
+                agent_id: "agent-1".into(),
+                step_num: 4,
+                raw_content: "{not json".into(),
+                repair_attempted: true,
             },
         ];
 

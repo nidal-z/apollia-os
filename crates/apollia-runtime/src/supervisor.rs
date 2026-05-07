@@ -638,6 +638,33 @@ impl Supervisor {
             }
         }
 
+        // Phase 4c: EventPersistor (ADR-088) — log append-only de la trace
+        // d'exécution agent (Lot 1 : AgentLog ; Lots 2+ ajoutent thoughts,
+        // tool_call_*, llm_call_*, etc.). Si l'ouverture échoue, le runtime
+        // continue sans persistance (logs partent toujours dans `tracing`).
+        {
+            let db_path = self.config.data_dir.join("runtime_events.db");
+            match crate::observability::EventPersistorHandle::open(&db_path).await {
+                Ok(handle) => {
+                    crate::observability::spawn_runtime_events_subscriber(
+                        handle,
+                        &event_sender,
+                    );
+                    info!(
+                        path = %db_path.display(),
+                        "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        path = %db_path.display(),
+                        "EventPersistor failed to open — runtime_events persistence disabled"
+                    );
+                }
+            }
+        }
+
         // Phase 5 (pos 6): TaskRouter
         info!("Supervisor: starting TaskRouter");
         let router_handle: TaskRouterHandle<B> =

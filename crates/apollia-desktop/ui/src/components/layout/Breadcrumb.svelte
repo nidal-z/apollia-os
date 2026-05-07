@@ -3,17 +3,40 @@
    * Topbar breadcrumb — V3 Operator format: "Apollia / [page]".
    *
    * The "Apollia" prefix is static and clickable (routes to home for the
-   * current UI mode). The trail derives from `currentRoute` via `routeMeta`;
-   * intermediate parents (e.g. settings → permission rules) appear between
-   * the prefix and the current page. The current page renders with a
-   * primary-tinted icon and a `/` separator everywhere.
+   * current UI mode). A status dot is rendered next to it to surface the
+   * combined runtime + LLM availability:
+   *   - green: runtime heartbeat is healthy AND at least one LLM backend is enabled
+   *   - amber: runtime is healthy but no LLM backend is connected
+   *   - red:   runtime heartbeat is missing or reconnecting
+   * The trail derives from `currentRoute` via `routeMeta`.
    */
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo } from "$lib/stores/navigation";
   import { buildTrail, routeMeta, homeRouteFor } from "$lib/navigation/routeMeta";
   import { uiMode } from "$lib/stores/mode";
+  import { runtimeHealth } from "$lib/stores/runtimeHealth";
+  import { readyLlmBackends } from "$lib/stores/llm";
 
   const trail = $derived(buildTrail($currentRoute));
+
+  type StatusLevel = "ok" | "warn" | "down";
+  const status = $derived.by<{ level: StatusLevel; key: string }>(() => {
+    if ($runtimeHealth.status !== "connected") {
+      return { level: "down", key: "topbar.status.runtime_down" };
+    }
+    if ($readyLlmBackends.length === 0) {
+      return { level: "warn", key: "topbar.status.no_llm" };
+    }
+    return { level: "ok", key: "topbar.status.ok" };
+  });
+
+  const dotClass = $derived(
+    status.level === "ok"
+      ? "bg-emerald-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(142_70%_45%/0.35)]"
+      : status.level === "warn"
+        ? "bg-amber-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(40_92%_50%/0.35)]"
+        : "bg-rose-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(0_84%_60%/0.35)] animate-pulse",
+  );
 
   function goHome() {
     navigateTo(homeRouteFor($uiMode));
@@ -27,9 +50,17 @@
 >
   <button
     type="button"
-    class="text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 rounded"
+    class="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 rounded"
     onclick={goHome}
   >
+    <span
+      class="inline-block h-1.5 w-1.5 rounded-full {dotClass}"
+      role="status"
+      aria-label={$t(status.key)}
+      title={$t(status.key)}
+      data-testid="topbar-status-dot"
+      data-status={status.level}
+    ></span>
     Apollia
   </button>
 

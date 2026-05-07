@@ -135,6 +135,9 @@
           workspace_path: workspacePath,
         },
       });
+      if (data.templateId === "developer") {
+        await applyDeveloperTemplate(created.id);
+      }
       addToast(
         $t("projects.created_toast", { values: { name: created.name } }),
         "success",
@@ -144,6 +147,57 @@
       void selectProject(created.id);
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function applyDeveloperTemplate(projectId: string): Promise<void> {
+    // Pre-configure context providers oriented around code workspaces:
+    // git status/diff, file tree snapshot, and APOLLIA.md project rules.
+    const seeds: Array<{
+      provider_type: string;
+      name: string;
+      config_json: string;
+      priority: number;
+    }> = [
+      {
+        provider_type: "git",
+        name: $t("projects.template_developer_provider_git"),
+        config_json: "{}",
+        priority: 10,
+      },
+      {
+        provider_type: "tree",
+        name: $t("projects.template_developer_provider_tree"),
+        config_json: "{}",
+        priority: 20,
+      },
+      {
+        provider_type: "rules",
+        name: $t("projects.template_developer_provider_rules"),
+        config_json: "{}",
+        priority: 30,
+      },
+    ];
+    for (const s of seeds) {
+      try {
+        await invoke("set_project_provider", {
+          projectId,
+          providerType: s.provider_type,
+          name: s.name,
+          configJson: s.config_json,
+          path: null,
+          enabled: true,
+          priority: s.priority,
+        });
+      } catch (err: unknown) {
+        // Non-fatal: project is already created, surface a soft warning.
+        addToast(
+          $t("projects.template_developer_provider_failed", {
+            values: { name: s.name, err: err instanceof Error ? err.message : String(err) },
+          }),
+          "info",
+        );
+      }
     }
   }
 
@@ -196,40 +250,18 @@
   const dialogTemplates: DialogTemplate[] = [
     {
       id: "blank",
-      name: $t("projects.template_blank") || "Projet vierge",
-      description:
-        $t("projects.template_blank_desc") ||
-        "Démarrer sans configuration prédéfinie.",
+      name: $t("projects.template_blank"),
+      description: $t("projects.template_blank_desc"),
       agents: [],
       blank: true,
       color: "hsl(var(--primary))",
     },
     {
-      id: "launch",
-      name: $t("projects.template_launch") || "Lancement produit",
-      description:
-        $t("projects.template_launch_desc") ||
-        "Coordonner comms, jalons et tâches autour d'un go-live.",
-      agents: ["Apollia libre", "Scheduler", "Writer"],
-      color: "hsl(var(--primary))",
-    },
-    {
-      id: "research",
-      name: $t("projects.template_research") || "Recherche & veille",
-      description:
-        $t("projects.template_research_desc") ||
-        "Surveiller un domaine et synthétiser les signaux.",
-      agents: ["Analyst", "Writer"],
+      id: "developer",
+      name: $t("projects.template_developer"),
+      description: $t("projects.template_developer_desc"),
+      agents: [],
       color: "#0ea5e9",
-    },
-    {
-      id: "campaign",
-      name: $t("projects.template_campaign") || "Campagne emails",
-      description:
-        $t("projects.template_campaign_desc") ||
-        "Composer, planifier et envoyer une campagne.",
-      agents: ["Writer", "Inbox Monitor"],
-      color: "#f59e0b",
     },
   ];
 

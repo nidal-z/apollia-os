@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { X, Sparkles } from "lucide-svelte";
   import BtnPrimary from "./BtnPrimary.svelte";
   import BtnSecondary from "./BtnSecondary.svelte";
@@ -79,34 +80,33 @@
             <div
               class="text-[11px] tracking-[1.2px] text-muted-foreground font-mono font-semibold"
             >
-              ÉTAPE 1 / 2
+              {$t("projects.dialog.step_1_of_2")}
             </div>
             <h2
               class="mt-1 m-0 font-normal text-foreground"
               style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
             >
-              Partir d'un template ?
+              {$t("projects.dialog.step1_title")}
             </h2>
           </div>
           <button
             type="button"
             onclick={close}
             class="bg-transparent border-0 text-muted-foreground cursor-pointer hover:text-foreground"
-            aria-label="Fermer"
+            aria-label={$t("common.close")}
           >
             <X size={16} />
           </button>
         </div>
         <p class="m-0 mb-4 text-[12.5px] text-muted-foreground">
-          Les templates pré-configurent agents, connexions et jalons. Vous pouvez tout modifier
-          après.
+          {$t("projects.dialog.step1_subtitle")}
         </p>
         <div class="grid grid-cols-2 gap-2.5">
-          {#each templates as t}
-            {@const isActive = (selectedId ?? templates[0]?.id) === t.id}
+          {#each templates as tpl}
+            {@const isActive = (selectedId ?? templates[0]?.id) === tpl.id}
             <button
               type="button"
-              onclick={() => (selectedId = t.id)}
+              onclick={() => (selectedId = tpl.id)}
               class="px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
                 ? 'bg-primary/10 border-2 border-primary'
                 : 'bg-surface-1 border border-border hover:border-primary/40'}"
@@ -114,16 +114,16 @@
               <div class="flex items-center gap-1.5 mb-1.5">
                 <div
                   class="w-1.5 h-1.5 rounded-full"
-                  style="background: {t.color ?? 'hsl(var(--primary))'};"
+                  style="background: {tpl.color ?? 'hsl(var(--primary))'};"
                 ></div>
-                <span class="text-[12.5px] font-semibold text-foreground">{t.name}</span>
+                <span class="text-[12.5px] font-semibold text-foreground">{tpl.name}</span>
               </div>
               <div class="text-[10.5px] text-muted-foreground mb-1.5">
-                {t.description}
+                {tpl.description}
               </div>
-              {#if t.agents.length > 0}
+              {#if tpl.agents.length > 0}
                 <div class="flex gap-1 flex-wrap">
-                  {#each t.agents as a}
+                  {#each tpl.agents as a}
                     <span
                       class="text-[9.5px] px-1.5 py-px rounded-full bg-card text-muted-foreground border border-border"
                     >
@@ -131,16 +131,16 @@
                     </span>
                   {/each}
                 </div>
-              {:else if t.blank}
+              {:else if tpl.blank}
                 <div class="text-[10px] text-muted-foreground italic">
-                  À configurer manuellement
+                  {$t("projects.dialog.manual_config")}
                 </div>
               {/if}
             </button>
           {/each}
         </div>
         <div class="flex gap-2 mt-4">
-          <BtnSecondary onclick={close}>Annuler</BtnSecondary>
+          <BtnSecondary onclick={close}>{$t("common.cancel")}</BtnSecondary>
           <div class="flex-1"></div>
           <BtnPrimary
             onclick={() => {
@@ -152,7 +152,7 @@
             }}
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
-            Continuer →
+            {$t("common.continue")}
           </BtnPrimary>
         </div>
       </div>
@@ -164,28 +164,28 @@
           <div
             class="text-[11px] tracking-[1.2px] text-muted-foreground font-mono font-semibold"
           >
-            ÉTAPE 2 / 2 · {selected?.name?.toUpperCase()}
+            {$t("projects.dialog.step_2_of_2", { values: { name: selected?.name?.toUpperCase() ?? "" } })}
           </div>
           <h2
             class="mt-1 m-0 font-normal text-foreground"
             style="font-size: 20px; font-weight: 600; letter-spacing: -0.3px;"
           >
-            Nommez votre projet.
+            {$t("projects.dialog.step2_title")}
           </h2>
         </div>
 
         <div class="mb-3.5">
-          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">Nom</div>
+          <div class="text-[11px] text-muted-foreground mb-1 font-semibold">{$t("projects.field_name")}</div>
           <input
             bind:value={name}
             class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-[13.5px] font-medium text-foreground outline-none"
-            placeholder="Lancement produit Q2"
+            placeholder={$t("projects.dialog.name_placeholder")}
           />
         </div>
 
         <div class="mb-3.5">
           <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
-            Description
+            {$t("projects.field_description")}
           </div>
           <textarea
             bind:value={description}
@@ -195,13 +195,13 @@
         </div>
 
         <div class="mb-3.5">
-          <div class="text-[11px] text-muted-foreground mb-1.5 font-semibold">Couleur</div>
+          <div class="text-[11px] text-muted-foreground mb-1.5 font-semibold">{$t("projects.dialog.color_label")}</div>
           <div class="flex gap-2">
             {#each COLOR_SWATCHES as c}
               <button
                 type="button"
                 onclick={() => (color = c)}
-                aria-label="Couleur"
+                aria-label={$t("projects.dialog.color_label")}
                 class="w-6 h-6 rounded-full cursor-pointer transition-shadow"
                 style="background: {c}; border: 2px solid {color === c
                   ? 'hsl(var(--foreground))'
@@ -219,15 +219,15 @@
           <div
             class="text-[11px] font-semibold text-primary mb-1 inline-flex items-center gap-1.5"
           >
-            <Sparkles size={10} /> Prêt à démarrer
+            <Sparkles size={10} /> {$t("projects.dialog.ready_title")}
           </div>
           <div class="text-[11px] text-muted-foreground leading-[1.5]">
-            {selected?.agents?.length ?? 0} agents pré-assignés · prêt à être configuré.
+            {$t("projects.dialog.ready_detail", { values: { count: selected?.agents?.length ?? 0 } })}
           </div>
         </div>
 
         <div class="flex gap-2">
-          <BtnSecondary onclick={() => (step = 0)}>← Retour</BtnSecondary>
+          <BtnSecondary onclick={() => (step = 0)}>{$t("common.back")}</BtnSecondary>
           <div class="flex-1"></div>
           <BtnPrimary
             onclick={() => {
@@ -242,7 +242,7 @@
             }}
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘↵</span>{/snippet}
-            Créer le projet
+            {$t("projects.create_project")}
           </BtnPrimary>
         </div>
       </div>

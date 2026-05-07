@@ -178,14 +178,18 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         }));
 
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
-            (Some(registry), Some(audit)) => Some(ToolProxy::new(
-                registry.clone(),
-                audit.clone(),
-                Arc::new(DispatcherExecutor::new(dispatcher)),
-                allowed_tools,
-                agent_name.to_string(),
-                task.task_id.clone(),
-            )),
+            (Some(registry), Some(audit)) => Some(
+                ToolProxy::new(
+                    registry.clone(),
+                    audit.clone(),
+                    Arc::new(DispatcherExecutor::new(dispatcher)),
+                    allowed_tools,
+                    agent_name.to_string(),
+                    task.task_id.clone(),
+                )
+                // ADR-088 — instrumentation tool_call_* (Lot 2).
+                .with_event_bus(event_bus.clone()),
+            ),
             _ => None,
         };
         let memory_interface: Option<MemoryInterface> =
@@ -239,7 +243,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 None,  // a2a_delegate — chat runner does not participate in A2A delegation
                 None,  // a2a_invoker — not available in chat mode
                 manifest.user_memory_write, // user_memory_writable — manifest-controlled
-            );
+            )
+            // ADR-088 — relier le contexte à la task pour que ctx.log()
+            // étiquette les RuntimeEvent::AgentLog persistés.
+            .with_task_id(task.task_id.clone());
             Py::new(py, ctx)
                 .map(|p| p.into_any())
                 .expect("RuntimeContext PyObject construction failed")
@@ -562,7 +569,9 @@ impl AgentRunner for BridgeRunner {
                         allowed_tools,
                         agent_id.clone(),
                         task.task_id.clone(),
-                    );
+                    )
+                    // ADR-088 — instrumentation tool_call_* (Lot 2).
+                    .with_event_bus(event_bus.clone());
                     let proxy = if let Some(invoker) = a2a_invoker.clone() {
                         proxy.with_a2a(invoker, 0, None)
                     } else {
@@ -618,7 +627,9 @@ impl AgentRunner for BridgeRunner {
                     a2a_delegate,
                     a2a_invoker,
                     user_memory_write, // user_memory_writable — manifest-controlled
-                );
+                )
+                // ADR-088 — task_id pour étiqueter ctx.log() côté trace.
+                .with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")

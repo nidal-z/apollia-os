@@ -115,6 +115,12 @@ pub struct LlmProxy {
     budget_view: Arc<StepBudgetView>,
     obs_config: Arc<ObservabilityConfig>,
     event_bus: Option<EventBusSender>,
+    /// Tâche courante — injecté via [`with_task_context`] pour étiqueter
+    /// les événements `LlmCallStarted` (ADR-088, Lot 2). `None` empêche
+    /// l'émission sans casser le dispatch.
+    task_id: Option<String>,
+    /// Agent courant — pareil que `task_id`.
+    agent_id: Option<String>,
 }
 
 impl LlmProxy {
@@ -135,6 +141,37 @@ impl LlmProxy {
             budget_view,
             obs_config,
             event_bus,
+            task_id: None,
+            agent_id: None,
+        }
+    }
+
+    /// Lie ce proxy à l'identité de l'exécution en cours pour l'observabilité
+    /// (ADR-088, Lot 2). Sans ce setter, les événements `LlmCallStarted` ne
+    /// sont pas émis (mais `complete_with_observability` continue d'émettre
+    /// `LlmCallCompleted`/`LlmCallFailed` côté router).
+    pub fn with_task_context(mut self, task_id: String, agent_id: String) -> Self {
+        self.task_id = Some(task_id);
+        self.agent_id = Some(agent_id);
+        self
+    }
+
+    /// Émet `RuntimeEvent::LlmCallStarted` si bus + task_id sont configurés.
+    fn emit_started(&self, backend: &str, model: &str, messages_count: u32, prompt_chars: u64) {
+        if let (Some(bus), Some(task_id), Some(agent_id)) = (
+            self.event_bus.as_ref(),
+            self.task_id.as_ref(),
+            self.agent_id.as_ref(),
+        ) {
+            let _ = bus.send(apollia_core::events::RuntimeEvent::LlmCallStarted {
+                task_id: task_id.clone().into(),
+                agent_id: agent_id.clone().into(),
+                step_id: None,
+                backend: backend.to_string(),
+                model: model.to_string(),
+                messages_count,
+                prompt_chars,
+            });
         }
     }
 }
@@ -164,6 +201,14 @@ impl LlmProxy {
         user: String,
         backend: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        // ADR-088 — émettre LlmCallStarted avant le dispatch.
+        let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
+        let backend_label = backend
+            .as_deref()
+            .unwrap_or_else(|| self.router.default_name())
+            .to_string();
+        self.emit_started(&backend_label, "<resolved-by-router>", 2, prompt_chars);
+
         let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
@@ -212,6 +257,32 @@ impl LlmProxy {
             .iter()
             .map(|obj| py_dict_to_chat_message(py, obj))
             .collect::<PyResult<Vec<_>>>()?;
+
+        // ADR-088 — émettre LlmCallStarted avant le dispatch.
+        // MessageContent peut porter du texte simple ou des tool_calls ; on
+        // additionne les chars comptables pour donner un proxy de taille.
+        let prompt_chars: u64 = chat_messages
+            .iter()
+            .map(|m| match &m.content {
+                apollia_llm::types::MessageContent::Text(t) => t.chars().count() as u64,
+                apollia_llm::types::MessageContent::ToolResult { content, .. } => {
+                    content.chars().count() as u64
+                }
+                apollia_llm::types::MessageContent::WithToolCalls { text, .. } => {
+                    text.chars().count() as u64
+                }
+            })
+            .sum();
+        let backend_label = backend
+            .as_deref()
+            .unwrap_or_else(|| self.router.default_name())
+            .to_string();
+        self.emit_started(
+            &backend_label,
+            "<resolved-by-router>",
+            chat_messages.len() as u32,
+            prompt_chars,
+        );
 
         let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);

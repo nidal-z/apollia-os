@@ -183,6 +183,23 @@ def _looks_like_broken_tool_call(text: str) -> bool:
     markers = ('"action"', '"tool"', '"args"', '"thought"')
     return sum(1 for m in markers if m in lowered) >= 2
 
+
+def _emit_safe(ctx: Any, method: str, *args: Any) -> None:
+    """Best-effort call to a `ctx.emit_*` method (ADR-088, Lot 2).
+
+    The runtime `RuntimeContext` exposes `emit_thought`, `emit_retry` and
+    `emit_action_parse_error` as PyO3 methods. Older runtimes — or test
+    contexts using `MockContext` — don't, so missing methods or any
+    runtime error must NOT break the ReAct loop. This is pure telemetry.
+    """
+    method_fn = getattr(ctx, method, None)
+    if method_fn is None:
+        return
+    try:
+        method_fn(*args)
+    except Exception:  # noqa: BLE001 — telemetry must never raise
+        pass
+
 # Maximum iterations enforced at the Python level.
 # The Rust StepBudget is the authoritative hard limit.
 DEFAULT_MAX_STEPS: int = 30
@@ -386,6 +403,7 @@ class BaseReActAgent(ABC):
         # Main ReAct loop.
         can_stream = self._ctx_supports_streaming(ctx)
         for step in range(self.MAX_STEPS):
+            step_num = step + 1  # 1-based for human-friendly trace
             if can_stream:
                 response_content = await self._stream_step(ctx, messages)
             else:
@@ -395,6 +413,10 @@ class BaseReActAgent(ABC):
             try:
                 action = validate_action(extract_json(response_content))
             except ActionParseError:
+                # ADR-088 Lot 2 — surface the parse failure on the trace bus
+                # so the builder can see exactly what the LLM produced.
+                _emit_safe(ctx, "emit_action_parse_error",
+                           step_num, response_content, True)
                 # The LLM produced output we can't parse as a ReAct action
                 # even after heuristic JSON repair. This usually means a
                 # tool_call with multi-line content and unescaped quotes
@@ -403,6 +425,8 @@ class BaseReActAgent(ABC):
                 # give the LLM a chance to correct itself on the next
                 # step via the observation channel.
                 if _looks_like_broken_tool_call(response_content):
+                    _emit_safe(ctx, "emit_retry",
+                               step_num, "action_parse_error", 1)
                     messages.append(
                         {"role": "assistant", "content": response_content}
                     )
@@ -426,6 +450,11 @@ class BaseReActAgent(ABC):
             tool_name: str = action["tool"]
             tool_args: dict[str, Any] = action.get("args", {})
             thought: str = action.get("thought", "")
+
+            # ADR-088 Lot 2 — surface the LLM thought on the trace bus.
+            # Empty thoughts are ignored to avoid trace noise.
+            if thought:
+                _emit_safe(ctx, "emit_thought", thought, step_num)
 
             if tool_name not in available_tools:
                 observation = (

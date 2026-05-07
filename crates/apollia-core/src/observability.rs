@@ -37,6 +37,35 @@ pub struct ObservabilityConfig {
     /// Si true, persiste le prompt_text LLM (défaut false).
     #[serde(default)]
     pub debug_log_prompt: bool,
+
+    // ── ADR-088 — capture granulaire pour `runtime_events` (Lot 2) ──
+    /// Si `true`, persiste les `Thought` ReAct sur la trace (défaut `true`).
+    /// Désactiver vide les bulles de raisonnement côté UI builder.
+    #[serde(default = "default_capture_on")]
+    pub capture_thoughts: bool,
+    /// Si `true`, persiste les prompts LLM en clair sur la trace (défaut
+    /// `true`, local-first). Distinct de `debug_log_prompt` qui contrôle
+    /// le `prompt_text` dans `llm_calls.db`.
+    #[serde(default = "default_capture_on")]
+    pub capture_llm_prompts: bool,
+    /// Si `true`, persiste les `args_json` complets des tool calls (défaut
+    /// `true`). Désactiver = seul le tool name + duration sont visibles.
+    #[serde(default = "default_capture_on")]
+    pub capture_tool_args: bool,
+    /// Si `true`, persiste les `output_json` complets des tool calls
+    /// (défaut `true`). Désactiver = seul le succès/échec est visible.
+    #[serde(default = "default_capture_on")]
+    pub capture_tool_outputs: bool,
+    /// Si `true`, persiste les `ctx.log()` Python sur la trace (défaut
+    /// `true`). Désactiver = `tracing::*` continue mais aucun record dans
+    /// `runtime_events.db`.
+    #[serde(default = "default_capture_on")]
+    pub capture_agent_logs: bool,
+    /// Nombre de jours de rétention des `runtime_events` avant purge
+    /// automatique (défaut 90, cohérent avec audit.db). Lot 5 implémente
+    /// la purge ; les Lots 1-4 ignorent ce paramètre.
+    #[serde(default = "default_retention_days")]
+    pub retention_days: u32,
 }
 
 impl Default for ObservabilityConfig {
@@ -46,8 +75,24 @@ impl Default for ObservabilityConfig {
             max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             max_tool_output_bytes: DEFAULT_MAX_TOOL_OUTPUT_BYTES,
             debug_log_prompt: false,
+            // Local-first : on capture tout par défaut. L'opérateur peut
+            // désactiver granulairement dans Settings → Observability.
+            capture_thoughts: true,
+            capture_llm_prompts: true,
+            capture_tool_args: true,
+            capture_tool_outputs: true,
+            capture_agent_logs: true,
+            retention_days: 90,
         }
     }
+}
+
+fn default_capture_on() -> bool {
+    true
+}
+
+fn default_retention_days() -> u32 {
+    90
 }
 
 fn default_max_input_bytes() -> usize {

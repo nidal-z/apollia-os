@@ -11,6 +11,7 @@
     Brain,
     Keyboard,
     AlertTriangle,
+    Activity,
     Download,
     Wrench,
     ShieldCheck,
@@ -57,6 +58,7 @@
     system: () => import("./settings/System.svelte"),
     memories: () => import("./settings/Memories.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),
+    observability: () => import("./settings/Observability.svelte"),
     danger: () => import("./settings/Danger.svelte"),
   };
 
@@ -271,6 +273,7 @@
         { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
         { key: "system", labelKey: "settings.nav.system", icon: Info },
         { key: "shortcuts", labelKey: "settings.nav.shortcuts", icon: Keyboard },
+        { key: "observability", labelKey: "settings.nav.observability", icon: Activity },
       ],
     },
     {
@@ -338,6 +341,11 @@
     shortcuts: {
       title: "Raccourcis clavier",
       subtitle: "Raccourcis disponibles dans Apollia.",
+      kicker: "SYSTÈME",
+    },
+    observability: {
+      title: $t("settings.observability.title"),
+      subtitle: $t("settings.observability.subtitle"),
       kicker: "SYSTÈME",
     },
     danger: {

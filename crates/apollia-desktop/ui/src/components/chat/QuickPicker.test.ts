@@ -47,21 +47,21 @@ function statusOf(
 // ─── Templates ───────────────────────────────────────────────────────────────
 
 describe("chatTemplates", () => {
-  test("seeds the 5 expected v1 templates", () => {
+  test("seeds the 5 expected generic templates", () => {
     // GIVEN the hardcoded template list
     // WHEN we inspect it
-    // THEN the 5 sprint-42 templates are present
+    // THEN the 5 ultra-generic use-case templates are present
     const ids = CHAT_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
-      ["debug", "dev-review", "ops-playbook", "research", "spec-writing"].sort(),
+      ["brainstorm", "draft-writing", "explain", "research", "summarize"].sort(),
     );
   });
 
-  test("every template exposes a non-empty prompt and i18n keys", () => {
+  test("every template exposes i18n keys for title, description and prompt", () => {
     for (const tpl of CHAT_TEMPLATES) {
-      expect(tpl.prompt.length).toBeGreaterThan(0);
       expect(tpl.titleKey.startsWith("chat.template.")).toBe(true);
       expect(tpl.descriptionKey.startsWith("chat.template.")).toBe(true);
+      expect(tpl.promptKey.startsWith("chat.template.")).toBe(true);
     }
   });
 });

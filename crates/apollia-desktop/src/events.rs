@@ -346,6 +346,20 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── Memory namespaces ───────────────────────────────
         RuntimeEvent::SharedNamespaceAdded { .. } => "memory-changed",
+
+        // ── Observability — event-sourced runtime trace (ADR-088) ────
+        // Routé sur le bus front-side `trace-event` — Lot 1 + Lot 2.
+        RuntimeEvent::AgentLog { .. }
+        | RuntimeEvent::Thought { .. }
+        | RuntimeEvent::LlmCallStarted { .. }
+        | RuntimeEvent::LlmCallFailed { .. }
+        | RuntimeEvent::ToolCallStarted { .. }
+        | RuntimeEvent::ToolCallCompleted { .. }
+        | RuntimeEvent::ToolCallDenied { .. }
+        | RuntimeEvent::A2AInvokeStarted { .. }
+        | RuntimeEvent::A2AInvokeCompleted { .. }
+        | RuntimeEvent::Retry { .. }
+        | RuntimeEvent::ActionParseError { .. } => "trace-event",
     }
 }
 

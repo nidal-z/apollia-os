@@ -16,7 +16,7 @@
     Maximize2, Minimize2, X,
   } from "lucide-svelte";
   import { Separator } from "$lib/components/ui/separator";
-  import TaskTimeline from "./TaskTimeline.svelte";
+  import ExecutionTrace from "../observability/ExecutionTrace.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
   import { BuilderOnly } from "$lib/components/shared";
 
@@ -226,7 +226,14 @@
             {/if}
           </div>
           <div class="px-4 py-3" data-testid="task-timeline-section">
-            <TaskTimeline taskId={taskId} isRunning={isRunning} />
+            <!-- ADR-088 Lot 3 — remplace TaskTimeline.svelte par la vue
+                 conversation-like event-sourced. Le skin operator/builder
+                 est hérité du store $uiMode global. -->
+            <ExecutionTrace
+              {taskId}
+              context="task"
+              mode={isRunning ? "live" : "replay"}
+            />
           </div>
         </div>
 

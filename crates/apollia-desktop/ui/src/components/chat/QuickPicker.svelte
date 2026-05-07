@@ -167,8 +167,9 @@
   }
 
   function applyTemplate(template: ChatTemplate): void {
-    prompt = template.prompt;
-    void createFreeChat(template.prompt, template.tools);
+    const localizedPrompt = $t(template.promptKey);
+    prompt = localizedPrompt;
+    void createFreeChat(localizedPrompt, template.tools);
   }
 
   // ─── Keyboard ─────────────────────────────────────────────────────────────

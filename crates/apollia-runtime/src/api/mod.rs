@@ -20,6 +20,7 @@ pub mod routes_stt;
 pub mod routes_tasks;
 pub mod routes_timeline;
 pub mod routes_tools;
+pub mod routes_trace;
 pub mod routes_triggers;
 pub mod routes_user;
 pub mod routes_webhooks;

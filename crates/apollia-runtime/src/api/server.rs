@@ -367,6 +367,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     };
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
+    use super::routes_trace::get_task_trace;
     use super::routes_tools::{describe_tool, list_tools};
     use super::routes_triggers::{
         create_trigger, delete_trigger, disable_trigger, enable_trigger, fire_trigger,
@@ -386,8 +387,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
         .route("/api/v1/tasks/:id/review", post(post_review::<B>))
-        // Timeline route
+        // Timeline route (legacy, ADR-088 deprecation candidate)
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
+        // Event-sourced trace (ADR-088, Lot 1)
+        .route("/api/v1/tasks/:id/trace", get(get_task_trace::<B>))
         // Tool routes
         .route("/api/v1/tools", get(list_tools::<B>))
         .route("/api/v1/tools/:name", get(describe_tool::<B>))

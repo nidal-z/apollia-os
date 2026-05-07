@@ -237,6 +237,11 @@
       "design_motion": "Motion",
       "design_empty_states": "États vides",
       "design_dark_mode": "Mode sombre"
+    },
+    "status": {
+      "ok": "Runtime connecté · fournisseur LLM disponible",
+      "no_llm": "Runtime connecté · aucun fournisseur LLM configuré",
+      "runtime_down": "Runtime hors ligne — reconnexion en cours"
     }
   },
   "userMenu": {
@@ -1461,6 +1466,41 @@
       "approval_body": "Agent {agentName} attend une approbation"
     }
   },
+  "trace": {
+    "header": "Exécution",
+    "live_indicator": "En direct",
+    "loading": "Chargement de la trace…",
+    "empty": "Aucun événement enregistré.",
+    "error_load": "Impossible de charger la trace : {error}",
+    "load_more": "Charger plus",
+    "thought": "Réflexion",
+    "agent_thinking": "Réflexion en cours…",
+    "tool_called": "Outil",
+    "tool_running": "en cours",
+    "tool_done": "terminé",
+    "tool_failed": "échec",
+    "tool_denied": "refusé",
+    "delegated_to": "Délégué à {agent}",
+    "delegate_running": "Travail en cours…",
+    "delegate_done": "Retour",
+    "llm_call": "Appel LLM",
+    "llm_started": "Question au modèle",
+    "llm_failed": "Échec de l'appel LLM",
+    "log_debug": "Debug",
+    "log_info": "Info",
+    "log_warn": "Avertissement",
+    "log_error": "Erreur",
+    "retry_attempt": "Tentative {n}",
+    "parse_error": "Réponse du modèle incompréhensible",
+    "args_label": "Arguments",
+    "output_label": "Sortie",
+    "duration": "{ms} ms",
+    "step": "Étape {n}",
+    "show_raw": "Voir brut",
+    "hide_raw": "Masquer le brut",
+    "expand": "Déplier",
+    "collapse": "Replier"
+  },
   "observability": {
     "title": "Observabilité",
     "subtitle": "Journaux d'exécution détaillés et suivi des coûts",
@@ -1545,9 +1585,28 @@
       "system": "Informations système",
       "memories": "Mémoires",
       "shortcuts": "Raccourcis",
+      "observability": "Observabilité",
       "danger": "Zone de danger",
       "mobile_open": "Sections",
       "mobile_title": "Sections des paramètres"
+    },
+    "observability": {
+      "title": "Observabilité",
+      "subtitle": "Contrôlez ce qui est capturé sur l'exécution des agents. Tout reste local — rien n'est envoyé sur le réseau.",
+      "capture_thoughts": "Pensées de l'agent (raisonnement ReAct)",
+      "capture_thoughts_desc": "Persiste le champ 'thought' du LLM à chaque tour ReAct.",
+      "capture_llm_prompts": "Prompts LLM (contenu complet)",
+      "capture_llm_prompts_desc": "Persiste les prompts et réponses bruts. Peut contenir des données sensibles.",
+      "capture_tool_args": "Arguments des appels d'outils",
+      "capture_tool_args_desc": "Persiste le JSON d'args de chaque invocation d'outil.",
+      "capture_tool_outputs": "Sorties des appels d'outils",
+      "capture_tool_outputs_desc": "Persiste le JSON de sortie de chaque invocation d'outil.",
+      "capture_agent_logs": "Logs de l'agent (ctx.log)",
+      "capture_agent_logs_desc": "Persiste les messages debug/info/warn/error émis par les agents.",
+      "retention_days": "Rétention",
+      "retention_days_desc": "Nombre de jours pendant lesquels les événements sont conservés avant purge automatique.",
+      "edit_via_toml_hint": "Modifiez les valeurs directement dans apollia.toml. L'édition depuis cette page arrive bientôt.",
+      "open_toml": "Ouvrir apollia.toml"
     },
     "shortcuts": {
       "subtitle": "Raccourcis clavier disponibles dans Apollia.",
@@ -2385,6 +2444,33 @@
       "too_fast": "Ralentissez…",
       "too_many": "Trop de messages — respirez"
     },
+    "template": {
+      "brainstorm": {
+        "title": "Brainstormer une idée",
+        "description": "Explorer un sujet à plusieurs angles, lister des pistes.",
+        "prompt": "Aide-moi à brainstormer sur le sujet que je vais te décrire. Pose-moi quelques questions pour cadrer le besoin, puis propose une dizaine d'idées variées avec leurs avantages et limites."
+      },
+      "summarize": {
+        "title": "Résumer un texte",
+        "description": "Extraire les points-clés et les décisions à retenir.",
+        "prompt": "Je vais te coller un texte (article, compte-rendu, email long…). Résume-le en points-clés clairs, identifie les décisions ou actions à retenir, et signale ce qui me semble flou."
+      },
+      "draft_writing": {
+        "title": "Rédiger un texte",
+        "description": "Email, note, message — premier jet rapide à ajuster.",
+        "prompt": "Aide-moi à rédiger un texte (email, message, note, post). Demande-moi le destinataire, l'objectif et le ton souhaité, puis propose une première version concise que je pourrai ajuster."
+      },
+      "research": {
+        "title": "Faire une recherche",
+        "description": "État de l'art sur un sujet, sources citées.",
+        "prompt": "Fais une recherche sur le sujet que je vais te donner. Cite tes sources, distingue les faits des opinions, et signale les zones d'incertitude."
+      },
+      "explain": {
+        "title": "Comprendre un sujet",
+        "description": "Explication simple, exemple concret, on approfondit ensuite.",
+        "prompt": "Explique-moi un concept simplement. Commence par une définition courte, donne un exemple concret, puis approfondis si je te le demande."
+      }
+    },
     "attachments": {
       "add": "Joindre un fichier",
       "remove": "Retirer la pièce jointe"
@@ -3089,7 +3175,27 @@
     "pick_workspace": "Choisir le dossier de travail",
     "workspace_label": "Espace de travail",
     "no_agents_available": "Aucun agent disponible",
-    "all_providers_added": "Tous les providers sont déjà ajoutés"
+    "all_providers_added": "Tous les providers sont déjà ajoutés",
+    "template_blank": "Projet vierge",
+    "template_blank_desc": "Démarrer sans configuration prédéfinie.",
+    "template_developer": "Projet développeur",
+    "template_developer_desc": "Pré-configure les providers de contexte orientés code : git, arborescence, APOLLIA.md.",
+    "template_developer_provider_failed": "Impossible d'ajouter le provider « {name} » : {err}",
+    "template_developer_provider_git": "Statut Git",
+    "template_developer_provider_tree": "Arborescence des fichiers",
+    "template_developer_provider_rules": "Règles APOLLIA.md",
+    "dialog": {
+      "step_1_of_2": "ÉTAPE 1 / 2",
+      "step_2_of_2": "ÉTAPE 2 / 2 · {name}",
+      "step1_title": "Partir d'un template ?",
+      "step1_subtitle": "Les templates pré-configurent agents, connexions et jalons. Vous pouvez tout modifier après.",
+      "step2_title": "Nommez votre projet.",
+      "manual_config": "À configurer manuellement",
+      "name_placeholder": "Mon projet",
+      "color_label": "Couleur",
+      "ready_title": "Prêt à démarrer",
+      "ready_detail": "{count} agents pré-assignés · prêt à être configuré."
+    }
   },
   "hitl": {
     "impact": {

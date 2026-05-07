@@ -237,6 +237,11 @@
       "design_motion": "Motion",
       "design_empty_states": "Empty states",
       "design_dark_mode": "Dark mode"
+    },
+    "status": {
+      "ok": "Runtime connected · LLM provider available",
+      "no_llm": "Runtime connected · no LLM provider configured",
+      "runtime_down": "Runtime offline — reconnecting"
     }
   },
   "userMenu": {
@@ -1461,6 +1466,41 @@
       "approval_body": "Agent {agentName} is waiting for approval"
     }
   },
+  "trace": {
+    "header": "Execution",
+    "live_indicator": "Live",
+    "loading": "Loading trace…",
+    "empty": "No events recorded yet.",
+    "error_load": "Failed to load trace: {error}",
+    "load_more": "Load more",
+    "thought": "Thought",
+    "agent_thinking": "Thinking…",
+    "tool_called": "Tool",
+    "tool_running": "running",
+    "tool_done": "done",
+    "tool_failed": "failed",
+    "tool_denied": "denied",
+    "delegated_to": "Delegated to {agent}",
+    "delegate_running": "Working…",
+    "delegate_done": "Returned",
+    "llm_call": "LLM call",
+    "llm_started": "Asking the model",
+    "llm_failed": "LLM call failed",
+    "log_debug": "Debug",
+    "log_info": "Info",
+    "log_warn": "Warning",
+    "log_error": "Error",
+    "retry_attempt": "Retry attempt {n}",
+    "parse_error": "Could not understand the model's response",
+    "args_label": "Arguments",
+    "output_label": "Output",
+    "duration": "{ms} ms",
+    "step": "Step {n}",
+    "show_raw": "Show raw",
+    "hide_raw": "Hide raw",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
   "observability": {
     "title": "Observability",
     "subtitle": "Detailed execution logs and cost tracking",
@@ -1545,9 +1585,28 @@
       "system": "System info",
       "memories": "Memories",
       "shortcuts": "Shortcuts",
+      "observability": "Observability",
       "danger": "Danger Zone",
       "mobile_open": "Sections",
       "mobile_title": "Settings sections"
+    },
+    "observability": {
+      "title": "Observability",
+      "subtitle": "Control what is captured about agent execution. All captures are local — nothing is uploaded.",
+      "capture_thoughts": "Agent thoughts (ReAct reasoning)",
+      "capture_thoughts_desc": "Persist the LLM 'thought' field at each ReAct turn.",
+      "capture_llm_prompts": "LLM prompts (full content)",
+      "capture_llm_prompts_desc": "Persist raw prompts and responses. May contain sensitive data.",
+      "capture_tool_args": "Tool call arguments",
+      "capture_tool_args_desc": "Persist the args JSON of each tool invocation.",
+      "capture_tool_outputs": "Tool call outputs",
+      "capture_tool_outputs_desc": "Persist the output JSON of each tool invocation.",
+      "capture_agent_logs": "Agent logs (ctx.log)",
+      "capture_agent_logs_desc": "Persist debug/info/warn/error messages emitted by agents.",
+      "retention_days": "Retention",
+      "retention_days_desc": "Number of days events are kept before automatic purge.",
+      "edit_via_toml_hint": "Edit values directly in apollia.toml. Live editing from this page is coming.",
+      "open_toml": "Open apollia.toml"
     },
     "shortcuts": {
       "subtitle": "Keyboard shortcuts available across Apollia.",
@@ -2385,6 +2444,33 @@
       "too_fast": "Slow down…",
       "too_many": "Too many messages — take a breath"
     },
+    "template": {
+      "brainstorm": {
+        "title": "Brainstorm an idea",
+        "description": "Explore a topic from several angles, list options.",
+        "prompt": "Help me brainstorm on the topic I'm about to describe. Ask a few clarifying questions to frame the need, then propose around ten varied ideas with their pros and cons."
+      },
+      "summarize": {
+        "title": "Summarize a text",
+        "description": "Pull the key points and decisions to remember.",
+        "prompt": "I'm going to paste a text (article, meeting notes, long email…). Summarize it as clear key points, surface the decisions or actions to remember, and flag anything that feels unclear."
+      },
+      "draft_writing": {
+        "title": "Draft a text",
+        "description": "Email, note, message — quick first draft to refine.",
+        "prompt": "Help me draft a text (email, message, note, post). Ask me about the recipient, the goal, and the tone, then propose a concise first version I can adjust."
+      },
+      "research": {
+        "title": "Research a topic",
+        "description": "State of the art on a subject, sources cited.",
+        "prompt": "Research the topic I'm about to give you. Cite your sources, distinguish facts from opinions, and flag areas of uncertainty."
+      },
+      "explain": {
+        "title": "Understand a topic",
+        "description": "Plain-language explanation, concrete example, drill down.",
+        "prompt": "Explain a concept to me in plain language. Start with a short definition, give a concrete example, then go deeper if I ask."
+      }
+    },
     "attachments": {
       "add": "Attach file",
       "remove": "Remove attachment"
@@ -3089,7 +3175,27 @@
     "pick_workspace": "Choose workspace folder",
     "workspace_label": "Workspace",
     "no_agents_available": "No agent available",
-    "all_providers_added": "All providers already added"
+    "all_providers_added": "All providers already added",
+    "template_blank": "Blank project",
+    "template_blank_desc": "Start with no pre-configured setup.",
+    "template_developer": "Developer project",
+    "template_developer_desc": "Pre-configures code-oriented context providers: git, file tree, APOLLIA.md.",
+    "template_developer_provider_failed": "Could not add provider \"{name}\": {err}",
+    "template_developer_provider_git": "Git status",
+    "template_developer_provider_tree": "File tree",
+    "template_developer_provider_rules": "APOLLIA.md rules",
+    "dialog": {
+      "step_1_of_2": "STEP 1 / 2",
+      "step_2_of_2": "STEP 2 / 2 · {name}",
+      "step1_title": "Start from a template?",
+      "step1_subtitle": "Templates pre-configure agents, connections and milestones. You can change everything later.",
+      "step2_title": "Name your project.",
+      "manual_config": "Manual configuration",
+      "name_placeholder": "My project",
+      "color_label": "Color",
+      "ready_title": "Ready to start",
+      "ready_detail": "{count} agents pre-assigned · ready to configure."
+    }
   },
   "hitl": {
     "impact": {
