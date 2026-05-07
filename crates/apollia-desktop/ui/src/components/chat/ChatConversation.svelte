@@ -69,6 +69,11 @@
     /** Called when the user confirms deletion from the header menu. */
     ondelete?: (sessionId: string) => void;
     /**
+     * When true, hides the input bar entirely. Used by onboarding once the
+     * wrap-up panel takes over — the user no longer needs to type.
+     */
+    inputHidden?: boolean;
+    /**
      * Called when the user triggers "new chat" from an error state
      * (session not found) — lets the parent open the QuickPicker.
      */
@@ -85,6 +90,7 @@
     collapseActions = true,
     ondelete,
     onnewChat,
+    inputHidden = false,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -1097,12 +1103,14 @@
     </div>
   {/if}
 
-  <ChatInput
-    disabled={inputDisabled}
-    onsend={handleSend}
-    lastUserMessage={lastUserMessageText}
-    oncommand={handleSlashCommand}
-  />
+  {#if !inputHidden}
+    <ChatInput
+      disabled={inputDisabled}
+      onsend={handleSend}
+      lastUserMessage={lastUserMessageText}
+      oncommand={handleSlashCommand}
+    />
+  {/if}
 </div>
 
 {#if !embedded && !onconfigtoggle}

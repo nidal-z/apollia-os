@@ -1,10 +1,13 @@
 # agent.toml — Apollia OS agent package descriptor
 #
-# Ce fichier déclare tous les agents du package, leurs dépendances outillage,
-# et leurs triggers. Il est chargé par le runtime au démarrage pour enregistrer
-# les agents et planifier les triggers — sans toucher à la config globale.
+# Ce fichier déclare tous les agents du package et leurs triggers. Il est
+# chargé par le runtime au démarrage pour enregistrer les agents et
+# planifier les triggers — sans toucher à la config globale.
 #
-# Convention : un dossier agent = un agent.toml = un package autonome et distribuable.
+# Convention : un dossier agent = un agent.toml = un package autonome et
+# distribuable. Les outils (web_search, web_read, file_write…) sont déclarés
+# par chaque agent dans son manifeste Python (`tools_required`/`tools_optional`)
+# et activés globalement via Réglages → Outils.
 
 # ---------------------------------------------------------------------------
 # Package
@@ -12,7 +15,7 @@
 
 [package]
 name    = "veille-ia"
-version = "1.1.0"
+version = "1.2.0"
 description = "Veille quotidienne IA/LLM — technologique et concurrentielle."
 author  = "Apollia OS"
 
@@ -34,14 +37,6 @@ role  = "worker"
 name  = "synthesis-worker"
 entry = "workers/synthesis-worker.py"
 role  = "worker"
-
-# ---------------------------------------------------------------------------
-# Outils requis par ce package
-# Le runtime active ces features lors du chargement du package.
-# ---------------------------------------------------------------------------
-
-[tools]
-web = { enabled = true, ssrf_guard = true }
 
 # ---------------------------------------------------------------------------
 # Triggers

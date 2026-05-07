@@ -15,9 +15,12 @@
    */
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import ChatConversation from "../chat/ChatConversation.svelte";
+  import OnboardingPermissionStep from "./OnboardingPermissionStep.svelte";
   import type { ChatSessionDetail, TriggerResult } from "$lib/types";
   import { llmBackends } from "$lib/stores/sse";
+  import { onboardingTourActive } from "$lib/stores/tour";
   import { Button } from "$lib/components/ui/button";
   import { AlertCircle, CheckCircle2 } from "lucide-svelte";
 
@@ -37,6 +40,8 @@
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let bootstrapStarted = false;
 
+  // Visual progress bar : the wizard advertises "4 tours" (Q1, Q2, Q3,
+  // closure). It's a UI hint, NOT a completion criterion.
   const TOTAL_TURNS = 4;
   // The first user message is the auto-kick "Bonjour !" injected by this
   // component to prime the agent. We don't count it when judging whether
@@ -47,25 +52,59 @@
   // state from a previous broken session triggering the wrap-up panel
   // before the conversation has even started.
   const MIN_REAL_REPLIES = 2;
+  // Safety net: how many real replies the user has to type before we let
+  // the wrap-up panel appear *without* the agent's authoritative
+  // `onboarding.completed_at` signal. The 3 structured questions need 3
+  // real replies; we wait for one extra (4) so the agent has had a chance
+  // to either finalize or retry a missed answer. Without this slack,
+  // hitting `TOTAL_TURNS` (which counts the kick) would surface the
+  // wrap-up the very moment the user answered Q3, even if the agent is
+  // still processing their reply.
+  const SAFETY_REPLIES = 4;
 
   const turnIndex = $derived(Math.min(userTurns, TOTAL_TURNS));
   const realReplies = $derived(Math.max(0, userTurns - KICK_MESSAGES));
   const completed = $derived(
-    (agentFinalized && realReplies >= MIN_REAL_REPLIES) || turnIndex >= TOTAL_TURNS,
+    (agentFinalized && realReplies >= MIN_REAL_REPLIES) || realReplies >= SAFETY_REPLIES,
   );
   const llmReady = $derived($llmBackends.length > 0);
+
+  // Permissions step: between agent finalisation and the wrap-up, the agent
+  // may have persisted a list of permission rule proposals under
+  // `onboarding.proposed_rules`. The OnboardingPermissionStep component
+  // surfaces them as inline approval cards. This flag is true while there
+  // is at least one proposal still pending.
+  let permissionsPending = $state(false);
 
   // Show the wrap-up panel either because the agent wrote
   // `onboarding.completed_at` to memory (authoritative signal AFTER the
   // user has actually answered) or because the conversation ran the full
   // 4 turns without a finalize tag (safety net — never leave the user
   // stranded in chat).
-  const showWrapUp = $derived(completed && sessionId !== null);
+  // Wrap-up is suppressed while permission cards are still pending so the
+  // user is forced to triage them before clicking "Terminer".
+  const showPermissions = $derived(
+    completed && sessionId !== null && permissionsPending,
+  );
+  const showWrapUp = $derived(
+    completed && sessionId !== null && !showPermissions,
+  );
 
   $effect(() => {
     if (llmReady && !bootstrapStarted && !sessionId && !bootstrapping) {
       bootstrapStarted = true;
       void startChat();
+    }
+  });
+
+  // The moment the agent finalises, enter the permissions sub-step. The
+  // OnboardingPermissionStep component will load the proposals list and
+  // call oncomplete() if it's empty (no cards to show), unblocking wrap-up.
+  let permissionsEntered = false;
+  $effect(() => {
+    if (agentFinalized && !permissionsEntered) {
+      permissionsEntered = true;
+      permissionsPending = true;
     }
   });
 
@@ -100,13 +139,12 @@
   }
 
   async function handleFinish(): Promise<void> {
-    // Best-effort: persist that the user has seen the onboarding to
-    // completion so the modal won't reopen on next launch.
-    try {
-      await invoke("mark_onboarded");
-    } catch {
-      /* non-blocking */
-    }
+    // Hand-off to the post-onboarding guided tour: close the modal and let
+    // the App-level `OnboardingTourRunner` overlay take over. The runner
+    // is responsible for calling `mark_onboarded` once it terminates so
+    // the modal only re-opens at next launch if the tour itself was
+    // interrupted (and the backend phase isn't `done`).
+    onboardingTourActive.set(true);
     onclose();
   }
 
@@ -164,61 +202,78 @@
     <span class="chat-progress-check" class:active={completed}>✓</span>
   </div>
 
-  <div class="chat-body">
-    {#if !llmReady}
-      <div class="chat-status" data-testid="onboarding-chat-no-llm">
-        <AlertCircle size={20} class="text-destructive" aria-hidden="true" />
-        <p class="chat-status-title">Aucun moteur LLM disponible</p>
-        <p class="chat-status-detail">
-          Reviens à l'étape précédente pour configurer un modèle local
-          ou un fournisseur cloud — l'agent en a besoin pour dialoguer.
-        </p>
-        <Button variant="outline" size="sm" onclick={onback}>← Étape précédente</Button>
-      </div>
-    {:else if bootstrapping}
-      <div class="chat-status" data-testid="onboarding-bootstrap">
-        <p class="chat-status-detail">Initialisation de l'agent…</p>
-      </div>
-    {:else if bootstrapError !== null}
-      <div class="chat-status chat-status-error">
-        <AlertCircle size={20} aria-hidden="true" />
-        <p class="chat-status-title">Impossible de démarrer l'onboarding.</p>
-        <p class="chat-status-detail">{bootstrapError}</p>
-        <Button variant="outline" size="sm" onclick={onback}>← Étape précédente</Button>
-      </div>
-    {:else if sessionId}
-      <ChatConversation
-        {sessionId}
-        onclose={noop}
-        embedded={true}
-        hideConfig={true}
+  {#if showPermissions}
+    <!-- Permission cards take over the modal once the agent finalises. We
+         intentionally hide the chat body to avoid any visual overlap with
+         the cards or the (translucent) wrap-up panel below. -->
+    <div class="chat-body chat-body-stage">
+      <OnboardingPermissionStep
+        oncomplete={() => (permissionsPending = false)}
       />
-    {/if}
-  </div>
-
-  {#if showWrapUp}
-    <div class="chat-wrapup" data-testid="onboarding-wrapup">
-      <div class="chat-wrapup-icon">
-        <CheckCircle2 size={18} strokeWidth={2} aria-hidden="true" />
-      </div>
-      <div class="chat-wrapup-text">
-        <p class="chat-wrapup-title">
-          {agentFinalized ? "Calibrage terminé" : "Tu peux passer à la suite"}
-        </p>
-        <p class="chat-wrapup-detail">
+    </div>
+  {:else if showWrapUp}
+    <!-- Final celebration screen. Replaces the chat entirely so the user
+         sees a clean confirmation without the previous Q&A bleeding through. -->
+    <div class="chat-body chat-body-stage">
+      <div class="celebration" data-testid="onboarding-celebration">
+        <div class="celebration-icon">
+          <CheckCircle2 size={32} strokeWidth={2} aria-hidden="true" />
+        </div>
+        <h3 class="celebration-title">
           {agentFinalized
-            ? "L'agent a enregistré ton profil. Tu peux désormais ouvrir Apollia et explorer."
-            : "Si tu as répondu aux questions principales, on peut clore ici."}
+            ? $t("onboarding_chat.wrapup_title_finalized")
+            : $t("onboarding_chat.wrapup_title_safety")}
+        </h3>
+        <p class="celebration-detail">
+          {agentFinalized
+            ? $t("onboarding_chat.wrapup_detail_finalized")
+            : $t("onboarding_chat.wrapup_detail_safety")}
         </p>
+        <Button
+          variant="primary-gradient"
+          size="lg"
+          onclick={handleFinish}
+          data-testid="onboarding-finish"
+        >
+          {$t("onboarding_chat.finish")}
+        </Button>
       </div>
-      <Button
-        variant="primary-gradient"
-        size="default"
-        onclick={handleFinish}
-        data-testid="onboarding-finish"
-      >
-        Terminer
-      </Button>
+    </div>
+  {:else}
+    <div class="chat-body">
+      {#if !llmReady}
+        <div class="chat-status" data-testid="onboarding-chat-no-llm">
+          <AlertCircle size={20} class="text-destructive" aria-hidden="true" />
+          <p class="chat-status-title">{$t("onboarding_chat.no_llm_title")}</p>
+          <p class="chat-status-detail">{$t("onboarding_chat.no_llm_detail")}</p>
+          <Button variant="outline" size="sm" onclick={onback}>
+            {$t("onboarding_chat.back_step")}
+          </Button>
+        </div>
+      {:else if bootstrapping}
+        <div class="chat-status" data-testid="onboarding-bootstrap">
+          <p class="chat-status-detail">{$t("onboarding_chat.bootstrap")}</p>
+        </div>
+      {:else if bootstrapError !== null}
+        <div class="chat-status chat-status-error">
+          <AlertCircle size={20} aria-hidden="true" />
+          <p class="chat-status-title">{$t("onboarding_chat.bootstrap_failed")}</p>
+          <p class="chat-status-detail">{bootstrapError}</p>
+          <Button variant="outline" size="sm" onclick={onback}>
+            {$t("onboarding_chat.back_step")}
+          </Button>
+        </div>
+      {:else if sessionId}
+        <p class="chat-banner" data-testid="onboarding-chat-banner">
+          {$t("onboarding_chat.permission_banner")}
+        </p>
+        <ChatConversation
+          {sessionId}
+          onclose={noop}
+          embedded={true}
+          hideConfig={true}
+        />
+      {/if}
     </div>
   {/if}
 </div>
@@ -285,6 +340,62 @@
     flex-direction: column;
   }
 
+  /* When the chat body hosts the permission cards or the celebration
+     screen instead of the conversation, centre the content vertically
+     and give it room to breathe — no chat history, no banner, no
+     overflow blending. */
+  .chat-body-stage {
+    align-items: stretch;
+    justify-content: center;
+    overflow-y: auto;
+    background: hsl(var(--card));
+  }
+
+  .celebration {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2.5rem 1.75rem;
+    text-align: center;
+  }
+  .celebration-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 999px;
+    background: hsl(142 71% 35% / 0.15);
+    color: hsl(142 71% 35%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .celebration-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+  .celebration-detail {
+    margin: 0;
+    max-width: 32rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .chat-banner {
+    margin: 0;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+    background: hsl(var(--primary) / 0.06);
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
   .chat-status {
     flex: 1;
     display: flex;
@@ -318,47 +429,6 @@
     color: hsl(var(--muted-foreground));
   }
 
-  .chat-wrapup {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem 1.25rem;
-    border-top: 1px solid hsl(var(--border) / 0.7);
-    background: hsl(var(--muted) / 0.4);
-    flex-shrink: 0;
-  }
-
-  .chat-wrapup-icon {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 999px;
-    background: hsl(142 71% 35% / 0.12);
-    color: hsl(142 71% 35%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .chat-wrapup-text {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .chat-wrapup-title {
-    margin: 0;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-  }
-
-  .chat-wrapup-detail {
-    margin: 0;
-    font-size: 0.75rem;
-    color: hsl(var(--muted-foreground));
-    line-height: 1.4;
-  }
+  /* (Legacy `.chat-wrapup` styles removed — the celebration screen now
+     replaces the chat body entirely instead of stacking under it.) */
 </style>

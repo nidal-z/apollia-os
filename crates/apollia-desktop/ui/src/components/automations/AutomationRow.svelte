@@ -212,7 +212,7 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-popover text-popover-foreground shadow-elev-3 py-1"
+          class="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border bg-card text-card-foreground shadow-elev-3 py-1"
           onclick={(e: MouseEvent) => e.stopPropagation()}
         >
           <button

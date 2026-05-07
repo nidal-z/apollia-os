@@ -48,3 +48,12 @@ export const tourOpenChatPicker = writable(false);
  * button. Reset to `null` at the start of each step.
  */
 export const tourStopAgent = writable<string | null>(null);
+
+/**
+ * Top-level toggle that mounts the OnboardingTourRunner overlay at the
+ * App level. Set to `true` by `OnboardingChatStep.handleFinish` (after the
+ * user clicks "Terminer") and back to `false` once the runner reports
+ * completion. The runner reads the active profile from the onboarding
+ * state to decide which step list to fetch.
+ */
+export const onboardingTourActive = writable(false);

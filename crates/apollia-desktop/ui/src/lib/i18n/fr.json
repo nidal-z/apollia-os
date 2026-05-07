@@ -1111,7 +1111,7 @@
       "activate": "Activer cette automatisation",
       "switch_advanced": "Mode avancé"
     },
-    "delete": {
+    "delete_dialog": {
       "title": "Supprimer cette automatisation ?",
       "message": "L'automatisation « {id} » a été exécutée {count} fois.",
       "history_note": "L'historique d'exécution sera conservé, mais la règle ne se déclenchera plus.",
@@ -1863,6 +1863,106 @@
       "err_invalid_json": "JSON invalide",
       "err_invalid_json_object": "Doit être un objet JSON"
     },
+    "model_hub": {
+      "title": "Hub de modèles",
+      "subtitle": "Parcourez, téléchargez et gérez les modèles GGUF depuis HuggingFace.",
+      "hardware": {
+        "label": "Votre matériel",
+        "detecting": "Détection du matériel…",
+        "ram": "RAM",
+        "available": "Disponible",
+        "gpu": "GPU / Accélérateur",
+        "budget": "Budget d'inférence",
+        "cpu_info": "CPU : {cpu} · {cores} cœurs",
+        "cpu_only": "CPU uniquement"
+      },
+      "downloads": {
+        "active": "Téléchargements en cours",
+        "cancel_aria": "Annuler le téléchargement",
+        "downloading_toast": "Téléchargement de {filename}…",
+        "completed_toast": "Modèle téléchargé dans {path}"
+      },
+      "token": {
+        "label": "Jeton HuggingFace (modèles soumis à acceptation)",
+        "description": "Ce modèle nécessite d'accepter sa licence sur HuggingFace. Générez un jeton sur",
+        "done": "Terminé",
+        "title_button": "Configurer le jeton HuggingFace",
+        "set": "Jeton défini",
+        "btn": "Jeton"
+      },
+      "search": {
+        "placeholder": "Rechercher des modèles GGUF (ex. qwen3, llama3, mistral)…",
+        "button": "Rechercher"
+      },
+      "filters": {
+        "sort_downloads": "Les plus téléchargés",
+        "sort_likes": "Les plus appréciés",
+        "sort_trending": "Tendances",
+        "sort_newest": "Plus récents",
+        "lang_any": "Toutes les langues",
+        "lang_en": "English",
+        "lang_fr": "Français",
+        "lang_zh": "中文",
+        "lang_de": "Deutsch",
+        "lang_es": "Español",
+        "lang_ja": "日本語",
+        "lang_ko": "한국어",
+        "lang_ar": "العربية",
+        "lang_ru": "Русский",
+        "lang_pt": "Português",
+        "license_any": "Toutes les licences",
+        "license_open": "Ouvertes (Apache / MIT…)",
+        "license_restricted": "Restreintes",
+        "type_any": "Tous les types",
+        "type_instruct": "Instruct / Chat",
+        "type_base": "Base",
+        "type_reasoning": "Raisonnement",
+        "gated_any": "Soumis & Ouverts",
+        "gated_open_only": "Ouverts uniquement",
+        "gated_only": "Soumis uniquement",
+        "incompatible": "Incompatibles",
+        "show_incompatible_title": "Afficher les modèles incompatibles",
+        "hide_incompatible_title": "Masquer les modèles incompatibles",
+        "result_count": "{filtered}/{total} modèles"
+      },
+      "card": {
+        "gated": "Soumis",
+        "embedding_only": "Embedding uniquement",
+        "embedding_only_title": "Pas un modèle de génération de texte — incompatible avec llama.cpp",
+        "no_gguf": "Pas de GGUF",
+        "no_gguf_title": "Aucun fichier GGUF trouvé dans ce dépôt",
+        "arch_unknown": "Archi. inconnue",
+        "arch_unknown_title": "Architecture non encore confirmée dans llama.cpp — peut fonctionner ou non",
+        "downloads_count": "↓ {count}k téléchargements",
+        "gguf_files_count": "{count} fichiers GGUF"
+      },
+      "detail": {
+        "loading_files": "Chargement des fichiers…",
+        "recommended_params": "Paramètres recommandés",
+        "param_temperature": "temperature",
+        "param_top_p": "top_p",
+        "param_top_k": "top_k",
+        "param_rep_penalty": "pénalité rép.",
+        "param_max_tokens": "max tokens",
+        "variants_one": "{count} variante",
+        "variants_other": "{count} variantes",
+        "parts": "{count} parties",
+        "compat_fits": "Tient en mémoire",
+        "compat_might_fit": "Pourrait tenir — limite",
+        "compat_too_large": "Trop volumineux pour votre machine",
+        "vision_projector": "Projecteur de vision — requis pour l'inférence multimodale",
+        "download": "Télécharger",
+        "files_count": "{count} fichiers",
+        "no_gguf_in_repo": "Aucun fichier GGUF trouvé dans ce dépôt."
+      },
+      "results": {
+        "loading": "Chargement…",
+        "load_more": "Charger plus de modèles",
+        "no_match": "Aucun modèle ne correspond à vos filtres.",
+        "clear_filters": "Réinitialiser les filtres",
+        "no_results": "Aucun modèle trouvé pour « {query} »."
+      }
+    },
     "config": {
       "status_exists": "OK",
       "status_missing": "Manquant",
@@ -2499,7 +2599,8 @@
     "error_model_not_loaded": "Le modèle STT n'est pas chargé. Vérifiez votre configuration dans apollia.toml."
   },
   "onboarding_welcome": {
-    "title": "Bienvenue sur Apollia OS",
+    "title": "Bienvenue sur Apollia",
+    "tagline": "Le runtime souverain pour exécuter tes agents IA en local. On va calibrer rapidement ton installation — moins de 3 minutes.",
     "subtitle": "Configurez votre environnement en quelques minutes de conversation. Votre assistant IA apprendra vos préférences et configurera tout comme il faut.",
     "configure": "Configurer Apollia OS",
     "skip": "Plus tard",
@@ -2514,7 +2615,55 @@
     "completion_text": "Merci ! Apollia est maintenant personnalisé pour vous.",
     "offline_title": "Impossible de charger la dernière version. Cache local utilisé.",
     "offline_body": "Le réseau n'a pas répondu à temps. L'onboarding fonctionne néanmoins avec les ressources locales.",
-    "offline_retry": "Réessayer"
+    "offline_retry": "Réessayer",
+    "feature_local_title": "Local-first",
+    "feature_local_desc": "Tes données ne quittent pas ta machine.",
+    "feature_llm_title": "LLM au choix",
+    "feature_llm_desc": "Local (llama.cpp) ou cloud (Anthropic, OpenAI…).",
+    "feature_agents_title": "Agents autonomes",
+    "feature_agents_desc": "ReAct natif, pas un pipeline déterministe.",
+    "cta_start": "Commencer la configuration"
+  },
+  "onboarding_chat": {
+    "permission_banner": "À la fin du dialogue, Apollia te proposera quelques règles de permissions adaptées à tes choix — chaque règle s'affichera comme une carte à valider ou refuser dans la conversation.",
+    "wrapup_title_finalized": "Calibrage terminé",
+    "wrapup_title_safety": "Tu peux passer à la suite",
+    "wrapup_detail_finalized": "L'agent a enregistré ton profil et appliqué les règles de permissions que tu as validées. Tu peux désormais ouvrir Apollia et explorer.",
+    "wrapup_detail_safety": "Si tu as répondu aux questions principales, on peut clore ici.",
+    "finish": "Terminer",
+    "no_llm_title": "Aucun moteur LLM disponible",
+    "no_llm_detail": "Reviens à l'étape précédente pour configurer un modèle local ou un fournisseur cloud — l'agent en a besoin pour dialoguer.",
+    "back_step": "← Étape précédente",
+    "bootstrap": "Initialisation de l'agent…",
+    "bootstrap_failed": "Impossible de démarrer l'onboarding."
+  },
+  "onboarding_permissions": {
+    "title": "Règles de permissions proposées",
+    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Approuve ce qui te convient, refuse le reste — tu pourras toujours les modifier plus tard dans <strong>Paramètres → Permissions</strong>.",
+    "loading": "Chargement…",
+    "empty": "Aucune règle restante.",
+    "approve": "Approuver",
+    "deny": "Refuser",
+    "action_allow": "Autoriser",
+    "action_deny": "Refuser",
+    "scope_label": "scope: {scope}",
+    "rule_applied": "Règle appliquée",
+    "tool_title": "Outil concerné",
+    "prefix_title": "Préfixe d'argument",
+    "scope_title": "Portée"
+  },
+  "onboarding_stt": {
+    "hotkey_label": "Raccourci clavier global",
+    "hotkey_capture_idle": "Définir le raccourci",
+    "hotkey_capture_listening": "Appuie sur la combinaison…",
+    "hotkey_save": "Enregistrer",
+    "hotkey_saving": "…",
+    "hotkey_hint": "Active la dictée vocale depuis n'importe où dans l'app. Combine au moins une touche modificateur (Ctrl, Alt, Shift, Meta) avec une touche normale.",
+    "hotkey_invalid": "Combinaison invalide — utilise au moins un modificateur.",
+    "test_start": "Tester maintenant",
+    "test_stop": "Parle… (clique pour arrêter)",
+    "test_empty": "(transcription vide)",
+    "test_error": "Erreur : {error}"
   },
   "tools": {
     "labels": {

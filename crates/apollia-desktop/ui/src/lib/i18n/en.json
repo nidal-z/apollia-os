@@ -1111,7 +1111,7 @@
       "activate": "Activate this automation",
       "switch_advanced": "Advanced mode"
     },
-    "delete": {
+    "delete_dialog": {
       "title": "Delete this automation?",
       "message": "The automation \"{id}\" has been executed {count} times.",
       "history_note": "History will be kept, but the rule will no longer fire.",
@@ -1863,6 +1863,106 @@
       "err_invalid_json": "Invalid JSON",
       "err_invalid_json_object": "Must be a JSON object"
     },
+    "model_hub": {
+      "title": "Model Hub",
+      "subtitle": "Browse, download, and manage GGUF models from HuggingFace.",
+      "hardware": {
+        "label": "Your hardware",
+        "detecting": "Detecting hardware…",
+        "ram": "RAM",
+        "available": "Available",
+        "gpu": "GPU / Accelerator",
+        "budget": "Inference budget",
+        "cpu_info": "CPU: {cpu} · {cores} cores",
+        "cpu_only": "CPU only"
+      },
+      "downloads": {
+        "active": "Active downloads",
+        "cancel_aria": "Cancel download",
+        "downloading_toast": "Downloading {filename}…",
+        "completed_toast": "Model downloaded to {path}"
+      },
+      "token": {
+        "label": "HuggingFace token (gated models)",
+        "description": "This model requires accepting its license on HuggingFace. Generate a token at",
+        "done": "Done",
+        "title_button": "Configure HuggingFace token",
+        "set": "Token set",
+        "btn": "Token"
+      },
+      "search": {
+        "placeholder": "Search GGUF models (e.g. qwen3, llama3, mistral)…",
+        "button": "Search"
+      },
+      "filters": {
+        "sort_downloads": "Most downloaded",
+        "sort_likes": "Most liked",
+        "sort_trending": "Trending",
+        "sort_newest": "Newest",
+        "lang_any": "Any language",
+        "lang_en": "English",
+        "lang_fr": "Français",
+        "lang_zh": "中文",
+        "lang_de": "Deutsch",
+        "lang_es": "Español",
+        "lang_ja": "日本語",
+        "lang_ko": "한국어",
+        "lang_ar": "العربية",
+        "lang_ru": "Русский",
+        "lang_pt": "Português",
+        "license_any": "Any license",
+        "license_open": "Open (Apache / MIT…)",
+        "license_restricted": "Restricted",
+        "type_any": "Any type",
+        "type_instruct": "Instruct / Chat",
+        "type_base": "Base",
+        "type_reasoning": "Reasoning",
+        "gated_any": "Gated & Open",
+        "gated_open_only": "Open only",
+        "gated_only": "Gated only",
+        "incompatible": "Incompatible",
+        "show_incompatible_title": "Show incompatible models",
+        "hide_incompatible_title": "Hide incompatible models",
+        "result_count": "{filtered}/{total} models"
+      },
+      "card": {
+        "gated": "Gated",
+        "embedding_only": "Embedding only",
+        "embedding_only_title": "Not a text-generation model — incompatible with llama.cpp",
+        "no_gguf": "No GGUF",
+        "no_gguf_title": "No GGUF files found in this repository",
+        "arch_unknown": "Arch. unknown",
+        "arch_unknown_title": "Architecture not yet confirmed in llama.cpp — may or may not work",
+        "downloads_count": "↓ {count}k downloads",
+        "gguf_files_count": "{count} GGUF files"
+      },
+      "detail": {
+        "loading_files": "Loading files…",
+        "recommended_params": "Recommended parameters",
+        "param_temperature": "temperature",
+        "param_top_p": "top_p",
+        "param_top_k": "top_k",
+        "param_rep_penalty": "rep. penalty",
+        "param_max_tokens": "max tokens",
+        "variants_one": "{count} variant",
+        "variants_other": "{count} variants",
+        "parts": "{count} parts",
+        "compat_fits": "Fits in memory",
+        "compat_might_fit": "Might fit — tight",
+        "compat_too_large": "Too large for your machine",
+        "vision_projector": "Vision projector — required for multimodal inference",
+        "download": "Download",
+        "files_count": "{count} files",
+        "no_gguf_in_repo": "No GGUF files found in this repository."
+      },
+      "results": {
+        "loading": "Loading…",
+        "load_more": "Load more models",
+        "no_match": "No models match your filters.",
+        "clear_filters": "Clear filters",
+        "no_results": "No models found for \"{query}\"."
+      }
+    },
     "config": {
       "status_exists": "OK",
       "status_missing": "Missing",
@@ -2499,7 +2599,8 @@
     "error_model_not_loaded": "STT model is not loaded. Check your configuration in apollia.toml."
   },
   "onboarding_welcome": {
-    "title": "Welcome to Apollia OS",
+    "title": "Welcome to Apollia",
+    "tagline": "The sovereign runtime to run your AI agents locally. We'll calibrate your install in less than 3 minutes.",
     "subtitle": "Set up your environment in a few minutes of conversation. Your AI assistant will learn your preferences and configure things just right.",
     "configure": "Configure Apollia OS",
     "skip": "Later",
@@ -2514,7 +2615,55 @@
     "completion_text": "Thanks! Apollia is now personalized for you.",
     "offline_title": "Unable to load latest. Using local cache.",
     "offline_body": "We couldn't reach the network in time. The onboarding flow still works with bundled assets.",
-    "offline_retry": "Retry"
+    "offline_retry": "Retry",
+    "feature_local_title": "Local-first",
+    "feature_local_desc": "Your data stays on your machine.",
+    "feature_llm_title": "LLM of your choice",
+    "feature_llm_desc": "Local (llama.cpp) or cloud (Anthropic, OpenAI…).",
+    "feature_agents_title": "Autonomous agents",
+    "feature_agents_desc": "Native ReAct, not a deterministic pipeline.",
+    "cta_start": "Start configuration"
+  },
+  "onboarding_chat": {
+    "permission_banner": "At the end of the conversation, Apollia will suggest a few permission rules tailored to your answers — each rule appears as a card you can approve or refuse.",
+    "wrapup_title_finalized": "Calibration complete",
+    "wrapup_title_safety": "You can move on",
+    "wrapup_detail_finalized": "The agent saved your profile and applied the permission rules you approved. You can now open Apollia and explore.",
+    "wrapup_detail_safety": "If you answered the main questions, we can wrap this up.",
+    "finish": "Finish",
+    "no_llm_title": "No LLM engine available",
+    "no_llm_detail": "Go back to the previous step to configure a local model or a cloud provider — the agent needs one to chat.",
+    "back_step": "← Previous step",
+    "bootstrap": "Starting the agent…",
+    "bootstrap_failed": "Couldn't start onboarding."
+  },
+  "onboarding_permissions": {
+    "title": "Suggested permission rules",
+    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Approve what you want, refuse the rest — you can always edit them later under <strong>Settings → Permissions</strong>.",
+    "loading": "Loading…",
+    "empty": "No rules left.",
+    "approve": "Approve",
+    "deny": "Refuse",
+    "action_allow": "Allow",
+    "action_deny": "Deny",
+    "scope_label": "scope: {scope}",
+    "rule_applied": "Rule applied",
+    "tool_title": "Tool",
+    "prefix_title": "Argument prefix",
+    "scope_title": "Scope"
+  },
+  "onboarding_stt": {
+    "hotkey_label": "Global keyboard shortcut",
+    "hotkey_capture_idle": "Set shortcut",
+    "hotkey_capture_listening": "Press the combination…",
+    "hotkey_save": "Save",
+    "hotkey_saving": "…",
+    "hotkey_hint": "Triggers voice dictation from anywhere in the app. Combine at least one modifier key (Ctrl, Alt, Shift, Meta) with a regular key.",
+    "hotkey_invalid": "Invalid combination — use at least one modifier.",
+    "test_start": "Test now",
+    "test_stop": "Speak… (click to stop)",
+    "test_empty": "(empty transcription)",
+    "test_error": "Error: {error}"
   },
   "tools": {
     "labels": {

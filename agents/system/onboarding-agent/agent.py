@@ -36,11 +36,14 @@ SDK 0.3.0 signatures used:
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
+
+_logger = logging.getLogger("onboarding-agent")
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +462,85 @@ def _looks_like_closure(text: str) -> bool:
     return any(marker in low for marker in _CLOSURE_MARKERS)
 
 
+def _heuristic_value_from_user_text(key: str, user_text: str) -> str | None:
+    """Best-effort recovery of a Tier 1 value from the user's raw reply.
+
+    Small local models routinely fail to emit a clean
+    ``[REMEMBER user.agents.hitl=critical-only]`` tag — they parrot the
+    user's own words ("local par défaut", "actions critiques") inside
+    the tag, which the guard in ``converse`` rejects as out of vocabulary.
+    Without this fallback the agent would loop on the same question.
+
+    The matching is intentionally permissive: order from most specific
+    to most generic so a single keyword wins reliably. Only triggered
+    after the LLM had its chance, never overrides an existing tag.
+    """
+    text = user_text.lower()
+    # Tokenise for option-number matching ("option 1", "1", "(2)" → "2", etc.)
+    tokens = {tok.strip(".,;:!?()") for tok in text.split()}
+
+    if key == "user.agents.hitl":
+        # "Critical-only" → keywords + Q-option (2)
+        if any(w in text for w in ("critical-only", "critique", "important", "sensible")):
+            return "critical-only"
+        if "2" in tokens or any(
+            w in text for w in ("(2)", "deuxième", "deuxieme", "second")
+        ):
+            return "critical-only"
+        # "Never" → autonomy keywords + (3)
+        if any(w in text for w in (
+            "never", "jamais", "autonomie", "autonome", "sans valider",
+            "sans confirmation", "laisser faire",
+        )):
+            return "never"
+        if "3" in tokens or any(
+            w in text for w in ("(3)", "troisième", "troisieme", "third")
+        ):
+            return "never"
+        # "Always" → most cautious; check last so single-digit "1" doesn't win.
+        if any(w in text for w in (
+            "always", "toujours", "valider tout", "valider tous",
+            "tout valider", "chaque action",
+        )):
+            return "always"
+        if "1" in tokens or any(
+            w in text for w in ("(1)", "première", "premiere", "first")
+        ):
+            return "always"
+        return None
+
+    if key == "user.constraints.sovereignty":
+        # "Local-preferred" first because it overlaps with "local-only".
+        if any(w in text for w in (
+            "local par défaut", "local par defaut", "local préféré",
+            "local prefere", "local preferred", "préférer local",
+            "preferer local", "local en priorité", "local en priorite",
+            "local d'abord", "local d abord",
+        )):
+            return "local-preferred"
+        # "Cloud-ok"
+        if any(w in text for w in (
+            "cloud ok", "cloud autorisé", "cloud autorise",
+            "cloud accepté", "cloud accepte", "openai", "anthropic",
+            "apis cloud", "api cloud", "cloud d'accord", "cloud allowed",
+        )):
+            return "cloud-ok"
+        # "Local-only" — checked last so "local par défaut" doesn't fall here.
+        if any(w in text for w in (
+            "local-only", "local only", "local uniquement", "local seulement",
+            "tout en local", "que en local", "rien sortir", "rester local",
+            "reste local", "machine locale uniquement", "strictement local",
+        )):
+            return "local-only"
+        if " local" in text or text.strip() == "local":
+            # Bare "local" defaults to local-only — the strictest reasonable
+            # interpretation when the user is too terse to disambiguate.
+            return "local-only"
+        return None
+
+    return None
+
+
 # Per-key instruction injected verbatim into the model context whenever the
 # corresponding fact is the next one to collect. Keeping this here (rather
 # than in the system prompt) lets us be very explicit at run time without
@@ -536,72 +618,160 @@ async def _build_progress_note(ctx: Any) -> str:
     )
 
 
-async def _propose_permission_rules(ctx: Any) -> None:
-    """Propose les règles de permissions correspondant au profil collecté (ADR-086).
+async def _persist_proposed_permission_rules(ctx: Any) -> None:
+    """Sérialise les règles de permissions dérivées du profil dans la mémoire (ADR-086).
 
-    Lit ``user.constraints.sovereignty`` et ``user.agents.hitl`` depuis la
-    mémoire et appelle ``permission_rule_add`` pour chaque règle dérivée. Les
-    appels traversent la couche HITL desktop : l'utilisateur confirme chaque
-    règle avant qu'elle n'atterrisse dans ``governance.db``.
+    L'agent NE crée pas les règles directement — il écrit la liste sérialisée
+    sous la clé ``onboarding.proposed_rules`` (JSON). Le desktop lit cette
+    clé en fin d'onboarding et présente chaque règle comme une carte
+    d'approbation inline (`OnboardingPermissionStep.svelte`). Sur approbation,
+    le desktop appelle directement ``PrefixRuleEngine::add_rule`` via une
+    Tauri command (bypass du tool dispatcher) — ce qui évite le bug
+    ``executor.rs:NeedsApproval → PermissionDenied`` qui empêchait les
+    cartes d'apparaître quand l'agent appelait ``permission_rule_add``.
 
-    L'idempotence est assurée via un appel préalable à ``permission_rule_list``
-    filtré par ``created_by="onboarding-agent"`` : si des règles de l'agent
-    existent déjà, on ne re-propose rien (l'utilisateur peut révoquer puis
-    relancer l'onboarding s'il veut un reset, ou utiliser la CLI/UI Settings).
+    Matrice (cf. plan v2 §1) :
 
-    Aucune exception ne propage — toute erreur est loggée et silencieuse pour
-    ne pas bloquer la complétion onboarding.
+    Souveraineté
+      local-only       → deny http_fetch https:// + http://     (scope global)
+      local-preferred  → deny http_fetch des endpoints LLM cloud (scope global)
+      cloud-ok         → aucune règle réseau
+
+    Niveau HITL
+      always           → aucune règle d'allow (statu quo, friction maximale)
+      critical-only    → allow file_read + shell_exec lecture (scope global)
+      never            → idem critical-only (on ne pose jamais d'allow wildcard)
+
+    Intégrations détectées
+      GitHub | Slack | Notion | Gmail → allow http_fetch sur l'API correspondante
+                                         (scope global)
+
+    Idempotence : si l'onboarding-agent a déjà émis des règles
+    (``permission_rule_list(created_by="onboarding-agent")`` non vide via
+    l'outil quand il est disponible), aucune nouvelle proposition n'est
+    écrite. L'utilisateur peut révoquer depuis Settings → Permissions
+    (filtre `Onboarding`) puis relancer l'onboarding pour un reset.
     """
-    if getattr(ctx, "tools", None) is None:
-        return
-
-    # Idempotence : ne propose rien si l'onboarding-agent a déjà des règles.
-    try:
-        existing = await ctx.tools.call(
-            "permission_rule_list",
-            {"created_by": ONBOARDING_AGENT_CREATOR},
-        )
-        rules = existing.get("rules", []) if isinstance(existing, dict) else []
-        if rules:
-            return
-    except Exception:
-        # On considère que l'absence de retour exploitable = pas d'historique,
-        # et on continue. Aucune règle ne sera créée si l'outil est indisponible.
-        pass
+    # Pas d'idempotence sur ``permission_rule_list`` : depuis le passage à
+    # une architecture par mémoire (plan v2), c'est l'utilisateur qui crée
+    # les règles via les cartes du desktop, pas l'agent. Re-onboarder doit
+    # toujours re-proposer le set complet — l'utilisateur a peut-être
+    # refusé certaines règles auparavant et veut une seconde chance, ou il
+    # a changé de profil et la matrice change. La couche d'application
+    # (``apply_proposed_permission_rule``) est libre de dédupliquer côté
+    # ``governance.db`` si nécessaire.
 
     sovereignty = await ctx.memory.recall("user.constraints.sovereignty")
     hitl = await ctx.memory.recall("user.agents.hitl")
+    integrations_raw = await ctx.memory.recall("user.tools.integrations") or ""
+    integrations = {
+        item.strip().lower()
+        for item in integrations_raw.split(",")
+        if item.strip()
+    }
 
     proposals: list[dict[str, object]] = []
 
-    # Souveraineté → encadre l'accès réseau sortant.
+    # ── Souveraineté → encadre l'accès réseau sortant. ─────────────────────
     if sovereignty == "local-only":
+        proposals.extend([
+            {
+                "tool_name": "http_fetch",
+                "action": "deny",
+                "arg_prefix": "https://",
+                "scope": "global",
+            },
+            {
+                "tool_name": "http_fetch",
+                "action": "deny",
+                "arg_prefix": "http://",
+                "scope": "global",
+            },
+        ])
+    elif sovereignty == "local-preferred":
+        # Ferme les endpoints LLM cloud les plus courants par défaut. Les
+        # intégrations explicitement activées ci-dessous re-ouvrent ce qui
+        # est nécessaire (allow plus spécifique = priorité plus haute via
+        # arg_prefix le plus long).
+        for endpoint in (
+            "https://api.openai.com",
+            "https://api.anthropic.com",
+        ):
+            proposals.append({
+                "tool_name": "http_fetch",
+                "action": "deny",
+                "arg_prefix": endpoint,
+                "scope": "global",
+            })
+    # cloud-ok → pas de règle réseau (statu quo).
+
+    # ── Niveau HITL → réduit la friction sur les outils en lecture. ────────
+    if hitl in {"critical-only", "never"}:
         proposals.append({
-            "tool_name": "http_fetch",
-            "action": "deny",
-            "arg_prefix": "https://",
+            "tool_name": "file_read",
+            "action": "allow",
             "scope": "global",
         })
-        proposals.append({
-            "tool_name": "http_fetch",
-            "action": "deny",
-            "arg_prefix": "http://",
-            "scope": "global",
-        })
+        for safe_cmd in ("ls", "cat", "grep", "pwd", "head", "tail"):
+            proposals.append({
+                "tool_name": "shell_exec",
+                "action": "allow",
+                "arg_prefix": safe_cmd,
+                "scope": "global",
+            })
+    # always → aucune allow ; chaque action sensible passera par HITL.
 
-    # HITL=never → l'utilisateur a explicitement choisi l'autonomie maximale
-    # pour ses agents. On ne propose pas d'allow wildcard (le moteur ne le
-    # supporte pas et ce serait dangereux). À la place, on s'abstient d'écrire
-    # quoi que ce soit : la couche 1 SafeList migrée gère les exceptions
-    # opérateur, le HITL standard couvre le reste.
+    # ── Intégrations explicitement activées → ouvre les endpoints API. ─────
+    INTEGRATION_ENDPOINTS = {
+        "github": "https://api.github.com",
+        "slack": "https://slack.com/api/",
+        "notion": "https://api.notion.com",
+        "gmail": "https://gmail.googleapis.com",
+    }
+    for integ, endpoint in INTEGRATION_ENDPOINTS.items():
+        if integ in integrations:
+            proposals.append({
+                "tool_name": "http_fetch",
+                "action": "allow",
+                "arg_prefix": endpoint,
+                "scope": "global",
+            })
 
-    for prop in proposals:
+    if not proposals:
+        _logger.info(
+            "no permission rule to propose (sovereignty=%s hitl=%s integrations=%s)",
+            sovereignty, hitl, sorted(integrations),
+        )
+        # On efface explicitement la clé pour ne pas garder des résidus
+        # d'une session précédente. Bypass de _remember pour éviter le
+        # truncate à 500 chars (la liste sérialisée peut dépasser).
         try:
-            await ctx.tools.call("permission_rule_add", prop)
+            await ctx.memory.remember(
+                key="onboarding.proposed_rules",
+                value="[]",
+                source=MEMORY_SOURCE,
+                confidence=CONFIDENCE_EXPLICIT,
+            )
         except Exception:
-            # Le HITL a pu refuser, l'outil être désactivé, etc. — on n'arrête
-            # pas la finalisation pour autant.
             pass
+        return
+
+    _logger.info(
+        "persisting %d proposed permission rules in memory (sovereignty=%s hitl=%s integrations=%s)",
+        len(proposals), sovereignty, hitl, sorted(integrations),
+    )
+
+    # Écrit la liste sérialisée. Le desktop la consomme via Tauri command
+    # ``list_proposed_permission_rules`` et la décrémente au fil des
+    # approbations / refus. Bypass de _remember : la liste sérialisée peut
+    # dépasser MAX_VALUE_LENGTH (500), or _truncate la couperait au milieu
+    # du JSON et casserait le parser côté desktop.
+    await ctx.memory.remember(
+        key="onboarding.proposed_rules",
+        value=json.dumps(proposals),
+        source=MEMORY_SOURCE,
+        confidence=CONFIDENCE_EXPLICIT,
+    )
 
 
 async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str]) -> None:
@@ -612,8 +782,10 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     durably persisted.
 
     Just before writing ``completed_at`` (and so before the desktop unlocks),
-    the agent proposes the permission rules derived from the profile via
-    ``permission_rule_add`` (ADR-086). Each call is HITL-gated.
+    the agent persists the proposed permission rules to memory (ADR-086).
+    The desktop then renders them as approval cards in the onboarding modal
+    and applies them via direct ``PrefixRuleEngine`` calls (Tauri command
+    ``apply_proposed_permission_rule``).
     """
     role = await ctx.memory.recall("user.role")
     hitl = await ctx.memory.recall("user.agents.hitl")
@@ -626,8 +798,9 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     suggested = suggested_hint if suggested_hint else _compute_suggested_agents(role, hitl)
     await _remember(ctx, "onboarding.suggested_agents", json.dumps(suggested))
 
-    # ADR-086 — propose les règles de permissions avant le signal de complétion.
-    await _propose_permission_rules(ctx)
+    # ADR-086 — sérialise les propositions de règles. Le desktop les rend
+    # comme cartes d'approbation dans la modale onboarding (post-chat).
+    await _persist_proposed_permission_rules(ctx)
 
     now_iso = datetime.now(timezone.utc).isoformat()
     await _remember(ctx, "onboarding.completed_at", now_iso)
@@ -728,6 +901,25 @@ class OnboardingAgent(ConversationalAgent):
                 if not _value_passes_guards(key, value):
                     continue
                 await _remember(ctx, key, value, explicit=False)
+
+            # --- Fallback: heuristic recovery from user text ----------------
+            # When the LLM omitted (or mangled) the [REMEMBER] tag for a
+            # constrained-vocabulary key, scan the user's last message for
+            # the canonical value. Avoids the loop where the agent re-asks
+            # Q2/Q3 because the small model parroted the user's wording
+            # inside the tag instead of mapping to always/critical-only/
+            # never (resp. local-only/local-preferred/cloud-ok).
+            for key in ("user.agents.hitl", "user.constraints.sovereignty"):
+                already = await ctx.memory.recall(key)
+                if already:
+                    continue
+                recovered = _heuristic_value_from_user_text(key, user_message)
+                if recovered is not None:
+                    _logger.info(
+                        "heuristic recovery: %s=%s from user text",
+                        key, recovered,
+                    )
+                    await _remember(ctx, key, recovered, explicit=False)
 
             # --- Conditional finalize ---------------------------------------
             # Finalize only when the FULL Tier 1 set is collected — otherwise

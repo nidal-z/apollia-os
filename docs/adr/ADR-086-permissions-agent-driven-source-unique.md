@@ -187,3 +187,105 @@ gouvernance, complique le mental model "source unique" qui motive cet ADR.
 - Story onboarding (v2.0) : `agents/system/onboarding-agent/agent.py` — agent
   conversationnel qui collecte les préférences profil. Cet ADR étend son rôle au
   versement explicite des préférences en règles de permissions.
+
+## Annexe — Matrice des règles proposées par l'onboarding-agent (post-2026-05-06)
+
+L'agent dérive ses propositions de `_propose_permission_rules` selon trois
+dimensions du profil collecté. Toutes les règles sont créées avec
+`created_by="onboarding-agent"`, scope `global` par défaut, et chaque appel
+`permission_rule_add` traverse la couche HITL desktop (ApprovalCardV2).
+
+### Souveraineté → contrôle réseau sortant
+
+| `user.constraints.sovereignty` | Règles proposées |
+|---|---|
+| `local-only` | `deny http_fetch https://`, `deny http_fetch http://` |
+| `local-preferred` | `deny http_fetch https://api.openai.com`, `deny http_fetch https://api.anthropic.com` |
+| `cloud-ok` | aucune règle réseau |
+
+### Niveau HITL → friction sur outils en lecture
+
+| `user.agents.hitl` | Règles proposées |
+|---|---|
+| `always` | aucune (chaque action sensible déclenche un HITL) |
+| `critical-only` ou `never` | `allow file_read` (global) + `allow shell_exec` sur `ls`, `cat`, `grep`, `pwd`, `head`, `tail` |
+
+### Intégrations explicitement activées
+
+`user.tools.integrations` (liste séparée par virgules, casse insensible) →
+`allow http_fetch` sur l'API correspondante :
+
+| Valeur reconnue | `arg_prefix` autorisé |
+|---|---|
+| `github` | `https://api.github.com` |
+| `slack`  | `https://slack.com/api/` |
+| `notion` | `https://api.notion.com` |
+| `gmail`  | `https://gmail.googleapis.com` |
+
+### Idempotence
+
+Avant toute proposition, l'agent appelle
+`permission_rule_list(created_by="onboarding-agent")`. Si des règles existent
+déjà, **aucune** nouvelle carte n'est émise. Pour ré-évaluer le profil après
+une modification majeure, l'opérateur doit soit révoquer manuellement les
+règles existantes (Settings → Permissions, filtre `Onboarding`), soit relancer
+un reset onboarding depuis la Zone de danger.
+
+### Échecs et rejets
+
+Le code remplace l'ancien `try/except: pass` silencieux par un logging
+explicite via `logging.getLogger("onboarding-agent")` :
+
+- Rejet HITL utilisateur → `INFO permission_rule_add rejected/failed (...)`.
+  La complétion onboarding continue ; la règle est simplement absente.
+- Échec technique (DB lock, etc.) → même log, même non-blocage.
+
+`onboarding.completed_at` n'est écrit qu'après la phase de propositions —
+même si toutes les cartes sont rejetées, l'onboarding se termine proprement.
+
+### Architecture des cartes d'approbation (révisée 2026-05-06)
+
+L'implémentation initiale prévoyait que l'agent appelle directement
+`permission_rule_add` (HITL-gated risk_score=60) pour faire apparaître
+chaque carte dans le chat. Validation manuelle a montré que **les cartes
+n'apparaissaient jamais** — cause racine identifiée :
+`crates/apollia-tools/src/executor.rs:377-401` retourne
+`Err(PermissionDenied)` quand la décision est `NeedsApproval`, sans
+suspendre l'exécution. L'event `PermissionRequired` est bien émis mais
+aucune surface ne l'écoute pour le contexte d'agent conversationnel.
+
+**Nouvelle architecture (post-2026-05-06)** :
+
+1. L'agent **ne** crée plus les règles directement. Il sérialise la liste
+   dérivée en JSON dans la clé mémoire **`onboarding.proposed_rules`** via
+   la fonction `_persist_proposed_permission_rules` (renommée depuis
+   `_propose_permission_rules`).
+2. Le desktop lit cette clé via la Tauri command
+   `list_proposed_permission_rules` et rend chaque proposition comme un
+   mini-card (composant Svelte `OnboardingPermissionStep.svelte`) inline
+   dans la fenêtre d'onboarding, **après le chat, avant le wrap-up**.
+3. À l'approbation utilisateur, le desktop appelle
+   `apply_proposed_permission_rule(index)` qui invoque **directement**
+   `PrefixRuleEngine::add_rule(...)` avec `created_by_agent="onboarding-agent"`.
+   Bypass complet du tool dispatcher, donc pas de boucle HITL parasite
+   — la décision utilisateur est explicite, l'autorité est claire.
+4. Au refus, `dismiss_proposed_permission_rule(index)` retire l'entrée de
+   la liste persistée sans créer de règle.
+5. Le bouton **Terminer** reste désactivé tant que la liste pending
+   n'est pas vide.
+
+Cette architecture préserve la promesse du guide utilisateur (« cartes
+d'approbation après les questions ») et reste compatible avec
+ADR-086 :
+
+- Le `created_by="onboarding-agent"` continue d'être stampé sur chaque
+  règle, satisfaisant l'exigence d'audit (cf. §74 ADR original).
+- L'idempotence via `permission_rule_list(created_by=...)` est préservée :
+  l'agent ne sérialise pas de nouvelles propositions s'il en a déjà émis
+  par le passé.
+- Aucune dérivation Rust automatique n'est ajoutée : l'agent reste
+  l'unique auteur de la liste, le desktop n'est qu'un transport vers
+  l'utilisateur.
+
+Voir `crates/apollia-desktop/src/commands/permissions_proposals.rs` pour
+le détail des trois Tauri commands.

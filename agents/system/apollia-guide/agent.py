@@ -129,14 +129,16 @@ def build_system_prompt(mode: str | None) -> str:
 
 # Tier 1 + Tier 2 keys read from semantic memory. Missing keys are silently
 # omitted from the rendered XML so the LLM never sees empty placeholders.
+# Schema aligned with Settings → Profil (post-refactor): tools.daily replaces
+# tech.languages/tech.stack, tech.proficiency replaces tech.expertise.
 _PROFILE_KEYS: tuple[str, ...] = (
     "user.name",
     "user.role",
     "user.domain.sector",
     "user.domain.team_size",
-    "user.tech.expertise",
-    "user.tech.languages",
-    "user.tech.stack",
+    "user.tech.proficiency",
+    "user.tools.daily",
+    "user.tools.integrations",
     "user.goals",
     "user.constraints.sovereignty",
     "user.constraints.compliance",
@@ -167,17 +169,17 @@ async def build_context_block(ctx: Any) -> str:
         ("user.role", "role"),
         ("user.domain.sector", "sector"),
         ("user.domain.team_size", "team_size"),
-        ("user.tech.expertise", "expertise"),
+        ("user.tech.proficiency", "tech_proficiency"),
         ("user.goals", "goals"),
     ):
         if fields[key]:
             profile_lines.append(f"  {label}: {fields[key]}")
 
-    stack_parts = [
-        p for p in (fields["user.tech.languages"], fields["user.tech.stack"]) if p
+    tool_parts = [
+        p for p in (fields["user.tools.daily"], fields["user.tools.integrations"]) if p
     ]
-    if stack_parts:
-        profile_lines.append(f"  stack: {', '.join(stack_parts)}")
+    if tool_parts:
+        profile_lines.append(f"  tools: {', '.join(tool_parts)}")
 
     constraint_lines: list[str] = []
     for key, label in (

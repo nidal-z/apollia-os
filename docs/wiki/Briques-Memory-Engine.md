@@ -404,6 +404,71 @@ async def run(self, task, ctx):
 
 ---
 
+## 5bis. Profil utilisateur — accès générique pour tous les agents
+
+Le profil utilisateur (clés `user.*` collectées par l'onboarding-agent) est
+volontairement **partagé entre tous les agents** sans opt-in. Cette mémoire
+n'est pas dédiée à `apollia-guide` ni à un agent particulier — c'est une
+ressource transverse qui sert à tout consommateur.
+
+Trois mécanismes assurent cette généricité :
+
+### 1. Namespace global `__user__`
+
+Toutes les clés `user.*` sont écrites dans le namespace **`__user__`** par
+`UserMemoryRepository::store(...)`. Aucun agent ne peut écrire ailleurs
+qu'avec son propre namespace privé — sauf l'`onboarding-agent` qui détient
+le flag manifest `user_memory_write = true` (seul agent système avec cette
+permission).
+
+### 2. Fallback automatique dans `ctx.memory.recall()`
+
+Côté SDK Python (`apollia-aip/src/memory.rs`), la fonction `recall()`
+cherche d'abord la clé dans le namespace de l'agent, puis **retombe
+automatiquement sur `__user__`** si la clé n'y est pas trouvée. Aucun
+agent n'a besoin de configuration explicite : un simple
+`await ctx.memory.recall("user.name")` fonctionne.
+
+### 3. Injection automatique du persona dans les chat agents
+
+`BuiltInChatAgent::build_system_prompt(...)`
+(`crates/apollia-runtime/src/chat/builtin_agent.rs:751`) appelle
+`recall_persona_brief(30)` à chaque construction de session **Libre** ou
+**Agent**. Le brief — narrative header + section Gouvernance (HITL,
+souveraineté, compliance) + outils + objectifs — est injecté dans le
+system prompt sans intervention de l'agent. Seul le mode **Companion**
+est isolé (Principle #6 strict — l'agent compagnon ne reçoit pas le
+contexte utilisateur).
+
+### Clés profil canoniques (post-2026-05-06)
+
+| Domaine | Clés | Tier |
+|---|---|---|
+| Identité | `user.name`, `user.role`, `user.goals` | T1 (name/role) + T2 (goals) |
+| Domaine | `user.domain.sector`, `user.domain.team_size` | Tier 2 |
+| Outils | `user.tools.daily`, `user.tools.integrations` | Tier 2 |
+| Tech | `user.tech.proficiency` | Tier 2 |
+| Supervision | `user.agents.hitl`, `user.agents.domains`, `user.agents.trigger` | T1 (hitl) + T2 |
+| Contraintes | `user.constraints.sovereignty`, `user.constraints.compliance` | T1 (sovereignty) + T2 |
+| Préférences | `user.preferences.language`, `user.preferences.llm` | Tier 2 |
+
+Voir `docs/wiki/Agents-Onboarding-Guide.md` pour la matrice complète et
+les valeurs admises.
+
+### Comment vérifier l'accès générique pour un agent donné
+
+```python
+# Dans n'importe quel agent — aucun setup particulier requis :
+name = await ctx.memory.recall("user.name")            # via fallback __user__
+sovereignty = await ctx.memory.recall("user.constraints.sovereignty")
+```
+
+Pour les agents conversationnels (mode Libre/Agent), le persona est déjà
+dans le system prompt → l'agent n'a même pas besoin de faire de recall
+pour adapter son ton et ses suggestions.
+
+---
+
 ## 6. Isolation par namespace et modèle d'accès
 
 ```

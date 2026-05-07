@@ -33,9 +33,8 @@
     "goals": "context",
     "domain.sector": "context",
     "domain.team_size": "context",
-    "tech.expertise": "context",
-    "tech.languages": "context",
-    "tech.stack": "context",
+    "tech.proficiency": "context",
+    "tools.daily": "habits",
     "tech.integrations": "habits",
     "agents.hitl": "habits",
     "agents.domains": "habits",
@@ -74,6 +73,7 @@
   let loading = $state(true);
   let saving = $state<Record<string, boolean>>({});
   let values = $state<Record<string, string>>({});
+  let sources = $state<Record<string, string>>({});
   let resetOpen = $state(false);
   let resetting = $state(false);
 
@@ -81,14 +81,18 @@
   onMount(async () => {
     try {
       const profile = await invoke<UserMemoryProfileView>("get_user_memory_profile");
-      const map: Record<string, string> = {};
+      const valMap: Record<string, string> = {};
+      const srcMap: Record<string, string> = {};
       for (const e of profile.entries ?? []) {
-        map[e.key] = e.value;
+        valMap[e.key] = e.value;
+        srcMap[e.key] = e.source;
       }
-      values = map;
+      values = valMap;
+      sources = srcMap;
     } catch {
       // Mémoire non initialisée → champs vides, pas une erreur.
       values = {};
+      sources = {};
     } finally {
       loading = false;
     }
@@ -114,6 +118,8 @@
           request: { category, key, value: value.trim() },
         });
         values = { ...values, [key]: value.trim() };
+        // L'API marque les écritures issues du form comme "user_explicit".
+        sources = { ...sources, [key]: "user_explicit" };
       }
       if (SENSITIVE_KEYS.has(key)) {
         addToast(
@@ -160,6 +166,43 @@
       .includes(entry);
   }
 
+  // ── Source badges ─────────────────────────────────────────────────────────
+  // Render a small chip next to each field showing where the value came from
+  // (onboarding, user, agent observation, default). Helps the user quickly see
+  // which fields are still empty / inferred and which they explicitly set.
+  function sourceLabel(src: string | undefined): string {
+    switch (src) {
+      case "onboarding":
+        return "onboarding";
+      case "user_explicit":
+        return "vous";
+      case "agent_observation":
+        return "agent";
+      case "chat_inference":
+        return "inféré";
+      case "default":
+        return "défaut";
+      default:
+        return "";
+    }
+  }
+
+  function sourceBadgeClasses(src: string | undefined): string {
+    const base =
+      "inline-flex items-center rounded-full px-1.5 py-px text-[9px] font-medium uppercase tracking-wide";
+    switch (src) {
+      case "onboarding":
+        return `${base} bg-primary/10 text-primary`;
+      case "user_explicit":
+        return `${base} bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`;
+      case "agent_observation":
+      case "chat_inference":
+        return `${base} bg-amber-500/10 text-amber-600 dark:text-amber-400`;
+      default:
+        return `${base} bg-muted text-muted-foreground`;
+    }
+  }
+
   // ── Reset profile ─────────────────────────────────────────────────────────
   async function confirmReset() {
     if (resetting) return;
@@ -194,10 +237,10 @@
     { v: "6-20", label: "6–20" },
     { v: "20+", label: "20+" },
   ];
-  const EXPERTISE = [
+  const PROFICIENCY = [
     { v: "", label: "—" },
     { v: "debutant", label: "Débutant" },
-    { v: "intermediaire", label: "Intermédiaire" },
+    { v: "a-laise", label: "À l'aise" },
     { v: "expert", label: "Expert" },
   ];
   const LANGUAGES = [
@@ -235,7 +278,7 @@
 
   const SOVEREIGNTY_OPTIONS = [
     {
-      v: "local-strict",
+      v: "local-only",
       label: "Local strict",
       hint: "Aucune donnée ne quitte la machine. LLM cloud désactivé.",
     },
@@ -264,6 +307,14 @@
   // The marker explains why the field matters and how to apply changes.
 </script>
 
+{#snippet sourceBadge(key: string)}
+  {#if sourceLabel(sources[key])}
+    <span class={sourceBadgeClasses(sources[key])} title={`Source : ${sourceLabel(sources[key])}`}>
+      {sourceLabel(sources[key])}
+    </span>
+  {/if}
+{/snippet}
+
 {#if loading}
   <SettingSectionSkeleton />
 {:else}
@@ -287,7 +338,10 @@
 
       <div class="grid gap-3 md:grid-cols-2">
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Prénom / alias</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Prénom / alias
+            {@render sourceBadge("name")}
+          </span>
           <Input
             value={val("name")}
             onblur={(e: Event) => saveKey("name", (e.target as HTMLInputElement).value)}
@@ -298,7 +352,10 @@
         </label>
 
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Rôle</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Rôle
+            {@render sourceBadge("role")}
+          </span>
           <Input
             value={val("role")}
             onblur={(e: Event) => saveKey("role", (e.target as HTMLInputElement).value)}
@@ -369,7 +426,10 @@
       </header>
 
       <div class="space-y-2">
-        <span class="text-xs font-medium text-muted-foreground">Niveau HITL (Human-in-the-Loop)</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Niveau HITL (Human-in-the-Loop)
+          {@render sourceBadge("agents.hitl")}
+        </span>
         <RadioGroup
           value={val("agents.hitl")}
           onchange={(v: string) => saveKey("agents.hitl", v)}
@@ -392,7 +452,10 @@
       </div>
 
       <label class="space-y-1 block">
-        <span class="text-xs font-medium text-muted-foreground">Domaines auto (séparés par virgules)</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Domaines où vos agents travaillent en autonomie
+          {@render sourceBadge("agents.domains")}
+        </span>
         <Input
           value={val("agents.domains")}
           onblur={(e: Event) => saveKey("agents.domains", (e.target as HTMLInputElement).value)}
@@ -400,10 +463,21 @@
           disabled={saving["agents.domains"]}
           data-testid="profile-input-agent-domains"
         />
+        <span class="block text-[11px] text-muted-foreground">
+          Liste libre des domaines (veille, email, reporting…) où tu laisses tes agents agir
+          sans validation manuelle, sous réserve du niveau de supervision ci-dessus.
+        </span>
       </label>
 
       <div class="space-y-2">
-        <span class="text-xs font-medium text-muted-foreground">Mode de déclenchement</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Comment vos agents démarrent par défaut
+          {@render sourceBadge("agents.trigger")}
+        </span>
+        <p class="text-[11px] text-muted-foreground">
+          Distinct du niveau de supervision : ceci définit <em>quand</em> un agent s'exécute,
+          pas <em>si</em> il a besoin de ton approbation.
+        </p>
         <RadioGroup
           value={val("agents.trigger")}
           onchange={(v: string) => saveKey("agents.trigger", v)}
@@ -423,63 +497,67 @@
       </div>
     </div>
 
-    <!-- ─── Stack technique ───────────────────────────────────────────────── -->
+    <!-- ─── Outils & contexte métier ──────────────────────────────────────── -->
     <div class="glass-card glass-border space-y-4 rounded-lg p-4">
       <header class="flex items-center gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Cpu size={18} strokeWidth={1.75} />
         </span>
         <div>
-          <h3 class="text-sm font-semibold">Stack technique</h3>
-          <p class="text-[11px] text-muted-foreground">Utilisé pour adapter le ton et le détail des explications.</p>
+          <h3 class="text-sm font-semibold">Outils & contexte métier</h3>
+          <p class="text-[11px] text-muted-foreground">
+            Aide les agents à parler ton langage et à utiliser les outils que tu connais déjà.
+          </p>
         </div>
       </header>
 
       <label class="space-y-1 block">
-        <span class="text-xs font-medium text-muted-foreground">Niveau d'expertise</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Outils du quotidien (séparés par virgules)
+          {@render sourceBadge("tools.daily")}
+        </span>
+        <Input
+          value={val("tools.daily")}
+          onblur={(e: Event) => saveKey("tools.daily", (e.target as HTMLInputElement).value)}
+          placeholder="Excel, Notion, Salesforce, Gmail, VS Code…"
+          disabled={saving["tools.daily"]}
+          data-testid="profile-input-tools-daily"
+        />
+        <span class="block text-[11px] text-muted-foreground">
+          Liste libre — applications métier, IDE, outils de bureau, plateformes SaaS.
+        </span>
+      </label>
+
+      <label class="space-y-1 block">
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Aisance avec l'outillage tech
+          {@render sourceBadge("tech.proficiency")}
+        </span>
         <Select
-          value={val("tech.expertise")}
-          onchange={(e: Event) => saveKey("tech.expertise", (e.target as HTMLSelectElement).value)}
-          data-testid="profile-select-expertise"
+          value={val("tech.proficiency")}
+          onchange={(e: Event) => saveKey("tech.proficiency", (e.target as HTMLSelectElement).value)}
+          data-testid="profile-select-proficiency"
         >
-          {#each EXPERTISE as opt}
+          {#each PROFICIENCY as opt}
             <option value={opt.v}>{opt.label}</option>
           {/each}
         </Select>
-      </label>
-
-      <label class="space-y-1 block">
-        <span class="text-xs font-medium text-muted-foreground">Langages (séparés par virgules)</span>
-        <Input
-          value={val("tech.languages")}
-          onblur={(e: Event) => saveKey("tech.languages", (e.target as HTMLInputElement).value)}
-          placeholder="rust, python, typescript"
-          disabled={saving["tech.languages"]}
-          data-testid="profile-input-languages"
-        />
-      </label>
-
-      <label class="space-y-1 block">
-        <span class="text-xs font-medium text-muted-foreground">Stack / outils (séparés par virgules)</span>
-        <Input
-          value={val("tech.stack")}
-          onblur={(e: Event) => saveKey("tech.stack", (e.target as HTMLInputElement).value)}
-          placeholder="tokio, svelte, postgres"
-          disabled={saving["tech.stack"]}
-          data-testid="profile-input-stack"
-        />
+        <span class="block text-[11px] text-muted-foreground">
+          Sert aux agents à doser le niveau d'explication technique (vocabulaire, détail des étapes).
+        </span>
       </label>
 
       <div class="space-y-2">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          Intégrations
+          Connecter Apollia à
+          {@render sourceBadge("tech.integrations")}
           <span class="rounded-full bg-warning/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-warning">
             Sensible
           </span>
         </span>
         <p class="text-[11px] text-muted-foreground">
-          Active une intégration ouvre des permissions par défaut. Relance l'onboarding
-          pour adapter les règles correspondantes.
+          Activer une intégration ouvre des permissions par défaut sur les API associées.
+          Relance l'onboarding pour adapter les règles correspondantes.
         </p>
         <div class="flex flex-wrap gap-3">
           {#each INTEGRATIONS as integ}
@@ -518,7 +596,10 @@
       </header>
 
       <div class="space-y-2">
-        <span class="text-xs font-medium text-muted-foreground">Souveraineté des données</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Souveraineté des données
+          {@render sourceBadge("constraints.sovereignty")}
+        </span>
         <RadioGroup
           value={val("constraints.sovereignty")}
           onchange={(v: string) => saveKey("constraints.sovereignty", v)}
@@ -541,7 +622,10 @@
       </div>
 
       <div class="space-y-2">
-        <span class="text-xs font-medium text-muted-foreground">Conformité</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Conformité
+          {@render sourceBadge("constraints.compliance")}
+        </span>
         <div class="flex flex-wrap gap-3">
           {#each COMPLIANCE as norm}
             <label class="flex items-center gap-2 text-sm">

@@ -28,21 +28,21 @@
   {open}
   {onclose}
   size="sm"
-  title={$t("automations.delete.title")}
+  title={$t("automations.delete_dialog.title")}
   data-testid="delete-automation-dialog"
 >
   <div class="space-y-3">
     <p class="text-sm text-muted-foreground">
-      {$t("automations.delete.message", {
+      {$t("automations.delete_dialog.message", {
         values: { id: automationId, count: fireCount },
       })}
     </p>
     <p class="text-xs text-muted-foreground/80">
-      {$t("automations.delete.history_note")}
+      {$t("automations.delete_dialog.history_note")}
     </p>
     <label class="flex items-center gap-2 text-xs text-muted-foreground">
       <Checkbox bind:checked={skipNext} data-testid="delete-automation-skip" />
-      {$t("automations.delete.skip_next")}
+      {$t("automations.delete_dialog.skip_next")}
     </label>
   </div>
 
@@ -56,7 +56,7 @@
       disabled={loading}
       data-testid="delete-automation-confirm"
     >
-      {loading ? $t("triggers.deleting") : $t("automations.delete.confirm")}
+      {loading ? $t("triggers.deleting") : $t("automations.delete_dialog.confirm")}
     </Button>
   </DialogFooter>
 </Dialog>

@@ -13,7 +13,9 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Paperclip } from "lucide-svelte";
+  import { Send, Paperclip, Mic, MicOff } from "lucide-svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { tourPrefill } from "$lib/stores/tour";
   import { chatInputAppend } from "$lib/stores/artifacts";
   import { ChatRateLimiter } from "$lib/chat/rateLimit";
@@ -76,6 +78,14 @@
   const MAX_HEIGHT_PX = LINE_HEIGHT_PX * MAX_LINES + 16; // + vertical padding
 
   let value = $state("");
+  // ── Speech-to-text — bouton micro ───────────────────────────────────────
+  // Le bouton mic toggle l'enregistrement en réutilisant les Tauri commands
+  // existants `start_tour_recording` / `stop_tour_recording`. La transcription
+  // arrive via l'event Tauri `stt-transcribed` (broadcast par le pipeline
+  // Whisper) — on l'insère dans le textarea à ce moment-là.
+  let recording = $state(false);
+  let sttBusy = $state(false);
+  let sttUnlisten: UnlistenFn | null = null;
   let focused = $state(false);
   let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
   let fileInputEl = $state<HTMLInputElement | undefined>(undefined);
@@ -201,6 +211,59 @@
       unsubscribeAppend();
     };
   });
+
+  // STT event listener: when the user records (via the mic button OR via
+  // the global hotkey), the Rust pipeline broadcasts `stt-transcribed`
+  // with the resulting text. We append it to the input textarea.
+  onMount(() => {
+    let cancelled = false;
+    void listen<{ text?: string } | string>("stt-transcribed", (event) => {
+      const text =
+        typeof event.payload === "string"
+          ? event.payload
+          : event.payload?.text ?? "";
+      if (!text) return;
+      const suffix = value.length === 0 || value.endsWith("\n") ? "" : " ";
+      value = `${value}${suffix}${text}`;
+      recording = false;
+      sttBusy = false;
+      autoResize();
+      textareaEl?.focus();
+    }).then((unlisten) => {
+      if (cancelled) {
+        unlisten();
+      } else {
+        sttUnlisten = unlisten;
+      }
+    });
+    return () => {
+      cancelled = true;
+      sttUnlisten?.();
+      sttUnlisten = null;
+    };
+  });
+
+  async function toggleMic(): Promise<void> {
+    if (sttBusy) return;
+    sttBusy = true;
+    try {
+      if (recording) {
+        await invoke("stop_tour_recording");
+        // The transcription event will flip recording=false once it arrives.
+        // We keep sttBusy=true until the event listener clears it, so the
+        // user can't double-click during the inference.
+      } else {
+        await invoke("start_tour_recording");
+        recording = true;
+        sttBusy = false;
+      }
+    } catch {
+      // STT engine unavailable, no model configured, etc. — surface nothing
+      // here (the global hotkey listener already toasts) and reset state.
+      recording = false;
+      sttBusy = false;
+    }
+  }
 
   $effect(() => {
     if (!shouldRotate) return;
@@ -452,6 +515,27 @@
     >
       <Paperclip size={14} />
     </button>
+    <button
+      type="button"
+      onclick={toggleMic}
+      disabled={disabled || sttBusy && !recording}
+      class="mb-1.5 ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      class:bg-destructive={recording}
+      class:text-destructive-foreground={recording}
+      class:mic-pulse={recording}
+      class:text-muted-foreground={!recording}
+      class:hover:bg-muted={!recording}
+      class:hover:text-foreground={!recording}
+      aria-label={recording ? "Arrêter la dictée" : "Démarrer la dictée vocale"}
+      title={recording ? "Arrêter la dictée" : "Dictée vocale"}
+      data-testid="chat-mic-button"
+    >
+      {#if recording}
+        <MicOff size={14} />
+      {:else}
+        <Mic size={14} />
+      {/if}
+    </button>
     <input
       bind:this={fileInputEl}
       type="file"
@@ -513,6 +597,23 @@
   .chat-input-textarea::placeholder {
     transition: opacity 300ms ease;
     opacity: 1;
+  }
+
+  /* Subtle pulse around the mic button while recording. */
+  :global(.mic-pulse) {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.5);
+    animation: mic-pulse 1.4s ease-out infinite;
+  }
+  @keyframes mic-pulse {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.55);
+    }
+    70% {
+      box-shadow: 0 0 0 6px hsl(var(--destructive) / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
+    }
   }
   .chat-input-textarea.placeholder-fading::placeholder {
     opacity: 0;

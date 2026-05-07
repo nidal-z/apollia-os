@@ -95,10 +95,23 @@ Les questions couvrent :
 | Niveau de supervision souhaité | Fréquence à laquelle les agents vous demandent une validation |
 | Préférence de souveraineté des données | Avec ou sans services cloud tiers |
 
-Répondez naturellement, sans formulation précise. Après la dernière question, l'agent analyse vos réponses et vous propose des règles de permissions sous forme de cartes d'approbation :
+Répondez naturellement, sans formulation précise. Après la dernière question, l'agent dérive un jeu de règles de permissions à partir de vos réponses et les propose **inline dans la fenêtre d'onboarding, juste avant le bouton « Terminer »**. Chaque proposition est une mini-carte avec deux boutons :
 
-- **Approuver** — la règle est enregistrée immédiatement.
-- **Refuser** — la règle est ignorée, aucune permission n'est créée.
+- **Approuver** — la règle est enregistrée immédiatement dans la base `governance.db` avec l'auteur `onboarding-agent`.
+- **Refuser** — la règle est ignorée, aucune permission n'est créée. Vous pourrez toujours l'ajouter plus tard depuis **Paramètres → Permissions**.
+
+> Le bouton **Terminer** ne s'active que lorsque toutes les cartes ont été approuvées ou refusées — Apollia s'assure ainsi que vous avez vu chaque proposition.
+
+Le nombre et la nature des cartes proposées dépendent de vos choix précédents :
+
+| Vos choix | Règles proposées |
+|---|---|
+| Souveraineté `Local strict` | `deny http_fetch https://` et `http://` (global) — bloque toute sortie réseau |
+| Souveraineté `Local préféré` | `deny http_fetch` sur `api.openai.com` et `api.anthropic.com` (global) — bloque les LLM cloud par défaut |
+| Souveraineté `Cloud autorisé` | aucune règle réseau |
+| Supervision `Critique seulement` ou `Jamais` | `allow file_read` (global) + `allow shell_exec` sur `ls`/`cat`/`grep`/`pwd`/`head`/`tail` — réduit la friction sur les actions en lecture |
+| Supervision `Toujours valider` | aucune règle d'allow — chaque action sensible déclenchera une carte d'approbation |
+| Intégrations cochées (GitHub, Slack, Notion, Gmail) | `allow http_fetch` sur l'API correspondante (global) |
 
 `[SCREENSHOT: carte d'approbation d'une règle de permission générée par l'agent, boutons Approuver / Refuser visibles]`
 
@@ -119,11 +132,15 @@ Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (
 Le profil de base (4 informations + LLM + STT optionnel) suffit pour démarrer. Vous pouvez l'enrichir à tout moment depuis **Paramètres → Profil**.
 
 1. Ouvrez **Paramètres** dans la sidebar, puis cliquez sur l'onglet **Profil**.
-   `[SCREENSHOT: page Paramètres, onglet Profil actif, formulaire avec sections Identité / Supervision agents / Stack technique / Contraintes / Préférences]`
+   `[SCREENSHOT: page Paramètres, onglet Profil actif, formulaire avec sections Identité / Supervision des agents / Outils & contexte métier / Contraintes / Préférences]`
 
-2. Remplissez ou modifiez les champs souhaités. Les champs marqués 🔴 influencent le comportement des agents (niveau de validation, souveraineté) — un message s'affiche pour vous inviter à relancer le calibrage si vous les modifiez.
+2. Remplissez ou modifiez les champs souhaités. Chaque champ affiche un petit badge indiquant la **source** de la valeur : `onboarding` (collecté lors du calibrage), `vous` (que vous avez saisi manuellement), `agent` (observé par un agent en cours d'exécution), ou rien si le champ est vide.
 
-3. Vos modifications sont enregistrées automatiquement à chaque changement.
+3. Les champs marqués `Sensible` influencent le comportement des agents (niveau de validation, souveraineté, intégrations, conformité) — un message s'affiche pour vous inviter à relancer le calibrage afin que vos règles de permissions soient ajustées.
+
+4. Vos modifications sont enregistrées automatiquement à chaque changement.
+
+L'onglet **Outils & contexte métier** est volontairement générique : il s'adresse aussi bien aux profils dev (langages, IDE) qu'aux profils métier (Excel, Notion, Salesforce…). Listez simplement les outils que vous utilisez au quotidien — Apollia s'en sert pour calibrer le ton des explications et la pertinence des suggestions.
 
 ### Relancer le parcours de configuration
 

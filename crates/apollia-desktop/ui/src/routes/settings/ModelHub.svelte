@@ -143,7 +143,7 @@
         next.delete(p.id);
         activeDownloads = next;
         if (p.status === "completed") {
-          addToast(`Model downloaded to ${p.dest_path}`, "success");
+          addToast($t("settings.model_hub.downloads.completed_toast", { values: { path: p.dest_path } }), "success");
         }
       } else {
         const next = new Map(activeDownloads);
@@ -253,7 +253,7 @@
           hf_token: hfToken || null,
         },
       });
-      addToast(`Downloading ${file.filename}…`, "info");
+      addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: file.filename } }), "info");
     } catch (e) {
       addToast(String(e), "error");
     }
@@ -293,9 +293,9 @@
   }
 
   function compatTooltip(c: HfFile["compatibility"]): string {
-    if (c === "fits") return "Fits in memory";
-    if (c === "might_fit") return "Might fit — tight";
-    if (c === "too_large") return "Too large for your machine";
+    if (c === "fits") return $t("settings.model_hub.detail.compat_fits");
+    if (c === "might_fit") return $t("settings.model_hub.detail.compat_might_fit");
+    if (c === "too_large") return $t("settings.model_hub.detail.compat_too_large");
     return "";
   }
 
@@ -453,7 +453,7 @@
     if (acc.kind === "apple_silicon") return acc.chip ?? "Apple Silicon";
     if (acc.kind === "cuda") return acc.device_name ?? "NVIDIA GPU";
     if (acc.kind === "generic") return acc.device_name ?? "GPU";
-    return "CPU only";
+    return $t("settings.model_hub.hardware.cpu_only");
   }
 </script>
 
@@ -461,42 +461,42 @@
 
   <!-- ── Header ── -->
   <div>
-    <h2 class="text-lg font-semibold text-foreground">Model Hub</h2>
-    <p class="text-sm text-muted-foreground">Browse, download, and manage GGUF models from HuggingFace.</p>
+    <h2 class="text-lg font-semibold text-foreground">{$t("settings.model_hub.title")}</h2>
+    <p class="text-sm text-muted-foreground">{$t("settings.model_hub.subtitle")}</p>
   </div>
 
   <!-- ── Hardware profile ── -->
   <section class="rounded-xl border border-border bg-muted/40 p-4">
     <div class="mb-3 flex items-center gap-2">
       <Cpu class="h-4 w-4 text-muted-foreground" />
-      <span class="text-sm font-medium text-foreground">Your hardware</span>
+      <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.hardware.label")}</span>
     </div>
 
     {#if hardwareLoading}
       <div class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 class="h-4 w-4 animate-spin" />
-        Detecting hardware…
+        {$t("settings.model_hub.hardware.detecting")}
       </div>
     {:else if hardware}
       <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
         <div>
-          <div class="text-muted-foreground">RAM</div>
+          <div class="text-muted-foreground">{$t("settings.model_hub.hardware.ram")}</div>
           <div class="font-medium text-foreground">{hardware.total_ram_gb.toFixed(0)} GB</div>
         </div>
         <div>
-          <div class="text-muted-foreground">Available</div>
+          <div class="text-muted-foreground">{$t("settings.model_hub.hardware.available")}</div>
           <div class="font-medium text-foreground">{hardware.available_ram_gb.toFixed(1)} GB</div>
         </div>
         <div>
-          <div class="text-muted-foreground">GPU / Accelerator</div>
+          <div class="text-muted-foreground">{$t("settings.model_hub.hardware.gpu")}</div>
           <div class="font-medium text-foreground">{chipLabel(hardware.accelerator)}</div>
         </div>
         <div>
-          <div class="text-muted-foreground">Inference budget</div>
+          <div class="text-muted-foreground">{$t("settings.model_hub.hardware.budget")}</div>
           <div class="font-medium text-green-600 dark:text-green-400">{formatBudget(hardware.memory_budget_gb)}</div>
         </div>
       </div>
-      <div class="mt-2 text-xs text-muted-foreground/70">CPU: {hardware.cpu_model} · {hardware.cpu_cores} cores</div>
+      <div class="mt-2 text-xs text-muted-foreground/70">{$t("settings.model_hub.hardware.cpu_info", { values: { cpu: hardware.cpu_model, cores: hardware.cpu_cores } })}</div>
     {/if}
   </section>
 
@@ -505,7 +505,7 @@
     <section class="rounded-xl border border-primary/20 bg-primary/5 p-4">
       <div class="mb-3 flex items-center gap-2">
         <Download class="h-4 w-4 text-primary" />
-        <span class="text-sm font-medium text-foreground">Active downloads</span>
+        <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.downloads.active")}</span>
       </div>
       <div class="flex flex-col gap-2">
         {#each [...activeDownloads.values()] as dl}
@@ -525,7 +525,7 @@
             <button
               onclick={() => cancelDownload(dl.id)}
               class="rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
-              aria-label="Cancel download"
+              aria-label={$t("settings.model_hub.downloads.cancel_aria")}
             >
               <X class="h-3 w-3" />
             </button>
@@ -540,10 +540,10 @@
     <section class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
       <div class="mb-3 flex items-center gap-2">
         <Key class="h-4 w-4 text-amber-600 dark:text-amber-400" />
-        <span class="text-sm font-medium text-foreground">HuggingFace token (gated models)</span>
+        <span class="text-sm font-medium text-foreground">{$t("settings.model_hub.token.label")}</span>
       </div>
       <p class="mb-3 text-xs text-muted-foreground">
-        This model requires accepting its license on HuggingFace. Generate a token at
+        {$t("settings.model_hub.token.description")}
         <a
           href="https://huggingface.co/settings/tokens"
           target="_blank"
@@ -564,7 +564,7 @@
           onclick={() => (showTokenForm = false)}
           class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
-          Done
+          {$t("settings.model_hub.token.done")}
         </button>
       </div>
     </section>
@@ -579,7 +579,7 @@
           type="text"
           bind:value={searchQuery}
           onkeydown={(e) => e.key === "Enter" && search()}
-          placeholder="Search GGUF models (e.g. qwen3, llama3, mistral)…"
+          placeholder={$t("settings.model_hub.search.placeholder")}
           class="flex h-9 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         />
       </div>
@@ -593,15 +593,15 @@
         {:else}
           <Search class="h-4 w-4" />
         {/if}
-        Search
+        {$t("settings.model_hub.search.button")}
       </button>
       <button
         onclick={() => (showTokenForm = !showTokenForm)}
         class="flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        title="Configure HuggingFace token"
+        title={$t("settings.model_hub.token.title_button")}
       >
         <Key class="h-4 w-4" />
-        {hfToken ? "Token set" : "Token"}
+        {hfToken ? $t("settings.model_hub.token.set") : $t("settings.model_hub.token.btn")}
       </button>
     </div>
 
@@ -622,10 +622,10 @@
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
-        <option value="downloads">Most downloaded</option>
-        <option value="likes">Most liked</option>
-        <option value="trending">Trending</option>
-        <option value="createdAt">Newest</option>
+        <option value="downloads">{$t("settings.model_hub.filters.sort_downloads")}</option>
+        <option value="likes">{$t("settings.model_hub.filters.sort_likes")}</option>
+        <option value="trending">{$t("settings.model_hub.filters.sort_trending")}</option>
+        <option value="createdAt">{$t("settings.model_hub.filters.sort_newest")}</option>
       </select>
 
       <!-- Language (server-side) -->
@@ -634,17 +634,17 @@
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
-        <option value="">Any language</option>
-        <option value="en">English</option>
-        <option value="fr">Français</option>
-        <option value="zh">中文</option>
-        <option value="de">Deutsch</option>
-        <option value="es">Español</option>
-        <option value="ja">日本語</option>
-        <option value="ko">한국어</option>
-        <option value="ar">العربية</option>
-        <option value="ru">Русский</option>
-        <option value="pt">Português</option>
+        <option value="">{$t("settings.model_hub.filters.lang_any")}</option>
+        <option value="en">{$t("settings.model_hub.filters.lang_en")}</option>
+        <option value="fr">{$t("settings.model_hub.filters.lang_fr")}</option>
+        <option value="zh">{$t("settings.model_hub.filters.lang_zh")}</option>
+        <option value="de">{$t("settings.model_hub.filters.lang_de")}</option>
+        <option value="es">{$t("settings.model_hub.filters.lang_es")}</option>
+        <option value="ja">{$t("settings.model_hub.filters.lang_ja")}</option>
+        <option value="ko">{$t("settings.model_hub.filters.lang_ko")}</option>
+        <option value="ar">{$t("settings.model_hub.filters.lang_ar")}</option>
+        <option value="ru">{$t("settings.model_hub.filters.lang_ru")}</option>
+        <option value="pt">{$t("settings.model_hub.filters.lang_pt")}</option>
       </select>
 
       <!-- License (client-side) -->
@@ -652,9 +652,9 @@
         bind:value={licenseFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
-        <option value="any">Any license</option>
-        <option value="open">Open (Apache / MIT…)</option>
-        <option value="restricted">Restricted</option>
+        <option value="any">{$t("settings.model_hub.filters.license_any")}</option>
+        <option value="open">{$t("settings.model_hub.filters.license_open")}</option>
+        <option value="restricted">{$t("settings.model_hub.filters.license_restricted")}</option>
       </select>
 
       <!-- Model type (client-side) -->
@@ -662,10 +662,10 @@
         bind:value={modelTypeFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
-        <option value="any">Any type</option>
-        <option value="instruct">Instruct / Chat</option>
-        <option value="base">Base</option>
-        <option value="reasoning">Reasoning</option>
+        <option value="any">{$t("settings.model_hub.filters.type_any")}</option>
+        <option value="instruct">{$t("settings.model_hub.filters.type_instruct")}</option>
+        <option value="base">{$t("settings.model_hub.filters.type_base")}</option>
+        <option value="reasoning">{$t("settings.model_hub.filters.type_reasoning")}</option>
       </select>
 
       <!-- Gated (client-side) -->
@@ -673,9 +673,9 @@
         bind:value={gatedFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
-        <option value="any">Gated & Open</option>
-        <option value="open">Open only</option>
-        <option value="gated">Gated only</option>
+        <option value="any">{$t("settings.model_hub.filters.gated_any")}</option>
+        <option value="open">{$t("settings.model_hub.filters.gated_open_only")}</option>
+        <option value="gated">{$t("settings.model_hub.filters.gated_only")}</option>
       </select>
 
       <!-- Show incompatible toggle (Option C: hidden by default) -->
@@ -685,20 +685,20 @@
           {showIncompatible
             ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
             : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
-        title={showIncompatible ? "Hide incompatible models" : "Show incompatible models"}
+        title={showIncompatible ? $t("settings.model_hub.filters.hide_incompatible_title") : $t("settings.model_hub.filters.show_incompatible_title")}
       >
         {#if showIncompatible}
           <Eye class="h-3 w-3" />
         {:else}
           <EyeOff class="h-3 w-3" />
         {/if}
-        Incompatible
+        {$t("settings.model_hub.filters.incompatible")}
       </button>
 
       <!-- Result count -->
       {#if searchResults.length > 0}
         <span class="ml-auto text-xs text-muted-foreground">
-          {filteredResults.length}/{searchResults.length} models
+          {$t("settings.model_hub.filters.result_count", { values: { filtered: filteredResults.length, total: searchResults.length } })}
         </span>
       {/if}
     </div>
@@ -720,20 +720,20 @@
                 <span class="text-sm font-medium text-foreground truncate">{model.repo_id}</span>
                 {#if model.gated}
                   <span class="rounded px-1.5 py-0.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                    <Key class="h-3 w-3" /> Gated
+                    <Key class="h-3 w-3" /> {$t("settings.model_hub.card.gated")}
                   </span>
                 {/if}
                 {#if model.compatibility_issue === "embedding_model"}
-                  <span class="rounded px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive flex items-center gap-1" title="Not a text-generation model — incompatible with llama.cpp">
-                    <ShieldAlert class="h-3 w-3" /> Embedding only
+                  <span class="rounded px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive flex items-center gap-1" title={$t("settings.model_hub.card.embedding_only_title")}>
+                    <ShieldAlert class="h-3 w-3" /> {$t("settings.model_hub.card.embedding_only")}
                   </span>
                 {:else if model.compatibility_issue === "no_gguf_files"}
-                  <span class="rounded px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive flex items-center gap-1" title="No GGUF files found in this repository">
-                    <ShieldAlert class="h-3 w-3" /> No GGUF
+                  <span class="rounded px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive flex items-center gap-1" title={$t("settings.model_hub.card.no_gguf_title")}>
+                    <ShieldAlert class="h-3 w-3" /> {$t("settings.model_hub.card.no_gguf")}
                   </span>
                 {:else if model.compatibility_issue === "unknown_architecture"}
-                  <span class="rounded px-1.5 py-0.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center gap-1" title="Architecture not yet confirmed in llama.cpp — may or may not work">
-                    <ShieldAlert class="h-3 w-3" /> Arch. unknown
+                  <span class="rounded px-1.5 py-0.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center gap-1" title={$t("settings.model_hub.card.arch_unknown_title")}>
+                    <ShieldAlert class="h-3 w-3" /> {$t("settings.model_hub.card.arch_unknown")}
                   </span>
                 {/if}
                 {#if model.license}
@@ -741,9 +741,9 @@
                 {/if}
               </div>
               <div class="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
-                <span>↓ {(model.downloads / 1000).toFixed(0)}k downloads</span>
+                <span>{$t("settings.model_hub.card.downloads_count", { values: { count: (model.downloads / 1000).toFixed(0) } })}</span>
                 {#if model.gguf_files.length > 0}
-                  <span>{model.gguf_files.length} GGUF files</span>
+                  <span>{$t("settings.model_hub.card.gguf_files_count", { values: { count: model.gguf_files.length } })}</span>
                 {/if}
               </div>
             </div>
@@ -762,42 +762,42 @@
               {#if modelDetailLoading}
                 <div class="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 class="h-4 w-4 animate-spin" />
-                  Loading files…
+                  {$t("settings.model_hub.detail.loading_files")}
                 </div>
               {:else if modelDetail && modelDetail.repo_id === model.repo_id}
                 <!-- Generation config -->
                 {#if modelDetail.generation_config}
                   {@const cfg = modelDetail.generation_config}
                   <div class="mb-4 rounded-lg bg-muted/40 p-3">
-                    <div class="mb-2 text-xs font-medium text-muted-foreground">Recommended parameters</div>
+                    <div class="mb-2 text-xs font-medium text-muted-foreground">{$t("settings.model_hub.detail.recommended_params")}</div>
                     <div class="grid grid-cols-3 gap-2 sm:grid-cols-5 text-xs">
                       {#if cfg.temperature !== undefined}
                         <div>
-                          <div class="text-muted-foreground">temperature</div>
+                          <div class="text-muted-foreground">{$t("settings.model_hub.detail.param_temperature")}</div>
                           <div class="text-foreground font-mono">{cfg.temperature}</div>
                         </div>
                       {/if}
                       {#if cfg.top_p !== undefined}
                         <div>
-                          <div class="text-muted-foreground">top_p</div>
+                          <div class="text-muted-foreground">{$t("settings.model_hub.detail.param_top_p")}</div>
                           <div class="text-foreground font-mono">{cfg.top_p}</div>
                         </div>
                       {/if}
                       {#if cfg.top_k !== undefined}
                         <div>
-                          <div class="text-muted-foreground">top_k</div>
+                          <div class="text-muted-foreground">{$t("settings.model_hub.detail.param_top_k")}</div>
                           <div class="text-foreground font-mono">{cfg.top_k}</div>
                         </div>
                       {/if}
                       {#if cfg.repetition_penalty !== undefined}
                         <div>
-                          <div class="text-muted-foreground">rep. penalty</div>
+                          <div class="text-muted-foreground">{$t("settings.model_hub.detail.param_rep_penalty")}</div>
                           <div class="text-foreground font-mono">{cfg.repetition_penalty}</div>
                         </div>
                       {/if}
                       {#if cfg.max_new_tokens !== undefined}
                         <div>
-                          <div class="text-muted-foreground">max tokens</div>
+                          <div class="text-muted-foreground">{$t("settings.model_hub.detail.param_max_tokens")}</div>
                           <div class="text-foreground font-mono">{cfg.max_new_tokens}</div>
                         </div>
                       {/if}
@@ -810,7 +810,9 @@
                   {@const grouped = groupGgufFiles(modelDetail.gguf_files)}
                   {#if grouped.models.length > 0}
                     <div class="text-xs font-medium text-muted-foreground mb-2">
-                      {grouped.models.length} variant{grouped.models.length !== 1 ? "s" : ""}
+                      {grouped.models.length === 1
+                        ? $t("settings.model_hub.detail.variants_one", { values: { count: grouped.models.length } })
+                        : $t("settings.model_hub.detail.variants_other", { values: { count: grouped.models.length } })}
                     </div>
                     <div class="flex flex-col gap-1.5">
                       {#each grouped.models as group}
@@ -830,7 +832,7 @@
                               {#if group.isSplit}
                                 <span class="inline-flex items-center gap-0.5 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0">
                                   <Package class="h-2.5 w-2.5" />
-                                  {group.files.length} parts
+                                  {$t("settings.model_hub.detail.parts", { values: { count: group.files.length } })}
                                 </span>
                               {/if}
                             </div>
@@ -851,7 +853,7 @@
                             {:else}
                               <Download class="h-3 w-3" />
                             {/if}
-                            {group.isSplit ? `${group.files.length} files` : "Download"}
+                            {group.isSplit ? $t("settings.model_hub.detail.files_count", { values: { count: group.files.length } }) : $t("settings.model_hub.detail.download")}
                           </button>
                         </div>
                       {/each}
@@ -863,7 +865,7 @@
                     <div class="mt-3 rounded-md border border-dashed border-border/60 p-2.5">
                       <div class="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Info class="h-3 w-3 shrink-0" />
-                        Vision projector — required for multimodal inference
+                        {$t("settings.model_hub.detail.vision_projector")}
                       </div>
                       {#each grouped.projectors as f}
                         <div class="flex items-center gap-2 text-xs">
@@ -873,14 +875,14 @@
                             onclick={() => startDownload(f)}
                             class="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
                           >
-                            <Download class="h-3 w-3" /> Download
+                            <Download class="h-3 w-3" /> {$t("settings.model_hub.detail.download")}
                           </button>
                         </div>
                       {/each}
                     </div>
                   {/if}
                 {:else}
-                  <div class="text-sm text-muted-foreground">No GGUF files found in this repository.</div>
+                  <div class="text-sm text-muted-foreground">{$t("settings.model_hub.detail.no_gguf_in_repo")}</div>
                 {/if}
               {/if}
             </div>
@@ -898,9 +900,9 @@
           >
             {#if searching}
               <Loader2 class="h-4 w-4 animate-spin" />
-              Loading…
+              {$t("settings.model_hub.results.loading")}
             {:else}
-              Load more models
+              {$t("settings.model_hub.results.load_more")}
             {/if}
           </button>
         </div>
@@ -908,13 +910,13 @@
     </div>
   {:else if !searching && searchResults.length > 0}
     <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
-      No models match your filters.
+      {$t("settings.model_hub.results.no_match")}
       <button onclick={() => { licenseFilter = "any"; modelTypeFilter = "any"; gatedFilter = "any"; showIncompatible = true; }}
-        class="ml-2 text-primary hover:underline">Clear filters</button>
+        class="ml-2 text-primary hover:underline">{$t("settings.model_hub.results.clear_filters")}</button>
     </div>
   {:else if !searching && searchQuery}
     <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
-      No models found for "{searchQuery}".
+      {$t("settings.model_hub.results.no_results", { values: { query: searchQuery } })}
     </div>
   {/if}
 </div>

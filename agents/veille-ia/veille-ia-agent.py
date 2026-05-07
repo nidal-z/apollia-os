@@ -160,12 +160,19 @@ async def _collect_seen_hashes(ctx: Any, limit: int = 500) -> list[str]:
 
 # --- v1.1.0 additions: user profile, procedure memory, notifications, dual write ---
 
-_USER_KEYS_OF_INTEREST = ("user.tech.stack", "user.domain.sector", "user.tech.languages")
+_USER_KEYS_OF_INTEREST = (
+    "user.tools.daily",
+    "user.domain.sector",
+    "user.tech.proficiency",
+    # Legacy keys kept as fallback for users onboarded before the Profile refactor.
+    "user.tech.stack",
+    "user.tech.languages",
+)
 _PROCEDURE_TRIGGER = "daily-veille-ia"
 _PROCEDURE_STEPS = [
     "Charger snapshot bootstrap (TTL 7j)",
     "Collecter seen:{hash} pour dédup cross-run",
-    "Lire profil utilisateur (user.tech.stack, user.domain.sector)",
+    "Lire profil utilisateur (user.tools.daily, user.domain.sector)",
     "Déléguer a2a:search-and-extract pour axe tech",
     "Déléguer a2a:search-and-extract pour axe concurrentiel",
     "Fusionner articles, déléguer a2a:synthesize-report",
@@ -289,9 +296,20 @@ Tu es un directeur : tu ne fais pas de recherche toi-même. Tu délègues :
 
 ## GESTION DES ERREURS
 
-- Si search-and-extract échoue sur un axe : continuer avec 0 articles pour cet axe
-- Si synthesize-report échoue : construire un rapport minimal de secours
-- Si file_write échoue : retourner le rapport en texte dans final_answer
+- Si `a2a:search-and-extract` échoue ou retourne « unknown skill » (workers
+  non démarrés ou A2A indisponible) : **fallback en direct**. Tu disposes
+  des outils `web_search` et `web_read` — exécute toi-même 2 à 3 requêtes
+  par axe, lis les meilleurs résultats, construis la liste d'articles
+  manuellement (titre, url, excerpt, source). N'abandonne JAMAIS la mission
+  sous prétexte que les workers ne répondent pas.
+- Si `a2a:synthesize-report` échoue de la même manière : **fallback en
+  direct** également. Génère toi-même un rapport Markdown structuré
+  (sections "Tech" / "Concurrentiel" / "Top items") à partir des articles
+  collectés.
+- Si `file_write` échoue : retourner le rapport en texte dans final_answer.
+- N'utilise JAMAIS `final_answer` pour annoncer un échec ("Mandatory tools
+  unavailable", "Cannot generate report"…) : tente toujours le fallback
+  direct avant de rendre la main.
 
 ## FORMAT final_answer
 
@@ -313,7 +331,7 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for veille-ia-agent."""
     return {
         "name": "veille-ia-agent",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "description": (
             "Agent directeur de veille quotidienne IA/LLM. "
             "Orchestre la collecte (web-search-worker via A2A), la synthèse "
@@ -326,6 +344,8 @@ def manifest() -> dict[str, Any]:
         "tools_required": ["file_write"],
         "tools_optional": [
             "file_list",
+            "web_search",
+            "web_read",
             "a2a:search-and-extract",
             "a2a:synthesize-report",
         ],
@@ -471,13 +491,22 @@ class VeilleIaAgent(BaseReActAgent):
         user_context = user_context or {}
         if user_context:
             lines = ["**Profil utilisateur (lu depuis __user__ namespace) :**"]
-            if "user.tech.stack" in user_context:
+            tools_value = user_context.get("user.tools.daily") or user_context.get(
+                "user.tech.stack"
+            )
+            if tools_value:
                 lines.append(
-                    f"- Stack technique : {user_context['user.tech.stack']} "
-                    "(adapter les axes tech : pondère plus les techos de cette stack)"
+                    f"- Outils & stack du quotidien : {tools_value} "
+                    "(adapter les axes tech : pondérer les techos liées à ces outils)"
                 )
-            if "user.tech.languages" in user_context:
-                lines.append(f"- Langages familiers : {user_context['user.tech.languages']}")
+            languages_value = user_context.get("user.tech.languages")
+            if languages_value:
+                lines.append(f"- Langages familiers : {languages_value}")
+            if "user.tech.proficiency" in user_context:
+                lines.append(
+                    f"- Aisance technique : {user_context['user.tech.proficiency']} "
+                    "(doser le niveau de détail des explications)"
+                )
             if "user.domain.sector" in user_context:
                 lines.append(
                     f"- Secteur : {user_context['user.domain.sector']} "

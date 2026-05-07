@@ -8,6 +8,8 @@
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
+  import OnboardingTourRunner from "./components/onboarding/OnboardingTourRunner.svelte";
+  import { onboardingTourActive } from "$lib/stores/tour";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
@@ -178,6 +180,14 @@
     <ToastContainer />
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />
+    {/if}
+    {#if $onboardingTourActive}
+      <OnboardingTourRunner
+        oncomplete={() => {
+          onboardingTourActive.set(false);
+          void invoke("mark_onboarded").catch(() => {});
+        }}
+      />
     {/if}
   {/if}
 

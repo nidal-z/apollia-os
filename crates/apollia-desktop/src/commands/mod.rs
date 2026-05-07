@@ -27,6 +27,7 @@ pub mod model_hub;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;
+pub mod permissions_proposals;
 pub mod plan_alternatives;
 pub mod projects;
 pub mod review;

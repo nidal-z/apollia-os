@@ -361,7 +361,21 @@ pub async fn advance_onboarding_phase(
     advance_onboarding_phase_inner(target_phase, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "advance_onboarding_phase failed");
+            // Self-transitions surface as InvalidTransition with from == to.
+            // The frontend's `syncBackendPhase` fires defensively whenever the
+            // step changes, so a no-op advance is expected on resume / when
+            // the backend is already ahead. Log at debug instead of error.
+            match &e {
+                OnboardingError::InvalidTransition { from, to } if from == to => {
+                    tracing::debug!(
+                        error = %e,
+                        "advance_onboarding_phase: self-transition ignored"
+                    );
+                }
+                _ => {
+                    tracing::error!(error = %e, "advance_onboarding_phase failed");
+                }
+            }
             e.to_string()
         })
 }
@@ -465,6 +479,14 @@ async fn advance_onboarding_phase_inner(
             .map_err(|e| OnboardingError::PersistenceError(format!("mutex poisoned: {e}")))?;
 
         let mut onboarding_state = load_state_from_memory(&repo)?;
+
+        // Idempotent self-transition: when the frontend re-syncs an already
+        // active phase (e.g. after restoring from a previous session and
+        // re-entering the same step), surface success rather than a hard
+        // error. Avoids spurious ERROR logs on a no-op call.
+        if onboarding_state.phase == target {
+            return Ok(onboarding_state);
+        }
 
         if !onboarding_state.can_advance_to(&target) {
             return Err(OnboardingError::InvalidTransition {

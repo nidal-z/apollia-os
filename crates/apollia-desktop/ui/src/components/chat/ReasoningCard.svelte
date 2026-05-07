@@ -31,6 +31,7 @@
     resolveToolDisplay,
     buildBashInputDisplay,
     buildHttpInputDisplay,
+    buildOutputSummary,
     formatRationale,
   } from "$lib/tools/tool-display";
   import type { ToolCallView } from "$lib/types";
@@ -170,6 +171,120 @@
   );
   const retryCount = $derived(Math.max(0, retryAttempts.length - 1));
 
+  // ---- ask_user parsing (shared by both skins) ----
+  // The `ask_user` tool stores questions in `input.questions` and answers in
+  // `output` as `{answers: [{id, value?, values?, skipped}]}`. Raw JSON is
+  // unreadable to operators, so we parse both sides into a paired Q/A list.
+  interface AskUserAnswer {
+    id: string;
+    value?: string | null;
+    values?: string[];
+    skipped: boolean;
+  }
+  interface AskUserQuestion {
+    id: string;
+    question: string;
+    options?: string[];
+  }
+  interface AskUserPair {
+    id: string;
+    question: string;
+    answerText: string;
+    skipped: boolean;
+  }
+
+  const askUserPairs = $derived.by<AskUserPair[] | null>(() => {
+    if (item.kind !== "tool_call" || item.tool !== "ask_user") return null;
+    const rawQuestions = (item.args as { questions?: unknown }).questions;
+    const questions = Array.isArray(rawQuestions)
+      ? (rawQuestions as AskUserQuestion[])
+      : [];
+    let answers: AskUserAnswer[] = [];
+    if (typeof item.output === "string" && item.output.length > 0) {
+      try {
+        const parsed = JSON.parse(item.output) as { answers?: AskUserAnswer[] };
+        if (Array.isArray(parsed?.answers)) answers = parsed.answers;
+      } catch {
+        return null;
+      }
+    }
+    if (questions.length === 0 && answers.length === 0) return null;
+    const byId = new Map(questions.map((q) => [q.id, q]));
+    const pairs: AskUserPair[] = [];
+    if (answers.length > 0) {
+      for (const a of answers) {
+        const q = byId.get(a.id);
+        const text = a.skipped
+          ? $t("chat.ask_user_skipped_label", { default: "Skipped" })
+          : a.values && a.values.length > 0
+            ? a.values.join(", ")
+            : (a.value ?? "");
+        pairs.push({
+          id: a.id,
+          question: q?.question ?? a.id,
+          answerText: text,
+          skipped: a.skipped,
+        });
+      }
+    } else {
+      for (const q of questions) {
+        pairs.push({
+          id: q.id,
+          question: q.question,
+          answerText: "",
+          skipped: false,
+        });
+      }
+    }
+    return pairs;
+  });
+
+  const askUserCounts = $derived.by(() => {
+    if (!askUserPairs) return null;
+    const answered = askUserPairs.filter((p) => !p.skipped && p.answerText).length;
+    const skipped = askUserPairs.filter((p) => p.skipped).length;
+    return { answered, skipped, total: askUserPairs.length };
+  });
+
+  // ---- Operator-skin output summary ----
+  // Prefer the tool's i18n outputSummaryKey (rich, localized), fall back to
+  // the technical buildOutputSummary, and finally to a one-line peek at raw
+  // output. Returns null only when nothing meaningful can be shown (e.g.
+  // pending/running state with no output yet).
+  const operatorOutputSummary = $derived.by(() => {
+    if (item.kind !== "tool_call") return null;
+    if (item.status !== "success" && item.status !== "approved") return null;
+    if (!toolDisplay) return null;
+    // ask_user renders its own Q/A block — skip the generic summary.
+    if (item.tool === "ask_user") return null;
+    if (toolDisplay.outputSummaryKey) {
+      return $t(toolDisplay.outputSummaryKey, {
+        values: toolDisplay.outputParams,
+      });
+    }
+    const technical = buildOutputSummary(item.tool, toolDisplay.outputParams);
+    if (technical) return technical;
+    if (typeof item.output === "string" && item.output.length > 0) {
+      const firstLine = item.output.split("\n")[0] ?? "";
+      return firstLine.slice(0, 200);
+    }
+    return null;
+  });
+
+  // ---- Operator-skin "what was called" line ----
+  // Shown in the body when the title is occupied by a narrative rationale
+  // summary, so the operator still sees the concrete target (path, URL,
+  // command…). Suppressed when the title already carries this info.
+  const operatorTargetLine = $derived.by(() => {
+    if (item.kind !== "tool_call") return null;
+    if (skin !== "operator") return null;
+    if (!toolDisplay) return null;
+    if (!rationale?.summary) return null; // title already shows description
+    return $t(toolDisplay.descriptionKey, {
+      values: toolDisplay.templateParams,
+    });
+  });
+
   // ---- web_read content preview ----
   const READ_PREVIEW_CHARS = 500;
   let showFullRead = $state(false);
@@ -196,109 +311,222 @@
 {/snippet}
 
 {#if item.kind === "tool_call"}
-  <ReasoningCardShell
-    status={item.status}
-    testid={testid}
-    collapsible
-    expanded={expanded}
-    onToggle={toggle}
-    ariaLabel={$t("chat.reasoning.toggle_tool", {
-      default: "Toggle tool call details",
-    })}
-  >
-    {#snippet icon()}
+  {@const isError = item.status === "error" || item.status === "rejected"}
+  {@const isRunning = item.status === "running" || item.status === "pending"}
+  <div class="my-1.5" data-testid={testid}>
+    <button
+      type="button"
+      class="group flex w-full items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+      aria-expanded={expanded}
+      aria-label={$t("chat.reasoning.toggle_tool", {
+        default: "Toggle tool call details",
+      })}
+      onclick={toggle}
+    >
+      <span
+        class="inline-block leading-none transition-transform duration-150"
+        class:rotate-90={expanded}
+      >›</span>
       {#if toolDisplay}
         {@const ToolIcon = toolDisplay.icon}
-        <ToolIcon class="h-3 w-3 text-muted-foreground" />
+        <ToolIcon
+          class="h-3 w-3 flex-shrink-0 {isError
+            ? 'text-destructive/80'
+            : 'opacity-70'}"
+        />
       {:else}
-        <Wrench class="h-3 w-3 text-muted-foreground" />
+        <Wrench
+          class="h-3 w-3 flex-shrink-0 {isError
+            ? 'text-destructive/80'
+            : 'opacity-70'}"
+        />
       {/if}
-    {/snippet}
-    {#snippet title()}
-      {#if skin === "operator" && toolDisplay}
-        <span class="text-[13px] font-medium text-foreground">
+      <span
+        class="min-w-0 truncate font-medium {isError
+          ? 'text-destructive'
+          : 'text-foreground/85'}"
+      >
+        {#if skin === "operator" && toolDisplay}
           {rationale?.summary ??
             $t(toolDisplay.descriptionKey, {
               values: toolDisplay.templateParams,
             })}
-        </span>
-      {:else}
-        {item.tool}
+        {:else}
+          <span class="font-mono">{item.tool}</span>
+        {/if}
+      </span>
+      {#if skin === "operator" && rationale?.summary == null && toolDisplay && (bashDisplay || httpDisplay)}
+        <span
+          class="ml-1 hidden min-w-0 truncate font-mono text-[10px] text-muted-foreground/70 sm:inline"
+        >{bashDisplay ?? httpDisplay}</span>
       {/if}
-    {/snippet}
-    {#snippet meta()}
-      {@render statusBadge(item.duration_ms)}
-      {#if (item.status === "error" || item.status === "rejected") && item.exit_code != null}
-        <span class="text-[10px] text-destructive">exit {item.exit_code}</span>
-      {/if}
-      {#if rationale?.performance_hint}
-        <PerformanceHint hint={rationale.performance_hint} />
-      {/if}
-      {#if retryCount > 0}
-        <RetryTimeline attempts={retryAttempts} skin="operator" />
-      {/if}
-    {/snippet}
-    {#snippet body()}
-      {#if skin === "builder" && rationale}
-        <div
-          class="mb-1.5 rounded border border-border/30 bg-muted/20 px-2 py-1.5 text-[11px] leading-relaxed"
-          data-testid="tool-rationale-header"
-        >
-          <p class="font-medium text-foreground/90">{rationale.summary}</p>
-          {#if rationale.inputs_recap.length > 0}
-            <ul class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-              {#each rationale.inputs_recap as [k, v] (k)}
-                <li class="font-mono">
-                  <span class="opacity-60">{k}</span>
-                  <span class="mx-0.5 opacity-40">=</span>
-                  <span class="text-foreground/80">{v}</span>
+      <span class="ml-auto flex flex-shrink-0 items-center gap-1.5">
+        {@render statusBadge(item.duration_ms)}
+        {#if isError && item.exit_code != null}
+          <span class="text-[10px] text-destructive">exit {item.exit_code}</span>
+        {/if}
+        {#if rationale?.performance_hint}
+          <PerformanceHint hint={rationale.performance_hint} />
+        {/if}
+        {#if retryCount > 0}
+          <RetryTimeline attempts={retryAttempts} skin="operator" />
+        {/if}
+      </span>
+    </button>
+
+    {#if expanded}
+      <div class="mt-1 space-y-1.5 pl-4 text-[11px] leading-relaxed">
+        {#if askUserPairs}
+          <div class="space-y-1">
+            <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+              <span>{$t("chat.ask_user_qa_label", { default: "Questions & answers" })}</span>
+              {#if askUserCounts}
+                <span class="text-muted-foreground/50 normal-case tracking-normal">
+                  · {askUserCounts.answered}/{askUserCounts.total}
+                  {#if askUserCounts.skipped > 0}
+                    · {askUserCounts.skipped} {$t("chat.ask_user_skipped_label", { default: "skipped" })}
+                  {/if}
+                </span>
+              {/if}
+              <span class="h-px flex-1 bg-border/40"></span>
+            </div>
+            <ul class="space-y-1.5">
+              {#each askUserPairs as pair (pair.id)}
+                <li class="space-y-0.5">
+                  <p class="text-foreground/85">{pair.question}</p>
+                  <p class="pl-2 border-l-2 {pair.skipped ? 'border-muted-foreground/30 italic text-muted-foreground' : 'border-success/40 text-foreground'}">
+                    {pair.skipped
+                      ? $t("chat.ask_user_skipped_label", { default: "Skipped" })
+                      : (pair.answerText || $t("chat.ask_user_pending", { default: "Pending…" }))}
+                  </p>
                 </li>
               {/each}
             </ul>
+          </div>
+        {/if}
+        {#if rationale}
+          <div data-testid="tool-rationale-header" class="space-y-0.5">
+            <p class="text-foreground/85">
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.rationale_label", { default: "Rationale" })}:</span>
+              {rationale.summary}
+            </p>
+            {#if rationale.inputs_recap.length > 0}
+              <ul class="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                {#each rationale.inputs_recap as [k, v] (k)}
+                  <li class="font-mono">
+                    <span class="opacity-60">{k}</span>
+                    <span class="mx-0.5 opacity-40">=</span>
+                    <span class="text-foreground/75">{v}</span>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+            <p class="text-[10px] italic text-muted-foreground/80">
+              → {rationale.expected_outcome}
+            </p>
+          </div>
+        {/if}
+
+        {#if skin === "builder" && !askUserPairs}
+          <div class="space-y-1">
+            <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+              <span>{$t("chat.reasoning.input_label", { default: "Input" })}</span>
+              <span class="h-px flex-1 bg-border/40"></span>
+            </div>
+            {#if bashDisplay !== null}
+              <pre
+                class="rounded bg-muted/30 px-2 py-1 font-mono text-foreground overflow-x-auto"
+              ><code>{bashDisplay}</code></pre>
+            {:else if httpDisplay !== null}
+              <p class="font-mono text-foreground/85 break-all">{httpDisplay}</p>
+            {:else}
+              <pre
+                class="rounded bg-muted/30 px-2 py-1 font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-all"
+              ><code>{showFullJson ? argsJson : argsPreview.preview}</code></pre>
+              {#if argsPreview.truncated}
+                <button
+                  type="button"
+                  class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    showFullJson = !showFullJson;
+                  }}
+                >
+                  {showFullJson
+                    ? $t("chat.tool_collapse")
+                    : $t("chat.reasoning.see_all", { default: "See all" })}
+                </button>
+              {/if}
+            {/if}
+          </div>
+
+          {#if item.output !== null && (item.status === "success" || item.status === "error")}
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
+                <span>{$t("chat.reasoning.output_label", { default: "Output" })}</span>
+                <span class="h-px flex-1 {isError ? 'bg-destructive/30' : 'bg-border/40'}"></span>
+              </div>
+              <pre
+                class="rounded {isError
+                  ? 'bg-destructive/5 text-destructive/90'
+                  : 'bg-muted/30 text-foreground'} px-2 py-1 font-mono overflow-x-auto whitespace-pre-wrap break-all"
+              ><code>{item.output}</code></pre>
+            </div>
           {/if}
-          <p class="mt-1 text-[10px] italic text-muted-foreground">
-            → {rationale.expected_outcome}
-          </p>
-        </div>
-      {/if}
-      {#if skin === "builder"}
-        {#if bashDisplay !== null}
-          <pre
-            class="rounded bg-muted/40 px-2 py-1 text-[11px] font-mono text-foreground overflow-x-auto"
-          ><code>{bashDisplay}</code></pre>
-        {:else if httpDisplay !== null}
-          <p class="text-[11px] font-mono text-muted-foreground">{httpDisplay}</p>
         {:else}
-          <pre
-            class="rounded bg-muted/40 px-2 py-1 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-all"
-          ><code>{showFullJson ? argsJson : argsPreview.preview}</code></pre>
-          {#if argsPreview.truncated}
-            <button
-              type="button"
-              class="mt-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-              onclick={() => (showFullJson = !showFullJson)}
-            >
-              {showFullJson
-                ? $t("chat.tool_collapse")
-                : $t("chat.reasoning.see_all", { default: "See all" })}
-            </button>
+          {#if operatorTargetLine}
+            <p class="text-foreground/80">
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.target_label", { default: "Target" })}:</span>
+              <span class="font-mono text-[10.5px]">{operatorTargetLine}</span>
+            </p>
+          {/if}
+          {#if bashDisplay !== null}
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                <span>{$t("chat.reasoning.command_label", { default: "Command" })}</span>
+                <span class="h-px flex-1 bg-border/40"></span>
+              </div>
+              <pre
+                class="rounded bg-muted/30 px-2 py-1 font-mono text-foreground overflow-x-auto"
+              ><code>{bashDisplay}</code></pre>
+            </div>
+          {:else if httpDisplay !== null}
+            <p class="font-mono text-foreground/85 break-all text-[10.5px]">{httpDisplay}</p>
+          {/if}
+          {#if operatorOutputSummary}
+            <p class="text-foreground/85">
+              <span class="text-muted-foreground/70">{$t("chat.reasoning.result_label", { default: "Result" })}:</span>
+              {operatorOutputSummary}
+            </p>
+          {/if}
+          {#if item.output !== null && isError}
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-destructive/70">
+                <span>{$t("chat.reasoning.error_label", { default: "Error" })}</span>
+                <span class="h-px flex-1 bg-destructive/30"></span>
+              </div>
+              <p class="text-destructive">
+                {item.output.split("\n")[0]?.slice(0, 240) ?? ""}
+              </p>
+            </div>
+          {/if}
+          {#if isRunning && !rationale && !operatorTargetLine && !bashDisplay && !httpDisplay}
+            <p class="italic text-muted-foreground/70">
+              {$t("chat.reasoning.running_hint", {
+                default: "Running…",
+              })}
+            </p>
           {/if}
         {/if}
-        {#if item.output !== null && (item.status === "success" || item.status === "error")}
-          <pre
-            class="mt-1.5 rounded bg-muted/40 px-2 py-1 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre-wrap break-all"
-          ><code>{item.output}</code></pre>
+
+        {#if retryAttempts.length > 0 && (skin === "builder" || retryCount > 0)}
+          <div class="pt-0.5">
+            <RetryTimeline attempts={retryAttempts} skin={skin} />
+          </div>
         {/if}
-      {:else if item.output !== null && item.status === "error"}
-        <p class="text-[11px] text-destructive">
-          {item.output.split("\n")[0]?.slice(0, 160) ?? ""}
-        </p>
-      {/if}
-      {#if retryAttempts.length > 0 && (skin === "builder" || retryCount > 0)}
-        <RetryTimeline attempts={retryAttempts} skin={skin} />
-      {/if}
-    {/snippet}
-  </ReasoningCardShell>
+      </div>
+    {/if}
+  </div>
 {:else if item.kind === "web_search"}
   <ReasoningCardShell
     status={item.status}

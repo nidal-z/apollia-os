@@ -138,7 +138,7 @@
   async function performDelete(triggerId: string) {
     deleting = true;
     try {
-      await invoke("delete_trigger", { triggerId });
+      await invoke("delete_trigger", { id: triggerId });
       addToast(
         $t("triggers.deleted_toast", { values: { id: triggerId } }),
         "success",
@@ -224,7 +224,7 @@
     <div class="px-8 pb-10">
       {#if filteredTriggers.length === 0}
         <div
-          class="rounded-xl border border-border/60 bg-card overflow-hidden"
+          class="rounded-xl border border-border/60 bg-card"
           data-testid="automations-empty-filter"
         >
           <EmptyState
@@ -247,7 +247,7 @@
         </div>
       {:else}
         <div
-          class="rounded-xl border border-border/60 bg-card overflow-hidden"
+          class="rounded-xl border border-border/60 bg-card"
           data-testid="automations-table"
         >
           <!-- Column headers -->

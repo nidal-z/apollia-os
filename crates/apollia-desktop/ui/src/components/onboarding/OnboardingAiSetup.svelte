@@ -10,8 +10,12 @@
    * Designed to render inline inside the {@link OnboardingModal} overlay
    * (no own backdrop or fixed positioning).
    */
+  import { onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { t } from "svelte-i18n";
+  import HotkeyCaptureDialog from "../settings/HotkeyCaptureDialog.svelte";
+  import { formatCombo } from "$lib/keyboard/hotkeyCapture";
   import {
     Cpu,
     HardDrive,
@@ -237,6 +241,48 @@
   let advancing = $state(false);
   let advanceError = $state<string | null>(null);
 
+  // ── STT hotkey + live test ────────────────────────────────────────────
+  // Lit la config courante (hotkey enregistré dans system.db), permet à
+  // l'utilisateur de la définir au clavier (capture de touches) et de
+  // tester le pipeline en direct sans quitter l'onboarding. La
+  // transcription arrive via l'event Tauri `stt-transcribed`.
+  let sttHotkey = $state<string>("");
+  let sttHotkeyDirty = $state(false);
+  let sttHotkeySaving = $state(false);
+  let sttHotkeyCapturing = $state(false);
+  let sttHotkeyError = $state<string | null>(null);
+  let sttTesting = $state(false);
+  let sttTestRecording = $state(false);
+  let sttTestTranscript = $state<string | null>(null);
+  let sttTestUnlisten: (() => void) | null = null;
+
+  // Hotkey capture is delegated to the shared `HotkeyCaptureDialog`
+  // (`crates/apollia-desktop/ui/src/components/settings/HotkeyCaptureDialog.svelte`)
+  // which uses `event.code` rather than `event.key` — this fixes macOS
+  // Option+key (which would otherwise yield Greek/accented characters
+  // because Option produces Unicode dead-keys) and properly captures Space.
+  function startHotkeyCapture(): void {
+    sttHotkeyError = null;
+    sttHotkeyCapturing = true;
+  }
+
+  function onHotkeyConfirm(combo: string): void {
+    sttHotkey = combo;
+    sttHotkeyDirty = true;
+    sttHotkeyCapturing = false;
+  }
+
+  function onHotkeyCancel(): void {
+    sttHotkeyCapturing = false;
+  }
+
+  onDestroy(() => {
+    if (sttTestUnlisten !== null) {
+      sttTestUnlisten();
+      sttTestUnlisten = null;
+    }
+  });
+
   // ─── Derived ──────────────────────────────────────────────────────────────
 
   const availableLlmModels = $derived(
@@ -316,10 +362,13 @@
 
   async function loadData(): Promise<void> {
     try {
-      const [sys, gguf, whisper] = await Promise.all([
+      const [sys, gguf, whisper, sttCfg] = await Promise.all([
         invoke<SystemInfo>("get_ai_setup_info"),
         invoke<GgufModelInfo[]>("scan_for_gguf_models"),
         invoke<WhisperModelInfo[]>("scan_for_whisper_models"),
+        invoke<{ hotkey?: string }>("get_stt_config").catch(
+          () => ({}) as { hotkey?: string },
+        ),
       ]);
       sysInfo = sys;
       ggufModels = gguf;
@@ -328,10 +377,71 @@
         selectedWhisper = whisper[0];
         sttEnabled = whisper[0].recommended;
       }
+      sttHotkey = sttCfg?.hotkey ?? "ctrl+shift+space";
     } catch {
       /* leave empty */
     } finally {
       loading = false;
+    }
+  }
+
+  // ── STT hotkey + live test handlers ─────────────────────────────────────
+
+  async function saveSttHotkey(): Promise<void> {
+    if (!sttHotkey.trim()) return;
+    sttHotkeySaving = true;
+    try {
+      await invoke("update_stt_config", {
+        config: { hotkey: sttHotkey.trim() },
+      });
+      sttHotkeyDirty = false;
+    } catch (err) {
+      // Surface inline; the existing error pattern in this view is the
+      // simple inline-error span used by other actions.
+      console.error("update_stt_config failed", err);
+    } finally {
+      sttHotkeySaving = false;
+    }
+  }
+
+  function attachSttTestListener(): void {
+    if (sttTestUnlisten !== null) return;
+    void listen<{ text?: string } | string>("stt-transcribed", (event) => {
+      const text =
+        typeof event.payload === "string"
+          ? event.payload
+          : event.payload?.text ?? "";
+      sttTestTranscript = text || "(transcription vide)";
+      sttTesting = false;
+      sttTestRecording = false;
+    }).then((unlisten) => {
+      sttTestUnlisten = unlisten;
+    });
+  }
+
+  async function startSttTest(): Promise<void> {
+    sttTestTranscript = null;
+    sttTesting = true;
+    sttTestRecording = true;
+    attachSttTestListener();
+    try {
+      await invoke("start_tour_recording");
+    } catch (err) {
+      sttTestRecording = false;
+      sttTesting = false;
+      sttTestTranscript = `Erreur : ${err}`;
+    }
+  }
+
+  async function stopSttTest(): Promise<void> {
+    if (!sttTestRecording) return;
+    try {
+      await invoke("stop_tour_recording");
+      // sttTesting stays true until the transcribed event fires (or fails).
+    } catch (err) {
+      sttTestRecording = false;
+      sttTesting = false;
+      sttTestTranscript = `Erreur : ${err}`;
     }
   }
 
@@ -873,6 +983,70 @@
             </li>
           {/each}
         </ul>
+
+        <!-- ── Raccourci (capture clavier) + Test live ────────────────── -->
+        <div class="stt-hotkey-block" data-testid="stt-hotkey-block">
+          <div class="hotkey-row">
+            <span class="hotkey-label">{$t("onboarding_stt.hotkey_label")}</span>
+            <button
+              type="button"
+              class="hotkey-capture"
+              onclick={startHotkeyCapture}
+              data-testid="stt-hotkey-capture"
+            >
+              {#if sttHotkey}
+                <code class="hotkey-display">{formatCombo(sttHotkey)}</code>
+              {:else}
+                <span class="hotkey-placeholder">
+                  {$t("onboarding_stt.hotkey_capture_idle")}
+                </span>
+              {/if}
+            </button>
+            <button
+              type="button"
+              class="hotkey-save"
+              onclick={saveSttHotkey}
+              disabled={!sttHotkeyDirty || sttHotkeySaving}
+              data-testid="stt-hotkey-save"
+            >
+              {sttHotkeySaving
+                ? $t("onboarding_stt.hotkey_saving")
+                : $t("onboarding_stt.hotkey_save")}
+            </button>
+          </div>
+          <p class="hotkey-hint">{$t("onboarding_stt.hotkey_hint")}</p>
+          {#if sttHotkeyError}
+            <p class="inline-error">{sttHotkeyError}</p>
+          {/if}
+
+          <div class="stt-test-row">
+            {#if !sttTestRecording}
+              <button
+                type="button"
+                class="stt-test-btn stt-test-start"
+                onclick={startSttTest}
+                disabled={sttTesting}
+                data-testid="stt-test-start"
+              >
+                <Mic size={12} /> {$t("onboarding_stt.test_start")}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="stt-test-btn stt-test-stop"
+                onclick={stopSttTest}
+                data-testid="stt-test-stop"
+              >
+                <Mic size={12} /> {$t("onboarding_stt.test_stop")}
+              </button>
+            {/if}
+            {#if sttTestTranscript !== null}
+              <span class="stt-test-transcript" data-testid="stt-test-transcript">
+                <Check size={12} /> «&nbsp;{sttTestTranscript}&nbsp;»
+              </span>
+            {/if}
+          </div>
+        </div>
       {/if}
     </section>
   {/if}
@@ -904,6 +1078,12 @@
     </div>
   </footer>
 </div>
+
+<HotkeyCaptureDialog
+  open={sttHotkeyCapturing}
+  onconfirm={onHotkeyConfirm}
+  oncancel={onHotkeyCancel}
+/>
 
 <style>
   .ai-setup {
@@ -999,6 +1179,133 @@
     background: hsl(142 71% 35% / 0.12);
     padding: 0.15rem 0.45rem;
     border-radius: 99px;
+  }
+
+  /* STT hotkey + test */
+  .stt-hotkey-block {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed hsl(var(--border) / 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .hotkey-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .hotkey-label {
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    flex-shrink: 0;
+  }
+  .hotkey-capture {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px dashed hsl(var(--border));
+    background: hsl(var(--background));
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    text-align: left;
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+  .hotkey-capture:hover {
+    border-color: hsl(var(--primary) / 0.6);
+  }
+  .hotkey-capture:focus {
+    outline: none;
+    border-style: solid;
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  }
+  .hotkey-display {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.25rem;
+    background: hsl(var(--muted) / 0.6);
+  }
+  .hotkey-placeholder {
+    font-style: italic;
+    opacity: 0.7;
+  }
+  .hotkey-save {
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+  }
+  .hotkey-save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .hotkey-save:not(:disabled):hover {
+    background: hsl(var(--muted));
+  }
+  .hotkey-hint {
+    margin: 0;
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+  }
+  .hotkey-hint code {
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+    background: hsl(var(--muted) / 0.6);
+    font-size: 0.6875rem;
+  }
+  .stt-test-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .stt-test-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+  }
+  .stt-test-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .stt-test-stop {
+    background: hsl(var(--destructive) / 0.15);
+    color: hsl(var(--destructive));
+    border-color: hsl(var(--destructive) / 0.3);
+    animation: mic-pulse 1.4s ease-out infinite;
+  }
+  @keyframes mic-pulse {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.45);
+    }
+    70% {
+      box-shadow: 0 0 0 6px hsl(var(--destructive) / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
+    }
+  }
+  .stt-test-transcript {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: hsl(142 71% 35%);
+    font-style: italic;
   }
 
   /* Model list */

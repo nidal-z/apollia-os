@@ -392,13 +392,20 @@ impl UserMemoryRepository {
         let mut output = String::new();
 
         // --- Narrative header ---
+        // Suffix lookups support both legacy keys (`.industry`, `.expertise_level`)
+        // and the canonical onboarding/Profile keys written today
+        // (`.context.sector`, `.tech.proficiency`).
         let name = find_value(".name").or_else(|| find_value(".user_name"));
         let role = find_value(".role").or_else(|| find_value(".user_role"));
-        let industry = find_value(".industry");
-        let expertise = find_value(".expertise_level");
+        let industry = find_value(".domain.sector").or_else(|| find_value(".industry"));
+        let team_size = find_value(".domain.team_size");
+        let expertise = find_value(".tech.proficiency").or_else(|| find_value(".expertise_level"));
         let language = find_value(".language");
         let verbosity = find_value(".verbosity");
         let tone = find_value(".tone");
+        let hitl = find_value(".agents.hitl");
+        let sovereignty = find_value(".constraints.sovereignty");
+        let compliance = find_value(".constraints.compliance");
 
         // Build the persona headline.
         let mut headline_parts: Vec<String> = Vec::new();
@@ -420,6 +427,40 @@ impl UserMemoryRepository {
             if let Some(ref exp) = expertise {
                 output.push_str(&format!(". Niveau : {exp}"));
             }
+            if let Some(ref ts) = team_size {
+                output.push_str(&format!(". Équipe : {ts}"));
+            }
+            output.push('\n');
+        }
+
+        // --- Gouvernance (HITL, souveraineté, compliance) ---
+        // Critical for agents adapting their tool-call strategy and refusal patterns.
+        let mut gov_parts: Vec<String> = Vec::new();
+        if let Some(ref h) = hitl {
+            let label = match h.as_str() {
+                "always" => "supervision systématique",
+                "critical-only" => "supervision sur actions critiques",
+                "never" => "autonomie complète demandée",
+                other => other,
+            };
+            gov_parts.push(format!("Supervision : {label}"));
+        }
+        if let Some(ref s) = sovereignty {
+            let label = match s.as_str() {
+                "local-only" => "données strictement locales",
+                "local-preferred" => "local préféré, cloud en dernier recours",
+                "cloud-ok" => "cloud autorisé",
+                other => other,
+            };
+            gov_parts.push(format!("Souveraineté : {label}"));
+        }
+        if let Some(ref c) = compliance {
+            if !c.trim().is_empty() {
+                gov_parts.push(format!("Conformité : {c}"));
+            }
+        }
+        if !gov_parts.is_empty() {
+            output.push_str(&gov_parts.join(" | "));
             output.push('\n');
         }
 
@@ -515,6 +556,12 @@ impl UserMemoryRepository {
             "language",
             "verbosity",
             "tone",
+            "domain.sector",
+            "domain.team_size",
+            "tech.proficiency",
+            "agents.hitl",
+            "constraints.sovereignty",
+            "constraints.compliance",
         ];
         let remaining: Vec<_> = all
             .iter()
@@ -1147,5 +1194,83 @@ mod tests {
         assert_eq!(topics.len(), 2);
         assert!(topics.contains(&"identity".to_string()));
         assert!(topics.contains(&"domain".to_string()));
+    }
+
+    // recall_persona_brief reflects the keys actually written by onboarding +
+    // Profile (name, role, agents.hitl, constraints.sovereignty, context.sector,
+    // tech.proficiency). Guards against the prior bug where the brief scanned
+    // only orphan suffixes (.industry, .expertise_level) that nothing wrote.
+    #[test]
+    fn test_recall_persona_brief_reflects_onboarding_keys() {
+        // GIVEN a repository populated as the onboarding agent + Profile do
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Context,
+            "name",
+            "Nidal",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Context,
+            "role",
+            "CTO startup fintech",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Habits,
+            "agents.hitl",
+            "critical-only",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "constraints.sovereignty",
+            "local-preferred",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Context,
+            "domain.sector",
+            "fintech",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Context,
+            "tech.proficiency",
+            "expert",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+
+        // WHEN
+        let brief = repo.recall_persona_brief(20).unwrap();
+
+        // THEN the persona reflects all four canonical Tier 1 keys + Tier 2
+        assert!(brief.contains("Nidal"), "brief should contain user name: {brief}");
+        assert!(
+            brief.contains("CTO startup fintech"),
+            "brief should contain role: {brief}"
+        );
+        assert!(
+            brief.contains("supervision sur actions critiques"),
+            "brief should reflect agents.hitl=critical-only: {brief}"
+        );
+        assert!(
+            brief.contains("local préféré"),
+            "brief should reflect sovereignty=local-preferred: {brief}"
+        );
+        assert!(
+            brief.contains("fintech"),
+            "brief should mention sector fintech: {brief}"
+        );
+        assert!(
+            brief.contains("expert"),
+            "brief should mention tech proficiency: {brief}"
+        );
     }
 }

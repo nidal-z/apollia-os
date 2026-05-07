@@ -253,9 +253,18 @@ async fn run_download(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
+                drop(file);
+                if let Err(e) = tokio::fs::remove_file(&dest_path).await {
+                    tracing::warn!(
+                        id = %id,
+                        path = %dest_path.display(),
+                        error = %e,
+                        "failed to remove partial file after cancel"
+                    );
+                }
                 on_progress(DownloadProgress {
                     id: id.clone(),
-                    downloaded_bytes: downloaded,
+                    downloaded_bytes: 0,
                     total_bytes,
                     speed_bps: 0.0,
                     dest_path: dest_path.clone(),

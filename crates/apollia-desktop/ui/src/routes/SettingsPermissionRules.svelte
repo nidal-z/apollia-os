@@ -24,6 +24,25 @@
   let confirmingAll = $state(false);
   let confirmText = $state("");
 
+  // ADR-086 — filtre rapide par auteur. Permet à l'opérateur de retrouver
+  // les règles posées par l'onboarding-agent vs ses propres règles HITL vs
+  // celles importées du config.
+  let creatorFilter = $state<string>("all");
+
+  const FILTER_PRESETS: Array<{ value: string; label: string }> = [
+    { value: "all", label: "Tous" },
+    { value: "onboarding-agent", label: "Onboarding" },
+    { value: "user-hitl", label: "Vous (HITL)" },
+    { value: "user-settings", label: "Vous (Settings)" },
+    { value: "config-import", label: "Config import" },
+  ];
+
+  const visibleRules = $derived(
+    creatorFilter === "all"
+      ? $alwaysAcceptRules
+      : $alwaysAcceptRules.filter((r) => (r.created_by ?? "") === creatorFilter),
+  );
+
   onMount(async () => {
     await loadAlwaysAcceptRules();
     loading = false;
@@ -78,6 +97,21 @@
       page="approvals"
     />
   {:else}
+    <div class="flex flex-wrap items-center gap-2 text-xs" data-testid="permission-rule-creator-filter">
+      <span class="text-muted-foreground">Filtrer par auteur :</span>
+      {#each FILTER_PRESETS as preset}
+        <button
+          type="button"
+          class="rounded-full border px-2.5 py-0.5 transition-colors {creatorFilter === preset.value
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
+          onclick={() => (creatorFilter = preset.value)}
+        >
+          {preset.label}
+        </button>
+      {/each}
+    </div>
+
     <div class="rounded-lg border border-border bg-card">
       <table class="w-full text-sm">
         <thead class="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -94,7 +128,14 @@
           </tr>
         </thead>
         <tbody>
-          {#each $alwaysAcceptRules as rule (rule.id)}
+          {#if visibleRules.length === 0}
+            <tr>
+              <td colspan="6" class="px-3 py-6 text-center text-xs text-muted-foreground">
+                Aucune règle pour ce filtre.
+              </td>
+            </tr>
+          {/if}
+          {#each visibleRules as rule (rule.id)}
             <tr class="border-t border-border">
               <td class="px-3 py-2 font-mono text-[12px]">{rule.tool}</td>
               <td class="px-3 py-2">{scopeLabel(rule.scope)}</td>
