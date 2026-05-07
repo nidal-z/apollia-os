@@ -60,6 +60,7 @@ pub struct CompletionRequest {
     pub model: Option<String>,         // override ponctuel du modèle
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
+    pub seed: Option<u64>,             // graine RNG (None = entropie système, Some(n) = run reproductible)
 }
 
 pub struct CompletionResponse {

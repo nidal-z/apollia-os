@@ -36,7 +36,7 @@ Lit le contenu d'un fichier texte. Supporte la lecture partielle via offset et l
 
 ```json
 {
-  "path":   "String          — chemin absolu ou relatif au sandbox",
+  "path":   "String          — chemin absolu, relatif au sandbox, ou avec préfixe `~`/`~/` (expansé vers $HOME)",
   "offset": "u32 (optionnel) — première ligne à lire (1-based)",
   "limit":  "u32 (optionnel) — nombre maximum de lignes à retourner"
 }
@@ -85,7 +85,7 @@ Crée ou remplace un fichier avec le contenu fourni.
 
 ```json
 {
-  "path":    "String — chemin du fichier à écrire",
+  "path":    "String — chemin du fichier à écrire (préfixe `~`/`~/` expansé vers $HOME)",
   "content": "String — contenu complet à écrire"
 }
 ```
