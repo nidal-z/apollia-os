@@ -546,6 +546,33 @@ impl HfRegistryClient {
         Ok(card)
     }
 
+    /// Résout le `base_model` déclaré par un repo dérivé (quantisations
+    /// Bartowski/Unsloth/mradermacher, fine-tunes, merges).
+    ///
+    /// Retourne `Some("org/name")` quand le repo déclare un parent via
+    /// `cardData.base_model` (champ structuré) ou via un tag
+    /// `base_model:org/name`. `None` si le repo est de premier ordre ou
+    /// si le champ est absent.
+    ///
+    /// Indispensable pour récupérer un `generation_config.json` quand le
+    /// repo téléchargé est une dérivation GGUF — les quanteurs ne
+    /// republient pas le fichier de config (il vient du repo amont).
+    pub async fn resolve_base_model(&self, repo_id: &str) -> Option<String> {
+        let url = format!("{HF_API_BASE}/models/{repo_id}");
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await
+            .ok()?;
+        if !resp.status().is_success() {
+            return None;
+        }
+        let json = resp.json::<serde_json::Value>().await.ok()?;
+        extract_base_model_from_json(&json)
+    }
+
     /// Récupère les paramètres de génération recommandés depuis `generation_config.json`.
     ///
     /// Retourne `None` si le fichier est absent (modèle sans config de génération explicite).
@@ -580,6 +607,54 @@ impl HfRegistryClient {
 // ─────────────────────────────────────────────
 // Pagination helper
 // ─────────────────────────────────────────────
+
+/// Extrait le `base_model` (org/name) depuis la réponse `/api/models/{id}`.
+///
+/// Stratégie en deux passes :
+/// 1. `cardData.base_model` (string ou tableau) — c'est le champ structuré
+///    que HF expose quand le model card YAML déclare `base_model: foo/bar`.
+/// 2. Tags `base_model:org/name` — fallback pour les repos qui ne mettent
+///    que les tags. On préfère un tag *non qualifié* (`base_model:Qwen/X`)
+///    car il pointe directement vers l'amont. Si seul un tag qualifié
+///    existe (`base_model:quantized:Qwen/X`), on extrait l'org/name après
+///    le second `:`.
+fn extract_base_model_from_json(json: &serde_json::Value) -> Option<String> {
+    if let Some(v) = json.get("cardData").and_then(|c| c.get("base_model")) {
+        if let Some(s) = v.as_str() {
+            return Some(s.to_string());
+        }
+        if let Some(arr) = v.as_array() {
+            if let Some(s) = arr.iter().find_map(|x| x.as_str()) {
+                return Some(s.to_string());
+            }
+        }
+    }
+
+    let tags: Vec<&str> = json
+        .get("tags")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|t| t.as_str()).collect())
+        .unwrap_or_default();
+
+    for t in &tags {
+        if let Some(rest) = t.strip_prefix("base_model:") {
+            if !rest.contains(':') && rest.contains('/') {
+                return Some(rest.to_string());
+            }
+        }
+    }
+    for t in &tags {
+        if let Some(rest) = t.strip_prefix("base_model:") {
+            if let Some(colon) = rest.find(':') {
+                let upstream = &rest[colon + 1..];
+                if upstream.contains('/') {
+                    return Some(upstream.to_string());
+                }
+            }
+        }
+    }
+    None
+}
 
 /// Extrait l'URL `rel="next"` depuis le header HTTP `Link` de HuggingFace.
 ///
@@ -690,5 +765,90 @@ fn format_size(bytes: u64) -> String {
         format!("{:.0} MB", bytes as f64 / MB as f64)
     } else {
         format!("{} B", bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn base_model_from_card_data_string() {
+        // GIVEN: a Bartowski-style payload with cardData.base_model
+        let payload = json!({
+            "cardData": { "base_model": "Qwen/Qwen2.5-Coder-7B-Instruct" },
+            "tags": ["gguf"]
+        });
+        // THEN: extracted directly
+        assert_eq!(
+            extract_base_model_from_json(&payload).as_deref(),
+            Some("Qwen/Qwen2.5-Coder-7B-Instruct")
+        );
+    }
+
+    #[test]
+    fn base_model_from_card_data_array_takes_first() {
+        let payload = json!({
+            "cardData": { "base_model": ["Qwen/A", "Meta/B"] },
+        });
+        assert_eq!(
+            extract_base_model_from_json(&payload).as_deref(),
+            Some("Qwen/A")
+        );
+    }
+
+    #[test]
+    fn base_model_from_simple_tag_when_card_data_missing() {
+        // GIVEN: no cardData.base_model but a clean tag
+        let payload = json!({
+            "tags": ["gguf", "base_model:Qwen/Qwen2.5-Coder-7B-Instruct"]
+        });
+        assert_eq!(
+            extract_base_model_from_json(&payload).as_deref(),
+            Some("Qwen/Qwen2.5-Coder-7B-Instruct")
+        );
+    }
+
+    #[test]
+    fn base_model_from_qualified_tag_as_fallback() {
+        // GIVEN: only a qualified tag (Bartowski real-world payload)
+        let payload = json!({
+            "tags": [
+                "gguf",
+                "base_model:quantized:Qwen/Qwen2.5-Coder-7B-Instruct"
+            ]
+        });
+        assert_eq!(
+            extract_base_model_from_json(&payload).as_deref(),
+            Some("Qwen/Qwen2.5-Coder-7B-Instruct")
+        );
+    }
+
+    #[test]
+    fn base_model_simple_tag_wins_over_qualified() {
+        let payload = json!({
+            "tags": [
+                "base_model:quantized:Other/Wrong",
+                "base_model:Qwen/Right"
+            ]
+        });
+        assert_eq!(
+            extract_base_model_from_json(&payload).as_deref(),
+            Some("Qwen/Right")
+        );
+    }
+
+    #[test]
+    fn base_model_returns_none_when_neither_present() {
+        let payload = json!({ "tags": ["gguf", "license:apache-2.0"] });
+        assert!(extract_base_model_from_json(&payload).is_none());
+    }
+
+    #[test]
+    fn base_model_ignores_malformed_tag_without_slash() {
+        // GIVEN: a tag that's `base_model:something` but without org/name
+        let payload = json!({ "tags": ["base_model:notavalidrepo"] });
+        assert!(extract_base_model_from_json(&payload).is_none());
     }
 }

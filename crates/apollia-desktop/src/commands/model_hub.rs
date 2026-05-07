@@ -78,6 +78,10 @@ pub struct DownloadModelRequest {
     pub hf_token: Option<String>,
     /// Dossier de destination (défaut : `~/.apollia/models/`).
     pub dest_dir: Option<String>,
+    /// Repo HF source (`org/name`). Permet au downloader de fetch
+    /// `generation_config.json` après le download et de persister les
+    /// sampling defaults officiels dans `~/.apollia/models/sampling-defaults.json`.
+    pub repo_id: Option<String>,
 }
 
 /// Statut d'un téléchargement actif.
@@ -200,6 +204,7 @@ pub async fn start_model_download(
         dest_dir,
         filename: request.filename,
         hf_token: request.hf_token,
+        repo_id: request.repo_id,
     };
 
     let on_progress = Arc::new(move |progress: apollia_llm::DownloadProgress| {

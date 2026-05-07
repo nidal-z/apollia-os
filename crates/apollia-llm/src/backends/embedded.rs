@@ -223,6 +223,45 @@ impl fmt::Debug for EmbeddedBackend {
 unsafe impl Send for EmbeddedBackend {}
 unsafe impl Sync for EmbeddedBackend {}
 
+impl EmbeddedBackend {
+    /// Lit l'architecture et le nom du modèle depuis les métadonnées GGUF,
+    /// puis résout les defaults de sampling via le module `model_defaults`
+    /// (override utilisateur > table embarquée). Les champs inconnus
+    /// restent `None` — `build_tail_sampler` retombera sur les constantes
+    /// globales pour eux.
+    ///
+    /// Coût : un fopen + parse JSON sur le fichier d'overrides utilisateur
+    /// (typiquement < 5 KB), à chaque appel. Si la pression devient un
+    /// problème, on cachera derrière un `OnceCell` invalidé sur reload.
+    fn resolve_sampler_defaults(&self) -> crate::model_defaults::ModelDefaults {
+        let arch = self.model.meta_val_str("general.architecture").ok();
+        let name = self.model.meta_val_str("general.name").ok();
+
+        let hints = crate::model_defaults::ModelHints {
+            arch: arch.as_deref(),
+            name: name.as_deref(),
+            file_name: None,
+            repo_id: None,
+            model_id: Some(&self.model_id),
+        };
+
+        let overrides_path = crate::model_defaults::UserOverrides::default_path();
+        let overrides = match crate::model_defaults::UserOverrides::load(&overrides_path) {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::warn!(
+                    path = %overrides_path.display(),
+                    error = %e,
+                    "user sampling overrides illisibles, fallback table embarquée"
+                );
+                crate::model_defaults::UserOverrides::default()
+            }
+        };
+
+        crate::model_defaults::resolve(&hints, &overrides)
+    }
+}
+
 /// Expands a leading `~` to `$HOME`.
 fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
@@ -363,16 +402,19 @@ fn resolve_default_max_tokens(model: &LlamaModel) -> u32 {
 /// loger `prompt + max_tokens`, jamais sous `MIN_CTX_SIZE`, jamais au-delà de
 /// la fenêtre native du modèle (`n_ctx_train`). Sans le clamp haut, `llama.cpp`
 /// accepte mais le modèle hallucine au-delà de son entraînement.
-/// Default sampling temperature when the caller does not specify one.
-///
-/// 0.7 est le « creative-but-coherent » standard (OpenAI/Anthropic défaut).
-/// Évite à la fois le mode purement déterministe (greedy) et la dérive
-/// incohérente d'une température élevée.
+/// Hard fallback temperature when neither `req.temperature` nor model
+/// defaults nor user overrides provide a value. 0.7 = « creative-but-
+/// coherent » standard (OpenAI/Anthropic défaut historique).
 const DEFAULT_TEMPERATURE: f32 = 0.7;
 
-/// Default top-p nucleus cutoff. Coupe la longue traîne improbable tout en
+/// Hard fallback top-p. Coupe la longue traîne improbable tout en
 /// laissant assez de variabilité pour que deux runs soient distincts.
 const DEFAULT_TOP_P: f32 = 0.95;
+
+/// Hard fallback top-k. 40 = compromis classique entre diversité et
+/// cohérence ; surcharge possible via la table embarquée ou les
+/// overrides utilisateur.
+const DEFAULT_TOP_K: u32 = 40;
 
 /// Construit le « tail » du sampler : c'est lui qui choisit le token final.
 ///
@@ -382,13 +424,25 @@ const DEFAULT_TOP_P: f32 = 0.95;
 /// - sinon → chaîne `top_k → top_p → temp → dist(seed)`. Sans `seed` fourni,
 ///   on dérive une graine par horloge nanoseconde — chaque run diverge.
 ///
-/// La graine utilisée est tracée à `debug` pour permettre le replay manuel
+/// `top_p` et `top_k` proviennent de la résolution `model_defaults` —
+/// l'appelant a déjà superposé override utilisateur > table embarquée.
+/// Quand un champ reste `None`, on retombe sur les constantes globales
+/// ci-dessus.
+///
+/// La graine effective est tracée à `debug` pour permettre le replay manuel
 /// (récupérer la valeur dans les logs et la repasser via `req.seed`).
-fn build_tail_sampler(temperature: Option<f32>, seed: Option<u64>) -> LlamaSampler {
+fn build_tail_sampler(
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+    top_k: Option<u32>,
+    seed: Option<u64>,
+) -> LlamaSampler {
     let temp = temperature.unwrap_or(DEFAULT_TEMPERATURE);
     if temp <= 0.0 {
         return LlamaSampler::greedy();
     }
+    let top_p = top_p.unwrap_or(DEFAULT_TOP_P);
+    let top_k = top_k.unwrap_or(DEFAULT_TOP_K) as i32;
 
     let resolved_seed = seed.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -396,20 +450,21 @@ fn build_tail_sampler(temperature: Option<f32>, seed: Option<u64>) -> LlamaSampl
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0)
     });
-    // `dist(seed)` prend un u32 dans llama-cpp-2 ; on garde nos 32 bits
-    // hauts xor bas pour préserver l'entropie de la graine 64-bits.
+    // `dist(seed)` prend un u32 dans llama-cpp-2 ; xor des 32-bits hauts
+    // et bas préserve l'entropie de la graine 64-bits.
     let dist_seed = ((resolved_seed >> 32) as u32) ^ (resolved_seed as u32);
 
     tracing::debug!(
         seed = resolved_seed,
         temperature = temp,
-        top_p = DEFAULT_TOP_P,
+        top_p,
+        top_k,
         "embedded sampler stochastique"
     );
 
     LlamaSampler::chain_simple([
-        LlamaSampler::top_k(40),
-        LlamaSampler::top_p(DEFAULT_TOP_P, 1),
+        LlamaSampler::top_k(top_k),
+        LlamaSampler::top_p(top_p, 1),
         LlamaSampler::temp(temp),
         LlamaSampler::dist(dist_seed),
     ])
@@ -805,6 +860,8 @@ impl EmbeddedBackend {
         grammar: Option<&str>,
         max_tokens: u32,
         temperature: Option<f32>,
+        top_p: Option<f32>,
+        top_k: Option<u32>,
         seed: Option<u64>,
     ) -> Result<String, LlmError> {
         let tokens = model
@@ -840,7 +897,7 @@ impl EmbeddedBackend {
         let mut n_cur = batch.n_tokens();
         let n_max = n_cur + max_tokens as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
-        let tail = build_tail_sampler(temperature, seed);
+        let tail = build_tail_sampler(temperature, top_p, top_k, seed);
         let mut sampler = match grammar {
             Some(grammar_str) => {
                 let grammar_sampler =
@@ -988,7 +1045,13 @@ impl CompletionModel for EmbeddedBackend {
         let max_tokens = req
             .max_tokens
             .unwrap_or_else(|| resolve_default_max_tokens(&self.model));
-        let temperature = req.temperature;
+        // Résolution des defaults de sampling : GGUF arch/name → user
+        // overrides → table embarquée. `req.temperature` (caller explicite)
+        // l'emporte sur les defaults champ par champ.
+        let resolved_defaults = self.resolve_sampler_defaults();
+        let temperature = req.temperature.or(resolved_defaults.temperature);
+        let top_p = resolved_defaults.top_p;
+        let top_k = resolved_defaults.top_k;
         let seed = req.seed;
         let model = Arc::clone(&self.model);
         let backend = Arc::clone(&self.backend);
@@ -1011,6 +1074,8 @@ impl CompletionModel for EmbeddedBackend {
                 grammar.as_deref(),
                 max_tokens,
                 temperature,
+                top_p,
+                top_k,
                 seed,
             )
         })
@@ -1061,7 +1126,10 @@ impl CompletionModel for EmbeddedBackend {
         let max_tokens = req
             .max_tokens
             .unwrap_or_else(|| resolve_default_max_tokens(&self.model));
-        let temperature = req.temperature;
+        let resolved_defaults = self.resolve_sampler_defaults();
+        let temperature = req.temperature.or(resolved_defaults.temperature);
+        let top_p = resolved_defaults.top_p;
+        let top_k = resolved_defaults.top_k;
         let seed = req.seed;
         let model = Arc::clone(&self.model);
         let backend = Arc::clone(&self.backend);
@@ -1101,7 +1169,7 @@ impl CompletionModel for EmbeddedBackend {
                 let mut n_cur = batch.n_tokens();
                 let n_max = n_cur + max_tokens as i32;
                 let mut decoder = encoding_rs::UTF_8.new_decoder();
-                let tail = build_tail_sampler(temperature, seed);
+                let tail = build_tail_sampler(temperature, top_p, top_k, seed);
                 let mut sampler = match grammar.as_deref() {
                     Some(grammar_str) => {
                         let gs =

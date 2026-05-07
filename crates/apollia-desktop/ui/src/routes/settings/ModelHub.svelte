@@ -251,6 +251,7 @@
           url: file.download_url,
           filename: file.filename,
           hf_token: hfToken || null,
+          repo_id: card?.repo_id ?? null,
         },
       });
       addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: file.filename } }), "info");

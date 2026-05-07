@@ -15,6 +15,7 @@ pub mod hardware;
 pub mod hf_registry;
 pub mod meta;
 pub mod meta_orchestrator;
+pub mod model_defaults;
 pub mod pricing;
 pub mod repository;
 pub mod retry;

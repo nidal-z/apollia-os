@@ -89,6 +89,14 @@ pub struct DownloadRequest {
     pub filename: Option<String>,
     /// Token HF pour les modèles gated (optionnel).
     pub hf_token: Option<String>,
+    /// Repo HF source (`org/name`). Quand `Some`, le downloader fetch le
+    /// `generation_config.json` du dépôt à la fin et persiste les
+    /// `temperature` / `top_p` / `top_k` / `repetition_penalty` recommandés
+    /// dans `~/.apollia/models/sampling-defaults.json` indexé par
+    /// `filename`. C'est ce qui permet à un agent local de bénéficier
+    /// automatiquement des hyperparamètres officiels publiés par l'éditeur
+    /// du modèle. Aucun effet si `None` (téléchargements non-HF).
+    pub repo_id: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -207,7 +215,9 @@ async fn run_download(
     cancel: CancellationToken,
     on_progress: ProgressCallback,
 ) -> Result<(), DownloadError> {
-    let filename = request.filename.unwrap_or_else(|| {
+    let repo_id = request.repo_id.clone();
+    let hf_token = request.hf_token.clone();
+    let filename = request.filename.clone().unwrap_or_else(|| {
         request
             .url
             .rsplit('/')
@@ -313,5 +323,88 @@ async fn run_download(
         "model download completed"
     );
 
+    // Persistance opportuniste des sampling defaults officiels HF.
+    // Ne jamais faire échouer le download : c'est un confort, pas un
+    // contrat. Si HF est down ou si le fichier `generation_config.json`
+    // est absent, on logge à `info` et on continue.
+    if let Some(ref repo) = repo_id {
+        if let Err(e) = persist_sampling_defaults(repo, &filename, hf_token.as_deref()).await {
+            tracing::info!(
+                repo = %repo,
+                file = %filename,
+                error = %e,
+                "sampling defaults non persistés (ignorable)"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Fetch `generation_config.json` du dépôt HF et écrit les paramètres
+/// recommandés dans `~/.apollia/models/sampling-defaults.json`, indexé
+/// par `model_filename` (le nom du `.gguf` sans chemin).
+///
+/// Indexer par filename plutôt que par repo_id couvre le cas multi-quants
+/// (un même repo peut shipper Q4_K_M, Q5_K_M, Q8_0…) — chaque quantisation
+/// peut être nommée et resolved indépendamment, mais tous partagent les
+/// mêmes hyperparamètres officiels donc on duplique l'entrée par fichier.
+///
+/// Idempotent : un re-download écrase l'entrée (utile si l'éditeur a
+/// publié de nouvelles recommandations).
+async fn persist_sampling_defaults(
+    repo_id: &str,
+    model_filename: &str,
+    hf_token: Option<&str>,
+) -> Result<(), String> {
+    let client = crate::hf_registry::HfRegistryClient::new(hf_token.map(String::from));
+
+    // Tentative directe — fonctionne pour les repos officiels (Qwen, Meta…).
+    let gen_config = match client.get_generation_config(repo_id).await {
+        Some(c) => c,
+        None => {
+            // Les quanteurs (Bartowski, Unsloth, mradermacher) republient
+            // les GGUF SANS `generation_config.json`. Le repo amont, déclaré
+            // via `cardData.base_model` ou un tag `base_model:…`, lui le
+            // contient. On retry une fois là-dessus.
+            let Some(base) = client.resolve_base_model(repo_id).await else {
+                return Err(
+                    "generation_config.json absent et aucun base_model déclaré".to_string()
+                );
+            };
+            tracing::info!(
+                repo = %repo_id,
+                base_model = %base,
+                "generation_config.json absent du repo dérivé, retry sur base_model"
+            );
+            client.get_generation_config(&base).await.ok_or_else(|| {
+                format!("generation_config.json absent aussi sur base_model {base}")
+            })?
+        }
+    };
+
+    // Conversion f64 → f32 ; les valeurs HF tiennent largement dans la
+    // précision simple (jamais plus de 4 chiffres significatifs).
+    let defaults = crate::model_defaults::ModelDefaults {
+        temperature: gen_config.temperature.map(|v| v as f32),
+        top_p: gen_config.top_p.map(|v| v as f32),
+        top_k: gen_config.top_k,
+        repetition_penalty: gen_config.repetition_penalty.map(|v| v as f32),
+    };
+
+    if defaults.is_empty() {
+        return Err("generation_config.json présent mais sans hyperparamètre exploitable".to_string());
+    }
+
+    let path = crate::model_defaults::UserOverrides::default_path();
+    crate::model_defaults::UserOverrides::upsert(&path, model_filename, defaults.clone())
+        .map_err(|e| format!("écriture {}: {e}", path.display()))?;
+
+    tracing::info!(
+        repo = %repo_id,
+        file = %model_filename,
+        path = %path.display(),
+        "sampling defaults HF persistés"
+    );
     Ok(())
 }

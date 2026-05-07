@@ -477,6 +477,24 @@
 
   // ─── LLM download (curated) ───────────────────────────────────────────────
 
+  /**
+   * Extract `org/repo` from a HuggingFace direct-file URL.
+   * Format observé : `https://huggingface.co/{org}/{repo}/resolve/{ref}/{path}`.
+   * Retourne `null` pour toute URL non-HF — le backend traite alors le
+   * download sans auto-persistance des sampling defaults.
+   */
+  function extractHfRepoId(url: string): string | null {
+    try {
+      const u = new URL(url);
+      if (u.hostname !== "huggingface.co") return null;
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length < 2) return null;
+      return `${parts[0]}/${parts[1]}`;
+    } catch {
+      return null;
+    }
+  }
+
   async function downloadLlmModel(model: CuratedLlmModel): Promise<void> {
     if (llmDownloadId) return;
     llmDownloadError = null;
@@ -484,7 +502,11 @@
     llmDownloadingModel = model;
     try {
       const id = await invoke<string>("start_model_download", {
-        request: { url: model.url, filename: model.filename },
+        request: {
+          url: model.url,
+          filename: model.filename,
+          repo_id: extractHfRepoId(model.url),
+        },
       });
       llmDownloadId = id;
     } catch (err: unknown) {
@@ -549,7 +571,11 @@
     llmDownloadingModel = file;
     try {
       const id = await invoke<string>("start_model_download", {
-        request: { url: file.download_url, filename: file.filename },
+        request: {
+          url: file.download_url,
+          filename: file.filename,
+          repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
+        },
       });
       llmDownloadId = id;
       showSearch = false;
