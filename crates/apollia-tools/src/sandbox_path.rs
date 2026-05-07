@@ -74,7 +74,14 @@ impl SandboxRoot {
     /// Returns `SandboxPathError::SandboxViolation` if the path is invalid or
     /// attempts to escape the sandbox.
     pub fn resolve(&self, relative_path: &str) -> Result<PathBuf, SandboxPathError> {
-        let path = Path::new(relative_path);
+        // Expand a leading `~` (or `~/`) to $HOME. Without this, `Path::new("~")`
+        // treats `~` as a literal directory name and the file ends up under
+        // `<sandbox>/~/...` — agents looking for `~/Documents/foo.md` find nothing.
+        // The shell expands tilde, but file_write/file_read receive the raw
+        // string. Any tilde elsewhere in the path is left alone (only the
+        // leading shorthand is shell-portable).
+        let expanded = expand_leading_tilde(relative_path);
+        let path = Path::new(expanded.as_ref());
 
         let normalized = normalize_path(path);
 
@@ -141,6 +148,35 @@ fn normalize_path(path: &Path) -> PathBuf {
     components.iter().collect()
 }
 
+/// Expand a leading `~` shorthand to `$HOME`.
+///
+/// Only the *leading* tilde is expanded — `~/x` and `~` map to `$HOME/x` and
+/// `$HOME` respectively. A bare `~user` form is *not* supported (no passwd
+/// lookup) and is left unchanged so the sandbox check rejects it cleanly.
+/// If `$HOME` is unset the input is returned untouched, which makes the
+/// existing sandbox boundary check the authoritative gate.
+fn expand_leading_tilde(input: &str) -> std::borrow::Cow<'_, str> {
+    if input != "~" && !input.starts_with("~/") {
+        return std::borrow::Cow::Borrowed(input);
+    }
+    let Some(home) = std::env::var_os("HOME") else {
+        return std::borrow::Cow::Borrowed(input);
+    };
+    let home_str = home.to_string_lossy();
+    if input == "~" {
+        return std::borrow::Cow::Owned(home_str.into_owned());
+    }
+    // input.starts_with("~/") — strip the `~` and join with HOME.
+    let rest = &input[2..];
+    let mut buf = String::with_capacity(home_str.len() + 1 + rest.len());
+    buf.push_str(&home_str);
+    if !home_str.ends_with('/') {
+        buf.push('/');
+    }
+    buf.push_str(rest);
+    std::borrow::Cow::Owned(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +215,44 @@ mod tests {
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn expand_leading_tilde_resolves_to_home() {
+        // GIVEN: HOME is set
+        let home = std::env::var("HOME").expect("HOME must be set in test env");
+
+        // WHEN/THEN: bare `~` and `~/...` map to HOME
+        assert_eq!(expand_leading_tilde("~").as_ref(), home);
+        let expanded = expand_leading_tilde("~/Documents/file.md");
+        assert_eq!(
+            expanded.as_ref(),
+            format!("{}/Documents/file.md", home.trim_end_matches('/'))
+        );
+        // AND a tilde mid-path is left alone (only leading shorthand is shell-portable)
+        assert_eq!(expand_leading_tilde("foo/~/bar").as_ref(), "foo/~/bar");
+        // AND `~user` is unchanged (no passwd lookup; sandbox check rejects later)
+        assert_eq!(expand_leading_tilde("~root/x").as_ref(), "~root/x");
+    }
+
+    #[test]
+    fn resolve_expands_tilde_when_target_is_under_root() {
+        // GIVEN: a sandbox rooted at $HOME
+        let home = std::env::var("HOME").expect("HOME must be set");
+        let sandbox = SandboxRoot::new(PathBuf::from(&home)).expect("sandbox under HOME");
+
+        // WHEN: resolving `~/Documents/foo.md`
+        let resolved = sandbox
+            .resolve("~/Documents/foo.md")
+            .expect("tilde path should resolve under sandbox");
+
+        // THEN: it lands under HOME directly — no literal `~` directory
+        assert!(resolved.starts_with(sandbox.path()));
+        assert!(resolved.ends_with("Documents/foo.md"));
+        assert!(
+            !resolved.to_string_lossy().contains("/~/"),
+            "resolved path must not contain a literal '~' segment, got {resolved:?}"
+        );
     }
 
     #[test]

@@ -66,8 +66,20 @@ function _patch(taskId: string, patch: Partial<TraceState>): void {
 /**
  * Insère / fusionne une liste d'événements dans l'état d'une task.
  *
- * Idempotent : un eventId déjà présent n'est pas dupliqué. L'ordre final
- * est garanti par le tri sur `eventId` (UUIDv7 lex == ordre causal).
+ * Idempotent : un eventId déjà présent n'est pas dupliqué.
+ *
+ * Ordre final : tri par `ts` (clé primaire), `eventId` en tiebreaker.
+ *
+ * Pourquoi pas `eventId` seul ? Certains variants comme `tool_call_started`
+ * pré-génèrent leur UUIDv7 *côté producteur* (`ToolProxy::call`) pour servir
+ * de `parent_event_id` au companion `tool_call_completed`. D'autres comme
+ * `thought` ne reçoivent leur UUIDv7 qu'au moment où le persistor les
+ * consomme du bus. Conséquence : un `tool_call_started` émis APRÈS un
+ * `thought` peut hériter d'un eventId lex-antérieur — l'ordre causal est
+ * inversé. En revanche `ts` est posé par le persistor pour TOUS les
+ * variants, et le bus broadcast est FIFO single-consumer ; donc `ts`
+ * respecte l'ordre causal. EventId reste tiebreaker pour les égalités à
+ * la milliseconde.
  */
 function _mergeEvents(taskId: string, incoming: RuntimeEventDto[]): void {
   if (incoming.length === 0) return;
@@ -76,9 +88,10 @@ function _mergeEvents(taskId: string, incoming: RuntimeEventDto[]): void {
     const seen = new Set(prev.events.map((e) => e.eventId));
     const fresh = incoming.filter((e) => !seen.has(e.eventId));
     if (fresh.length === 0) return m;
-    const merged = [...prev.events, ...fresh].sort((a, b) =>
-      a.eventId < b.eventId ? -1 : a.eventId > b.eventId ? 1 : 0,
-    );
+    const merged = [...prev.events, ...fresh].sort((a, b) => {
+      if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;
+      return a.eventId < b.eventId ? -1 : a.eventId > b.eventId ? 1 : 0;
+    });
     m.set(taskId, { ...prev, events: merged });
     return m;
   });
@@ -149,10 +162,96 @@ export async function loadFullTrace(taskId: string): Promise<void> {
 }
 
 /**
- * S'abonne aux événements live d'une task via le bus Tauri `"trace-event"`.
+ * Enveloppe Tauri du bridge `EventBus → "runtime-event"`.
  *
- * Filtre côté front sur le `taskId` cible — le bus transporte les
- * événements de toutes les tasks.
+ * Voir `apollia-desktop/src/events.rs::TauriRuntimeEvent`. Le bridge
+ * route TOUS les `RuntimeEvent` du bus vers ce seul canal Tauri ; le
+ * `category` permet aux stores de dispatcher sans parser chaque variant.
+ */
+interface TauriRuntimeEvent {
+  category: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+}
+
+/**
+ * Convertit une enveloppe `runtime-event` (variant `RuntimeEvent` Rust,
+ * sérialisé externally-tagged en `{"VariantName": {...fields}}`) en un
+ * `RuntimeEventDto` consommable par les composants UI.
+ *
+ * Génère un `eventId` synthétique côté front (UUIDv4 random) — distinct
+ * des UUIDv7 produits par l'`EventPersistor` côté Rust. Au reload du
+ * panneau, `loadTrace` recharge depuis la DB avec les vrais event_ids et
+ * remplace l'état (`reset: true`) — pas de doublons à terme.
+ *
+ * Retourne `null` quand l'enveloppe ne porte pas un kind exposable côté
+ * trace (ex : variants legacy d'un autre store).
+ */
+function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
+  if (env.category !== "trace-event") return null;
+
+  // Le payload est externally-tagged : `{"AgentLog": {task_id: "T", ...}}`.
+  const variantName = env.event_type;
+  const variantPayload =
+    (env.payload[variantName] as Record<string, unknown> | undefined) ?? null;
+  if (variantPayload === null) return null;
+
+  // Mapping VariantName Rust → kind canonique (snake_case) côté trace.
+  const kindMap: Record<string, string> = {
+    AgentLog: "agent_log",
+    Thought: "thought",
+    LlmCallStarted: "llm_call_started",
+    LlmCallFailed: "llm_call_failed",
+    ToolCallStarted: "tool_call_started",
+    ToolCallCompleted: "tool_call_completed",
+    ToolCallDenied: "tool_call_denied",
+    A2AInvokeStarted: "a2a_invoke_started",
+    A2AInvokeCompleted: "a2a_invoke_completed",
+    Retry: "retry",
+    ActionParseError: "action_parse_error",
+  };
+  const kind = kindMap[variantName] ?? variantName.toLowerCase();
+
+  // Extraction des champs communs depuis la variante. Tous sont optionnels
+  // selon le variant — on prend ce qui est présent.
+  const taskId = String(variantPayload.task_id ?? "");
+  const agentId = String(
+    variantPayload.agent_id ?? variantPayload.caller_agent_id ?? "",
+  );
+  const parentEventId =
+    (variantPayload.parent_event_id as string | undefined) ?? null;
+  const correlationId =
+    (variantPayload.correlation_id as string | undefined) ?? null;
+  const stepNum =
+    typeof variantPayload.step_num === "number"
+      ? (variantPayload.step_num as number)
+      : null;
+  // Pour les started/completed qui portent leur event_id explicite, le
+  // réutiliser pour permettre au pairing client de fonctionner avant
+  // même que le DB ne soit interrogé.
+  const eventId =
+    (variantPayload.event_id as string | undefined) ??
+    `live-${crypto.randomUUID()}`;
+
+  return {
+    eventId,
+    taskId,
+    agentId,
+    parentEventId,
+    correlationId,
+    stepNum,
+    kind,
+    payload: variantPayload as Record<string, unknown>,
+    ts: new Date().toISOString(),
+  } as RuntimeEventDto;
+}
+
+/**
+ * S'abonne aux événements live d'une task via le bus Tauri `"runtime-event"`.
+ *
+ * Filtre côté front sur la `category === "trace-event"` ET sur le
+ * `taskId` cible — le bus transporte tous les events de toutes les
+ * tasks et toutes les catégories.
  *
  * Idempotent : appeler deux fois pour la même task n'ouvre qu'un seul
  * abonnement. Toujours appeler `unsubscribeTraceLive(taskId)` au démontage
@@ -160,10 +259,11 @@ export async function loadFullTrace(taskId: string): Promise<void> {
  */
 export async function subscribeTraceLive(taskId: string): Promise<void> {
   if (_liveUnsubs.has(taskId)) return;
-  const unlisten = await listen<RuntimeEventDto>("trace-event", (event) => {
-    const payload = event.payload;
-    if (payload.taskId !== taskId) return;
-    _mergeEvents(taskId, [payload]);
+  const unlisten = await listen<TauriRuntimeEvent>("runtime-event", (event) => {
+    const dto = envelopeToDto(event.payload);
+    if (dto === null) return;
+    if (dto.taskId !== taskId) return;
+    _mergeEvents(taskId, [dto]);
   });
   _liveUnsubs.set(taskId, unlisten);
   _patch(taskId, { live: true });

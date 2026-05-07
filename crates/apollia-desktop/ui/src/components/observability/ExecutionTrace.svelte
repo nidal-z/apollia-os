@@ -54,31 +54,43 @@
   const effectiveSkin = $derived<UIMode>(skin ?? $uiMode);
 
   /**
-   * Pair started↔completed events.
+   * Pair started ↔ completed/denied events.
    *
-   * Pour chaque `tool_call_started`, on cherche le `tool_call_completed`
-   * dont `parent_event_id === started.event_id`. La paire est rendue
-   * comme un seul `TraceEventCard` (le started avec son completion en prop).
-   * Les `completed` non-orphelins ne sont pas rendus seuls.
+   * Pour chaque `tool_call_started`, on cherche son companion
+   * `tool_call_completed` OU `tool_call_denied` dont
+   * `parent_event_id === started.event_id`. La paire est rendue comme un
+   * seul `TraceEventCard` ; le started seul reste affiché en spinner
+   * uniquement si AUCUN companion n'est encore arrivé.
+   *
+   * Bug initial : on ne pairait que `completed`. Quand un outil était
+   * `denied` (sandbox, permission, manifest), le started restait en
+   * spinner « Reading… » à vie alors que l'événement de fin existait.
    */
   function pairEvents(events: RuntimeEventDto[]): {
     event: RuntimeEventDto;
     completion: RuntimeEventDto | null;
   }[] {
-    const completedByParent = new Map<string, RuntimeEventDto>();
+    const closersByParent = new Map<string, RuntimeEventDto>();
     for (const e of events) {
-      if (e.kind === "tool_call_completed" && e.parentEventId) {
-        completedByParent.set(e.parentEventId, e);
+      if (
+        (e.kind === "tool_call_completed" || e.kind === "tool_call_denied") &&
+        e.parentEventId
+      ) {
+        closersByParent.set(e.parentEventId, e);
       }
     }
     const out: { event: RuntimeEventDto; completion: RuntimeEventDto | null }[] = [];
     for (const e of events) {
-      if (e.kind === "tool_call_completed" && e.parentEventId && completedByParent.has(e.parentEventId)) {
+      if (
+        (e.kind === "tool_call_completed" || e.kind === "tool_call_denied") &&
+        e.parentEventId &&
+        closersByParent.has(e.parentEventId)
+      ) {
         // Ne pas rendre seul — déjà associé via le started.
         continue;
       }
       if (e.kind === "tool_call_started") {
-        out.push({ event: e, completion: completedByParent.get(e.eventId) ?? null });
+        out.push({ event: e, completion: closersByParent.get(e.eventId) ?? null });
       } else {
         out.push({ event: e, completion: null });
       }

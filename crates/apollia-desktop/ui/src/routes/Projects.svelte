@@ -295,24 +295,18 @@
     return ACCENTS[Math.abs(h) % ACCENTS.length];
   }
 
-  // Progress ring
-  function ringDash(progress: number, circumference: number): string {
-    const p = Math.max(0, Math.min(100, progress));
-    const filled = (p / 100) * circumference;
-    return `${filled} ${circumference - filled}`;
-  }
-
-  const detailProgress = $derived(62); // placeholder until backend exposes progress
-  const detailAccent = $derived(
-    selectedProject ? accentFor(selectedProject.id) : "hsl(var(--primary))",
-  );
 </script>
 
 <div class="flex flex-col h-full min-h-0" data-testid="projects-page">
   {#if mode === "grid"}
     <!-- ============ GRID (entry view) ============ -->
     <PageHeader
-      kicker={`WORKSPACES · ${$projects.length} ${$projects.length > 1 ? "PROJETS" : "PROJET"}`}
+      kicker={$t("projects.kicker", {
+        values: {
+          count: $projects.length,
+          label: $t($projects.length > 1 ? "projects.kicker_plural" : "projects.kicker_singular"),
+        },
+      })}
       title={$t("projects.title")}
       subtitle={$t("projects.subtitle")}
     >
@@ -482,39 +476,12 @@
           <!-- Header -->
           <div class="px-8 pt-6 pb-4 border-b border-border/60">
             <div class="flex items-start gap-3.5">
-              <!-- Progress ring + folder icon -->
-              <div class="relative w-12 h-12 shrink-0">
-                <svg width="48" height="48" viewBox="0 0 48 48">
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="21"
-                    fill="none"
-                    stroke="hsl(var(--muted))"
-                    stroke-width="3"
-                  />
-                  <circle
-                    cx="24"
-                    cy="24"
-                    r="21"
-                    fill="none"
-                    stroke={detailAccent}
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-dasharray={ringDash(detailProgress, 2 * Math.PI * 21)}
-                    transform="rotate(-90 24 24)"
-                  />
-                </svg>
-                <div
-                  class="absolute inset-0 flex items-center justify-center"
-                >
-                  <div
-                    class="w-7 h-7 rounded-lg inline-flex items-center justify-center"
-                    style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
-                  >
-                    <Folder size={13} color="white" />
-                  </div>
-                </div>
+              <!-- Folder icon -->
+              <div
+                class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+                style="background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));"
+              >
+                <Folder size={18} color="white" />
               </div>
 
               <div class="flex-1 min-w-0">
@@ -525,13 +492,8 @@
                     {/snippet}
                     {$t("projects.status_active") || "actif"}
                   </Chip>
-                  <span
-                    class="text-[10.5px] text-muted-foreground font-mono"
-                  >
-                    {detailProgress}%
-                  </span>
                   <span class="text-[10.5px] text-muted-foreground">
-                    · {fmtRelative(selectedProject.updated_at)}
+                    {fmtRelative(selectedProject.updated_at)}
                   </span>
                 </div>
                 <h2

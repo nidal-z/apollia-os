@@ -131,7 +131,11 @@
     : toolName}
   {@const operator = describeToolCall(toolName, argsJson, fallback)}
   {@const isCompleted = completion !== null}
-  {@const completionPayload = (completion?.payload ?? null) as
+  {@const isDenied = completion?.kind === "tool_call_denied"}
+  {@const deniedPayload = (isDenied ? completion?.payload : null) as
+    | { reason?: string; detail?: string | null }
+    | null}
+  {@const completionPayload = (!isDenied && completion ? completion.payload : null) as
     | { success?: boolean; duration_ms?: number; output_json?: string | null }
     | null}
   {@const success = completionPayload ? Boolean(completionPayload.success) : null}
@@ -139,9 +143,12 @@
     ? Number(completionPayload.duration_ms ?? 0)
     : null}
   <div
-    class="rounded-lg border border-border/40 bg-surface-1/30 overflow-hidden"
+    class="rounded-lg border overflow-hidden {isDenied
+      ? 'border-destructive/30 bg-destructive/5'
+      : 'border-border/40 bg-surface-1/30'}"
     data-testid="trace-event"
     data-kind="tool_call_started"
+    data-paired-as={isDenied ? "denied" : isCompleted ? "completed" : "pending"}
   >
     <button
       type="button"
@@ -151,6 +158,8 @@
       <div class="shrink-0 mt-0.5">
         {#if !isCompleted}
           <Loader2 size={13} class="animate-spin text-primary" />
+        {:else if isDenied}
+          <ShieldOff size={13} class="text-destructive" />
         {:else if success}
           <CheckCircle2 size={13} class="text-success" />
         {:else}
@@ -161,19 +170,33 @@
         <div class="flex items-center gap-1.5 text-[12px] text-foreground">
           {#if skin === "operator"}
             <span class="truncate">{operator}</span>
+            {#if isDenied}
+              <span class="font-mono text-[10.5px] text-destructive/80 shrink-0">
+                · {$t("trace.tool_denied")}
+              </span>
+            {/if}
           {:else}
             <Wrench size={11} class="shrink-0 text-muted-foreground" />
             <span class="font-mono truncate">{toolName}</span>
-          {/if}
-          {#if durationMs !== null && skin === "builder"}
-            <span class="font-mono text-[10.5px] text-muted-foreground shrink-0">
-              · {fmtDuration(durationMs)}
-            </span>
+            {#if isDenied}
+              <span class="font-mono text-[10.5px] text-destructive/80 shrink-0">
+                · denied ({String(deniedPayload?.reason ?? "")})
+              </span>
+            {:else if durationMs !== null && skin === "builder"}
+              <span class="font-mono text-[10.5px] text-muted-foreground shrink-0">
+                · {fmtDuration(durationMs)}
+              </span>
+            {/if}
           {/if}
         </div>
         {#if skin === "builder" && !expanded && argsJson}
           <div class="font-mono mt-0.5 truncate text-[10.5px] text-muted-foreground">
             {truncChars(argsJson, 100)}
+          </div>
+        {/if}
+        {#if isDenied && deniedPayload?.detail}
+          <div class="font-mono mt-0.5 text-[10.5px] text-muted-foreground">
+            {String(deniedPayload.detail)}
           </div>
         {/if}
       </div>

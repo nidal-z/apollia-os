@@ -26,6 +26,11 @@ ACTION_FINAL_ANSWER: str = "final_answer"
 # Matches a JSON object inside an optional ```json ... ``` fence.
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
+# Matches a closed `<think>...</think>` reasoning block emitted by Qwen3,
+# DeepSeek-R1 and similar thinking models. We strip these *before* JSON
+# extraction so the inner reasoning prose can't be confused for the action.
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
 # Matches a fenced code block with optional language tag (MULTILINE so ^ matches
 # each line start; DOTALL so . matches newlines inside the block).
 _CODE_BLOCK_RE = re.compile(r"^```(\w*)\n(.*?)^```", re.MULTILINE | re.DOTALL)
@@ -63,7 +68,12 @@ def extract_json(content: str) -> dict[str, Any]:
     if not content:
         return {}
 
-    text = content.strip()
+    # Strip closed `<think>…</think>` reasoning blocks (Qwen3, DeepSeek-R1…)
+    # before any extraction. An *unclosed* block (truncation mid-thinking)
+    # is left untouched so downstream code still sees zero parseable JSON
+    # and surfaces the error rather than silently returning `{}`.
+    cleaned = _THINK_BLOCK_RE.sub("", content)
+    text = cleaned.strip()
     if not text:
         return {}
 

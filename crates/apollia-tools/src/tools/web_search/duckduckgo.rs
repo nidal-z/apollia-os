@@ -30,9 +30,13 @@ const REQUEST_TIMEOUT_SECS: u64 = 15;
 /// if the endpoint misbehaves.
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
 
-/// Firefox-on-Linux UA. Empty/missing UA → 403; `bot`/`curl`/`python` UAs are
-/// rate-limited faster. Rotate annually as browser versions drift.
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0";
+/// Text-browser UA. Since 2025 DDG's WAF returns HTTP 202 + an `anomaly.js`
+/// challenge for *every* mainstream browser UA (Firefox/Chrome on Linux, macOS
+/// and Windows have all been verified blocked), while text-browser UAs such as
+/// `w3m`, `lynx`, and `links` still receive HTTP 200 with real result rows.
+/// Empty/missing UA → 403. Re-evaluate quarterly: if DDG starts challenging
+/// w3m too, the next stable target is `lynx/2.9.0 libwww-FM/2.14`.
+const USER_AGENT: &str = "w3m/0.5.3";
 
 /// DuckDuckGo HTML-endpoint backend — the zero-config default.
 pub struct DuckDuckGoBackend {

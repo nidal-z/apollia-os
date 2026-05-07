@@ -331,11 +331,95 @@ fn detect_split_shards(path: &Path) -> Result<Option<SplitInfo>, LlmError> {
     Ok(Some(SplitInfo { prefix, total }))
 }
 
-/// Nombre maximum de tokens à générer par défaut.
-const DEFAULT_MAX_TOKENS: u32 = 2048;
+/// Plancher de génération quand `n_ctx_train` n'est pas exploitable (modèle
+/// minuscule ou métadonnée absente). 2048 reste suffisant pour un tour ReAct
+/// court ; les modèles plus grands se voient attribuer leur propre budget.
+const FALLBACK_MAX_TOKENS: u32 = 2048;
 
-/// Taille du contexte par défaut.
-const DEFAULT_CTX_SIZE: u32 = 4096;
+/// Plafond dur sur le défaut auto-dérivé. Au-delà, le KV-cache Metal/CUDA
+/// devient lourd et la latence explose ; les agents qui ont vraiment besoin
+/// de plus peuvent passer `req.max_tokens` explicitement.
+const AUTO_MAX_TOKENS_CEILING: u32 = 16_384;
+
+/// Taille minimale du contexte (n_ctx) quand le prompt est très court.
+const MIN_CTX_SIZE: u32 = 4096;
+
+/// Dérive un budget de génération par défaut depuis la fenêtre native du modèle.
+///
+/// Stratégie : la moitié de `n_ctx_train`, bornée à `[FALLBACK_MAX_TOKENS,
+/// AUTO_MAX_TOKENS_CEILING]`. Cela laisse au moins autant de place pour le
+/// prompt que pour la réponse, donne à un Qwen3 thinking-mode l'espace
+/// nécessaire pour fermer son `<think>` puis émettre le JSON, et reste
+/// compatible avec un modèle 4K (qui retombe sur 2048).
+fn resolve_default_max_tokens(model: &LlamaModel) -> u32 {
+    let trained = model.n_ctx_train();
+    if trained == 0 {
+        return FALLBACK_MAX_TOKENS;
+    }
+    (trained / 2).clamp(FALLBACK_MAX_TOKENS, AUTO_MAX_TOKENS_CEILING)
+}
+
+/// Détermine la taille `n_ctx` à allouer pour une inférence : assez grande pour
+/// loger `prompt + max_tokens`, jamais sous `MIN_CTX_SIZE`, jamais au-delà de
+/// la fenêtre native du modèle (`n_ctx_train`). Sans le clamp haut, `llama.cpp`
+/// accepte mais le modèle hallucine au-delà de son entraînement.
+/// Default sampling temperature when the caller does not specify one.
+///
+/// 0.7 est le « creative-but-coherent » standard (OpenAI/Anthropic défaut).
+/// Évite à la fois le mode purement déterministe (greedy) et la dérive
+/// incohérente d'une température élevée.
+const DEFAULT_TEMPERATURE: f32 = 0.7;
+
+/// Default top-p nucleus cutoff. Coupe la longue traîne improbable tout en
+/// laissant assez de variabilité pour que deux runs soient distincts.
+const DEFAULT_TOP_P: f32 = 0.95;
+
+/// Construit le « tail » du sampler : c'est lui qui choisit le token final.
+///
+/// Comportement :
+/// - `temperature == Some(0.0)` → `greedy()` strict (argmax). Aucune seed,
+///   reproductible au token près.
+/// - sinon → chaîne `top_k → top_p → temp → dist(seed)`. Sans `seed` fourni,
+///   on dérive une graine par horloge nanoseconde — chaque run diverge.
+///
+/// La graine utilisée est tracée à `debug` pour permettre le replay manuel
+/// (récupérer la valeur dans les logs et la repasser via `req.seed`).
+fn build_tail_sampler(temperature: Option<f32>, seed: Option<u64>) -> LlamaSampler {
+    let temp = temperature.unwrap_or(DEFAULT_TEMPERATURE);
+    if temp <= 0.0 {
+        return LlamaSampler::greedy();
+    }
+
+    let resolved_seed = seed.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0)
+    });
+    // `dist(seed)` prend un u32 dans llama-cpp-2 ; on garde nos 32 bits
+    // hauts xor bas pour préserver l'entropie de la graine 64-bits.
+    let dist_seed = ((resolved_seed >> 32) as u32) ^ (resolved_seed as u32);
+
+    tracing::debug!(
+        seed = resolved_seed,
+        temperature = temp,
+        top_p = DEFAULT_TOP_P,
+        "embedded sampler stochastique"
+    );
+
+    LlamaSampler::chain_simple([
+        LlamaSampler::top_k(40),
+        LlamaSampler::top_p(DEFAULT_TOP_P, 1),
+        LlamaSampler::temp(temp),
+        LlamaSampler::dist(dist_seed),
+    ])
+}
+
+fn clamp_ctx_size(model: &LlamaModel, requested: u32) -> u32 {
+    let trained = model.n_ctx_train();
+    let upper = if trained > 0 { trained } else { u32::MAX };
+    requested.max(MIN_CTX_SIZE).min(upper)
+}
 
 /// Singleton global pour le backend llama.cpp.
 ///
@@ -713,20 +797,22 @@ impl EmbeddedBackend {
     /// Exécute l'inférence et retourne le texte généré.
     ///
     /// Quand `grammar` est `Some`, applique la contrainte GBNF via `LlamaSampler::grammar`
-    /// enchaîné avec le sampler glouton, ce qui force le modèle à produire un JSON valide.
+    /// enchaîné avec le sampler de tail (greedy ou stochastique).
     fn run_inference(
         model: &LlamaModel,
         backend: &LlamaBackend,
         prompt: &str,
         grammar: Option<&str>,
         max_tokens: u32,
+        temperature: Option<f32>,
+        seed: Option<u64>,
     ) -> Result<String, LlmError> {
         let tokens = model
             .str_to_token(prompt, AddBos::Always)
             .map_err(|e| LlmError::InferenceError(format!("tokenization failed: {e}")))?;
 
         let prompt_token_count = tokens.len() as u32;
-        let n_ctx = DEFAULT_CTX_SIZE.max(prompt_token_count + max_tokens);
+        let n_ctx = clamp_ctx_size(model, prompt_token_count + max_tokens);
 
         let ctx_params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
@@ -754,15 +840,16 @@ impl EmbeddedBackend {
         let mut n_cur = batch.n_tokens();
         let n_max = n_cur + max_tokens as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let tail = build_tail_sampler(temperature, seed);
         let mut sampler = match grammar {
             Some(grammar_str) => {
                 let grammar_sampler =
                     LlamaSampler::grammar(model, grammar_str, "root").map_err(|e| {
                         LlmError::InferenceError(format!("grammar sampler init failed: {e}"))
                     })?;
-                LlamaSampler::chain_simple([grammar_sampler, LlamaSampler::greedy()])
+                LlamaSampler::chain_simple([grammar_sampler, tail])
             }
-            None => LlamaSampler::greedy(),
+            None => tail,
         };
         let mut generated = String::new();
 
@@ -898,7 +985,11 @@ impl CompletionModel for EmbeddedBackend {
     /// `usage.cost_usd` est toujours `None` — l'inférence locale est gratuite.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
-        let max_tokens = req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
+        let max_tokens = req
+            .max_tokens
+            .unwrap_or_else(|| resolve_default_max_tokens(&self.model));
+        let temperature = req.temperature;
+        let seed = req.seed;
         let model = Arc::clone(&self.model);
         let backend = Arc::clone(&self.backend);
         let has_tools = !req.tools.is_empty();
@@ -913,7 +1004,15 @@ impl CompletionModel for EmbeddedBackend {
 
         // Run inference in a blocking thread (llama.cpp is synchronous).
         let generated = tokio::task::spawn_blocking(move || {
-            Self::run_inference(&model, &backend, &prompt, grammar.as_deref(), max_tokens)
+            Self::run_inference(
+                &model,
+                &backend,
+                &prompt,
+                grammar.as_deref(),
+                max_tokens,
+                temperature,
+                seed,
+            )
         })
         .await
         .map_err(|e| LlmError::InferenceError(format!("inference task failed: {e}")))??;
@@ -959,7 +1058,11 @@ impl CompletionModel for EmbeddedBackend {
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        let max_tokens = req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
+        let max_tokens = req
+            .max_tokens
+            .unwrap_or_else(|| resolve_default_max_tokens(&self.model));
+        let temperature = req.temperature;
+        let seed = req.seed;
         let model = Arc::clone(&self.model);
         let backend = Arc::clone(&self.backend);
 
@@ -975,7 +1078,7 @@ impl CompletionModel for EmbeddedBackend {
                     .map_err(|e| LlmError::InferenceError(format!("tokenization failed: {e}")))?;
 
                 let prompt_token_count = tokens.len() as u32;
-                let n_ctx = DEFAULT_CTX_SIZE.max(prompt_token_count + max_tokens);
+                let n_ctx = clamp_ctx_size(&model, prompt_token_count + max_tokens);
                 let ctx_params = LlamaContextParams::default()
                     .with_n_ctx(NonZeroU32::new(n_ctx))
                     .with_n_batch(n_ctx);
@@ -998,6 +1101,7 @@ impl CompletionModel for EmbeddedBackend {
                 let mut n_cur = batch.n_tokens();
                 let n_max = n_cur + max_tokens as i32;
                 let mut decoder = encoding_rs::UTF_8.new_decoder();
+                let tail = build_tail_sampler(temperature, seed);
                 let mut sampler = match grammar.as_deref() {
                     Some(grammar_str) => {
                         let gs =
@@ -1006,9 +1110,9 @@ impl CompletionModel for EmbeddedBackend {
                                     "grammar sampler init failed: {e}"
                                 ))
                             })?;
-                        LlamaSampler::chain_simple([gs, LlamaSampler::greedy()])
+                        LlamaSampler::chain_simple([gs, tail])
                     }
-                    None => LlamaSampler::greedy(),
+                    None => tail,
                 };
 
                 while n_cur < n_max {

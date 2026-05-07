@@ -59,6 +59,14 @@ pub struct CompletionRequest {
     pub temperature: Option<f32>,
     /// Nombre maximum de tokens à générer.
     pub max_tokens: Option<u32>,
+    /// Graine RNG pour le sampling stochastique.
+    ///
+    /// `None` (défaut) → seed dérivée à l'appel (entropie système ou horloge),
+    /// chaque run produit un échantillonnage différent. `Some(n)` → réplique
+    /// la même séquence de tokens pour debugging / régression. Non honoré
+    /// quand `temperature == Some(0.0)` puisque le sampler est alors
+    /// strictement déterministe (argmax).
+    pub seed: Option<u64>,
 }
 
 /// Réponse d'inférence unifiée retournée par tous les backends.
