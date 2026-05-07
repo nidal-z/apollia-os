@@ -68,6 +68,20 @@ Implémente la boucle Reason-Act-Observe avec LLM et outils.
 | `react` | `async (task, ctx, user_message, *, extra_context="", pending_tool=None, history=None) -> str \| dict` | `task`: AIP task dict; `ctx`: RuntimeContext; `user_message`: str; `extra_context`: contexte additionnel (str); `pending_tool`: HITL resume (dict \| None); `history`: previous turns (list[dict] \| None) | `str` (final answer) OR `dict` (AIPResult.input_required/failed) | (aucune — dégradation gracieuse) | Cœur de la boucle ReAct. Si `ctx.llm is None` retourne `AIPResult.failed("NO_LLM",...)`. |
 | `get_tool_schemas` | ` -> list[dict[str, Any]]` | — | Schémas d'outils natifs | — | Retourne les 13 outils natifs (bash_executor, file_io, python_executor, ask_user, notebook_read, notebook_edit, etc.) |
 
+**Observabilité automatique (ADR-088, Lot 2).** `react()` instrumente le
+loop pour pousser sur la trace event-sourced (visible dans
+`ExecutionTrace`) :
+- `ctx.emit_thought(thought, step_num)` après chaque parsing JSON
+  d'action — rend la pensée du LLM visible.
+- `ctx.emit_action_parse_error(step_num, raw, repair_attempted=True)`
+  quand le JSON action est invalide.
+- `ctx.emit_retry(step_num, "action_parse_error", attempt)` avant
+  chaque tentative de réparation.
+
+Toutes ces émissions passent par un helper `_emit_safe(ctx, method,
+*args)` qui ignore silencieusement l'absence de méthode (`MockContext`
+en test) ou toute exception — la télémétrie ne casse jamais le loop.
+
 ---
 
 ### 1.2 ConversationalAgent

@@ -86,9 +86,9 @@ Fichier : `ui/src/components/onboarding/OnboardingModal.svelte`
 | Propriete | Valeur |
 |---|---|
 | Type | Overlay modal (`role="dialog"`, `aria-modal`) |
-| Taille | `max-width: 720px`, `max-height: 90vh`, `min(86vh, 760px)` pour `ai-setup` et `chat` |
+| Taille | `max-width: 720px`, `max-height: 90vh`, `min(86vh, 760px)` pour `ai-setup` et `chat()` |
 | z-index | `80` |
-| Capture Escape | uniquement à l'etape `chat` (les autres laissent passer) |
+| Capture Escape | uniquement à l'etape `chat()` (les autres laissent passer) |
 | Rail de progression | Header avec 4 etapes nommées (Accueil · Profil · Modèles · Calibrage) |
 | `data-testid` | `onboarding-modal` |
 
@@ -120,7 +120,7 @@ Fichier : `ui/src/components/onboarding/OnboardingWelcome.svelte`
 |---|---|
 | Style | Tailwind pur (composant `Button` partagé `variant="primary-gradient"`) |
 | Contenu | Logo gradient, tagline, sous-titre, 3 cartes value-prop (Local-first / LLM au choix / Agents autonomes), CTA |
-| Props | `onnext: () => void` |
+| Props | `onnext: => void` |
 | `data-testid` | `onboarding-welcome`, `onboarding-welcome-cta` |
 
 Aucune logique métier — sert uniquement à briser la friction du lancement à froid.
@@ -137,7 +137,7 @@ Fichier : `ui/src/components/onboarding/OnboardingProfileSelector.svelte`
 | IPC | `set_onboarding_profile(profile)` puis `onnext()` |
 | Side-effect | Met à jour le store `uiMode` pour adapter l'UI immédiatement |
 | Lien hors-piste | "Je suis les deux → mode Builder" (force `builder`) |
-| Props | `onnext: () => void`, `onback: () => void` |
+| Props | `onnext: => void`, `onback: => void` |
 | `data-testid` | `onboarding-profile-selector`, `profile-card-operator`, `profile-card-builder`, `profile-back`, `profile-both` |
 
 Carte Opérateur : 3 puces orientées simplicité + validation, exemple "PM, RSE, Support, Direction".

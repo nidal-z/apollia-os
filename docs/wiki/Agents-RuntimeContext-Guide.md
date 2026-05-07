@@ -198,20 +198,49 @@ Lecture seule. Permet à l'agent de s'adapter proactivement avant épuisement.
 
 ---
 
-## ctx.log – AgentLogger
+## ctx.log — méthode `(level, message)`
 
-Logs structurés envoyés via le système `tracing` du runtime.
+Logs émis vers deux canaux en parallèle :
 
-### Méthodes
+1. **`tracing::*`** du runtime (stderr, format structuré opérateur).
+2. **`runtime_events.db`** comme `RuntimeEvent::AgentLog` (ADR-088,
+   ADR-088 Lot 1) — visible dans la trace `ExecutionTrace` de l'UI et
+   requêtable via `GET /api/v1/tasks/:id/trace`.
 
-| Méthode | Signature | Paramètres | Notes |
-|---|---|---|---|
-| **info** | `info(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level INFO |
-| **warn** | `warn(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level WARN |
-| **error** | `error(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level ERROR |
-| **debug** | `debug(event: str, **kwargs)` | `event` : str ; `**kwargs` : dict optionnel | Level DEBUG |
+### Signature
 
-Exemple : `ctx.log.info("step_started", step=1, tool="file_read")`
+```python
+ctx.log(level: str, message: str) -> None
+```
+
+| Paramètre | Type | Notes |
+|---|---|---|
+| `level` | `str` | `"debug"` \| `"info"` \| `"warn"` \| `"error"` ; lève `ValueError` pour tout autre niveau |
+| `message` | `str` | Message libre. Pré-formater côté agent (`f"…"`) — pas de templating runtime. |
+
+Exemple :
+```python
+ctx.log("info", f"step started: tool=file_read")
+ctx.log("warn", f"budget low: {ctx.step_budget.steps_remaining} steps left")
+```
+
+### Méthodes d'observabilité ReAct
+
+Trois méthodes complémentaires pour pousser des événements typés dans la
+trace event-sourced (ADR-088 Lot 2). Utilisées par le SDK `react.py`
+pour exposer thoughts / retries / parse errors. Toutes *fire-and-forget*
+(no-op silencieux si task_id ou bus absents).
+
+| Méthode | Signature | Émet |
+|---|---|---|
+| **emit_thought** | `emit_thought(text: str, step_num: int)` | `RuntimeEvent::Thought` |
+| **emit_retry** | `emit_retry(step_num: int, cause: str, attempt: int)` | `RuntimeEvent::Retry` |
+| **emit_action_parse_error** | `emit_action_parse_error(step_num: int, raw_content: str, repair_attempted: bool)` | `RuntimeEvent::ActionParseError` |
+
+`cause` accepte `"action_parse_error"`, `"tool_error"`, `"llm_error"`,
+`"other"`. Les agents Python n'appellent rarement ces méthodes
+directement — `BaseReActAgent` les déclenche au bon endroit dans la
+boucle ReAct.
 
 ---
 

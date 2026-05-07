@@ -390,6 +390,49 @@ response = await ctx.llm.chat(
 
 ---
 
+### [observability] — Capture trace d'exécution
+
+Contrôle ce qui est persisté dans `~/.apollia/runtime_events.db` par
+l'`EventPersistor` (ADR-088). Toutes les captures sont **`true` par
+défaut** (local-first — la promesse Apollia est la transparence
+totale). Désactivable granulairement.
+
+```toml
+[observability]
+# Capture des pensées ReAct (champ `thought` de chaque tour LLM).
+capture_thoughts      = true
+
+# Capture des prompts LLM bruts (peut contenir des données sensibles).
+capture_llm_prompts   = true
+
+# Capture des arguments JSON des tool calls.
+capture_tool_args     = true
+
+# Capture des outputs JSON des tool calls.
+capture_tool_outputs  = true
+
+# Capture des `ctx.log()` Python comme records `agent_log`.
+capture_agent_logs    = true
+
+# Rétention en jours avant purge automatique (90 par défaut, cohérent avec audit.db).
+retention_days        = 90
+
+# Champs pré-existants (troncature legacy ADR-026)
+max_input_bytes       = 32768
+max_output_bytes      = 32768
+max_tool_output_bytes = 10240
+debug_log_prompt      = false
+```
+
+> Les 5 toggles `capture_*` sont indépendants : par exemple
+> `capture_thoughts = false, capture_tool_args = true` produit une
+> trace avec tous les tool calls détaillés mais sans bulles de
+> raisonnement. La page **Settings → Observability** du desktop
+> affiche les valeurs courantes en lecture-seule (édition directe via
+> `apollia.toml` pour le moment).
+
+---
+
 ### [stt] — Moteur Speech-to-Text *(section TOML dépréciée en)*
 
 > **Déprécié :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.

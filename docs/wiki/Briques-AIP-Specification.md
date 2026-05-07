@@ -435,12 +435,12 @@ async def run(self, task, ctx):
                                 task_id=task["task_id"])
 
     # ctx.log — logs structurés via le runtime
-    ctx.log.info("processing_task", task_id=task["task_id"])
+    ctx.log("info", f"processing task {task['task_id']}")
 
     # ctx.step_budget — lecture seule (StepBudgetView)
     remaining = ctx.step_budget.steps_remaining
     if remaining < 3:
-        ctx.log.warn("budget_low", steps_remaining=remaining)
+        ctx.log("warn", f"budget low: {remaining} steps remaining")
 ```
 
 ### ctx.tools — ToolProxy
@@ -499,6 +499,27 @@ schema = await ctx.tools.describe("bash_executor")
 if schema:
     input_fields = schema["input_schema"]["properties"]
 ```
+
+### ctx.emit_thought / emit_retry / emit_action_parse_error — Trace ReAct
+
+Trois méthodes d'observabilité qui poussent un événement typé sur la
+trace event-sourced (ADR-088). Utilisées par le SDK ReAct (`react.py`)
+pour rendre visibles les pensées du LLM, les retries et les erreurs de
+parsing dans `ExecutionTrace`. Toutes sont *fire-and-forget* : no-op
+silencieux si la `task_id` ou l'`EventBus` ne sont pas configurés (mode
+test ou `MockContext`).
+
+```python
+ctx.emit_thought(text: str, step_num: int) -> None
+ctx.emit_retry(step_num: int, cause: str, attempt: int) -> None
+ctx.emit_action_parse_error(step_num: int, raw_content: str,
+                            repair_attempted: bool) -> None
+```
+
+`cause` accepte les chaînes normalisées : `"action_parse_error"`,
+`"tool_error"`, `"llm_error"`, `"other"`. Les autres agents Python
+utilisent rarement ces méthodes directement — c'est `BaseReActAgent` qui
+les appelle au bon endroit dans la boucle.
 
 ### ctx.send / ctx.receive — Messagerie inter-agents
 
@@ -567,7 +588,7 @@ async def run(self, task, ctx):
         ctxts  = uc.get("context", [])
 
         for key, value in prefs:
-            ctx.log.info("user_pref", key=key, value=value)
+            ctx.log("info", f"user_pref {key}={value}")
 ```
 
 **Contenu :**

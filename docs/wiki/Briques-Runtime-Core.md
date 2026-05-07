@@ -51,6 +51,7 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 4.   LlmRouter              → backends LLM (embedded + cloud)
      └── LlmBackendRepository → persistence des backends
      └── LlmCallRepository  → subscriber EventBus pour logging des coûts LLM
+     └── EventPersistor     → subscriber EventBus pour la trace event-sourced (ADR-088)
 5.   TaskRouter             → dispatch des tâches vers les agents
 6.   TriggerEngine          → moteur de déclenchement automatique
      └── ouvre TriggerDefinitionRepository (triggers_def.db)
@@ -295,8 +296,17 @@ GET    /api/v1/notifications/events         → Événements globaux
 PUT    /api/v1/notifications/events         → Définir événements globaux
 
 # Observabilité
-GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite)
+GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite, ADR-026)
+GET    /api/v1/tasks/{id}/trace             → Trace event-sourced paginée (ADR-088)
+GET    /api/v1/tasks/{id}/trace?since=…&limit=… → Page suivante (curseur UUIDv7)
 ```
+
+> Les deux endpoints coexistent : `/timeline` agrège les 5 bases legacy
+> (hitl, plans, llm_calls, audit, governance). `/trace` lit la table
+> append-only `runtime_events` peuplée par l'`EventPersistor` —
+> source de vérité unique pour la trajectoire d'exécution agent
+> (thoughts ReAct, tool calls, ctx.log, retries, A2A invocations).
+> Pagination par curseur UUIDv7 : ordre lexicographique == ordre causal.
 
 ### 6.2 Streaming SSE
 
@@ -719,6 +729,86 @@ FatalError(String),
 | Système | `AllReady`, `ShutdownRequested`, `FatalError` | Cœur |
 
 **Total : 75 variants** (source de vérité : `crates/apollia-core/src/events.rs`)
+
+---
+
+## 7bis. Event-sourced trace (`runtime_events`)
+
+L'`EventBus` est un canal broadcast en mémoire — par construction, les
+événements perdus ne peuvent pas être relus. Pour la **trajectoire
+d'exécution agent** (thoughts ReAct, tool calls, ctx.log, retries,
+A2A invocations), un **EventPersistor** souscrit au bus et écrit chaque
+événement dans une table append-only `runtime_events` (ADR-088).
+
+**Module** : `crates/apollia-runtime/src/observability/`
+
+### Composants
+
+| Type | Rôle |
+|---|---|
+| `EventPersistorHandle` | Acteur Tokio + `rusqlite::Connection` exclusive (pattern `AuditTrailHandle`). Écritures fire-and-forget. |
+| `RuntimeEventsRepository` | Lecture paginée par curseur UUIDv7 (`list_for_task(task_id, since, limit)`). |
+| `spawn_runtime_events_subscriber` | `tokio::spawn` — souscrit au bus, mappe les variants pertinents vers des records persistables. |
+| `routes_trace.rs` | `GET /api/v1/tasks/:id/trace` — sert les records JSON paginés à l'UI. |
+
+### Schéma SQLite
+
+`~/.apollia/runtime_events.db`, table unique `runtime_events` :
+
+| Colonne | Type | Rôle |
+|---|---|---|
+| `event_id` | TEXT PK | UUID v7 — clé ordonnable lex == ordre causal |
+| `task_id` | TEXT | Tâche concernée (index principal) |
+| `agent_id` | TEXT | Agent émetteur |
+| `parent_event_id` | TEXT (self-FK) | Lien `tool_call_completed` → `started`, sous-arbre A2A |
+| `correlation_id` | TEXT | ID partagé sur une chaîne A2A complète |
+| `step_num` | INTEGER | Tour ReAct (NULL hors loop) |
+| `kind` | TEXT | Discriminant — voir tableau ci-dessous |
+| `payload_json` | TEXT | Payload typé par `kind` |
+| `ts` | TEXT | ISO 8601 ms |
+| `created_at_unix` | INTEGER | Pour purge par rétention |
+
+Trigger `runtime_events_no_update` interdit `UPDATE`/`DELETE` depuis
+l'application (purge dédiée bypass via DROP+CREATE).
+
+### Variants `kind` mappés
+
+| Kind | RuntimeEvent source | Émis par |
+|---|---|---|
+| `agent_log` | `AgentLog` | `ctx.log()` Python |
+| `thought` | `Thought` | SDK `react.py` `_emit_safe(ctx, "emit_thought", …)` |
+| `llm_call_started` | `LlmCallStarted` | `LlmProxy.chat/complete` (avant dispatch) |
+| `llm_call_failed` | `LlmCallFailed` | router (timeout, rate-limit, parse, network…) |
+| `tool_call_started` | `ToolCallStarted` | `ToolProxy::call` (event_id généré côté proxy) |
+| `tool_call_completed` | `ToolCallCompleted` | `ToolProxy::call` (parent = started) |
+| `tool_call_denied` | `ToolCallDenied` | `ToolProxy::call` (manifest, permissions, HITL) |
+| `a2a_invoke_started` | `A2AInvokeStarted` | `ToolProxy::call` sur `a2a:*` |
+| `a2a_invoke_completed` | `A2AInvokeCompleted` | idem |
+| `retry` | `Retry` | SDK `react.py` |
+| `action_parse_error` | `ActionParseError` | SDK `react.py` |
+
+### Privacy granulaire
+
+`ObservabilityConfig` (section `[observability]` de `apollia.toml`)
+contrôle ce qui est persisté — tout est `true` par défaut (local-first) :
+
+- `capture_thoughts`
+- `capture_llm_prompts`
+- `capture_tool_args`
+- `capture_tool_outputs`
+- `capture_agent_logs`
+- `retention_days` (défaut 90)
+
+### Pagination
+
+```
+GET /api/v1/tasks/{id}/trace?since=<event_id>&limit=500
+→ { task_id, events: [...], next_cursor: "<event_id>"|null }
+```
+
+Le client passe `next_cursor` au prochain appel jusqu'à `null`. Pas
+d'`OFFSET` — l'ordre lex UUIDv7 garantit la cohérence sur table
+append-only.
 
 ---
 

@@ -48,6 +48,41 @@ Le stream reste ouvert jusqu'à la completion de la tâche. Si la tâche est sus
 
 ---
 
+## Trace d'exécution event-sourced
+
+`GET /api/v1/tasks/{id}/trace` retourne la trajectoire complète d'une
+tâche depuis la table append-only `runtime_events` : pensées du LLM,
+tool calls détaillés (args + outputs), `ctx.log()`, retries,
+invocations A2A. C'est la source consommée par la vue `ExecutionTrace`
+du desktop.
+
+```bash
+curl http://localhost:7771/api/v1/tasks/t-abc123/trace?limit=500
+```
+
+```json
+{
+  "task_id": "t-abc123",
+  "events": [
+    { "event_id": "01900...", "kind": "thought", "step_num": 1,
+      "payload_json": "{\"text\":\"Je vais chercher la facture\"}", "ts": "..." },
+    { "event_id": "01900...", "kind": "tool_call_started",
+      "payload_json": "{\"tool_name\":\"web_search\",\"args_json\":\"{...}\"}", "ts": "..." }
+  ],
+  "next_cursor": "01900..."
+}
+```
+
+Pagination par curseur UUIDv7 — passez `next_cursor` en `?since=` au
+prochain appel jusqu'à `null`. Voir [Briques-Runtime-Core](https://github.com/nidal-z/apollia-os/wiki/Briques-Runtime-Core)
+pour la spécification complète des `kind` et payloads.
+
+> Distinct de `/timeline` qui agrège 5 bases legacy (audit, plans,
+> hitl, llm_calls). `/trace` lit une source unique
+> `runtime_events.db`.
+
+---
+
 ## Appeler l'API depuis Python
 
 ```python

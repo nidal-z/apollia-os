@@ -19,7 +19,7 @@ Ce modèle s'inspire du [pattern acteur documenté par Alice Ryhl](https://ryhl.
 
 ---
 
-## Les 8 acteurs
+## Les 9 acteurs
 
 ### 1. EventBus
 
@@ -166,6 +166,41 @@ impl AgentMailboxHandle {
     pub async fn receive(&self, agent_name: &str, timeout: Duration) -> Option<AgentMessage>;
     pub async fn pending_count(&self, agent_name: &str) -> usize;
     pub async fn list_messages(&self, agent_name: &str, limit: usize) -> Vec<AgentMessage>;
+}
+```
+
+### 9. EventPersistor (ADR-088)
+
+**Rôle :** persister la trajectoire d'exécution agent (thoughts ReAct,
+tool calls, ctx.log, retries, A2A invocations) dans une table SQLite
+append-only `runtime_events`. Donne une source de vérité immuable et
+requêtable pour la vue conversation `ExecutionTrace` côté UI, là où
+l'`EventBus` broadcast est volatile.
+
+**État interne :** `rusqlite::Connection` exclusive (non-`Sync`)
+sur `~/.apollia/runtime_events.db`.
+
+**Messages entrants :** `Append(record)` (fire-and-forget),
+`Shutdown`.
+
+**Comportement :**
+- subscribe à l'`EventBus` au démarrage du `Supervisor` (Phase 4c).
+- mappe sélectivement les variants `RuntimeEvent` → `EventKind`
+  (`agent_log`, `thought`, `tool_call_started/completed/denied`,
+  `llm_call_started/failed`, `a2a_invoke_started/completed`, `retry`,
+  `action_parse_error`).
+- écrit chaque event en row UUIDv7 ordonnable lex.
+- les variants ignorés ne sont pas persistés (config-driven via
+  `ObservabilityConfig.capture_*`).
+
+```rust
+#[derive(Clone)]
+pub struct EventPersistorHandle { /* mpsc::Sender */ }
+
+impl EventPersistorHandle {
+    pub async fn open(db_path: &Path) -> Result<Self, EventPersistorError>;
+    pub fn append(&self, record: RuntimeEventRecord);  // fire-and-forget
+    pub async fn shutdown(&self);
 }
 ```
 

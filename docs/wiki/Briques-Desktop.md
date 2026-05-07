@@ -64,6 +64,7 @@ crates/apollia-desktop/
 │       ├── tool_governance.rs ← governance_list_tools, governance_set_tool_enabled, governance_get/set_tool_config, governance_*_credential, governance_list_permission_rules, governance_revoke_permission_rule, governance_revoke_all_rules, governance_list_audit
 │       ├── chat_libre.rs      ← get_chat_libre_config, update_chat_libre_config, list_chat_permission_rules, delete_chat_permission_rule, list_active_chat_session_authorizations, revoke_chat_session_authorization
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache
+│       ├── trace.rs            ← get_task_trace (ADR-088 — vue ExecutionTrace)
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
 │       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models
@@ -224,13 +225,21 @@ Commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérit�
 | `test_notification_channel` | `channel_id: String` | `ChannelTestResult` |
 | `get_notification_logs` | `limit: Option<usize>` | `Vec<NotificationLogEntry>` |
 
-### Observability (3)
+### Observability (4)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `get_global_timeline` | `window_minutes: Option<u32>` | `Vec<GlobalTimelineEvent>` |
 | `get_tool_audit_trail` | `limit: Option<usize>` | `Vec<AuditTrailEntry>` |
 | `get_llm_daily_costs` | `days: Option<u32>` | `Vec<LlmDailyCostEntry>` |
+| `get_task_trace` | `taskId: String, since?: String, limit?: usize` | `TraceResponse { taskId, events, nextCursor }` |
+
+`get_task_trace` (ADR-088) délègue à l'endpoint REST
+`/api/v1/tasks/:id/trace` exposé par le runtime, parse `payload_json`
+brut serveur en `Value` exploitable côté TS, et retourne les événements
+paginés par curseur UUIDv7. Source unique consommée par le composant
+`ExecutionTrace.svelte` (vue conversation-like remplaçant
+`TaskTimeline.svelte` dans `TaskDetail`).
 
 ### Chat Libre Config (4)
 
@@ -563,7 +572,7 @@ L'onboarding s'affiche au premier lancement (et apres une reinitialisation) sous
 
 ### 5.1 Composants
 
-`OnboardingModal.svelte` — orchestrateur central. Modal centree (`max-width: 720px`, `max-height: 90vh`, `z-index: 80`, hauteur etendue `min(86vh, 760px)` pour les etapes `ai-setup` et `chat`). Maintient l'etat local `currentStep` et synchronise la phase backend via `advance_onboarding_phase`.
+`OnboardingModal.svelte` — orchestrateur central. Modal centree (`max-width: 720px`, `max-height: 90vh`, `z-index: 80`, hauteur etendue `min(86vh, 760px)` pour les etapes `ai-setup` et `chat()`). Maintient l'etat local `currentStep` et synchronise la phase backend via `advance_onboarding_phase`.
 
 | # | Etape | Composant |
 |---|---|---|
