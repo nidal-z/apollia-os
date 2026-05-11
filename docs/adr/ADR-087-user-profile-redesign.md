@@ -48,7 +48,9 @@ builder qui ne change que des étiquettes.
 **Nous adoptons un profil utilisateur canonique unique, déclaré dans un schéma
 Rust central (`crates/apollia-memory/src/profile_schema.rs`), exposé via
 `ctx.profile.*` au SDK Python, et édité depuis une seule page
-`Paramètres → Profil` côté UI.**
+`Paramètres → Profil` côté UI. Comme Apollia OS n'a pas encore d'utilisateurs
+en production, aucun code legacy / rétrocompat / migration n'est conservé —
+c'est la V1 du profil.**
 
 Concrètement :
 
@@ -56,29 +58,30 @@ Concrètement :
    liste les ~15 champs canoniques (Tier 1 + Tier 2), regroupés en 4 sections
    d'affichage (`Identity`, `Work`, `Preferences`, `Constraints`), avec un flag
    `sensitive: bool` qui déclenche un avertissement "relance l'onboarding".
-2. **Storage simplifié** — la table `semantic_memories` namespace `__user__` est
-   conservée (zéro migration SQL), mais les clés sont **plates** (sans préfixe
-   `user.` ni `preferences.`/`habits.`/`context.`). Migration one-shot au boot,
-   idempotente, avec backup automatique.
+2. **Storage** — la table `semantic_memories` namespace `__user__` est
+   conservée (aucun changement de schéma SQL). Les clés sont **plates** —
+   pas de préfixe `user.`, pas de préfixe catégorie. Les états internes
+   d'onboarding utilisent un préfixe `__` qui les masque automatiquement du
+   listing profil (`get_internal`/`set_internal`).
 3. **API SDK Python `ctx.profile`** — propriétés `.name`/`.role`/...,
    méthodes `.get(key)`/`.has(key)`/`.all()`/`.set(key, value)`/`.update(dict)`.
-   Gating identique à `remember_user` actuel (manifest `user_memory_write: true`
-   pour l'écriture, lecture inconditionnelle).
-4. **Rétrocompat SDK** — `ctx.memory.remember_user(...)` et
-   `ctx.memory.recall("user.X")` continuent de fonctionner via thin wrappers
-   (strip de préfixe, mapping `source → WrittenBy`, ignore `confidence`).
+   Gating manifeste `user_memory_write: true` pour l'écriture, lecture
+   inconditionnelle.
+4. **Provenance simplifiée** — `WrittenBy { Onboarding, User, Agent(name) }`
+   (3 variantes). Plus de score `confidence` exposé, plus de badge `validated`
+   — la confiance reste à 1.0 en colonne SQL.
+5. **UI unique** — `Paramètres → Profil` (`routes/settings/Profile.svelte`)
+   est la seule surface d'édition. Le tab `user_memory` de
+   `routes/Memory.svelte` est supprimé (avec `UserMemoryDashboard.svelte` et
+   `MemoryRow.svelte`). La page Mémoire conserve uniquement le namespace
+   explorer pour le debug.
+6. **Suppression des anciennes API** — `MemoryInterface.remember_user`,
+   `recall("user.X")` fallback vers `__user__`, `UserMemoryCategory`,
+   `UserMemorySource`, `UserMemoryEntry`, `store(category, …)`,
+   `recall(category, limit)`, `recall_by_key`, `update_confidence`,
+   `store_with_confidence`, `validate_user_memory` IPC, routes HTTP
+   `/api/v1/user/*`, commandes Tauri `commands::user::*` : **supprimés**.
    ADR-038 (mémoire user globale) reste valide, **amendé** par cet ADR.
-5. **Sources** — l'enum `UserMemorySource` (4 variantes) est remplacé par
-   `WrittenBy { Onboarding, User, Agent(name) }` (3 variantes). `chat_inference`
-   fusionne dans `Agent(<agent_name>)` ; `validated` est supprimé ; `confidence`
-   est conservé en colonne SQL (forcé à 1.0) mais **non exposé** côté API
-   publique.
-6. **UI unique** — `Paramètres → Profil` (`routes/settings/Profile.svelte`)
-   devient la seule surface d'édition du profil utilisateur. Le tab `user_memory`
-   de `routes/Memory.svelte` est **supprimé** (avec `UserMemoryDashboard.svelte`
-   et `MemoryRow.svelte`). La page Mémoire conserve uniquement le namespace
-   explorer pour le debug ; une bannière info-only redirige vers
-   `Paramètres → Profil` quand le namespace `__user__` est sélectionné.
 
 ## Alternatives considérées
 
@@ -95,14 +98,18 @@ Concrètement :
   plus de surface API à maintenir, plus de complexité UI (2 sections). Effort ~5-6j.
 
 ### Option retenue — Profil canonique + schéma déclaratif central (Piste B du plan)
-**Pour :** migration minimale (pas de changement de schéma SQL), rétrocompat
-  parfaite, schéma déclaratif central résout la convention floue actuelle,
-  UI cible déjà préparée (`settings/Profile.svelte` existe), aucun ADR à
-  superseder. Effort ~4.5j.
+**Pour :** schéma déclaratif central résout la convention floue actuelle, UI
+  cible déjà préparée (`settings/Profile.svelte` existe), aucun ADR à
+  superseder, surface API drastiquement réduite. Apollia OS n'ayant pas
+  encore d'utilisateurs en production, on en profite pour livrer la V1
+  sans dette legacy (pas de migration, pas de rétrocompat, pas de wrappers
+  dépréciés). Effort ~4 j.
 **Compromis acceptés :** ajouter un champ canonique nécessite une recompilation
   Rust (les agents peuvent toujours écrire en clé libre — visibles dans la
   section "Autres entrées" — mais la promotion en champ canonique reste un acte
-  explicite).
+  explicite). Tout client qui dépendait des anciennes API (`remember_user`,
+  `recall("user.X")`, routes HTTP `/api/v1/user/*`, etc.) doit migrer vers
+  `ctx.profile.*`.
 
 ## Conséquences
 

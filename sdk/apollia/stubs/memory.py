@@ -52,36 +52,12 @@ class MemoryInterface:
         """
         ...
 
-    def remember_user(
-        self,
-        key: str,
-        value: str,
-        source: str | None = None,
-        confidence: float | None = None,
-    ) -> Awaitable[None]:
-        """Store a key/value pair in the global ``__user__`` namespace.
-
-        Available only to agents whose manifest declares
-        ``user_memory_write = true`` (typically the onboarding agent).
-        Raises ``RuntimeError`` otherwise.
-
-        .. deprecated:: ADR-087
-            Prefer ``ctx.profile.set(key, value)`` — the new canonical surface
-            for the user profile.  ``remember_user`` keeps working as a thin
-            wrapper that strips the historical ``user.`` prefix and ignores
-            the ``source`` / ``confidence`` arguments.
-
-        Once written, the value is readable by every other agent through
-        the standard :meth:`recall` fallback.
-        """
-        ...
-
     def recall(self, key: str) -> Awaitable[str | None]:
-        """Retrieve a value by key from semantic memory.
+        """Retrieve a value by key from the agent's semantic memory namespace.
 
-        Searches the agent's own namespace first, then falls back to the
-        global ``__user__`` namespace. Returns ``None`` if the key does
-        not exist in either location.
+        Reads are isolated to the agent's own namespace.  The global user
+        profile is exposed separately via ``ctx.profile`` (ADR-087).
+        Returns ``None`` if the key does not exist.
         """
         ...
 
