@@ -14,6 +14,8 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 **Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
+`[SCREENSHOT: page Paramètres → Profil avec les 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier, Contraintes, Préférences), badge "Sensible" en orange sur Supervision et Contraintes]`
+
 L'écran est divisé en sections :
 
 - **Identité** — prénom, rôle, secteur, taille d'équipe, objectifs.
@@ -28,10 +30,14 @@ L'écran est divisé en sections :
 
 2. Saisissez ou modifiez les champs voulus. Chaque champ est sauvegardé automatiquement quand vous quittez le champ (sortie de focus). Un toast confirme l'enregistrement.
 
+   `[SCREENSHOT: section Identité avec les inputs Prénom / Rôle remplis, les selects Secteur / Taille d'équipe, et un toast vert "Profil mis à jour" en haut à droite]`
+
 3. Une pastille à côté de chaque champ indique **qui a renseigné la valeur** :
    - **onboarding** : extrait lors de l'agent d'onboarding au démarrage initial.
    - **vous** : saisi explicitement depuis ce formulaire.
    - **agent** : observé par un agent au fil d'une conversation.
+
+   `[SCREENSHOT: gros plan sur deux champs avec leurs badges source — badge bleu "onboarding" à côté de Prénom et badge vert "vous" à côté de Rôle]`
 
 4. Vider un champ et quitter le focus **supprime** l'entrée du profil.
 
@@ -44,11 +50,17 @@ Quatre champs portent un badge **Sensible** :
 - **Conformité** (Contraintes)
 - **Intégrations connectées** (Outils & contexte métier)
 
+`[SCREENSHOT: section "Supervision des agents" avec son badge "Sensible" orange, le RadioGroup HITL (Toujours valider / Critique seulement / Jamais) avec une option sélectionnée, et la mention "Modifier ces choix n'ajuste pas tes règles de permissions automatiquement"]`
+
 Modifier ces champs **ne ré-applique pas automatiquement** vos règles de permissions. Apollia respecte le principe « la mémoire ne change pas l'environnement sans décision explicite ». Pour que les nouvelles valeurs influencent les permissions, relancez l'onboarding (bouton **Réinitialiser le profil** ci-dessous, ou directement depuis la sidebar).
 
 ## Réinitialiser le profil
 
 En bas de la page, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale : tout le profil est effacé et l'agent d'onboarding redémarre pour reconstruire vos préférences depuis zéro.
+
+`[SCREENSHOT: Zone danger en bas de page avec icône AlertTriangle rouge, texte explicatif et bouton "Réinitialiser le profil" à bordure destructive]`
+
+`[SCREENSHOT: modale de confirmation "Réinitialiser le profil ?" avec texte d'avertissement "Cela supprimera tout le profil mémorisé et relancera l'onboarding. Cette action est irréversible.", boutons "Réinitialiser" (rouge) et "Annuler"]`
 
 L'historique des conversations et la mémoire des agents (épisodes, faits sémantiques) **ne sont pas touchés** par cette action — uniquement le profil global.
 
