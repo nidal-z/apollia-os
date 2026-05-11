@@ -261,13 +261,17 @@ pub async fn mark_onboarded() -> Result<(), String> {
         .map_err(|e| format!("failed to write onboarding flag: {e}"))
 }
 
-/// Supprime le flag d'onboarding complété pour permettre de revoir l'onboarding.
+/// Réinitialise complètement l'onboarding : supprime le flag de complétion,
+/// purge les marqueurs internes d'état du flow desktop, et purge le profil
+/// utilisateur visible (Tier 1 + extras) pour que le parcours reparte de zéro.
 ///
-/// Le flag est stocké dans `~/.apollia/.onboarded`. Sa suppression
-/// déclenche l'affichage de la modale d'onboarding au prochain lancement.
-///
-/// Nettoie aussi toutes les clés `onboarding_*` dans UserMemory pour garantir
-/// un redémarrage complet du flow (phase = welcome, profile = null, stats = 0).
+/// Après ADR-087 :
+/// - Les marqueurs UI (`onboarding_phase`, `onboarding_completed_at`, etc.)
+///   sont stockés sous préfixe `__` dans `__user__` → on les efface via
+///   `forget_internal`.
+/// - Les faits Tier 1 du profil sont des clés plates (`name`, `role`,
+///   `agents.hitl`, `constraints.sovereignty`) → un simple `repo.reset()`
+///   les supprime tous, y compris les extras éventuels.
 #[tauri::command]
 pub async fn reset_onboarding(
     state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
@@ -280,8 +284,6 @@ pub async fn reset_onboarding(
             .map_err(|e| format!("failed to remove onboarding flag: {e}"))?;
     }
 
-    // Clean all onboarding_* keys from UserMemory so the state machine
-    // reverts to phase=welcome on next load.
     let repo = state
         .user_memory
         .as_ref()
@@ -293,8 +295,8 @@ pub async fn reset_onboarding(
             .lock()
             .map_err(|e| format!("mutex poisoned: {e}"))?;
 
-        // 1. Desktop UI state keys (`onboarding_*`) — phase machine + stats.
-        let ui_keys = [
+        // 1. Marqueurs internes du flow onboarding (préfixe `__`).
+        let internal_keys = [
             "onboarding_phase",
             "onboarding_profile",
             "onboarding_llm_configured",
@@ -315,66 +317,107 @@ pub async fn reset_onboarding(
             "onboarding_stats_companion_questions",
             "onboarding_stats_voice_commands_used",
         ];
-        for key in &ui_keys {
-            // forget() searches across all categories and deletes the first
-            // match. NotFound is fine — the key may simply not have been
-            // collected yet.
-            let _ = repo.forget(key);
-        }
-        drop(repo);
-
-        // 2. Agent-collected Tier 1 facts. The onboarding-agent writes them
-        // directly via `remember_user("user.name", ...)`, which goes through
-        // `remember_inner(namespace="__user__", key="user.name", ...)` —
-        // i.e. the **raw** key, not the compound `<category>.<key>` shape
-        // produced by `UserMemoryRepository`. Calling `repo.forget("user.name")`
-        // therefore can't find these entries (it searches for
-        // `profile.user.name`, `context.user.name`, …). We have to bypass
-        // the repository abstraction and hit the SemanticMemory directly,
-        // otherwise the next onboarding session resumes mid-flow because
-        // `_build_progress_note` keeps reading the stale facts.
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        let user_db_path = std::path::PathBuf::from(home)
-            .join(".apollia")
-            .join("memory")
-            .join("__user__.db");
-
-        if user_db_path.exists() {
-            match apollia_memory::store::MemoryStore::open(&user_db_path) {
-                Ok(store) => {
-                    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-                    let tier1_keys = [
-                        "user.name",
-                        "user.role",
-                        "user.agents.hitl",
-                        "user.constraints.sovereignty",
-                    ];
-                    for key in &tier1_keys {
-                        if let Err(e) = sem.forget("__user__", key) {
-                            tracing::warn!(
-                                key = %key,
-                                error = %e,
-                                "failed to wipe Tier 1 user.* key during reset_onboarding"
-                            );
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        path = %user_db_path.display(),
-                        error = %e,
-                        "could not open __user__.db during reset_onboarding"
-                    );
-                }
+        for key in &internal_keys {
+            if let Err(e) = repo.forget_internal(key) {
+                tracing::warn!(
+                    key = %key,
+                    error = %e,
+                    "failed to wipe internal onboarding marker during reset_onboarding"
+                );
             }
         }
+
+        // 2. Purge complète du profil utilisateur visible (Tier 1 + extras).
+        //    Le parcours d'onboarding repeuplera les Tier 1 dès relance.
+        let removed = repo
+            .reset()
+            .map_err(|e| format!("failed to reset user profile during reset_onboarding: {e}"))?;
+        tracing::info!(
+            removed_profile_entries = removed,
+            "reset_onboarding wiped user profile"
+        );
 
         Ok::<_, String>(())
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
+    // 3. Purge la base mémoire propre à l'onboarding-agent (`onboarding.db`).
+    //    Elle contient les épisodes du dialogue + clés `onboarding.completed_at`
+    //    qui empêchent autrement le parcours de redémarrer proprement.
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let onboarding_db = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("memory")
+        .join("onboarding.db");
+    if onboarding_db.exists() {
+        if let Err(e) = tokio::fs::remove_file(&onboarding_db).await {
+            tracing::warn!(
+                path = %onboarding_db.display(),
+                error = %e,
+                "could not remove onboarding.db during reset_onboarding"
+            );
+        }
+        // Side-files créés par WAL ; ignorer les erreurs.
+        for ext in ["onboarding.db-wal", "onboarding.db-shm"] {
+            let side = onboarding_db.with_file_name(ext);
+            if side.exists() {
+                let _ = tokio::fs::remove_file(&side).await;
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// Supprime **toutes** les bases de données mémoire d'Apollia.
+///
+/// Wipe brutal : retire chaque fichier `*.db` (et leurs side-files WAL/SHM)
+/// du dossier `~/.apollia/memory/`, indépendamment du namespace (profil
+/// utilisateur, mémoires d'agents, projets, etc.). Action irréversible.
+///
+/// Retourne le nombre de fichiers `.db` supprimés.
+#[tauri::command]
+pub async fn clear_all_memories() -> Result<usize, String> {
+    let memory_dir = apollia_home().join("memory");
+    if !memory_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut entries = tokio::fs::read_dir(&memory_dir)
+        .await
+        .map_err(|e| format!("failed to list memory dir: {e}"))?;
+
+    let mut removed_db_count = 0usize;
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| format!("read_dir iteration failed: {e}"))?
+    {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        // Suppression élargie : on retire chaque fichier (db, wal, shm,
+        // backups éventuels) du dossier mémoire. Les sous-dossiers ne sont
+        // pas touchés.
+        if !path.is_file() {
+            continue;
+        }
+        if let Err(e) = tokio::fs::remove_file(&path).await {
+            tracing::warn!(path = %path.display(), error = %e, "clear_all_memories: skip file");
+            continue;
+        }
+        if name.ends_with(".db") {
+            removed_db_count += 1;
+        }
+    }
+
+    tracing::info!(
+        removed_db_count,
+        "clear_all_memories wiped every memory namespace"
+    );
+    Ok(removed_db_count)
 }
 
 /// Résout `~/.apollia/`.

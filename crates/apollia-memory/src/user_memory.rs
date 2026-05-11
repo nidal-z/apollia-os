@@ -554,6 +554,17 @@ impl UserMemoryRepository {
         self.write_raw(&storage_key, value, WrittenBy::User)
     }
 
+    /// Removes an internal state value.  Symmetric to [`Self::set_internal`].
+    /// Returns `Ok(())` whether the key existed or not — internal-state wipes
+    /// should be tolerant of missing entries.
+    pub fn forget_internal(&self, key: &str) -> Result<(), UserMemoryError> {
+        let storage_key = format!("{INTERNAL_KEY_PREFIX}{key}");
+        let sem = SemanticMemory::new(&self.store);
+        sem.forget(USER_NAMESPACE, &storage_key)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(())
+    }
+
     // -- Onboarding bookkeeping (internal state, hidden from profile UI) --
 
     /// Returns the list of onboarding topics already covered.

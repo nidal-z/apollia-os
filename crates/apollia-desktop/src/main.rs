@@ -635,6 +635,7 @@ fn main() {
             commands::config::get_config,
             commands::config::open_config_in_editor,
             commands::config::reset_onboarding,
+            commands::config::clear_all_memories,
             commands::config::clear_logs,
             commands::config::factory_reset,
             commands::config::app_restart,

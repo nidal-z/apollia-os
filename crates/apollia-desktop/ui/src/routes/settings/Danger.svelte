@@ -15,7 +15,7 @@
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
   import { navigateTo } from "$lib/stores/navigation";
-  import { onboardingStore } from "$lib/stores/onboarding";
+  import { onboardingStore, onboardingModalOpen } from "$lib/stores/onboarding";
   import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
 
   type ActionId = "reset-onboarding" | "clear-memories" | "clear-logs" | "factory-reset";
@@ -27,10 +27,10 @@
     loading = true;
     try {
       await invoke("reset_onboarding");
-      // Refresh the onboarding state from backend — now that UserMemory is
-      // clean, it will load OnboardingState::default() (phase=welcome).
-      // App.svelte will automatically display the onboarding UI.
+      // Reload the now-empty state so derived stores (badges, etc.) catch up.
       await onboardingStore.refreshState();
+      // Open the onboarding modal immediately — no restart required.
+      onboardingModalOpen.set(true);
       addToast($t("settings.danger.reset_onboarding.success"), "success", {
         "data-testid": "danger-reset-onboarding-toast",
       });
@@ -45,7 +45,9 @@
   async function runClearMemories() {
     loading = true;
     try {
-      const count = await invoke<number>("reset_user_profile");
+      // Wipes every namespace (user profile, agents, projects) — see
+      // commands::config::clear_all_memories.
+      const count = await invoke<number>("clear_all_memories");
       addToast(
         $t("settings.danger.clear_memories.success", { values: { count } }),
         "success",
