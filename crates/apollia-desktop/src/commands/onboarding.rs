@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, UserMemorySource};
+use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::chat::ChatMode;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -580,13 +580,7 @@ async fn set_onboarding_profile_inner(
 /// Returns `OnboardingState::default()` when no persisted phase is found
 /// (first launch).
 fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState, OnboardingError> {
-    let ctx = UserMemoryCategory::Context;
-
-    let phase_str = repo
-        .recall_by_key(ctx, "onboarding_phase")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| e.value);
-
+    let phase_str = read_str(repo, "onboarding_phase")?;
     let Some(phase_str) = phase_str else {
         return Ok(OnboardingState::default());
     };
@@ -595,18 +589,13 @@ fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState
         OnboardingError::PersistenceError(format!("unrecognised persisted phase: {phase_str}"))
     })?;
 
-    let profile = repo
-        .recall_by_key(ctx, "onboarding_profile")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| e.value);
+    let profile = read_str(repo, "onboarding_profile")?;
 
     let llm_configured = read_bool(repo, "onboarding_llm_configured")?;
     let stt_configured = read_bool(repo, "onboarding_stt_configured")?;
 
-    let topics_covered = repo
-        .recall_by_key(ctx, "onboarding_topics_covered")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| serde_json::from_str::<Vec<String>>(&e.value).unwrap_or_default())
+    let topics_covered = read_str(repo, "onboarding_topics_covered")?
+        .map(|v| serde_json::from_str::<Vec<String>>(&v).unwrap_or_default())
         .unwrap_or_default();
 
     let mandatory_complete = read_bool(repo, "onboarding_mandatory_complete")?;
@@ -614,27 +603,15 @@ fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState
     let tour_total_steps = read_u32(repo, "onboarding_tour_total_steps")?;
     let tour_completed = read_bool(repo, "onboarding_tour_completed")?;
 
-    let companion_session_id = repo
-        .recall_by_key(ctx, "onboarding_companion_session_id")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| e.value)
-        .filter(|v| !v.is_empty());
+    let companion_session_id =
+        read_str(repo, "onboarding_companion_session_id")?.filter(|v| !v.is_empty());
 
     let voice_enabled = read_bool(repo, "onboarding_voice_enabled")?;
     let skipped = read_bool(repo, "onboarding_skipped")?;
     let completed = read_bool(repo, "onboarding_completed")?;
 
-    let started_at = repo
-        .recall_by_key(ctx, "onboarding_started_at")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| e.value)
-        .filter(|v| v != "none");
-
-    let completed_at = repo
-        .recall_by_key(ctx, "onboarding_completed_at")
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| e.value)
-        .filter(|v| v != "none");
+    let started_at = read_str(repo, "onboarding_started_at")?.filter(|v| v != "none");
+    let completed_at = read_str(repo, "onboarding_completed_at")?.filter(|v| v != "none");
 
     let stats = OnboardingStats {
         total_time_sec: read_u64(repo, "onboarding_stats_total_time_sec")?,
@@ -663,32 +640,27 @@ fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState
     })
 }
 
-/// Persists the full `OnboardingState` to UserMemory context keys.
+/// Persists the full `OnboardingState` to UserMemory internal-state keys.
+///
+/// All keys are stamped with the `__` prefix in storage so they stay hidden
+/// from the user profile listing (ADR-087).
 fn persist_state(
     repo: &UserMemoryRepository,
     state: &OnboardingState,
 ) -> Result<(), OnboardingError> {
-    let ctx = UserMemoryCategory::Context;
-    let src = UserMemorySource::Onboarding;
-
-    repo.store(ctx, "onboarding_phase", state.phase.as_str(), src)
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-
-    repo.store(
-        ctx,
+    write_str(repo, "onboarding_phase", state.phase.as_str())?;
+    write_str(
+        repo,
         "onboarding_profile",
         state.profile.as_deref().unwrap_or(""),
-        src,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
+    )?;
 
     write_bool(repo, "onboarding_llm_configured", state.llm_configured)?;
     write_bool(repo, "onboarding_stt_configured", state.stt_configured)?;
 
     let topics_json = serde_json::to_string(&state.topics_covered)
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    repo.store(ctx, "onboarding_topics_covered", &topics_json, src)
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
+    write_str(repo, "onboarding_topics_covered", &topics_json)?;
 
     write_bool(
         repo,
@@ -699,33 +671,26 @@ fn persist_state(
     write_u32(repo, "onboarding_tour_total_steps", state.tour_total_steps)?;
     write_bool(repo, "onboarding_tour_completed", state.tour_completed)?;
 
-    repo.store(
-        ctx,
+    write_str(
+        repo,
         "onboarding_companion_session_id",
         state.companion_session_id.as_deref().unwrap_or(""),
-        src,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
+    )?;
 
     write_bool(repo, "onboarding_voice_enabled", state.voice_enabled)?;
     write_bool(repo, "onboarding_skipped", state.skipped)?;
     write_bool(repo, "onboarding_completed", state.completed)?;
 
-    repo.store(
-        ctx,
+    write_str(
+        repo,
         "onboarding_started_at",
         state.started_at.as_deref().unwrap_or("none"),
-        src,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-
-    repo.store(
-        ctx,
+    )?;
+    write_str(
+        repo,
         "onboarding_completed_at",
         state.completed_at.as_deref().unwrap_or("none"),
-        src,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
+    )?;
 
     write_u64(
         repo,
@@ -752,58 +717,47 @@ fn persist_state(
 }
 
 // ---------------------------------------------------------------------------
-// Low-level read/write helpers
+// Low-level read/write helpers — all operate on internal-state keys
 // ---------------------------------------------------------------------------
 
+fn read_str(repo: &UserMemoryRepository, key: &str) -> Result<Option<String>, OnboardingError> {
+    repo.get_internal(key)
+        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
+}
+
+fn write_str(repo: &UserMemoryRepository, key: &str, value: &str) -> Result<(), OnboardingError> {
+    repo.set_internal(key, value)
+        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
+}
+
 fn read_bool(repo: &UserMemoryRepository, key: &str) -> Result<bool, OnboardingError> {
-    let entry = repo
-        .recall_by_key(UserMemoryCategory::Context, key)
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    Ok(entry.map(|e| e.value == "true").unwrap_or(false))
+    Ok(read_str(repo, key)?
+        .map(|v| v == "true")
+        .unwrap_or(false))
 }
 
 fn write_bool(repo: &UserMemoryRepository, key: &str, value: bool) -> Result<(), OnboardingError> {
-    repo.store(
-        UserMemoryCategory::Context,
-        key,
-        if value { "true" } else { "false" },
-        UserMemorySource::Onboarding,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
+    write_str(repo, key, if value { "true" } else { "false" })
 }
 
 fn read_u32(repo: &UserMemoryRepository, key: &str) -> Result<u32, OnboardingError> {
-    let entry = repo
-        .recall_by_key(UserMemoryCategory::Context, key)
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    Ok(entry.and_then(|e| e.value.parse::<u32>().ok()).unwrap_or(0))
+    Ok(read_str(repo, key)?
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(0))
 }
 
 fn write_u32(repo: &UserMemoryRepository, key: &str, value: u32) -> Result<(), OnboardingError> {
-    repo.store(
-        UserMemoryCategory::Context,
-        key,
-        &value.to_string(),
-        UserMemorySource::Onboarding,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
+    write_str(repo, key, &value.to_string())
 }
 
 fn read_u64(repo: &UserMemoryRepository, key: &str) -> Result<u64, OnboardingError> {
-    let entry = repo
-        .recall_by_key(UserMemoryCategory::Context, key)
-        .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    Ok(entry.and_then(|e| e.value.parse::<u64>().ok()).unwrap_or(0))
+    Ok(read_str(repo, key)?
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0))
 }
 
 fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), OnboardingError> {
-    repo.store(
-        UserMemoryCategory::Context,
-        key,
-        &value.to_string(),
-        UserMemorySource::Onboarding,
-    )
-    .map_err(|e| OnboardingError::PersistenceError(e.to_string()))
+    write_str(repo, key, &value.to_string())
 }
 
 // ---------------------------------------------------------------------------

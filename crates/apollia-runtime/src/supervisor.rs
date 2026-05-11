@@ -2857,13 +2857,12 @@ mod tests {
         {
             let repo = apollia_memory::user_memory::UserMemoryRepository::new(&user_memory_db)
                 .expect("open user_memory.db");
-            repo.store(
-                apollia_memory::user_memory::UserMemoryCategory::Preferences,
-                "language",
+            repo.set(
+                "preferences.language",
                 "fr",
-                apollia_memory::user_memory::UserMemorySource::Onboarding,
+                apollia_memory::user_memory::WrittenBy::Onboarding,
             )
-            .expect("store entry");
+            .expect("set entry");
         }
 
         let supervisor = Supervisor::new(config);

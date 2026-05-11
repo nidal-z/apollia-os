@@ -1,9 +1,9 @@
 //! Memory extraction from chat conversations via LLM inference.
 //!
 //! After a session closes (if it contained enough messages), an asynchronous
-//! LLM call extracts user preferences, habits, and contextual information.
-//! Extracted entries are stored in [`UserMemoryRepository`] with source
-//! [`UserMemorySource::ChatInference`].
+//! LLM call extracts durable user information.  Extracted entries are stored
+//! flat in [`UserMemoryRepository`] tagged with
+//! [`WrittenBy::Agent("chat-extractor")`].
 //!
 //! [`UserMemoryExtractor`] adds stateful enrichment with rate limiting and
 //! deduplication against existing entries.
@@ -16,7 +16,12 @@ use tracing::warn;
 
 use apollia_llm::types::ChatMessage as LlmChatMessage;
 use apollia_llm::{CompletionRequest, LlmRouter, ObservabilityConfig};
-use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, UserMemorySource};
+use apollia_memory::user_memory::{UserMemoryRepository, WrittenBy};
+
+/// Provenance tag used for entries derived from chat extraction.
+fn chat_extractor_provenance() -> WrittenBy {
+    WrittenBy::Agent("chat-extractor".to_owned())
+}
 
 use super::types::ChatMessage;
 
@@ -31,9 +36,6 @@ const EXTRACTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Cooldown between two enrichment extractions (1 hour).
 const EXTRACTION_COOLDOWN: Duration = Duration::from_secs(3600);
-
-/// Confidence score assigned to entries created from chat inference.
-const CHAT_INFERENCE_CONFIDENCE: f64 = 0.5;
 
 /// Prompt sent to the LLM to extract user information from a conversation.
 const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract durable user information — things that will still be true in future conversations.
@@ -108,8 +110,8 @@ pub enum ExtractionError {
 ///
 /// Provides rate limiting (at most one extraction per [`EXTRACTION_COOLDOWN`])
 /// and deduplication against existing [`UserMemoryRepository`] entries.
-/// Entries are stored with [`UserMemorySource::ChatInference`] and a
-/// confidence of [`CHAT_INFERENCE_CONFIDENCE`].
+/// Entries are stored flat with [`WrittenBy::Agent`] tagged
+/// `"chat-extractor"`.
 pub struct UserMemoryExtractor {
     /// Timestamp of the last successful extraction.
     last_extraction: Option<Instant>,
@@ -204,12 +206,13 @@ impl UserMemoryExtractor {
         });
     }
 
-    /// Filters out entries that already exist in the repository with the same
-    /// value or with a higher confidence score.
+    /// Filters out entries that already exist with the same value.  Entries
+    /// previously written by [`WrittenBy::Onboarding`] or [`WrittenBy::User`]
+    /// always win — chat extraction never overwrites a higher-trust source.
     fn deduplicate(
         &self,
-        entries: &[(UserMemoryCategory, &ExtractedEntry)],
-    ) -> Result<Vec<(UserMemoryCategory, ExtractedEntry)>, ExtractionError> {
+        entries: &[&ExtractedEntry],
+    ) -> Result<Vec<ExtractedEntry>, ExtractionError> {
         let repo = self
             .user_memory
             .lock()
@@ -217,20 +220,25 @@ impl UserMemoryExtractor {
 
         let mut new_entries = Vec::new();
 
-        for &(category, entry) in entries {
-            match repo.recall_by_key(category, &entry.key) {
+        for &entry in entries {
+            match repo.get(&entry.key) {
                 Ok(Some(existing)) if existing.value == entry.value => {
                     tracing::debug!(key = %entry.key, "duplicate skipped — same value");
                 }
-                Ok(Some(existing)) if existing.confidence > CHAT_INFERENCE_CONFIDENCE => {
+                Ok(Some(existing))
+                    if matches!(
+                        existing.written_by,
+                        WrittenBy::Onboarding | WrittenBy::User
+                    ) =>
+                {
                     tracing::debug!(
                         key = %entry.key,
-                        existing_confidence = %existing.confidence,
-                        "higher confidence entry exists, skipping"
+                        provenance = %existing.written_by.tag(),
+                        "higher-trust entry exists, skipping"
                     );
                 }
                 Ok(_) => {
-                    new_entries.push((category, entry.clone()));
+                    new_entries.push(entry.clone());
                 }
                 Err(e) => {
                     warn!(key = %entry.key, error = %e, "deduplication lookup failed, skipping entry");
@@ -241,10 +249,10 @@ impl UserMemoryExtractor {
         Ok(new_entries)
     }
 
-    /// Persists deduplicated entries with chat inference confidence.
+    /// Persists deduplicated entries tagged with the chat-extractor provenance.
     fn store_new_entries(
         &self,
-        entries: &[(UserMemoryCategory, ExtractedEntry)],
+        entries: &[ExtractedEntry],
     ) -> Result<usize, ExtractionError> {
         let repo = self
             .user_memory
@@ -252,14 +260,8 @@ impl UserMemoryExtractor {
             .map_err(|e| ExtractionError::MemoryError(format!("lock poisoned: {e}")))?;
 
         let mut stored = 0;
-        for (category, entry) in entries {
-            if let Err(e) = repo.store_with_confidence(
-                *category,
-                &entry.key,
-                &entry.value,
-                UserMemorySource::ChatInference,
-                CHAT_INFERENCE_CONFIDENCE,
-            ) {
+        for entry in entries {
+            if let Err(e) = repo.set(&entry.key, &entry.value, chat_extractor_provenance()) {
                 warn!(key = %entry.key, error = %e, "failed to store enrichment entry");
             } else {
                 stored += 1;
@@ -386,31 +388,19 @@ fn parse_extraction_response(content: &str) -> Result<ExtractionResult, Extracti
         .map_err(|e| ExtractionError::ParseError(format!("{e}: {json_str}")))
 }
 
-/// Flattens an [`ExtractionResult`] into a vec of `(category, entry)` pairs.
-fn flatten_extraction(extraction: &ExtractionResult) -> Vec<(UserMemoryCategory, &ExtractedEntry)> {
+/// Flattens an [`ExtractionResult`] into a flat list of entries.  The
+/// preferences/habits/context buckets are a hint to the LLM about what kind
+/// of information to look for; storage is flat (ADR-087).
+fn flatten_extraction(extraction: &ExtractionResult) -> Vec<&ExtractedEntry> {
     extraction
         .preferences
         .iter()
-        .map(|e| (UserMemoryCategory::Preferences, e))
-        .chain(
-            extraction
-                .habits
-                .iter()
-                .map(|e| (UserMemoryCategory::Habits, e)),
-        )
-        .chain(
-            extraction
-                .context
-                .iter()
-                .map(|e| (UserMemoryCategory::Context, e)),
-        )
+        .chain(extraction.habits.iter())
+        .chain(extraction.context.iter())
         .collect()
 }
 
-/// Stores extracted entries into the user memory repository (legacy path).
-///
-/// Each entry is upserted with [`UserMemorySource::ChatInference`].
-/// Errors on individual entries are logged but do not abort the process.
+/// Stores extracted entries flat, tagged with the chat-extractor provenance.
 fn store_extraction(
     user_memory: &std::sync::Mutex<UserMemoryRepository>,
     extraction: &ExtractionResult,
@@ -424,14 +414,8 @@ fn store_extraction(
     };
 
     let entries = flatten_extraction(extraction);
-
-    for (category, entry) in &entries {
-        if let Err(e) = repo.store(
-            *category,
-            &entry.key,
-            &entry.value,
-            UserMemorySource::ChatInference,
-        ) {
+    for entry in &entries {
+        if let Err(e) = repo.set(&entry.key, &entry.value, chat_extractor_provenance()) {
             warn!(
                 key = %entry.key,
                 error = %e,
@@ -693,21 +677,21 @@ mod tests {
         assert_eq!(count, 2);
 
         let guard = repo.lock().expect("lock should not be poisoned");
-        let prefs = guard
-            .recall(UserMemoryCategory::Preferences, 10)
-            .expect("recall should succeed");
-        assert_eq!(prefs.len(), 1);
-        assert_eq!(prefs[0].key, "ide");
-        assert_eq!(prefs[0].value, "Neovim");
-        assert_eq!(prefs[0].source, UserMemorySource::ChatInference);
-        assert!((prefs[0].confidence - CHAT_INFERENCE_CONFIDENCE).abs() < f64::EPSILON);
+        let ide = guard
+            .get("ide")
+            .expect("get should succeed")
+            .expect("ide entry should be stored");
+        assert_eq!(ide.value, "Neovim");
+        assert_eq!(
+            ide.written_by,
+            WrittenBy::Agent("chat-extractor".to_owned())
+        );
 
-        let ctx = guard
-            .recall(UserMemoryCategory::Context, 10)
-            .expect("recall should succeed");
-        assert_eq!(ctx.len(), 1);
-        assert_eq!(ctx[0].key, "stack");
-        assert_eq!(ctx[0].value, "Python");
+        let stack = guard
+            .get("stack")
+            .expect("get should succeed")
+            .expect("stack entry should be stored");
+        assert_eq!(stack.value, "Python");
     }
 
     // GIVEN an existing entry with higher confidence (onboarding, confidence=1.0)
@@ -723,17 +707,12 @@ mod tests {
         let router = Arc::new(make_router_with_response(json));
         let (repo, _dir) = make_test_repo();
 
-        // Pre-populate with a high-confidence entry from onboarding
+        // Pre-populate with an onboarding-tagged entry (higher trust).
         {
             let guard = repo.lock().expect("lock");
             guard
-                .store(
-                    UserMemoryCategory::Preferences,
-                    "ide",
-                    "Neovim",
-                    UserMemorySource::Onboarding,
-                )
-                .expect("store should succeed");
+                .set("ide", "Neovim", WrittenBy::Onboarding)
+                .expect("set should succeed");
         }
 
         let mut extractor = UserMemoryExtractor::new(router, Arc::clone(&repo));
@@ -744,16 +723,16 @@ mod tests {
             .await
             .expect("extraction should succeed");
 
-        // No new entries — existing has same value
+        // No new entries — existing has same value.
         assert_eq!(count, 0);
 
-        // Verify the original entry is untouched
+        // Verify the original entry is untouched.
         let guard = repo.lock().expect("lock");
-        let prefs = guard
-            .recall(UserMemoryCategory::Preferences, 10)
-            .expect("recall");
-        assert_eq!(prefs.len(), 1);
-        assert_eq!(prefs[0].source, UserMemorySource::Onboarding);
+        let ide = guard
+            .get("ide")
+            .expect("get")
+            .expect("ide entry must remain");
+        assert_eq!(ide.written_by, WrittenBy::Onboarding);
     }
 
     // GIVEN an extraction performed less than 1 hour ago

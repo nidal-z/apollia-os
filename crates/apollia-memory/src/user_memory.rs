@@ -5,13 +5,11 @@
 //! canonical [`crate::profile_schema::PROFILE_SCHEMA`] entry or live as
 //! "extras" (free-form, surfaced separately in the UI).
 //!
-//! Internal state markers (onboarding bookkeeping, migration receipts) use a
-//! double-underscore prefix and are hidden from the profile listing.
+//! Internal state markers (onboarding bookkeeping) use a double-underscore
+//! prefix and are hidden from the profile listing.
 //!
-//! ADR-087 amends ADR-038: the namespace and the SemanticMemory backend are
-//! preserved, but the public API and storage layout are simplified.
+//! ADR-087 defines the shape of this module.
 
-use std::fmt;
 use std::path::Path;
 
 use crate::profile_schema::{field_for, is_canonical, PROFILE_SCHEMA};
@@ -23,8 +21,8 @@ use crate::store::MemoryStore;
 pub const USER_NAMESPACE: &str = "__user__";
 
 /// All keys in `__user__` starting with this prefix are considered internal
-/// state (onboarding bookkeeping, migration receipts) and are hidden from the
-/// profile listing returned to the UI.
+/// state (onboarding bookkeeping) and are hidden from the profile listing
+/// returned to the UI.
 const INTERNAL_KEY_PREFIX: &str = "__";
 
 /// Internal key: ISO 8601 timestamp of the last onboarding session.
@@ -38,14 +36,10 @@ const KEY_ONBOARDING_SKIPPED: &str = "__onboarding_skipped";
 const KEY_ONBOARDING_TOPIC_PREFIX: &str = "__onboarding_topic_";
 
 // ---------------------------------------------------------------------------
-// Public types — canonical (ADR-087)
+// Public types
 // ---------------------------------------------------------------------------
 
 /// Provenance of a profile entry — what wrote it.
-///
-/// Replaces the legacy 4-variant [`UserMemorySource`] with 3 cases; agent
-/// observations (including legacy `chat_inference`) collapse into
-/// [`WrittenBy::Agent`] tagged with the agent name.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "name")]
 pub enum WrittenBy {
@@ -67,23 +61,16 @@ impl WrittenBy {
         }
     }
 
-    /// Reconstructs a [`WrittenBy`] from a storage tag.  Unknown or legacy
-    /// tags are best-effort mapped: `user_explicit` → [`Self::User`],
-    /// `chat_inference`/`agent_observation` → [`Self::Agent`] with a
-    /// descriptive name.
+    /// Reconstructs a [`WrittenBy`] from a storage tag.
     pub fn from_tag(tag: &str) -> Self {
         if tag == "onboarding" {
             Self::Onboarding
-        } else if tag == "user" || tag == "user_explicit" {
+        } else if tag == "user" {
             Self::User
         } else if let Some(name) = tag.strip_prefix("agent:") {
             Self::Agent(name.to_owned())
-        } else if tag == "chat_inference" {
-            Self::Agent("chat-extractor".to_owned())
-        } else if tag == "agent_observation" {
-            Self::Agent("legacy".to_owned())
         } else {
-            Self::Agent("legacy".to_owned())
+            Self::Agent(tag.to_owned())
         }
     }
 }
@@ -101,7 +88,7 @@ pub struct ProfileEntry {
     pub created_at: String,
     /// ISO 8601 last-update timestamp.
     pub updated_at: String,
-    /// `true` when [`key`] matches a canonical [`PROFILE_SCHEMA`] entry.
+    /// `true` when [`Self::key`] matches a canonical [`PROFILE_SCHEMA`] entry.
     pub in_schema: bool,
 }
 
@@ -111,124 +98,12 @@ pub enum UserMemoryError {
     /// A storage operation failed.
     #[error("storage error: {0}")]
     StorageError(String),
-    /// The provided category string is not recognized (legacy API).
-    #[error("invalid category: {0}")]
-    InvalidCategory(String),
     /// The requested entry was not found.
     #[error("entry not found: {0}")]
     NotFound(String),
     /// The provided key is empty or starts with the internal prefix.
     #[error("invalid key: {0}")]
     InvalidKey(String),
-}
-
-// ---------------------------------------------------------------------------
-// Legacy types — kept for backward compatibility (deprecated)
-// ---------------------------------------------------------------------------
-
-/// Category of a user memory entry.
-///
-/// **Deprecated (ADR-087)**: kept for backward compatibility while callers
-/// migrate.  Storage no longer uses categories; calls receiving a category
-/// argument simply ignore it on the write side, and on the read side return
-/// schema entries grouped by the corresponding [`crate::profile_schema::ProfileSection`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UserMemoryCategory {
-    /// User profile identity (legacy).
-    Profile,
-    /// User preferences (legacy).
-    Preferences,
-    /// Observed user habits (legacy).
-    Habits,
-    /// Contextual information (legacy).
-    Context,
-}
-
-impl UserMemoryCategory {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Profile => "profile",
-            Self::Preferences => "preferences",
-            Self::Habits => "habits",
-            Self::Context => "context",
-        }
-    }
-}
-
-impl fmt::Display for UserMemoryCategory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Source of a user memory entry.
-///
-/// **Deprecated (ADR-087)**: use [`WrittenBy`] instead.  Conversion is provided
-/// via [`Self::into_written_by`] and [`From`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum UserMemorySource {
-    /// Set during onboarding (legacy).
-    Onboarding,
-    /// Inferred by the LLM from a chat conversation (legacy).
-    ChatInference,
-    /// Explicitly provided by the user (legacy).
-    UserExplicit,
-    /// Observed by an agent during task execution (legacy).
-    AgentObservation,
-}
-
-impl UserMemorySource {
-    /// Converts a legacy source enum into the canonical [`WrittenBy`].
-    pub fn into_written_by(self) -> WrittenBy {
-        match self {
-            Self::Onboarding => WrittenBy::Onboarding,
-            Self::UserExplicit => WrittenBy::User,
-            Self::ChatInference => WrittenBy::Agent("chat-extractor".to_owned()),
-            Self::AgentObservation => WrittenBy::Agent("legacy".to_owned()),
-        }
-    }
-}
-
-impl From<UserMemorySource> for WrittenBy {
-    fn from(src: UserMemorySource) -> Self {
-        src.into_written_by()
-    }
-}
-
-impl fmt::Display for UserMemorySource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Onboarding => "onboarding",
-            Self::ChatInference => "chat_inference",
-            Self::UserExplicit => "user_explicit",
-            Self::AgentObservation => "agent_observation",
-        };
-        f.write_str(s)
-    }
-}
-
-/// A single user memory entry — legacy shape.
-///
-/// **Deprecated (ADR-087)**: use [`ProfileEntry`] instead.  The `category`
-/// field is derived best-effort from the canonical schema section.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct UserMemoryEntry {
-    /// Legacy category (derived).
-    pub category: UserMemoryCategory,
-    /// Short key.
-    pub key: String,
-    /// Plain-text value.
-    pub value: String,
-    /// Legacy source.
-    pub source: UserMemorySource,
-    /// Confidence score — always `1.0` in the simplified model.
-    pub confidence: f64,
-    /// ISO 8601 creation timestamp.
-    pub created_at: String,
-    /// ISO 8601 last-update timestamp.
-    pub updated_at: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +120,7 @@ pub struct UserMemoryRepository {
 }
 
 impl UserMemoryRepository {
-    /// Opens (or creates) the user memory database at `db_path`.
+    /// Opens (or creates) the user profile database at `db_path`.
     pub fn new(db_path: &Path) -> Result<Self, UserMemoryError> {
         let store =
             MemoryStore::open(db_path).map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
@@ -258,12 +133,8 @@ impl UserMemoryRepository {
         let all = sem
             .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        Ok(all
-            .iter()
-            .all(|e| e.key.starts_with(INTERNAL_KEY_PREFIX)))
+        Ok(all.iter().all(|e| e.key.starts_with(INTERNAL_KEY_PREFIX)))
     }
-
-    // -- Canonical API (ADR-087) --
 
     /// Upserts a profile entry under [`key`] with the given provenance.
     ///
@@ -314,7 +185,7 @@ impl UserMemoryRepository {
         Ok(ordered)
     }
 
-    /// Lists only canonical schema entries (filtered subset of [`list_all`]).
+    /// Lists only canonical schema entries.
     pub fn list_schema(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         Ok(self.list_all()?.into_iter().filter(|e| e.in_schema).collect())
     }
@@ -344,8 +215,7 @@ impl UserMemoryRepository {
     }
 
     /// Deletes every user-visible entry.  Internal state markers (onboarding
-    /// bookkeeping, migration receipts) are preserved.  Returns the number of
-    /// deleted entries.
+    /// bookkeeping) are preserved.  Returns the number of deleted entries.
     pub fn reset(&self) -> Result<usize, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
@@ -412,8 +282,7 @@ impl UserMemoryRepository {
         Ok(entries)
     }
 
-    /// Produces a text block suitable for LLM system-prompt injection
-    /// (legacy `recall_all_for_injection` shape, kept for chat user_context).
+    /// Produces a text block suitable for LLM system-prompt injection.
     ///
     /// Output groups entries by schema section:
     /// ```text
@@ -459,7 +328,6 @@ impl UserMemoryRepository {
             }
         }
 
-        // Append extras under a trailing section.
         let extras: Vec<&ProfileEntry> = entries.iter().filter(|e| !e.in_schema).collect();
         if !extras.is_empty() && total < max_entries {
             if !output.is_empty() {
@@ -480,10 +348,9 @@ impl UserMemoryRepository {
 
     /// Produces a structured persona brief for LLM system-prompt injection.
     ///
-    /// Unlike [`Self::recall_all_for_injection`], this method renders a French
-    /// narrative summary aimed at agent system prompts.  Reads flat canonical
-    /// keys (no `category.` prefix); extras under `goal*` / `tools*` are
-    /// folded into the brief.
+    /// Renders a French narrative summary aimed at agent system prompts.
+    /// Reads flat canonical keys; `goals` and `tools.daily` are surfaced as
+    /// dedicated sections.
     pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
         let entries = self.list_all()?;
         if entries.is_empty() {
@@ -509,7 +376,6 @@ impl UserMemoryRepository {
 
         let mut output = String::new();
 
-        // Narrative header
         let mut headline_parts: Vec<String> = Vec::new();
         if let Some(ref n) = name {
             headline_parts.push(n.clone());
@@ -535,7 +401,6 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // Governance
         let mut gov_parts: Vec<String> = Vec::new();
         if let Some(ref h) = hitl {
             let label = match h.as_str() {
@@ -565,12 +430,10 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // Preferences
         if let Some(ref lang) = language {
             output.push_str(&format!("Langue : {lang}\n"));
         }
 
-        // Goals
         let goals: Vec<String> = entries
             .iter()
             .filter(|e| e.key == "goals" || e.key.starts_with("goal"))
@@ -583,7 +446,6 @@ impl UserMemoryRepository {
             }
         }
 
-        // Daily tools
         let tools: Vec<String> = entries
             .iter()
             .filter(|e| e.key == "tools.daily" || e.key.starts_with("tools"))
@@ -595,7 +457,6 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // Adaptation hints
         output.push_str("\nAdaptation :\n");
         if let Some(ref lang) = language {
             output.push_str(&format!("- Langue : {lang}\n"));
@@ -634,7 +495,6 @@ impl UserMemoryRepository {
             }
         }
 
-        // Remaining context (extras + non-mentioned schema fields), capped.
         let mentioned = [
             "name",
             "role",
@@ -673,6 +533,25 @@ impl UserMemoryRepository {
         }
 
         Ok(output)
+    }
+
+    // -- Generic internal state (hidden from profile UI) --
+
+    /// Reads an internal state value.  The key is automatically prefixed
+    /// with `__` in storage, ensuring it is hidden from the profile listing.
+    pub fn get_internal(&self, key: &str) -> Result<Option<String>, UserMemoryError> {
+        let storage_key = format!("{INTERNAL_KEY_PREFIX}{key}");
+        let entry = SemanticMemory::new(&self.store)
+            .recall(USER_NAMESPACE, &storage_key)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(entry.and_then(|e| e.value.as_str().map(|s| s.to_owned())))
+    }
+
+    /// Writes an internal state value.  The key is automatically prefixed
+    /// with `__` in storage, ensuring it is hidden from the profile listing.
+    pub fn set_internal(&self, key: &str, value: &str) -> Result<(), UserMemoryError> {
+        let storage_key = format!("{INTERNAL_KEY_PREFIX}{key}");
+        self.write_raw(&storage_key, value, WrittenBy::User)
     }
 
     // -- Onboarding bookkeeping (internal state, hidden from profile UI) --
@@ -736,83 +615,6 @@ impl UserMemoryRepository {
         )
     }
 
-    // -- Legacy API (deprecated, ADR-087) --
-
-    /// Stores or updates a user memory entry with the default confidence.
-    ///
-    /// **Deprecated (ADR-087)**: prefer [`Self::set`].  The `category`
-    /// argument is ignored — keys are stored flat.  `user.`-prefixed legacy
-    /// keys are accepted and stripped to maintain backwards compatibility.
-    pub fn store(
-        &self,
-        _category: UserMemoryCategory,
-        key: &str,
-        value: &str,
-        source: UserMemorySource,
-    ) -> Result<(), UserMemoryError> {
-        let flat_key = Self::strip_user_prefix(key);
-        self.set(flat_key, value, source.into_written_by())
-    }
-
-    /// Stores or updates a user memory entry with a custom confidence score.
-    ///
-    /// **Deprecated (ADR-087)**: the `confidence` argument is ignored; the
-    /// simplified model always stores at confidence `1.0`.
-    pub fn store_with_confidence(
-        &self,
-        _category: UserMemoryCategory,
-        key: &str,
-        value: &str,
-        source: UserMemorySource,
-        _confidence: f64,
-    ) -> Result<(), UserMemoryError> {
-        let flat_key = Self::strip_user_prefix(key);
-        self.set(flat_key, value, source.into_written_by())
-    }
-
-    /// Returns entries from the profile, ignoring the `_category` filter.
-    ///
-    /// **Deprecated (ADR-087)**: prefer [`Self::list_all`] /
-    /// [`Self::list_schema`].  Returned entries have their `category` field
-    /// best-effort derived from the canonical schema section.
-    pub fn recall(
-        &self,
-        _category: UserMemoryCategory,
-        limit: usize,
-    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
-        let entries = self.list_all()?;
-        Ok(entries
-            .into_iter()
-            .take(limit)
-            .map(Self::profile_to_legacy)
-            .collect())
-    }
-
-    /// Looks up a single entry by key (category ignored).
-    ///
-    /// **Deprecated (ADR-087)**: prefer [`Self::get`].
-    pub fn recall_by_key(
-        &self,
-        _category: UserMemoryCategory,
-        key: &str,
-    ) -> Result<Option<UserMemoryEntry>, UserMemoryError> {
-        let flat_key = Self::strip_user_prefix(key);
-        Ok(self.get(flat_key)?.map(Self::profile_to_legacy))
-    }
-
-    /// Updates only the confidence score of an existing entry.
-    ///
-    /// **Deprecated (ADR-087)**: the confidence model is removed in the
-    /// simplified API.  This method is a no-op except for verifying the entry
-    /// exists, returning [`UserMemoryError::NotFound`] otherwise.
-    pub fn update_confidence(&self, key: &str, _confidence: f64) -> Result<(), UserMemoryError> {
-        let flat_key = Self::strip_user_prefix(key);
-        if self.get(flat_key)?.is_none() {
-            return Err(UserMemoryError::NotFound(key.to_owned()));
-        }
-        Ok(())
-    }
-
     // -- Internal helpers --
 
     /// Returns `true` if `iso_ts` is older than 180 days from now.
@@ -839,12 +641,6 @@ impl UserMemoryRepository {
         Ok(())
     }
 
-    /// Strips the legacy `user.` prefix when present.  Returns the input
-    /// untouched otherwise.
-    fn strip_user_prefix(key: &str) -> &str {
-        key.strip_prefix("user.").unwrap_or(key)
-    }
-
     /// Writes an entry without external-key validation — used by both the
     /// canonical API (after validation) and internal-state setters.
     fn write_raw(
@@ -867,7 +663,7 @@ impl UserMemoryRepository {
         Ok(())
     }
 
-    /// Converts a [`SemanticEntry`] to a canonical [`ProfileEntry`].
+    /// Converts a [`crate::semantic::SemanticEntry`] to a [`ProfileEntry`].
     fn semantic_to_profile(se: &crate::semantic::SemanticEntry) -> ProfileEntry {
         let value = se
             .value
@@ -878,7 +674,7 @@ impl UserMemoryRepository {
             .source
             .as_deref()
             .map(WrittenBy::from_tag)
-            .unwrap_or_else(|| WrittenBy::Agent("legacy".to_owned()));
+            .unwrap_or_else(|| WrittenBy::Agent("unknown".to_owned()));
         ProfileEntry {
             key: se.key.clone(),
             value,
@@ -886,40 +682,6 @@ impl UserMemoryRepository {
             created_at: se.created_at.clone(),
             updated_at: se.updated_at.clone(),
             in_schema: is_canonical(&se.key),
-        }
-    }
-
-    /// Converts a canonical [`ProfileEntry`] into a legacy
-    /// [`UserMemoryEntry`].
-    fn profile_to_legacy(entry: ProfileEntry) -> UserMemoryEntry {
-        let category = field_for(&entry.key)
-            .map(|f| match f.section {
-                crate::profile_schema::ProfileSection::Identity => UserMemoryCategory::Context,
-                crate::profile_schema::ProfileSection::Work => UserMemoryCategory::Context,
-                crate::profile_schema::ProfileSection::Preferences => {
-                    UserMemoryCategory::Preferences
-                }
-                crate::profile_schema::ProfileSection::Constraints => {
-                    UserMemoryCategory::Preferences
-                }
-            })
-            .unwrap_or(UserMemoryCategory::Context);
-        let source = match entry.written_by {
-            WrittenBy::Onboarding => UserMemorySource::Onboarding,
-            WrittenBy::User => UserMemorySource::UserExplicit,
-            WrittenBy::Agent(ref name) if name == "chat-extractor" => {
-                UserMemorySource::ChatInference
-            }
-            WrittenBy::Agent(_) => UserMemorySource::AgentObservation,
-        };
-        UserMemoryEntry {
-            category,
-            key: entry.key,
-            value: entry.value,
-            source,
-            confidence: 1.0,
-            created_at: entry.created_at,
-            updated_at: entry.updated_at,
         }
     }
 }
@@ -1004,34 +766,6 @@ mod tests {
             .map(|e| e.key.as_str())
             .collect();
         assert_eq!(extras_keys, vec!["aaa_extra", "zzz_extra"]);
-    }
-
-    #[test]
-    fn legacy_store_drops_category_and_user_prefix() {
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "user.name",
-            "Nidal",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-        let entry = repo.get("name").unwrap().expect("entry should exist");
-        assert_eq!(entry.value, "Nidal");
-        assert_eq!(entry.written_by, WrittenBy::Onboarding);
-    }
-
-    #[test]
-    fn legacy_recall_returns_all_entries() {
-        let (repo, _) = setup();
-        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        repo.set("role", "CTO", WrittenBy::User).unwrap();
-
-        let legacy = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
-        assert_eq!(legacy.len(), 2);
-        let keys: Vec<&str> = legacy.iter().map(|e| e.key.as_str()).collect();
-        assert!(keys.contains(&"name"));
-        assert!(keys.contains(&"role"));
     }
 
     #[test]
@@ -1146,12 +880,6 @@ mod tests {
         assert_eq!(
             WrittenBy::from_tag("agent:veille-ia"),
             WrittenBy::Agent("veille-ia".to_owned())
-        );
-        // Legacy mapping
-        assert_eq!(WrittenBy::from_tag("user_explicit"), WrittenBy::User);
-        assert_eq!(
-            WrittenBy::from_tag("chat_inference"),
-            WrittenBy::Agent("chat-extractor".to_owned())
         );
     }
 }

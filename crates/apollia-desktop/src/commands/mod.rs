@@ -42,7 +42,6 @@ pub mod tools;
 pub mod trace;
 pub mod triggers;
 pub mod updates;
-pub mod user;
 pub mod user_memory;
 pub mod workspace;
 

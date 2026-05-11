@@ -266,20 +266,7 @@ impl AgentRunner for BridgeRunner {
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                // Always wire the global `__user__` store so every agent can
-                // recall keys written by the onboarding agent (read fallback).
-                let user_manager = MemoryManager::new(
-                    &memory_base_dir,
-                    Some("__user__".to_string()),
-                    vec![],
-                );
-                let iface = MemoryInterface::new(
-                    manager,
-                    eff_ns,
-                    agent_id.clone(),
-                    user_memory_write,
-                    Some(user_manager),
-                )?;
+                let iface = MemoryInterface::new(manager, eff_ns, agent_id.clone())?;
                 iface.announce_shared_namespaces(&event_bus);
                 Some(iface)
             });

@@ -263,36 +263,23 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
         return state
 
     async def _step_load_user_context(self, state, ctx):
-        if ctx.memory is None:
+        # ADR-087 — read the user profile through ctx.profile.  Flat keys
+        # (`role`, `tech.stack`, …) live alongside the canonical schema.
+        if ctx.profile is None:
             state["data"]["user_context"] = {}
-            state["progress"].append("USER_CONTEXT skip (no memory)")
+            state["progress"].append("USER_CONTEXT skip (no profile)")
             state["step"] = VeilleStep.BOOTSTRAP_CHECK
             return state
 
-        # ADR-087 — prefer ctx.profile when available; the canonical API
-        # returns the user profile as a flat dict.  The legacy
-        # `ctx.memory.recall("user.X")` path is retained as a fallback for
-        # runtime contexts that do not expose ctx.profile yet.
-        keys = ["user.role", "user.tech.stack", "user.domain.sector", "user.agents.hitl"]
+        wanted = ["role", "tech.stack", "domain.sector", "agents.hitl"]
         ctx_user = {}
-        profile = getattr(ctx, "profile", None)
-        if profile is not None:
-            try:
-                all_entries = await profile.all()
-                for k in keys:
-                    flat = k.removeprefix("user.")
-                    if all_entries.get(flat):
-                        ctx_user[k] = all_entries[flat]
-            except Exception as e:
-                ctx.log("debug", f"profile.all() failed: {e}")
-        else:
-            for k in keys:
-                try:
-                    v = await ctx.memory.recall(k)
-                    if v:
-                        ctx_user[k] = v
-                except Exception as e:
-                    ctx.log("debug", f"recall {k} failed: {e}")
+        try:
+            all_entries = await ctx.profile.all()
+            for key in wanted:
+                if all_entries.get(key):
+                    ctx_user[f"user.{key}"] = all_entries[key]
+        except Exception as e:
+            ctx.log("debug", f"profile.all() failed: {e}")
         state["data"]["user_context"] = ctx_user
         state["progress"].append(f"USER_CONTEXT ok ({len(ctx_user)} keys)")
         state["step"] = VeilleStep.BOOTSTRAP_CHECK

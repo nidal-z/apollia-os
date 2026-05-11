@@ -373,7 +373,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         create_trigger, delete_trigger, disable_trigger, enable_trigger, fire_trigger,
         get_trigger_by_id, get_trigger_logs, list_triggers, reload_triggers, update_trigger,
     };
-    use super::routes_user::{forget_memory, get_memory, get_profile, update_profile};
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
@@ -494,16 +493,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route(
             "/api/v1/sessions/:id/children",
             get(list_session_children::<B>),
-        )
-        // User profile + memory routes
-        .route(
-            "/api/v1/user/profile",
-            get(get_profile::<B>).put(update_profile::<B>),
-        )
-        .route("/api/v1/user/memory", get(get_memory::<B>))
-        .route(
-            "/api/v1/user/memory/:key",
-            axum::routing::delete(forget_memory::<B>),
         )
         // STT routes
         .route("/api/v1/stt/status", get(stt_status::<B>))

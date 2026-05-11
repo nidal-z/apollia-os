@@ -2702,22 +2702,17 @@ mod tests {
     fn make_user_memory_repo(
         entries: &[(&str, &str, &str)],
     ) -> Arc<std::sync::Mutex<UserMemoryRepository>> {
-        use apollia_memory::user_memory::{UserMemoryCategory, UserMemorySource};
+        use apollia_memory::user_memory::WrittenBy;
 
         let dir = std::env::temp_dir().join(format!("apollia_test_um_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let db_path = dir.join("user_memory.db");
         let repo = UserMemoryRepository::new(&db_path).expect("open user memory db");
 
-        for (cat_str, key, value) in entries {
-            let category = match *cat_str {
-                "preferences" => UserMemoryCategory::Preferences,
-                "habits" => UserMemoryCategory::Habits,
-                "context" => UserMemoryCategory::Context,
-                _ => panic!("unknown category: {cat_str}"),
-            };
-            repo.store(category, key, value, UserMemorySource::UserExplicit)
-                .expect("store entry");
+        // Categories from the legacy `(category, key, value)` test fixtures
+        // are ignored — storage is flat under ADR-087.
+        for (_category, key, value) in entries {
+            repo.set(key, value, WrittenBy::User).expect("set entry");
         }
 
         Arc::new(std::sync::Mutex::new(repo))

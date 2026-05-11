@@ -379,37 +379,19 @@ async def _remember(
 ) -> None:
     """Persist a single onboarding fact.
 
-    Keys prefixed with ``user.`` describe the operator and belong to the
-    global ``__user__`` namespace so every agent can read them via the
-    standard ``ctx.memory.recall()`` fallback. Other keys (``onboarding.*``)
-    remain in the agent's own namespace — they describe the run, not the
-    user.
+    ``user.*`` keys describe the operator and are written to the canonical
+    user profile via ``ctx.profile.set`` (ADR-087).  The ``user.`` prefix is
+    stripped on storage so the flat key matches the profile schema.
+    Other keys (``onboarding.*``) remain in the agent's own namespace —
+    they describe the run, not the user.
 
-    ADR-087: ``user.*`` keys are written through ``ctx.profile.set`` when
-    available, which stores flat keys under the canonical profile schema.
-    The legacy ``ctx.memory.remember_user`` path is retained as a fallback
-    for runtime contexts that do not expose ``ctx.profile`` (older bridges,
-    tests).
-
-    Writing to ``__user__`` requires the manifest to declare
+    Writing to ``ctx.profile`` requires the manifest to declare
     ``user_memory_write = true``; this agent is the only system agent that
     holds that permission.
     """
     confidence = CONFIDENCE_EXPLICIT if explicit else CONFIDENCE_INFERRED
     if key.startswith("user."):
-        profile = getattr(ctx, "profile", None)
-        if profile is not None:
-            # `set` strips the `user.` prefix itself; pass the key as-is so
-            # tests calling _persist_fact("user.name", ...) end up writing
-            # the flat `name` key under `__user__`.
-            await profile.set(key=key, value=_truncate(value))
-        else:
-            await ctx.memory.remember_user(
-                key=key,
-                value=_truncate(value),
-                source=MEMORY_SOURCE,
-                confidence=confidence,
-            )
+        await ctx.profile.set(key=key, value=_truncate(value))
     else:
         await ctx.memory.remember(
             key=key,
@@ -420,10 +402,17 @@ async def _remember(
 
 
 async def _all_keys_present(ctx: Any, keys: tuple[str, ...]) -> bool:
-    """True iff every ``key`` in ``keys`` resolves to a non-empty memory entry."""
+    """True iff every ``key`` in ``keys`` resolves to a non-empty memory entry.
+
+    Routes ``user.*`` keys to ``ctx.profile`` (ADR-087) and every other key
+    to the agent's own memory namespace.
+    """
     for key in keys:
         try:
-            value = await ctx.memory.recall(key)
+            if key.startswith("user."):
+                value = await ctx.profile.get(key)
+            else:
+                value = await ctx.memory.recall(key)
         except Exception:
             return False
         if not value:
@@ -601,7 +590,10 @@ async def _build_progress_note(ctx: Any) -> str:
     missing: list[str] = []
     for key in TIER1_KEYS:
         try:
-            value = await ctx.memory.recall(key)
+            if key.startswith("user."):
+                value = await ctx.profile.get(key)
+            else:
+                value = await ctx.memory.recall(key)
         except Exception:
             value = None
         if value:
@@ -674,9 +666,9 @@ async def _persist_proposed_permission_rules(ctx: Any) -> None:
     # (``apply_proposed_permission_rule``) est libre de dédupliquer côté
     # ``governance.db`` si nécessaire.
 
-    sovereignty = await ctx.memory.recall("user.constraints.sovereignty")
-    hitl = await ctx.memory.recall("user.agents.hitl")
-    integrations_raw = await ctx.memory.recall("user.tools.integrations") or ""
+    sovereignty = await ctx.profile.get("user.constraints.sovereignty")
+    hitl = await ctx.profile.get("user.agents.hitl")
+    integrations_raw = await ctx.profile.get("user.tools.integrations") or ""
     integrations = {
         item.strip().lower()
         for item in integrations_raw.split(",")
@@ -800,8 +792,8 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
     and applies them via direct ``PrefixRuleEngine`` calls (Tauri command
     ``apply_proposed_permission_rule``).
     """
-    role = await ctx.memory.recall("user.role")
-    hitl = await ctx.memory.recall("user.agents.hitl")
+    role = await ctx.profile.get("user.role")
+    hitl = await ctx.profile.get("user.agents.hitl")
 
     profile_type = profile_hint if profile_hint in {"operator", "builder"} else _infer_profile_type(role)
     await _remember(ctx, "onboarding.profile_type", profile_type)
@@ -924,7 +916,7 @@ class OnboardingAgent(ConversationalAgent):
             # inside the tag instead of mapping to always/critical-only/
             # never (resp. local-only/local-preferred/cloud-ok).
             for key in ("user.agents.hitl", "user.constraints.sovereignty"):
-                already = await ctx.memory.recall(key)
+                already = await ctx.profile.get(key)
                 if already:
                     continue
                 recovered = _heuristic_value_from_user_text(key, user_message)
@@ -957,7 +949,12 @@ class OnboardingAgent(ConversationalAgent):
             if not tier1_complete and _looks_like_closure(raw_text):
                 missing_key: str | None = None
                 for key in TIER1_KEYS:
-                    if not await ctx.memory.recall(key):
+                    fetched = (
+                        await ctx.profile.get(key)
+                        if key.startswith("user.")
+                        else await ctx.memory.recall(key)
+                    )
+                    if not fetched:
                         missing_key = key
                         break
                 if missing_key in _DETERMINISTIC_QUESTION:

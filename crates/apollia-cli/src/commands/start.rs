@@ -197,19 +197,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                 let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
                 // Always attach the global __user__ store so every agent can
-                // recall keys written by the onboarding agent.
-                let user_manager = MemoryManager::new(
-                    &memory_base_dir,
-                    Some("__user__".to_string()),
-                    vec![],
-                );
-                let iface = MemoryInterface::new(
-                    manager,
-                    eff_ns,
-                    agent_name.to_string(),
-                    manifest.user_memory_write,
-                    Some(user_manager),
-                )?;
+                let iface = MemoryInterface::new(manager, eff_ns, agent_name.to_string())?;
                 iface.announce_shared_namespaces(&event_bus);
                 Some(iface)
             });
@@ -225,6 +213,17 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 let repo = repo_mutex.lock().ok()?;
                 build_user_context_from_repo(&repo)
             });
+
+        let profile_interface = {
+            let user_manager =
+                MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
+            apollia_aip::profile::ProfileInterface::new(
+                user_manager,
+                agent_name.to_string(),
+                manifest.user_memory_write,
+                agent_name == "onboarding-agent",
+            )
+        };
 
         let ctx: PyObject = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
@@ -244,6 +243,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 None,  // a2a_invoker — not available in chat mode
                 manifest.user_memory_write, // user_memory_writable — manifest-controlled
             )
+            .with_profile(profile_interface)
             // ADR-088 — relier le contexte à la task pour que ctx.log()
             // étiquette les RuntimeEvent::AgentLog persistés.
             .with_task_id(task.task_id.clone());
@@ -258,41 +258,22 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
 /// Builds the `user_context` dict from a [`UserMemoryRepository`].
 ///
-/// Recalls up to 50 entries per category and returns a `HashMap` with keys
-/// `"preferences"`, `"habits"`, `"context"`, each mapping to a list of `(key, value)` pairs.
-/// Returns `None` if all categories are empty.
+/// Returns a `HashMap` with a single `"profile"` key mapping to the flat
+/// list of `(key, value)` pairs from [`UserMemoryRepository::list_all`].
+/// Returns `None` if the profile is empty.
 fn build_user_context_from_repo(
     repo: &apollia_memory::user_memory::UserMemoryRepository,
 ) -> Option<std::collections::HashMap<String, Vec<(String, String)>>> {
-    use apollia_memory::user_memory::UserMemoryCategory;
-
-    const MAX_ENTRIES_PER_CATEGORY: usize = 50;
-
-    let categories = [
-        ("preferences", UserMemoryCategory::Preferences),
-        ("habits", UserMemoryCategory::Habits),
-        ("context", UserMemoryCategory::Context),
-    ];
-
+    let entries = repo.list_all().unwrap_or_default();
+    if entries.is_empty() {
+        return None;
+    }
     let mut map = std::collections::HashMap::new();
-    let mut total = 0usize;
-
-    for (label, cat) in &categories {
-        let entries = repo
-            .recall(*cat, MAX_ENTRIES_PER_CATEGORY)
-            .unwrap_or_default();
-        total += entries.len();
-        map.insert(
-            (*label).to_string(),
-            entries.into_iter().map(|e| (e.key, e.value)).collect(),
-        );
-    }
-
-    if total == 0 {
-        None
-    } else {
-        Some(map)
-    }
+    map.insert(
+        "profile".to_string(),
+        entries.into_iter().map(|e| (e.key, e.value)).collect(),
+    );
+    Some(map)
 }
 
 /// Fallback backend — only used when agent loading fails at start time.
@@ -594,21 +575,21 @@ impl AgentRunner for BridgeRunner {
                     let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
                     let manager =
                         MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
-                    let user_manager = MemoryManager::new(
-                        &memory_base_dir,
-                        Some("__user__".to_string()),
-                        vec![],
-                    );
-                    let iface = MemoryInterface::new(
-                        manager,
-                        eff_ns,
-                        agent_id.clone(),
-                        user_memory_write,
-                        Some(user_manager),
-                    )?;
+                    let iface = MemoryInterface::new(manager, eff_ns, agent_id.clone())?;
                     iface.announce_shared_namespaces(&event_bus);
                     Some(iface)
                 });
+
+            let profile_interface = {
+                let user_manager =
+                    MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
+                apollia_aip::profile::ProfileInterface::new(
+                    user_manager,
+                    agent_id.clone(),
+                    user_memory_write,
+                    agent_id == "onboarding-agent",
+                )
+            };
 
             let ctx: PyObject = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
@@ -628,6 +609,7 @@ impl AgentRunner for BridgeRunner {
                     a2a_invoker,
                     user_memory_write, // user_memory_writable — manifest-controlled
                 )
+                .with_profile(profile_interface)
                 // ADR-088 — task_id pour étiqueter ctx.log() côté trace.
                 .with_task_id(task.task_id.clone());
                 Py::new(py, ctx)

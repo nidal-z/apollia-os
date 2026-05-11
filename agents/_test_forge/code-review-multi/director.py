@@ -147,16 +147,18 @@ Ne fais PAS la review toi-même — délègue strictement.
         return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
     async def _load_user_context(self, ctx: Any) -> dict[str, str]:
-        if ctx.memory is None:
+        # ADR-087 — read the user profile through ctx.profile.
+        if ctx.profile is None:
             return {}
         out: dict[str, str] = {}
-        for key in ("user.tech.stack", "user.tech.languages", "user.constraints.compliance"):
-            try:
-                value = await ctx.memory.recall(key)
-                if value:
-                    out[key] = value
-            except Exception as e:
-                ctx.log("debug", f"recall {key} failed: {e}")
+        try:
+            all_entries = await ctx.profile.all()
+        except Exception as e:
+            ctx.log("debug", f"profile.all() failed: {e}")
+            return out
+        for key in ("tech.stack", "tech.languages", "constraints.compliance"):
+            if all_entries.get(key):
+                out[f"user.{key}"] = all_entries[key]
         return out
 
     async def _post_run(
