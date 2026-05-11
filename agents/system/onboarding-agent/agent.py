@@ -826,7 +826,7 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "2.2.0",
+            "version": "2.3.0",
             "description": "Premier contact utilisateur — calibrage en 3 questions (identité, supervision, souveraineté)",
             "execution_mode": "auto",
             "agent_type": "system",

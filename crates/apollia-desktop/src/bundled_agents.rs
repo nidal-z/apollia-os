@@ -30,7 +30,7 @@ const ONBOARDING_AGENT_TOML: &str =
 /// version equals this constant, so without a bump, the runtime keeps
 /// loading the previously-extracted code from `~/.apollia/agents/…/`
 /// even after a rebuild.
-const ONBOARDING_AGENT_VERSION: &str = "2.2.0";
+const ONBOARDING_AGENT_VERSION: &str = "2.3.0";
 
 /// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
