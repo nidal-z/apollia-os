@@ -1,8 +1,10 @@
 # Configurer votre profil au premier lancement
 
-> Au premier démarrage d'Apollia (ou après une réinitialisation d'usine), un parcours de configuration s'ouvre automatiquement.
+> Au premier démarrage d'Apollia (ou après une réinitialisation), un parcours de configuration s'ouvre automatiquement.
 > Il vous fait passer en quatre étapes — accueil, choix du profil, configuration de l'IA, calibrage conversationnel — pour qu'Apollia soit prêt à l'emploi.
 > Durée totale : 3 à 8 minutes selon le téléchargement des modèles.
+>
+> Cette page couvre **le parcours initial uniquement**. Pour éditer votre profil au quotidien depuis l'application installée, voir **[Mon profil](../memoire/mon-profil.md)**.
 
 ## Prérequis
 
@@ -121,28 +123,13 @@ Une fois toutes les cartes traitées, la fenêtre se ferme automatiquement. Apol
 
 Si vous préférez configurer Apollia plus tard, cliquez sur **Configurer plus tard** (en bas de la fenêtre, disponible à toutes les étapes). Apollia s'ouvre normalement, mais sans LLM configuré le chat ne pourra pas répondre — vous devrez brancher un fournisseur depuis **Paramètres → Backends LLM** avant la première conversation.
 
-Pour relancer le parcours plus tard : voir [Enrichir votre profil](#enrichir-votre-profil-plus-tard) ci-dessous.
+Pour rouvrir le parcours après coup, voir la section [Relancer le parcours](#relancer-le-parcours) ci-dessous.
 
 ### Reprendre après une interruption
 
 Le parcours est **résumable** : si vous quittez la fenêtre en cours de route (par exemple en cliquant sur **Utiliser un fournisseur cloud** pour ajouter un backend Anthropic), au retour Apollia reprend exactement à l'étape où vous étiez. La progression est persistée côté backend, pas en mémoire de session.
 
-## Enrichir votre profil plus tard
-
-Le profil de base (4 informations + LLM + STT optionnel) suffit pour démarrer. Vous pouvez l'enrichir à tout moment depuis **Paramètres → Profil**.
-
-1. Ouvrez **Paramètres** dans la sidebar, puis cliquez sur l'onglet **Profil**.
-   `[SCREENSHOT: page Paramètres, onglet Profil actif, formulaire avec sections Identité / Supervision des agents / Outils & contexte métier / Contraintes / Préférences]`
-
-2. Remplissez ou modifiez les champs souhaités. Chaque champ affiche un petit badge indiquant la **source** de la valeur : `onboarding` (collecté lors du calibrage), `vous` (que vous avez saisi manuellement), `agent` (observé par un agent en cours d'exécution), ou rien si le champ est vide.
-
-3. Les champs marqués `Sensible` influencent le comportement des agents (niveau de validation, souveraineté, intégrations, conformité) — un message s'affiche pour vous inviter à relancer le calibrage afin que vos règles de permissions soient ajustées.
-
-4. Vos modifications sont enregistrées automatiquement à chaque changement.
-
-L'onglet **Outils & contexte métier** est volontairement générique : il s'adresse aussi bien aux profils dev (langages, IDE) qu'aux profils métier (Excel, Notion, Salesforce…). Listez simplement les outils que vous utilisez au quotidien — Apollia s'en sert pour calibrer le ton des explications et la pertinence des suggestions.
-
-### Relancer le parcours de configuration
+## Relancer le parcours
 
 Si vous avez significativement modifié votre profil (changement de rôle, de politique de souveraineté…) et souhaitez que vos règles de permissions soient recalibrées :
 
@@ -150,6 +137,8 @@ Si vous avez significativement modifié votre profil (changement de rôle, de po
 2. Cliquez sur **Réinitialiser l'onboarding**. Cette action efface uniquement les marqueurs de progression et de profil — vos backends LLM, modèles téléchargés et autres données restent intacts.
 3. Une fenêtre de confirmation demande de taper `RESET`. Confirmez.
 4. Le parcours en quatre étapes redémarre depuis l'Accueil.
+
+Pour de **petits ajustements** (corriger votre nom, ajouter un outil quotidien, basculer une intégration) sans repasser le parcours, ouvrez directement **Paramètres → Profil** — voir [Mon profil](../memoire/mon-profil.md).
 
 ::: warning Réinitialiser entièrement Apollia
 Le bouton **Réinitialisation d'usine** (zone danger, bas de page) supprime **toutes** vos données — agents, mémoire, modèles téléchargés, backends LLM, intégrations. Cette action ne peut pas être annulée. Voir [Réinitialiser Apollia](../troubleshooting/reinitialiser-apollia-factory-reset.md).

@@ -1,6 +1,8 @@
 # Mon profil
 
-> Pour les operators qui veulent contrôler ce que tous leurs agents savent d'eux — prénom, rôle, secteur, supervision, contraintes.
+> Pour les operators qui veulent **consulter et modifier** au quotidien ce que tous leurs agents savent d'eux — prénom, rôle, secteur, supervision, contraintes.
+>
+> Cette page couvre **l'édition d'un profil existant**. Si vous lancez Apollia pour la première fois, le parcours guidé peuple les valeurs initiales : voir **[Configurer votre profil au premier lancement](../installation/configurer-votre-profil.md)**.
 
 ## Pourquoi un profil utilisateur
 
@@ -10,7 +12,7 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 ## Où l'éditer
 
-**Paramètres → Profil**.
+**Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
 L'écran est divisé en sections :
 
@@ -49,6 +51,8 @@ Modifier ces champs **ne ré-applique pas automatiquement** vos règles de permi
 En bas de la page, la **Zone danger** propose un bouton **Réinitialiser le profil**. Confirmez dans la modale : tout le profil est effacé et l'agent d'onboarding redémarre pour reconstruire vos préférences depuis zéro.
 
 L'historique des conversations et la mémoire des agents (épisodes, faits sémantiques) **ne sont pas touchés** par cette action — uniquement le profil global.
+
+> Pour repasser le parcours guidé complet (re-télécharger un modèle, recalibrer les permissions à partir de vos nouvelles réponses), c'est plutôt l'option **Paramètres → Zone de danger → Réinitialiser l'onboarding** qu'il vous faut — voir [Relancer le parcours](../installation/configurer-votre-profil.md#relancer-le-parcours).
 
 ## Vérification
 
