@@ -13,6 +13,7 @@ from typing import Awaitable
 from apollia.stubs.llm import LlmProxy
 from apollia.stubs.memory import MemoryInterface
 from apollia.stubs.notify import NotifyInterface
+from apollia.stubs.profile import ProfileInterface
 from apollia.stubs.stt import SttInterface
 from apollia.stubs.tools import ToolProxy
 
@@ -98,6 +99,19 @@ class RuntimeContext:
     @property
     def stt(self) -> SttInterface | None:
         """STT interface — ``None`` if no STT backend configured."""
+        ...
+
+    @property
+    def profile(self) -> ProfileInterface | None:
+        """Global user profile interface (ADR-087) — ``None`` if no ``__user__`` manager.
+
+        Replaces ``ctx.memory.remember_user`` / ``ctx.memory.recall('user.X')``
+        as the canonical API for personalization.  Reads are always allowed;
+        writes require ``user_memory_write = true`` in the manifest.
+
+        The historical APIs (``ctx.memory.remember_user``, ``ctx.memory.recall("user.X")``)
+        keep working for backwards compatibility.
+        """
         ...
 
     @property

@@ -65,8 +65,14 @@ class MemoryInterface:
         ``user_memory_write = true`` (typically the onboarding agent).
         Raises ``RuntimeError`` otherwise.
 
+        .. deprecated:: ADR-087
+            Prefer ``ctx.profile.set(key, value)`` — the new canonical surface
+            for the user profile.  ``remember_user`` keeps working as a thin
+            wrapper that strips the historical ``user.`` prefix and ignores
+            the ``source`` / ``confidence`` arguments.
+
         Once written, the value is readable by every other agent through
-        the standard ``recall()`` fallback.
+        the standard :meth:`recall` fallback.
         """
         ...
 

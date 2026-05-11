@@ -1002,6 +1002,12 @@ pub struct RuntimeContext {
     /// Interface STT exposée à l'agent Python via `ctx.stt`.
     /// `None` si aucun backend STT n'est configuré.
     stt: Option<pyo3::Py<crate::stt::PySttInterface>>,
+    /// Interface profil utilisateur exposée à l'agent Python via `ctx.profile`.
+    ///
+    /// `None` quand le runtime n'a pas initialisé de `__user__` MemoryManager
+    /// (tests, contextes minimaux).  Lecture toujours autorisée ; écriture
+    /// gated par `user_memory_writable` (ADR-087).
+    profile: Option<pyo3::Py<crate::profile::ProfileInterface>>,
     /// ID de l'agent propriétaire de ce contexte (UUID stable).
     ///
     /// Propagé dans la chaîne A2A (`AIPTask::delegation_chain`) lorsque cet agent
@@ -1115,6 +1121,7 @@ impl RuntimeContext {
             step_budget: Some(step_budget_arc),
             notify: None,
             stt: None,
+            profile: None,
             agent_id: agent_id_stored,
             delegation_chain: Vec::new(),
             task_id: None,
@@ -1147,6 +1154,7 @@ impl RuntimeContext {
             step_budget: None,
             notify: None,
             stt: None,
+            profile: None,
             agent_id: AgentId::new_v4(),
             delegation_chain: Vec::new(),
             task_id: None,
@@ -1194,6 +1202,17 @@ impl RuntimeContext {
     pub fn with_stt(mut self, stt: crate::stt::PySttInterface) -> Self {
         self.stt =
             pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
+        self
+    }
+
+    /// Attache une interface profil utilisateur à ce contexte (ADR-087).
+    ///
+    /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
+    /// `MemoryManager` ciblant `__user__` est disponible. Si non appelé,
+    /// `ctx.profile` est `None`.
+    pub fn with_profile(mut self, profile: crate::profile::ProfileInterface) -> Self {
+        self.profile =
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
         self
     }
 
@@ -1307,6 +1326,18 @@ impl RuntimeContext {
     fn stt(&self, py: Python<'_>) -> PyObject {
         match &self.stt {
             Some(s) => s.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Interface profil utilisateur exposée à l'agent Python via `ctx.profile` (ADR-087).
+    ///
+    /// Propriété Python `ctx.profile`.  Retourne `None` Python quand aucun
+    /// `__user__` manager n'a été initialisé (tests, contextes minimaux).
+    #[getter]
+    fn profile(&self, py: Python<'_>) -> PyObject {
+        match &self.profile {
+            Some(p) => p.clone_ref(py).into_any(),
             None => py.None(),
         }
     }
@@ -2443,8 +2474,10 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            profile: None,
             agent_id: AgentId::new_v4(),
             delegation_chain: Vec::new(),
+            task_id: None,
         };
 
         // THEN les vérifications internes échouent
@@ -2489,8 +2522,10 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            profile: None,
             agent_id: AgentId::new_v4(),
             delegation_chain: Vec::new(),
+            task_id: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -2524,8 +2559,10 @@ mod a2a_tests {
             step_budget: None,
             notify: None,
             stt: None,
+            profile: None,
             agent_id: AgentId::new_v4(),
             delegation_chain: Vec::new(),
+            task_id: None,
         };
 
         // THEN user_context is None

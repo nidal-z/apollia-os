@@ -187,12 +187,20 @@ impl MemoryInterface {
             ));
         };
 
+        // ADR-087: strip the historical `user.` prefix so flat keys end up
+        // matching the schema (e.g. `user.name` becomes `name`).  Legacy
+        // callers passing raw `name`/`role` keys keep working unchanged.
+        let flat_key = key
+            .strip_prefix("user.")
+            .map(str::to_owned)
+            .unwrap_or(key);
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = tokio::task::spawn_blocking(move || {
                 remember_inner(
                     &user_manager,
                     USER_MEMORY_NAMESPACE,
-                    &key,
+                    &flat_key,
                     &value,
                     source.as_deref(),
                     confidence,
@@ -728,6 +736,11 @@ fn recall_inner(
         return Ok(None);
     };
 
+    // ADR-087: __user__ stores flat keys (no `user.` prefix).  Strip the
+    // historical prefix so legacy callers using `recall("user.X")` continue
+    // to work after the migration.
+    let user_key: &str = key.strip_prefix("user.").unwrap_or(key);
+
     let mut mgr = lock(umgr)?;
     let store = match mgr.store(USER_MEMORY_NAMESPACE) {
         Ok(s) => s,
@@ -735,9 +748,16 @@ fn recall_inner(
         Err(_) => return Ok(None),
     };
     let sem = SemanticMemory::new(store);
-    let entry = sem
-        .recall(USER_MEMORY_NAMESPACE, key)
+    // First try the (possibly stripped) flat key.  Fall back to the exact key
+    // for entries written before migration.
+    let mut entry = sem
+        .recall(USER_MEMORY_NAMESPACE, user_key)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+    if entry.is_none() && user_key != key {
+        entry = sem
+            .recall(USER_MEMORY_NAMESPACE, key)
+            .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+    }
 
     Ok(entry.map(|e| match &e.value {
         serde_json::Value::String(s) => s.clone(),

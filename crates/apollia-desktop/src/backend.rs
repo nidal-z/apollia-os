@@ -293,6 +293,23 @@ impl AgentRunner for BridgeRunner {
                 .clone()
                 .map(|mid| (task.context_id.clone(), mid));
 
+            // ADR-087 — Build a dedicated MemoryManager for the __user__
+            // namespace so we can expose ctx.profile alongside ctx.memory.
+            let profile_interface = {
+                let user_manager = MemoryManager::new(
+                    &memory_base_dir,
+                    Some("__user__".to_string()),
+                    vec![],
+                );
+                let is_onboarding = agent_id == "onboarding-agent";
+                Some(apollia_aip::profile::ProfileInterface::new(
+                    user_manager,
+                    agent_id.clone(),
+                    user_memory_write,
+                    is_onboarding,
+                ))
+            };
+
             let ctx: PyObject = Python::with_gil(|py| {
                 let mut ctx = RuntimeContext::new_with_llm(
                     llm_router,
@@ -311,6 +328,9 @@ impl AgentRunner for BridgeRunner {
                     None,  // a2a_invoker — not available in desktop backend
                     user_memory_write, // user_memory_writable — manifest-controlled
                 );
+                if let Some(profile) = profile_interface {
+                    ctx = ctx.with_profile(profile);
+                }
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }
