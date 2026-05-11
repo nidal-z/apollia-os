@@ -711,6 +711,7 @@ fn main() {
             commands::onboarding::get_companion_context,
             commands::onboarding::create_companion_session,
             commands::onboarding::set_companion_enabled,
+            commands::onboarding::get_companion_enabled,
             commands::onboarding::get_tour_steps,
             commands::onboarding::complete_tour_step,
             commands::user_memory::get_profile_schema,

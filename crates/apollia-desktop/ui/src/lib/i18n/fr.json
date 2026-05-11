@@ -1292,71 +1292,6 @@
       "no_schema": "Non défini",
       "no_permissions": "Aucune permission requise"
     },
-    "user_memory": {
-      "tab_operator": "Mes Préférences",
-      "tab_builder": "Mémoire Utilisateur",
-      "stat_total": "Total entrées",
-      "stat_total_sub": "entrées mémorisées",
-      "stat_categories": "Catégories",
-      "stat_sources": "Sources",
-      "stat_updated": "Dernière mise à jour",
-      "stat_never": "Jamais",
-      "section_preferences": "Préférences",
-      "section_habits": "Habitudes",
-      "section_context": "Contexte",
-      "filter_all": "Toutes",
-      "filter_show_all": "Voir toutes les catégories",
-      "empty_filter_title": "Aucune entrée dans cette catégorie",
-      "empty_filter_desc": "Changez de filtre pour explorer les autres catégories.",
-      "col_key": "Clé",
-      "col_category": "Catégorie",
-      "col_confidence": "Confiance",
-      "col_updated": "Mis à jour",
-      "source_onboarding": "onboarding",
-      "source_chat": "chat",
-      "source_explicit": "explicite",
-      "source_agent": "agent",
-      "add_btn_operator": "Ajouter une information",
-      "add_btn_builder": "Ajouter une entrée mémoire",
-      "add_placeholder_value_operator": "Votre information...",
-      "add_placeholder_value_builder": "Votre information...",
-      "add_placeholder_key_operator": "Clé unique...",
-      "add_placeholder_key_builder": "Clé unique...",
-      "add_category_label": "Catégorie",
-      "add_key_label": "Clé",
-      "add_value_label": "Contenu",
-      "add_save": "Enregistrer",
-      "add_cancel": "Annuler",
-      "add_key_required": "La clé est obligatoire",
-      "edit_save": "Enregistrer",
-      "edit_cancel": "Annuler",
-      "edit_value_label": "Valeur mémoire",
-      "menu_validate": "Valider",
-      "menu_edit": "Modifier",
-      "menu_delete": "Supprimer",
-      "menu_recategorize": "Changer de catégorie",
-      "badge_validated": "Validé",
-      "toast_validated": "Entrée validée",
-      "toast_validate_failed": "Échec de la validation",
-      "delete_title_operator": "Supprimer cette information ?",
-      "delete_title_builder": "Supprimer cette entrée mémoire ?",
-      "delete_confirm": "Supprimer",
-      "delete_cancel": "Annuler",
-      "toast_updated": "Entrée mise à jour",
-      "toast_deleted": "Information supprimée",
-      "toast_added": "Information ajoutée",
-      "toast_category_updated": "Catégorie modifiée",
-      "toast_load_failed": "Échec du chargement de la mémoire utilisateur",
-      "toast_update_failed": "Échec de la mise à jour",
-      "toast_delete_failed": "Échec de la suppression",
-      "toast_search_failed": "Recherche échouée",
-      "search_placeholder": "Rechercher dans la mémoire...",
-      "search_results": "{count} résultats",
-      "empty_title_operator": "Apollia ne vous connaît pas encore",
-      "empty_desc_operator": "Commencez une conversation pour que vos préférences soient mémorisées, ou ajoutez manuellement des informations.",
-      "empty_title_builder": "Mémoire Utilisateur vide",
-      "empty_desc_builder": "Les entrées seront créées par l'onboarding, le chat, ou manuellement."
-    },
     "insights": {
       "toast_operator": "{count} nouvelles informations apprises",
       "toast_builder": "{count} nouveaux insights extraits",
@@ -1584,7 +1519,6 @@
       "tools": "Outils",
       "permissions": "Autorisations",
       "system": "Informations système",
-      "memories": "Mémoires",
       "shortcuts": "Raccourcis",
       "observability": "Observabilité",
       "danger": "Zone de danger",
@@ -1765,7 +1699,6 @@
     "profile_new_value_placeholder": "valeur",
     "profile_load_error": "Impossible de charger le profil utilisateur",
     "profile_unavailable": "La mémoire utilisateur n'est pas disponible. Le runtime n'a peut-être pas démarré correctement.",
-    "memories": "Mes Mémoires",
     "memories_subtitle": "Consultez, validez ou corrigez les informations que le système a apprises sur vous.",
     "memories_source_onboarding": "Onboarding",
     "memories_source_chat_inference": "Inféré",
@@ -2446,30 +2379,25 @@
       "too_many": "Trop de messages — respirez"
     },
     "template": {
-      "brainstorm": {
-        "title": "Brainstormer une idée",
-        "description": "Explorer un sujet à plusieurs angles, lister des pistes.",
-        "prompt": "Aide-moi à brainstormer sur le sujet que je vais te décrire. Pose-moi quelques questions pour cadrer le besoin, puis propose une dizaine d'idées variées avec leurs avantages et limites."
+      "dev_review": {
+        "title": "Revue de code",
+        "description": "Relire les changements en cours et détecter les tests manquants."
       },
-      "summarize": {
-        "title": "Résumer un texte",
-        "description": "Extraire les points-clés et les décisions à retenir.",
-        "prompt": "Je vais te coller un texte (article, compte-rendu, email long…). Résume-le en points-clés clairs, identifie les décisions ou actions à retenir, et signale ce qui me semble flou."
-      },
-      "draft_writing": {
-        "title": "Rédiger un texte",
-        "description": "Email, note, message — premier jet rapide à ajuster.",
-        "prompt": "Aide-moi à rédiger un texte (email, message, note, post). Demande-moi le destinataire, l'objectif et le ton souhaité, puis propose une première version concise que je pourrai ajuster."
+      "spec_writing": {
+        "title": "Rédaction de spec",
+        "description": "Co-écrire une spec technique avec des questions de clarification."
       },
       "research": {
-        "title": "Faire une recherche",
-        "description": "État de l'art sur un sujet, sources citées.",
-        "prompt": "Fais une recherche sur le sujet que je vais te donner. Cite tes sources, distingue les faits des opinions, et signale les zones d'incertitude."
+        "title": "Recherche",
+        "description": "Rassembler des sources et résumer l'état de l'art."
       },
-      "explain": {
-        "title": "Comprendre un sujet",
-        "description": "Explication simple, exemple concret, on approfondit ensuite.",
-        "prompt": "Explique-moi un concept simplement. Commence par une définition courte, donne un exemple concret, puis approfondis si je te le demande."
+      "debug": {
+        "title": "Débogage",
+        "description": "Isoler un bug pas à pas et remonter à la cause."
+      },
+      "ops_playbook": {
+        "title": "Runbook ops",
+        "description": "Exécuter un runbook opérationnel avec garde-fous."
       }
     },
     "attachments": {
@@ -2615,28 +2543,6 @@
       "empty_agents": "Aucun agent n'est installé. Installes-en un pour commencer à déléguer.",
       "install_agent": "Installer un agent",
       "docs_link": "Documentation"
-    },
-    "template": {
-      "dev_review": {
-        "title": "Revue de code",
-        "description": "Relire les changements en cours et détecter les tests manquants."
-      },
-      "spec_writing": {
-        "title": "Rédaction de spec",
-        "description": "Co-écrire une spec technique avec des questions de clarification."
-      },
-      "research": {
-        "title": "Recherche",
-        "description": "Rassembler des sources et résumer l'état de l'art."
-      },
-      "debug": {
-        "title": "Débogage",
-        "description": "Isoler un bug pas à pas et remonter à la cause."
-      },
-      "ops_playbook": {
-        "title": "Runbook ops",
-        "description": "Exécuter un runbook opérationnel avec garde-fous."
-      }
     },
     "agent_status": {
       "online": "En ligne",

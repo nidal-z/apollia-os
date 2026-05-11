@@ -22,32 +22,13 @@
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
 
   // ---------------------------------------------------------------------------
-  // Profil keys — mapping clé mémoire → catégorie de stockage
-  // (Tier 2 enrichissement progressif, voir docs onboarding ADR-086.)
+  // ADR-087 — Profile keys are stored flat in `__user__`.  The schema is
+  // declared in Rust (PROFILE_SCHEMA); the form below mirrors it manually.
   // ---------------------------------------------------------------------------
-  type Category = "preferences" | "habits" | "context";
 
-  const KEY_CATEGORY: Record<string, Category> = {
-    "name": "context",
-    "role": "context",
-    "goals": "context",
-    "domain.sector": "context",
-    "domain.team_size": "context",
-    "tech.proficiency": "context",
-    "tools.daily": "habits",
-    "tech.integrations": "habits",
-    "agents.hitl": "habits",
-    "agents.domains": "habits",
-    "agents.trigger": "habits",
-    "constraints.sovereignty": "preferences",
-    "constraints.compliance": "preferences",
-    "preferences.language": "preferences",
-    "preferences.llm": "preferences",
-  };
-
-  // Clés sensibles : impactent le comportement d'agents.
-  // ADR-086 : la modification ne déclenche PAS de re-dérivation auto ;
-  // l'utilisateur doit relancer l'onboarding pour que les règles soient ajustées.
+  // Sensitive keys: their value impacts agent behavior and tool permissions.
+  // Editing one does NOT auto-rederive rules — the user must rerun the
+  // onboarding agent to have updated proposals applied.
   const SENSITIVE_KEYS = new Set<string>([
     "constraints.sovereignty",
     "constraints.compliance",
@@ -55,19 +36,20 @@
     "tech.integrations",
   ]);
 
-  interface UserMemoryEntryView {
-    category: string;
+  interface ProfileEntryView {
     key: string;
     value: string;
-    source: string;
-    confidence: number;
+    written_by: string;
     created_at: string;
     updated_at: string;
+    in_schema: boolean;
   }
 
-  interface UserMemoryProfileView {
-    entries: UserMemoryEntryView[];
-    stats: unknown;
+  interface UserProfileView {
+    schema_entries: ProfileEntryView[];
+    extras: ProfileEntryView[];
+    entries: ProfileEntryView[];
+    last_updated_at: string | null;
   }
 
   let loading = $state(true);
@@ -80,17 +62,17 @@
   // ── Loading ───────────────────────────────────────────────────────────────
   onMount(async () => {
     try {
-      const profile = await invoke<UserMemoryProfileView>("get_user_memory_profile");
+      const profile = await invoke<UserProfileView>("get_profile");
       const valMap: Record<string, string> = {};
       const srcMap: Record<string, string> = {};
       for (const e of profile.entries ?? []) {
         valMap[e.key] = e.value;
-        srcMap[e.key] = e.source;
+        srcMap[e.key] = e.written_by;
       }
       values = valMap;
       sources = srcMap;
     } catch {
-      // Mémoire non initialisée → champs vides, pas une erreur.
+      // Profile not initialized → empty form, not an error.
       values = {};
       sources = {};
     } finally {
@@ -100,26 +82,25 @@
 
   // ── Persistence ───────────────────────────────────────────────────────────
   async function saveKey(key: string, value: string) {
-    const category = KEY_CATEGORY[key];
-    if (!category) return;
     saving = { ...saving, [key]: true };
     try {
-      // Empty string → forget the entry instead of storing an empty value.
       if (value.trim() === "") {
         try {
-          await invoke("delete_user_memory_entry", { key });
+          await invoke("delete_profile_entry", { key });
         } catch {
-          // Si l'entrée n'existait pas, ignorer NOT_FOUND.
+          // If the entry did not exist, ignore NOT_FOUND.
         }
         delete values[key];
+        delete sources[key];
         values = { ...values };
+        sources = { ...sources };
       } else {
-        await invoke("update_user_memory_entry", {
-          request: { category, key, value: value.trim() },
+        await invoke<ProfileEntryView>("set_profile_entry", {
+          request: { key, value: value.trim() },
         });
         values = { ...values, [key]: value.trim() };
-        // L'API marque les écritures issues du form comme "user_explicit".
-        sources = { ...sources, [key]: "user_explicit" };
+        // Writes from this form are always tagged `user` server-side.
+        sources = { ...sources, [key]: "user" };
       }
       if (SENSITIVE_KEYS.has(key)) {
         addToast(
@@ -167,40 +148,25 @@
   }
 
   // ── Source badges ─────────────────────────────────────────────────────────
-  // Render a small chip next to each field showing where the value came from
-  // (onboarding, user, agent observation, default). Helps the user quickly see
-  // which fields are still empty / inferred and which they explicitly set.
+  // The `written_by` provenance is one of `onboarding`, `user`, or
+  // `agent:<name>` (e.g. `agent:chat-extractor`).
   function sourceLabel(src: string | undefined): string {
-    switch (src) {
-      case "onboarding":
-        return "onboarding";
-      case "user_explicit":
-        return "vous";
-      case "agent_observation":
-        return "agent";
-      case "chat_inference":
-        return "inféré";
-      case "default":
-        return "défaut";
-      default:
-        return "";
-    }
+    if (!src) return "";
+    if (src === "onboarding") return "onboarding";
+    if (src === "user") return "vous";
+    if (src.startsWith("agent:")) return "agent";
+    return "";
   }
 
   function sourceBadgeClasses(src: string | undefined): string {
     const base =
       "inline-flex items-center rounded-full px-1.5 py-px text-[9px] font-medium uppercase tracking-wide";
-    switch (src) {
-      case "onboarding":
-        return `${base} bg-primary/10 text-primary`;
-      case "user_explicit":
-        return `${base} bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`;
-      case "agent_observation":
-      case "chat_inference":
-        return `${base} bg-amber-500/10 text-amber-600 dark:text-amber-400`;
-      default:
-        return `${base} bg-muted text-muted-foreground`;
-    }
+    if (src === "onboarding") return `${base} bg-primary/10 text-primary`;
+    if (src === "user")
+      return `${base} bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`;
+    if (src && src.startsWith("agent:"))
+      return `${base} bg-amber-500/10 text-amber-600 dark:text-amber-400`;
+    return `${base} bg-muted text-muted-foreground`;
   }
 
   // ── Reset profile ─────────────────────────────────────────────────────────
@@ -208,8 +174,9 @@
     if (resetting) return;
     resetting = true;
     try {
-      await invoke("clear_user_memory");
+      await invoke("reset_user_profile");
       values = {};
+      sources = {};
       addToast("Profil réinitialisé", "success");
       resetOpen = false;
       await invoke("trigger_onboarding", { topic: null, profile: null });

@@ -1272,11 +1272,10 @@ async fn create_companion_session_inner(
     Ok(CompanionSessionResult { session_id })
 }
 
-/// Persists the companion-enabled preference to UserMemory.
+/// Persists the companion-enabled preference to UserMemory internal state.
 ///
-/// Writes `enabled` as `"true"` or `"false"` to the `companion_enabled` key
-/// under the `Context` category.  The preference is read by the CompanionToggle
-/// on subsequent app launches.
+/// Stored under the internal-state key `companion_enabled` (auto-prefixed
+/// with `__` so it stays out of the user profile listing).
 #[tauri::command]
 pub async fn set_companion_enabled(
     enabled: bool,
@@ -1286,6 +1285,19 @@ pub async fn set_companion_enabled(
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
         write_bool(&repo, "companion_enabled", enabled).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
+/// Reads the companion-enabled preference from UserMemory internal state.
+/// Defaults to `false` when the key has never been written.
+#[tauri::command]
+pub async fn get_companion_enabled(state: State<'_, RuntimeHandle>) -> Result<bool, String> {
+    let repo = get_repo(&state).map_err(|e| e.to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        read_bool(&repo, "companion_enabled").map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?

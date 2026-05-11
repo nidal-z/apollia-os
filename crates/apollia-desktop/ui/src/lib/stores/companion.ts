@@ -409,16 +409,9 @@ function createCompanionStore() {
 
     async initFromMemory(): Promise<void> {
       try {
-        const entries = await invoke<Array<{ key: string; value: string }>>(
-          "get_user_memory",
-          { category: "context" },
-        );
-        const entry = entries.find((e) => e.key === "companion_enabled");
-        if (entry?.value === "true") {
-          mutate((s) => ({
-            ...s,
-            enabled: true,
-          }));
+        const enabled = await invoke<boolean>("get_companion_enabled");
+        if (enabled) {
+          mutate((s) => ({ ...s, enabled: true }));
         }
       } catch {
         // Non-critical — companion defaults to disabled on error.

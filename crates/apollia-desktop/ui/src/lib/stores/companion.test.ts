@@ -156,53 +156,40 @@ describe("companionStore — updateContext", () => {
 // ── initFromMemory ────────────────────────────────────────────────────────────
 
 describe("companionStore — initFromMemory", () => {
-  test("enables and shows companion when UserMemory key is true", async () => {
-    // GIVEN UserMemory has companion_enabled = "true"
+  test("enables and shows companion when get_companion_enabled returns true", async () => {
     mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_user_memory")
-        return Promise.resolve([{ key: "companion_enabled", value: "true" }]);
-      return Promise.resolve([]);
+      if (cmd === "get_companion_enabled") return Promise.resolve(true);
+      return Promise.resolve(undefined);
     });
 
-    // WHEN
     await companionStore.initFromMemory();
 
-    // THEN companion is active
     const state = get(companionStore);
     expect(state.enabled).toBe(true);
     expect(state.visible).toBe(true);
   });
 
-  test("leaves companion disabled when UserMemory key is false", async () => {
-    // GIVEN UserMemory has companion_enabled = "false"
+  test("leaves companion disabled when get_companion_enabled returns false", async () => {
     mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_user_memory")
-        return Promise.resolve([
-          { key: "companion_enabled", value: "false" },
-        ]);
-      return Promise.resolve([]);
+      if (cmd === "get_companion_enabled") return Promise.resolve(false);
+      return Promise.resolve(undefined);
     });
 
-    // WHEN
     await companionStore.initFromMemory();
 
-    // THEN companion remains disabled
     const state = get(companionStore);
     expect(state.enabled).toBe(false);
     expect(state.visible).toBe(false);
   });
 
-  test("leaves companion disabled when UserMemory key is absent", async () => {
-    // GIVEN UserMemory has no companion_enabled key
+  test("leaves companion disabled when get_companion_enabled returns undefined", async () => {
     mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_user_memory") return Promise.resolve([]);
-      return Promise.resolve([]);
+      if (cmd === "get_companion_enabled") return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
     });
 
-    // WHEN
     await companionStore.initFromMemory();
 
-    // THEN companion remains disabled
     expect(get(companionStore).enabled).toBe(false);
   });
 

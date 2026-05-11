@@ -19,7 +19,7 @@
     ChatMessageView,
     ConversationStatsView,
     ProjectSummary,
-    UserMemoryProfileView,
+    UserProfileView,
   } from "$lib/types";
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
@@ -515,8 +515,8 @@
       conversationStats = null;
     }
     try {
-      const profile = await invoke<UserMemoryProfileView>("get_user_memory_profile");
-      memoryEntryCount.set(profile.stats.total);
+      const profile = await invoke<UserProfileView>("get_profile");
+      memoryEntryCount.set(profile.entries.length);
     } catch {
       memoryEntryCount.set(0);
     }

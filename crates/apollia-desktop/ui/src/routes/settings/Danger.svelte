@@ -45,7 +45,7 @@
   async function runClearMemories() {
     loading = true;
     try {
-      const count = await invoke<number>("clear_user_memory");
+      const count = await invoke<number>("reset_user_profile");
       addToast(
         $t("settings.danger.clear_memories.success", { values: { count } }),
         "success",

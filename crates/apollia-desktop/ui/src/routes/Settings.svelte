@@ -8,7 +8,6 @@
     Cpu,
     Sliders,
     Info,
-    Brain,
     Keyboard,
     AlertTriangle,
     Activity,
@@ -56,7 +55,6 @@
     tools: () => import("./settings/Tools.svelte"),
     permissions: () => import("./settings/Permissions.svelte"),
     system: () => import("./settings/System.svelte"),
-    memories: () => import("./settings/Memories.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),
     observability: () => import("./settings/Observability.svelte"),
     danger: () => import("./settings/Danger.svelte"),
@@ -262,7 +260,6 @@
         { key: "stt", labelKey: "settings.nav.stt", icon: Mic },
         { key: "llm", labelKey: "settings.nav.llm", icon: Cpu },
         { key: "model-hub", labelKey: "settings.nav.model_hub", icon: Download },
-        { key: "memories", labelKey: "settings.nav.memories", icon: Brain },
       ],
     },
     {

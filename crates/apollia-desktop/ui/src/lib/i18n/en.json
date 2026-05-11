@@ -1292,71 +1292,6 @@
       "no_schema": "Not defined",
       "no_permissions": "No permissions required"
     },
-    "user_memory": {
-      "tab_operator": "My Preferences",
-      "tab_builder": "User Memory",
-      "stat_total": "Total entries",
-      "stat_total_sub": "entries memorized",
-      "stat_categories": "Categories",
-      "stat_sources": "Sources",
-      "stat_updated": "Last updated",
-      "stat_never": "Never",
-      "section_preferences": "Preferences",
-      "section_habits": "Habits",
-      "section_context": "Context",
-      "filter_all": "All",
-      "filter_show_all": "Show all categories",
-      "empty_filter_title": "No entries in this category",
-      "empty_filter_desc": "Change filter to explore other categories.",
-      "col_key": "Key",
-      "col_category": "Category",
-      "col_confidence": "Confidence",
-      "col_updated": "Updated",
-      "source_onboarding": "onboarding",
-      "source_chat": "chat",
-      "source_explicit": "explicit",
-      "source_agent": "agent",
-      "add_btn_operator": "Add an information",
-      "add_btn_builder": "Add Memory Entry",
-      "add_placeholder_value_operator": "Your information...",
-      "add_placeholder_value_builder": "Your information...",
-      "add_placeholder_key_operator": "Unique key...",
-      "add_placeholder_key_builder": "Unique key...",
-      "add_category_label": "Category",
-      "add_key_label": "Key",
-      "add_value_label": "Content",
-      "add_save": "Save",
-      "add_cancel": "Cancel",
-      "add_key_required": "Key is required",
-      "edit_save": "Save",
-      "edit_cancel": "Cancel",
-      "edit_value_label": "Memory value",
-      "menu_validate": "Validate",
-      "menu_edit": "Edit",
-      "menu_delete": "Delete",
-      "menu_recategorize": "Change category",
-      "badge_validated": "Validated",
-      "toast_validated": "Entry validated",
-      "toast_validate_failed": "Failed to validate entry",
-      "delete_title_operator": "Delete this information?",
-      "delete_title_builder": "Delete this memory entry?",
-      "delete_confirm": "Delete",
-      "delete_cancel": "Cancel",
-      "toast_updated": "Entry updated",
-      "toast_deleted": "Entry deleted",
-      "toast_added": "Entry added",
-      "toast_category_updated": "Category updated",
-      "toast_load_failed": "Failed to load user memory",
-      "toast_update_failed": "Failed to update entry",
-      "toast_delete_failed": "Failed to delete entry",
-      "toast_search_failed": "Search failed",
-      "search_placeholder": "Search user memory...",
-      "search_results": "{count} results",
-      "empty_title_operator": "Apollia doesn't know you yet",
-      "empty_desc_operator": "Start a conversation to have your preferences memorized, or add information manually.",
-      "empty_title_builder": "User Memory empty",
-      "empty_desc_builder": "Entries will be created by onboarding, chat, or manually."
-    },
     "insights": {
       "toast_operator": "{count} new things learned",
       "toast_builder": "{count} new insights extracted",
@@ -1584,7 +1519,6 @@
       "tools": "Tools",
       "permissions": "Permissions",
       "system": "System info",
-      "memories": "Memories",
       "shortcuts": "Shortcuts",
       "observability": "Observability",
       "danger": "Danger Zone",
@@ -1765,7 +1699,6 @@
     "profile_new_value_placeholder": "value",
     "profile_load_error": "Failed to load user profile",
     "profile_unavailable": "User memory is not available. The runtime may not have started correctly.",
-    "memories": "My Memories",
     "memories_subtitle": "Review, validate, or correct the information the system has learned about you.",
     "memories_source_onboarding": "Onboarding",
     "memories_source_chat_inference": "Inferred",
@@ -2446,30 +2379,25 @@
       "too_many": "Too many messages — take a breath"
     },
     "template": {
-      "brainstorm": {
-        "title": "Brainstorm an idea",
-        "description": "Explore a topic from several angles, list options.",
-        "prompt": "Help me brainstorm on the topic I'm about to describe. Ask a few clarifying questions to frame the need, then propose around ten varied ideas with their pros and cons."
+      "dev_review": {
+        "title": "Dev review",
+        "description": "Review pending changes and surface missing tests."
       },
-      "summarize": {
-        "title": "Summarize a text",
-        "description": "Pull the key points and decisions to remember.",
-        "prompt": "I'm going to paste a text (article, meeting notes, long email…). Summarize it as clear key points, surface the decisions or actions to remember, and flag anything that feels unclear."
-      },
-      "draft_writing": {
-        "title": "Draft a text",
-        "description": "Email, note, message — quick first draft to refine.",
-        "prompt": "Help me draft a text (email, message, note, post). Ask me about the recipient, the goal, and the tone, then propose a concise first version I can adjust."
+      "spec_writing": {
+        "title": "Spec writing",
+        "description": "Co-author a technical spec with clarifying questions."
       },
       "research": {
-        "title": "Research a topic",
-        "description": "State of the art on a subject, sources cited.",
-        "prompt": "Research the topic I'm about to give you. Cite your sources, distinguish facts from opinions, and flag areas of uncertainty."
+        "title": "Research",
+        "description": "Gather sources and summarise the current state of the art."
       },
-      "explain": {
-        "title": "Understand a topic",
-        "description": "Plain-language explanation, concrete example, drill down.",
-        "prompt": "Explain a concept to me in plain language. Start with a short definition, give a concrete example, then go deeper if I ask."
+      "debug": {
+        "title": "Debug",
+        "description": "Walk through a bug step by step and isolate the cause."
+      },
+      "ops_playbook": {
+        "title": "Ops playbook",
+        "description": "Execute an operational runbook with safety checks."
       }
     },
     "attachments": {
@@ -2615,28 +2543,6 @@
       "empty_agents": "No agents are installed yet. Install one to start delegating work.",
       "install_agent": "Install an agent",
       "docs_link": "Documentation"
-    },
-    "template": {
-      "dev_review": {
-        "title": "Dev review",
-        "description": "Review pending changes and surface missing tests."
-      },
-      "spec_writing": {
-        "title": "Spec writing",
-        "description": "Co-author a technical spec with clarifying questions."
-      },
-      "research": {
-        "title": "Research",
-        "description": "Gather sources and summarise the current state of the art."
-      },
-      "debug": {
-        "title": "Debug",
-        "description": "Walk through a bug step by step and isolate the cause."
-      },
-      "ops_playbook": {
-        "title": "Ops playbook",
-        "description": "Execute an operational runbook with safety checks."
-      }
     },
     "agent_status": {
       "online": "Online",

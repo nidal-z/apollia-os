@@ -895,54 +895,44 @@ export interface AgentMessage {
   sent_at: string;
 }
 
-// ─── User Memory ──────────────────────────────────────────────────────────────
+// ─── User Profile (ADR-087) ───────────────────────────────────────────────────
 
-/** Aggregated user memory profile returned by get_user_memory_profile. */
-export interface UserMemoryProfileView {
-  entries: UserMemoryEntryView[];
-  stats: UserMemoryStats;
+/** Canonical schema field exposed by get_profile_schema. */
+export interface ProfileFieldView {
+  key: string;
+  label_fr: string;
+  label_en: string;
+  help_fr: string;
+  help_en: string;
+  section: "identity" | "work" | "preferences" | "constraints";
+  sensitive: boolean;
+  field_type: "text" | "long_text" | "select";
+  options: string[];
 }
 
-/** Single user memory entry formatted for the frontend. */
-export interface UserMemoryEntryView {
-  category: string;
+/** A single profile entry returned by get_profile. */
+export interface ProfileEntryView {
   key: string;
   value: string;
-  source: string;
-  confidence: number;
+  /** Provenance tag: "onboarding", "user", or "agent:<name>". */
+  written_by: string;
   created_at: string;
   updated_at: string;
+  in_schema: boolean;
 }
 
-/** Aggregated statistics over user memory entries. */
-export interface UserMemoryStats {
-  total: number;
-  by_category: CategoryCounts;
-  by_source: SourceCounts;
+/** Aggregated user profile returned by get_profile. */
+export interface UserProfileView {
+  schema_entries: ProfileEntryView[];
+  extras: ProfileEntryView[];
+  entries: ProfileEntryView[];
   last_updated_at: string | null;
 }
 
-/** Entry counts grouped by category. */
-export interface CategoryCounts {
-  preferences: number;
-  habits: number;
-  context: number;
-}
-
-/** Entry counts grouped by source. */
-export interface SourceCounts {
-  onboarding: number;
-  chat_inference: number;
-  user_explicit: number;
-  agent_observation: number;
-}
-
-/** Request payload for creating or updating a user memory entry. */
-export interface UpdateUserMemoryRequest {
-  category: string;
+/** Request payload for set_profile_entry. */
+export interface SetProfileEntryRequest {
   key: string;
   value: string;
-  confidence?: number;
 }
 
 /** Statistics for a single chat conversation session. */

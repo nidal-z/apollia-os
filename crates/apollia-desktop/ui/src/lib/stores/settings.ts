@@ -20,7 +20,6 @@ export type SettingsSubRoute =
   | "tools"
   | "permissions"
   | "system"
-  | "memories"
   | "shortcuts"
   | "observability"
   | "danger";
@@ -35,7 +34,6 @@ export const SETTINGS_SUB_ROUTES: SettingsSubRoute[] = [
   "tools",
   "permissions",
   "system",
-  "memories",
   "shortcuts",
   "observability",
   "danger",
