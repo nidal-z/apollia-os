@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
   import {
     Folder,
@@ -9,11 +10,23 @@
     Sparkles,
     Search,
     Trash2,
+    FolderOpen,
   } from "lucide-svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { Input } from "$lib/components/ui/input";
+  import { Textarea } from "$lib/components/ui/textarea";
   import { projects } from "$lib/stores/projects";
-  import type { ProjectDetail, ProjectSummary } from "$lib/types";
+  import { pendingChatSessionId } from "$lib/stores/chat";
+  import { navigateTo } from "$lib/stores/navigation";
+  import type {
+    ChatSessionSummary,
+    CreateSessionRequest,
+    MemoryEntry,
+    ProjectDetail,
+    ProjectSummary,
+    TaskSummary,
+  } from "$lib/types";
   import {
     PageHeader,
     SectionTitle,
@@ -26,8 +39,11 @@
     ConversationRow,
     TaskRow,
     NewProjectDialog,
+    type Task as RowTask,
+    type TaskStatus as RowTaskStatus,
     type ProjectTemplate as DialogTemplate,
   } from "$lib/components/operator";
+  import ContextProvidersTab from "../components/project/ContextProvidersTab.svelte";
 
   // ─── State ────────────────────────────────────────────────────────────────
 
@@ -54,11 +70,30 @@
   let detailLoading = $state(false);
 
   // Split mode tabs
-  type Tab = "conversations" | "tasks" | "memory" | "settings";
+  type Tab = "conversations" | "tasks" | "memory" | "context" | "settings";
   let activeTab = $state<Tab>("conversations");
+
+  // Settings editable form state
+  let editName = $state("");
+  let editDescription = $state("");
+  let editInstructions = $state("");
+  let editWorkspacePath = $state("");
+  let savingMetadata = $state(false);
 
   // Filter (split-list)
   let listFilter = $state("");
+
+  // ─── Project-scoped lists (Conversations / Tasks / Memory tabs) ──────────
+
+  let projectChats = $state<ChatSessionSummary[]>([]);
+  let projectChatsLoading = $state(false);
+  let projectTasks = $state<TaskSummary[]>([]);
+  let projectTasksLoading = $state(false);
+  /** Aggregated count of memory entries across `{project_id}:*` namespaces. */
+  let projectMemoryNamespaces = $state<
+    Array<{ namespace: string; subname: string; count: number }>
+  >([]);
+  let projectMemoryLoading = $state(false);
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -85,6 +120,10 @@
     activeTab = "conversations";
     try {
       selectedProject = await invoke<ProjectDetail>("get_project", { id });
+      resetEditForm();
+      void loadProjectChats();
+      void loadProjectTasks();
+      void loadProjectMemorySummary();
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
       mode = "grid";
@@ -94,10 +133,211 @@
     }
   }
 
+  async function loadProjectChats(): Promise<void> {
+    if (!selectedProjectId) return;
+    projectChatsLoading = true;
+    try {
+      projectChats = await invoke<ChatSessionSummary[]>("list_chats_by_project", {
+        projectId: selectedProjectId,
+      });
+    } catch (err) {
+      projectChats = [];
+      console.warn("list_chats_by_project failed", err);
+    } finally {
+      projectChatsLoading = false;
+    }
+  }
+
+  async function loadProjectTasks(): Promise<void> {
+    if (!selectedProject) return;
+    projectTasksLoading = true;
+    try {
+      // No project_id on tasks (yet) — narrow by agents attached to the project.
+      // This stays consistent with how operator/agent linkage is modelled today.
+      const allowedAgents = new Set(selectedProject.agents);
+      const all = await invoke<TaskSummary[]>("list_tasks", { filter: null });
+      projectTasks =
+        allowedAgents.size === 0
+          ? []
+          : all.filter((t) => allowedAgents.has(t.agent_name));
+    } catch (err) {
+      projectTasks = [];
+      console.warn("list_tasks failed", err);
+    } finally {
+      projectTasksLoading = false;
+    }
+  }
+
+  async function loadProjectMemorySummary(): Promise<void> {
+    if (!selectedProjectId) return;
+    projectMemoryLoading = true;
+    try {
+      const all = await invoke<string[]>("list_memory_namespaces");
+      const prefix = `${selectedProjectId}:`;
+      const matching = all.filter((n) => n.startsWith(prefix));
+      const entries = await Promise.all(
+        matching.map(async (namespace) => {
+          try {
+            const list = await invoke<MemoryEntry[]>("list_memory_entries", {
+              namespace,
+            });
+            return {
+              namespace,
+              subname: namespace.slice(prefix.length) || "—",
+              count: list.length,
+            };
+          } catch {
+            return { namespace, subname: namespace.slice(prefix.length) || "—", count: 0 };
+          }
+        }),
+      );
+      projectMemoryNamespaces = entries.sort((a, b) =>
+        a.subname.localeCompare(b.subname),
+      );
+    } catch (err) {
+      projectMemoryNamespaces = [];
+      console.warn("project memory summary failed", err);
+    } finally {
+      projectMemoryLoading = false;
+    }
+  }
+
+  function openChat(sessionId: string): void {
+    pendingChatSessionId.set(sessionId);
+    navigateTo("chat");
+  }
+
+  function mapTaskStatus(s: TaskSummary["status"]): RowTaskStatus {
+    switch (s) {
+      case "submitted":
+        return "queued";
+      case "working":
+        return "running";
+      case "completed":
+        return "completed";
+      case "failed":
+        return "failed";
+      case "input_required":
+        return "awaiting_approval";
+      case "canceled":
+        return "cancelled";
+      default:
+        return "queued";
+    }
+  }
+
+  function taskToRow(t: TaskSummary): RowTask {
+    return {
+      id: t.id,
+      title: t.input_preview || "(sans titre)",
+      agent: t.agent_name || t.agent_id,
+      status: mapTaskStatus(t.status),
+      started: fmtRelative(t.created_at),
+    };
+  }
+
+  /** Reload the currently-selected project's detail. Used after mutations. */
+  async function reloadDetail(): Promise<void> {
+    if (!selectedProjectId) return;
+    try {
+      selectedProject = await invoke<ProjectDetail>("get_project", {
+        id: selectedProjectId,
+      });
+      resetEditForm();
+      void loadProjectChats();
+      void loadProjectTasks();
+      void loadProjectMemorySummary();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  function resetEditForm(): void {
+    editName = selectedProject?.name ?? "";
+    editDescription = selectedProject?.description ?? "";
+    editInstructions = selectedProject?.instructions ?? "";
+    editWorkspacePath = selectedProject?.workspace_path ?? "";
+  }
+
+  async function pickWorkspaceDir(): Promise<void> {
+    try {
+      const selected = await openDialog({ multiple: false, directory: true });
+      if (typeof selected === "string") {
+        editWorkspacePath = selected;
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function saveMetadata(): Promise<void> {
+    if (!selectedProject) return;
+    savingMetadata = true;
+    try {
+      const trimmedName = editName.trim();
+      const trimmedDesc = editDescription.trim();
+      const trimmedInstr = editInstructions.trim();
+      const trimmedWs = editWorkspacePath.trim();
+      // Build a partial patch. Use `null` to explicitly clear an optional
+      // field, omit it entirely if unchanged. The Rust side accepts
+      // `Option<Option<String>>` so missing = no-op, null = clear.
+      const request: Record<string, unknown> = {};
+      if (trimmedName && trimmedName !== selectedProject.name) {
+        request.name = trimmedName;
+      }
+      const currentDesc = selectedProject.description ?? "";
+      if (trimmedDesc !== currentDesc) {
+        request.description = trimmedDesc || null;
+      }
+      const currentInstr = selectedProject.instructions ?? "";
+      if (trimmedInstr !== currentInstr) {
+        request.instructions = trimmedInstr || null;
+      }
+      const currentWs = selectedProject.workspace_path ?? "";
+      if (trimmedWs !== currentWs) {
+        request.workspace_path = trimmedWs || null;
+      }
+      if (Object.keys(request).length === 0) {
+        savingMetadata = false;
+        return;
+      }
+      selectedProject = await invoke<ProjectDetail>("update_project", {
+        id: selectedProject.id,
+        request,
+      });
+      resetEditForm();
+      addToast($t("projects.settings_saved_toast"), "success");
+      await loadProjects();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      savingMetadata = false;
+    }
+  }
+
   function backToGrid() {
     mode = "grid";
     selectedProjectId = null;
     selectedProject = null;
+  }
+
+  async function startNewChat(): Promise<void> {
+    if (!selectedProject) return;
+    const request: CreateSessionRequest = {
+      mode: "libre",
+      project_id: selectedProject.id,
+    };
+    try {
+      const session = await invoke<ChatSessionSummary>(
+        "create_chat_session",
+        { request },
+      );
+      pendingChatSessionId.set(session.id);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      navigateTo("chat");
+    }
   }
 
   function openCreateDialog() {
@@ -181,6 +421,7 @@
     for (const s of seeds) {
       try {
         await invoke("set_project_provider", {
+          providerId: null,
           projectId,
           providerType: s.provider_type,
           name: s.name,
@@ -236,6 +477,16 @@
         new Date(a.updated_at || a.created_at).getTime(),
     ),
   );
+
+  const settingsDirty = $derived.by<boolean>(() => {
+    if (!selectedProject) return false;
+    return (
+      editName.trim() !== selectedProject.name ||
+      editDescription.trim() !== (selectedProject.description ?? "") ||
+      editInstructions.trim() !== (selectedProject.instructions ?? "") ||
+      editWorkspacePath.trim() !== (selectedProject.workspace_path ?? "")
+    );
+  });
 
   const filteredListProjects = $derived.by<ProjectSummary[]>(() => {
     const q = listFilter.trim().toLowerCase();
@@ -543,7 +794,7 @@
                     {#snippet icon()}<Settings size={12} />{/snippet}
                     {$t("projects.tab_settings") || "Paramètres"}
                   </BtnSecondary>
-                  <BtnPrimary>
+                  <BtnPrimary onclick={startNewChat}>
                     {#snippet icon()}<MessageCircle size={12} />{/snippet}
                     {$t("projects.new_chat") || "Nouveau chat"}
                   </BtnPrimary>
@@ -559,6 +810,7 @@
                 { id: "conversations", label: $t("projects.tab_conversations") || "Conversations" },
                 { id: "tasks", label: $t("projects.tab_tasks") || "Tâches" },
                 { id: "memory", label: $t("projects.tab_memory") || "Mémoire" },
+                { id: "context", label: $t("projects.tab_context") || "Contexte" },
                 { id: "settings", label: $t("projects.tab_settings") || "Paramètres" },
               ] as tab (tab.id)}
                 {@const active = activeTab === tab.id}
@@ -578,43 +830,81 @@
           <!-- Tab content -->
           <div class="flex-1 overflow-auto">
             {#if activeTab === "conversations"}
-              <SectionTitle count={0}>
+              <SectionTitle count={projectChats.length}>
                 {$t("projects.tab_conversations") || "Conversations"}
               </SectionTitle>
-              <div class="px-8">
-                <div class="border border-border rounded-xl overflow-hidden bg-card">
-                  <ConversationRow
+              <div class="px-8 pb-6">
+                {#if projectChatsLoading}
+                  <div class="border border-border rounded-xl bg-card px-4 py-3 text-[12px] text-muted-foreground">
+                    {$t("projects.loading") || "Chargement…"}
+                  </div>
+                {:else if projectChats.length === 0}
+                  <OperatorEmptyState
                     title={$t("projects.no_conversations") ||
-                      "Aucune conversation pour ce projet"}
-                    lastMessage={$t("projects.start_conversation_hint") ||
+                      "Aucune conversation liée"}
+                    desc={$t("projects.start_conversation_hint") ||
                       "Démarrez un nouveau chat pour cadrer le travail."}
-                    timestamp="—"
-                    state="default"
-                  />
-                </div>
+                  >
+                    {#snippet icon()}<FolderOpen size={20} />{/snippet}
+                  </OperatorEmptyState>
+                {:else}
+                  <div class="border border-border rounded-xl overflow-hidden bg-card">
+                    {#each projectChats as chat (chat.id)}
+                      <ConversationRow
+                        title={chat.title ??
+                          chat.agent_name ??
+                          ($t("chat.untitled_session") || "Conversation")}
+                        lastMessage={chat.last_message_preview ?? undefined}
+                        timestamp={fmtRelative(chat.created_at)}
+                        state={chat.status === "closed" ? "closed" : "default"}
+                        live={chat.status === "processing"}
+                        onclick={() => openChat(chat.id)}
+                      />
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {:else if activeTab === "tasks"}
-              <SectionTitle count={0}>
+              <SectionTitle count={projectTasks.length}>
                 {$t("projects.tab_tasks") || "Tâches"}
               </SectionTitle>
-              <div class="px-8">
-                <div class="border border-border rounded-xl overflow-hidden bg-card">
-                  <TaskRow
-                    task={{
-                      title:
-                        $t("projects.no_tasks") ||
-                        "Aucune tâche planifiée",
-                      agent: "—",
-                      status: "queued",
-                    }}
-                  />
-                </div>
+              <div class="px-8 pb-6">
+                {#if projectTasksLoading}
+                  <div class="border border-border rounded-xl bg-card px-4 py-3 text-[12px] text-muted-foreground">
+                    {$t("projects.loading") || "Chargement…"}
+                  </div>
+                {:else if selectedProject.agents.length === 0}
+                  <OperatorEmptyState
+                    title={$t("projects.no_tasks") ||
+                      "Aucune tâche pour ce projet"}
+                    desc={$t("projects.tasks_need_agents") ||
+                      "Attachez au moins un agent au projet dans Paramètres pour voir ses tâches ici."}
+                  >
+                    {#snippet icon()}<Sparkles size={20} />{/snippet}
+                  </OperatorEmptyState>
+                {:else if projectTasks.length === 0}
+                  <OperatorEmptyState
+                    title={$t("projects.no_tasks") ||
+                      "Aucune tâche pour ce projet"}
+                    desc={$t("projects.no_tasks_desc") ||
+                      "Les tâches déclenchées par les agents de ce projet apparaîtront ici."}
+                  >
+                    {#snippet icon()}<Sparkles size={20} />{/snippet}
+                  </OperatorEmptyState>
+                {:else}
+                  <div class="border border-border rounded-xl overflow-hidden bg-card divide-y divide-border">
+                    {#each projectTasks as task (task.id)}
+                      <TaskRow task={taskToRow(task)} />
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {:else if activeTab === "memory"}
+              <!-- 1) Documents joints (source statique) -->
               <SectionTitle count={selectedProject.documents.length}>
-                {$t("projects.tab_memory") || "Mémoire"}
+                {$t("projects.memory_documents") || "Documents joints"}
               </SectionTitle>
-              <div class="px-8 pb-6">
+              <div class="px-8 pb-4">
                 {#if selectedProject.documents.length === 0}
                   <OperatorEmptyState
                     title={$t("projects.empty_memory_title") ||
@@ -640,12 +930,55 @@
                   </ul>
                 {/if}
               </div>
+
+              <!-- 2) Mémoire scopée projet (namespaces `{project_id}:*`) -->
+              <SectionTitle count={projectMemoryNamespaces.length}>
+                {$t("projects.memory_namespaces") || "Mémoire scopée"}
+              </SectionTitle>
+              <div class="px-8 pb-6">
+                {#if projectMemoryLoading}
+                  <div class="border border-border rounded-xl bg-card px-4 py-3 text-[12px] text-muted-foreground">
+                    {$t("projects.loading") || "Chargement…"}
+                  </div>
+                {:else if projectMemoryNamespaces.length === 0}
+                  <OperatorEmptyState
+                    title={$t("projects.no_project_memory") ||
+                      "Aucune entrée mémoire pour ce projet"}
+                    desc={$t("projects.no_project_memory_desc") ||
+                      "Les agents écriront leurs entrées dans des namespaces préfixés par l'ID du projet."}
+                  >
+                    {#snippet icon()}<FolderOpen size={20} />{/snippet}
+                  </OperatorEmptyState>
+                {:else}
+                  <ul class="divide-y divide-border border border-border rounded-xl bg-card overflow-hidden">
+                    {#each projectMemoryNamespaces as ns (ns.namespace)}
+                      <li class="px-4 py-2.5 flex items-center gap-2.5">
+                        <FolderOpen size={13} class="text-muted-foreground" />
+                        <span class="text-[12.5px] text-foreground truncate flex-1">
+                          {ns.subname}
+                        </span>
+                        <span class="text-[10.5px] text-muted-foreground font-mono">
+                          {ns.namespace}
+                        </span>
+                        <span class="text-[10.5px] text-muted-foreground font-medium">
+                          {ns.count} {ns.count > 1 ? "entrées" : "entrée"}
+                        </span>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            {:else if activeTab === "context"}
+              <ContextProvidersTab
+                project={selectedProject}
+                onUpdated={reloadDetail}
+              />
             {:else}
-              <!-- Settings -->
+              <!-- Settings — editable metadata form -->
               <SectionTitle>
                 {$t("projects.tab_settings") || "Paramètres"}
               </SectionTitle>
-              <div class="px-8 pb-6 space-y-3 max-w-[640px]">
+              <div class="px-8 pb-6 space-y-4 max-w-[640px]">
                 <div>
                   <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
                     {$t("projects.field_id") || "Identifiant"}
@@ -654,26 +987,74 @@
                     {selectedProject.id}
                   </div>
                 </div>
+
+                <div>
+                  <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+                    {$t("projects.settings_field_name")}
+                  </div>
+                  <Input
+                    bind:value={editName}
+                    placeholder={$t("projects.field_name")}
+                    data-testid="settings-name-input"
+                  />
+                </div>
+
+                <div>
+                  <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+                    {$t("projects.settings_field_description")}
+                  </div>
+                  <Textarea
+                    bind:value={editDescription}
+                    rows={3}
+                    data-testid="settings-description-input"
+                  />
+                </div>
+
+                <div>
+                  <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
+                    {$t("projects.settings_field_instructions")}
+                  </div>
+                  <Textarea
+                    bind:value={editInstructions}
+                    rows={5}
+                    placeholder={$t("projects.settings_field_instructions_placeholder")}
+                    data-testid="settings-instructions-input"
+                  />
+                </div>
+
                 <div>
                   <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
                     {$t("projects.field_workspace") || "Workspace"}
                   </div>
-                  <div class="text-[12px] font-mono text-foreground">
-                    {selectedProject.workspace_path ?? "—"}
+                  <div class="flex gap-2">
+                    <Input
+                      bind:value={editWorkspacePath}
+                      placeholder="/path/to/workspace"
+                      class="flex-1"
+                      data-testid="settings-workspace-input"
+                    />
+                    <BtnSecondary onclick={pickWorkspaceDir}>
+                      {#snippet icon()}<FolderOpen size={12} />{/snippet}
+                      {$t("projects.settings_field_workspace_pick")}
+                    </BtnSecondary>
                   </div>
                 </div>
-                {#if selectedProject.instructions}
-                  <div>
-                    <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
-                      {$t("projects.field_instructions") || "Instructions"}
-                    </div>
-                    <p
-                      class="text-[12.5px] text-foreground leading-[1.5] whitespace-pre-wrap m-0"
-                    >
-                      {selectedProject.instructions}
-                    </p>
-                  </div>
-                {/if}
+
+                <div class="flex items-center gap-2 pt-1">
+                  <BtnPrimary
+                    onclick={saveMetadata}
+                    disabled={!settingsDirty || savingMetadata}
+                  >
+                    {savingMetadata ? $t("common.loading") : $t("common.save")}
+                  </BtnPrimary>
+                  <BtnSecondary
+                    onclick={resetEditForm}
+                    disabled={!settingsDirty || savingMetadata}
+                  >
+                    {$t("common.cancel")}
+                  </BtnSecondary>
+                </div>
+
                 <div class="pt-3 border-t border-border">
                   <button
                     type="button"

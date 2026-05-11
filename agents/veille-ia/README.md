@@ -1,243 +1,132 @@
-# veille-ia — Agent de veille IA/LLM
+# veille-ia — Agent de veille IA/LLM (v3.0.0)
 
-Agent Apollia OS qui produit chaque matin un **rapport de veille quotidienne** sur
-l'écosystème IA/LLM : nouveaux modèles, frameworks, et mouvements des concurrents
-directs d'Apollia (n8n, Make, Zapier AI, Lindy AI, Dust.tt…).
+Agent Apollia OS qui produit chaque matin un **rapport de veille quotidienne** sur l'écosystème IA/LLM : nouveaux modèles, frameworks, mouvements des concurrents directs (n8n, Make, Zapier AI, Lindy AI, Dust.tt, Mistral, Cohere North, OpenFANG…), évolutions standards (MCP, A2A), et signaux régulation (EU AI Act).
 
-Conçu comme **cas d'usage de référence** de la plateforme : il exploite la mémoire
-cross-session, la délégation A2A, les outils web natifs, et le trigger cron.
+Conçu comme **cas d'usage de référence** de la plateforme Apollia OS : il applique les **4 piliers obligatoires** issus de l'état de l'art 2025-2026.
+
+## Les 4 piliers appliqués
+
+| Pilier | Implémentation |
+|---|---|
+| **1 — Templates** | Pydantic schemas (`schemas.py`) + Jinja2 templates (`templates/*.md.j2`) + auto-repair max 3 retries. |
+| **2 — Steps fonctionnels** | State machine 15 étapes (`state.py`). LLM appelé chirurgicalement sur 3 steps. |
+| **3 — Datasources** | YAML externalisés (`datasources/*.yaml`). Lecture priorité : `ctx.workspace` > local > defaults. |
+| **4 — Mémoire** | Entités `entity:{type}:{id}` avec timeline + dédup `seen:{hash}` + procédurale. |
 
 ---
 
 ## Architecture
 
 ```
-veille-ia-agent  (Director — veille-ia-agent.py)
+veille-ia-agent  (Director — state machine 15 steps)
 │
 │  Délègue via A2A
-├── web-search-worker   (workers/web-search-worker.py)
-│     skill: search-and-extract
-│     → web_search + web_read → articles filtrés + dédupliqués
+├── web-search-worker         skill: search-and-extract
+│      → web_search + web_read → articles filtrés + dédupliqués
 │
-└── synthesis-worker    (workers/synthesis-worker.py)
-      skill: synthesize-report
-      → LLM only → rapport Markdown + scoring de pertinence
+├── entity-extraction-worker  skill: extract-entities          [NOUVEAU v3.0.0]
+│      → LLM extrait entités (companies/products/events/topics)
+│
+└── synthesis-worker          skill: synthesize-report
+       → LLM scoring + Pydantic VeilleReport JSON (pas de Markdown)
 ```
 
-**Trois agents collaborent :**
-
-| Agent | Rôle | Outils |
-|---|---|---|
-| `veille-ia-agent` | Director — orchestre, mémorise, sauvegarde | `file_write` |
-| `web-search-worker` | Recherche web, extraction contenu, déduplication | `web_search`, `web_read` |
-| `synthesis-worker` | Analyse, scoring 1–5★, rapport Markdown | LLM uniquement |
-
----
-
-## Mécanismes
-
-### 1. Mémoire cross-session
-
-Le Director maintient un espace mémoire SQLite isolé (`namespace: veille-ia`) :
-
-| Clé | Type | Contenu |
-|---|---|---|
-| `bootstrap.snapshot` | Sémantique | Liste concurrents + requêtes de recherche |
-| `bootstrap.status` / `meta` | Sémantique | Statut et date du bootstrap (TTL 7 jours) |
-| `seen:{url_hash}` | Sémantique | Articles déjà vus → déduplication inter-session |
-| `last_run_date` | Sémantique | Date ISO du dernier run |
-| `total_runs` | Sémantique | Compteur de runs |
-| *(par run)* | Épisodique | `"Run du {date} : N articles, succès"` |
-
-### 2. Bootstrap du paysage concurrentiel
-
-Au premier run (et tous les 7 jours), le Director initialise en mémoire la liste
-des concurrents et les requêtes de recherche. Cela évite de reconfigurer à la main
-et rend l'agent opérationnel dès le premier lancement.
-
-### 3. Déduplication par hash d'URL
-
-À chaque run, les URLs déjà traitées sont récupérées depuis la mémoire et passées
-au `web-search-worker`. Les articles déjà vus sont filtrés avant extraction,
-ce qui garantit que chaque rapport ne contient que des **nouveautés**.
-
-### 4. Délégation A2A
-
-Le Director ne fait pas de recherche web lui-même. Il délègue :
-1. `search-and-extract` → récupère les articles pour l'axe tech
-2. `search-and-extract` → récupère les articles pour l'axe concurrentiel
-3. `synthesize-report` → produit le rapport Markdown final
-
-Si un worker est indisponible, l'agent continue et génère un rapport partiel.
-
-### 5. Rapport sauvegardé localement
-
-Le rapport est écrit dans `~/.apollia/reports/veille-YYYY-MM-DD.md`.
-Une notification (desktop et/ou Discord) est envoyée à la fin du run —
-configurée via l'interface Apollia.
-
----
+Le director (state machine déterministe) :
+1. Charge datasources YAML (priorité `ctx.workspace` → local → defaults).
+2. Recharge profil `user.*` + entités connues.
+3. Bootstrap snapshot si TTL > 7j.
+4. Délègue search-and-extract (axes tech + competitive) avec dédup hashes.
+5. Délègue extract-entities → upsert `entity:*` mémoire.
+6. Délègue synthesize-report → VeilleReport JSON validé Pydantic.
+7. Filter critical findings (threshold + keywords).
+8. Rendu Jinja2 (`templates/report.md.j2`).
+9. Persiste épisode + nouveaux `seen:*` + procédurale.
+10. Écrit fichier + notifie (desktop + webhook si critique).
 
 ## Structure du package
 
 ```
 agents/veille-ia/
-├── agent.toml               ← déclaration du package (agents, outils, trigger)
-├── veille-ia-agent.py       ← Director
+├── agent.toml                    # Manifest package (4 agents + trigger cron)
+├── veille-ia-agent.py            # Director (state machine)
 ├── workers/
-│   ├── web-search-worker.py ← Worker recherche/extraction
-│   └── synthesis-worker.py  ← Worker synthèse/rapport
+│   ├── web-search-worker.py
+│   ├── entity-extraction-worker.py    # NOUVEAU v3.0.0
+│   └── synthesis-worker.py
+├── schemas.py                    # Pydantic (Pilier 1)
+├── state.py                      # Enum VeilleStep (Pilier 2)
+├── datasources/                  # YAML externalisés (Pilier 3)
+│   ├── feeds.yaml
+│   ├── competitors.yaml
+│   ├── queries.yaml
+│   └── scoring.yaml
+├── templates/                    # Jinja2 (Pilier 1)
+│   ├── report.md.j2
+│   ├── alert.md.j2
+│   └── summary.md.j2
+├── eval/                         # Eval suite (eval-driven dev)
+│   ├── cases.jsonl
+│   ├── run-eval.py
+│   └── golden/
+├── APOLLIA.md                    # Sections client (à coller dans workspace APOLLIA.md)
+├── setup.md                      # Guide install
+├── CHANGELOG.md
 └── README.md
 ```
 
-### `agent.toml`
+## Mécanismes
 
-Fichier de configuration **auto-suffisant** du package. Il déclare les agents,
-active les outils web, et configure le trigger cron. Le runtime l'injecte en base
-de données au chargement — aucune modification de la configuration globale nécessaire.
+### Mémoire à entités (saut qualitatif v3.0.0)
 
-```toml
-[package]
-name = "veille-ia"
+| Clé | Type | Contenu | Politique |
+|---|---|---|---|
+| `entity:company:{id}` | sémantique | `{name, threat_level, first_seen, last_event_date, signals: [...]}` | Merge incrémental |
+| `entity:product:{id}` | sémantique | idem produits | idem |
+| `entity:event:{id}` | sémantique | événement ponctuel daté | append-only |
+| `entity:topic:{id}` | sémantique | sujet récurrent | running summary |
+| `seen:{hash}` | sémantique | URL hash | confidence=1.0, dédup cross-run |
+| `bootstrap.snapshot` | sémantique | landscape (concurrents + queries) | TTL 7j |
+| `procedure:daily-veille` | procédurale | workflow appris | learn une fois, recall ensuite |
+| `last_run_date`, runs épisodiques | mixte | métriques | append-only |
 
-[[agents]]
-name  = "veille-ia-agent"
-entry = "veille-ia-agent.py"
-role  = "director"
+### Datasources externalisées
 
-[tools]
-web = { enabled = true, ssrf_guard = true }
+Lecture priorisée :
+1. **`ctx.workspace.get("Veille IA — *")`** — sections APOLLIA.md du workspace (custom client).
+2. **Local YAML** dans `datasources/*.yaml` (livré avec l'agent).
+3. **Defaults Python** (fallback minimal).
 
-[[triggers]]
-id       = "daily-veille-ia"
-agent    = "veille-ia-agent"
-on_busy  = "skip"
+Modifier la liste des concurrents ou les requêtes sans toucher au code : éditer YAML local OU sections APOLLIA.md du workspace.
 
-[triggers.source]
-type     = "cron"
-schedule = "0 7 * * 1-5"   # Lun–Ven à 7h00
-```
+### HITL conditionnel
 
----
+Détection automatique de findings critiques :
+- Score >= `critical_threshold` (défaut 5).
+- OU keyword critique présent (`Series A/B/C/D`, `acquired`, `breach`, `0-day`, etc.).
 
-## Prérequis
+→ Notification webhook prioritaire séparée (`alert.md.j2`).
 
-- Apollia OS installé et configuré
-- Un backend LLM actif (configuré via l'interface Apollia)
-- Les outils web activés (déclarés dans `agent.toml` — chargés automatiquement)
+## Prérequis & installation
 
----
-
-## Installation
+Cf. [`setup.md`](./setup.md).
 
 ```bash
-# Installer le package depuis le dossier
 apollia agent install ./agents/veille-ia
-
-# Vérifier que les 3 agents sont enregistrés
-apollia agent list
-# → veille-ia-agent   (director)
-# → web-search-worker (worker)
-# → synthesis-worker  (worker)
-
-# Vérifier que le trigger est planifié
-apollia trigger list
-# → daily-veille-ia   cron "0 7 * * 1-5"   veille-ia-agent
+apollia agent run veille-ia-agent --input "Génère la veille IA du jour"
 ```
 
----
-
-## Lancement
-
-### Run manuel
+## Eval
 
 ```bash
-# Démarrer les workers en premier
-apollia agent start web-search-worker
-apollia agent start synthesis-worker
-
-# Démarrer le Director
-apollia agent start veille-ia-agent
-
-# Lancer un run de veille maintenant
-apollia task run veille-ia-agent '{"text": "Génère la veille IA du jour"}'
+cd agents/veille-ia
+python eval/run-eval.py
 ```
 
-### Run automatique (trigger cron)
+Métriques cibles L2 : success rate ≥ 80%, consistency ≥ 0.7.
 
-Le trigger `daily-veille-ia` se déclenche automatiquement chaque lundi–vendredi
-à 7h00 dès que le runtime tourne. Aucune action manuelle nécessaire.
+## Liens utiles
 
-```bash
-# Vérifier l'historique des runs
-apollia trigger history daily-veille-ia
-
-# Activer / désactiver le trigger
-apollia trigger enable  daily-veille-ia
-apollia trigger disable daily-veille-ia
-```
-
-### Consulter les rapports
-
-```bash
-# Lister les rapports générés
-ls ~/.apollia/reports/veille-*.md
-
-# Lire le rapport du jour
-cat ~/.apollia/reports/veille-$(date +%Y-%m-%d).md
-```
-
-### Inspecter la mémoire
-
-```bash
-# Voir toutes les clés en mémoire
-apollia memory list veille-ia
-
-# Lire le snapshot concurrentiel
-apollia memory show veille-ia bootstrap.snapshot
-
-# Voir l'historique des runs (mémoire épisodique)
-apollia memory events veille-ia
-```
-
----
-
-## Notifications
-
-Les canaux de notification (desktop, Discord, webhook) sont configurés via
-l'interface Apollia — pas dans le code ni dans `agent.toml`.
-
-```bash
-# Ajouter une notification desktop
-apollia notification channel add desktop
-
-# Ajouter un webhook Discord
-apollia notification channel add discord \
-  --webhook-url "https://discord.com/api/webhooks/..."
-
-# Vérifier les canaux actifs
-apollia notification channel list
-```
-
-Le runtime envoie automatiquement une notification sur `task.completed` avec
-le résumé exécutif du rapport.
-
----
-
-## Personnalisation
-
-Pour ajuster les concurrents surveillés ou les requêtes de recherche, modifier
-le dictionnaire `_INITIAL_SNAPSHOT` dans `veille-ia-agent.py`, puis réinitialiser
-le bootstrap :
-
-```bash
-apollia memory forget veille-ia bootstrap.status
-apollia task run veille-ia-agent '{"text": "Réinitialise le bootstrap"}'
-```
-
-Pour modifier la fréquence du trigger, éditer `agent.toml` et recharger :
-
-```bash
-# Modifier schedule dans agent.toml, puis :
-apollia agent reload ./agents/veille-ia
-```
+- [État de l'art agents IA 2026](../../docs/internal/research/agents-2026/README.md)
+- [Skill apollia-agent-forge](../../.claude/skills/apollia-agent-forge/SKILL.md)
+- [MoSCoW scorecard Apollia](../../docs/internal/strategy/apollia-moscow-scorecard-2026-05.md)
+- [Plan refonte M5a](../../docs/internal/release/M5-veille-ia-refonte-plan.md)

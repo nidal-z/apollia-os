@@ -1,0 +1,25 @@
+{# templates/alert.md.j2 — alerte critique (notification webhook prioritaire) #}
+# ⚠️ Veille IA — Finding critique du {{ date }}
+
+{{ critical_findings | length }} finding{{ 's' if critical_findings | length > 1 else '' }} critique{{ 's' if critical_findings | length > 1 else '' }} détecté{{ 's' if critical_findings | length > 1 else '' }}.
+
+{% for finding in critical_findings %}
+## {{ loop.index }}. {{ finding.title }} {{ finding.score_stars }}
+
+> {{ finding.excerpt }}
+
+**Source** : {{ finding.source }} · **[Lire →]({{ finding.url }})**
+
+{% if finding.entities %}
+**Entités** : {{ finding.entities | join(', ') }}
+{% endif %}
+
+**Impact Apollia** : {{ finding.impact_apollia }}
+
+**Critères matchés** : {{ finding.matched_criteria | join(', ') }}
+
+---
+
+{% endfor %}
+
+> Rapport complet : `~/.apollia/reports/veille-{{ date }}.md`

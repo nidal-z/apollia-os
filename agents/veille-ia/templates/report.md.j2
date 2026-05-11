@@ -1,0 +1,97 @@
+{# templates/report.md.j2 — rapport quotidien #}
+# Veille IA/LLM — {{ date }}
+
+> {{ executive_summary }}
+
+{% if user_context.get("user.role") -%}
+*Adapté pour {{ user_context["user.role"] }}{% if user_context.get("user.domain.sector") %} · secteur {{ user_context["user.domain.sector"] }}{% endif %}*
+{% endif %}
+
+---
+{% if critical_findings %}
+
+## ⚠️ Findings critiques
+
+{% for finding in critical_findings %}
+### {{ finding.title }} {{ finding.score_stars }}
+
+> {{ finding.excerpt }}
+
+**Source** : {{ finding.source }} · **[Lire →]({{ finding.url }})**
+{% if finding.entities %}
+**Entités** : {{ finding.entities | join(', ') }}
+{% endif %}
+**Impact Apollia** : {{ finding.impact_apollia }}
+{% if finding.impact_for_user %}
+**Impact pour vous** : {{ finding.impact_for_user }}
+{% endif %}
+
+{% endfor %}
+
+---
+{% endif %}
+
+## Veille technologique
+
+{% if articles_tech %}
+{% for article in articles_tech %}
+### {{ article.title }} {{ article.score_stars }}
+
+> {{ article.excerpt }}
+
+**Source** : {{ article.source }} · **[Lire →]({{ article.url }})**
+{% if article.entities %}
+**Entités** : {{ article.entities | join(', ') }}
+{% endif %}
+**Impact Apollia** : {{ article.impact_apollia }}
+
+{% endfor %}
+{% else %}
+*Aucun article tech significatif aujourd'hui.*
+{% endif %}
+
+---
+
+## Veille concurrentielle
+
+{% if articles_competitive %}
+{% for article in articles_competitive %}
+### {{ article.title }} {{ article.score_stars }}
+
+> {{ article.excerpt }}
+
+**Source** : {{ article.source }} · **[Lire →]({{ article.url }})**
+{% if article.entities %}
+**Entités** : {{ article.entities | join(', ') }}
+{% endif %}
+**Impact Apollia** : {{ article.impact_apollia }}
+
+{% endfor %}
+{% else %}
+*Aucun mouvement concurrentiel notable aujourd'hui.*
+{% endif %}
+
+{% if new_entities %}
+
+---
+
+## Nouvelles entités identifiées
+{% for ent_id in new_entities %}
+- `{{ ent_id }}`
+{% endfor %}
+{% endif %}
+
+---
+
+## Métriques
+
+| Métrique | Valeur |
+|---|---|
+| Articles analysés | {{ metrics.get('total_articles', 0) }} |
+| Score moyen | {{ '%.1f' | format(metrics.get('avg_score', 0.0)) }}/5 |
+| Findings critiques | {{ critical_findings | length }} |
+| Doublons filtrés | {{ metrics.get('skipped_dupes', 0) }} |
+| Wall clock | {{ metrics.get('wall_clock_secs', 0) }}s |
+| Tool calls | {{ metrics.get('tool_calls', 0) }} |
+
+*Rapport généré par `veille-ia` v3.0.0 · Apollia OS · {{ date }}*

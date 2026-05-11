@@ -12,7 +12,7 @@
   } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { ChatSessionSummary } from "$lib/types";
+  import type { ChatSessionSummary, ProjectSummary } from "$lib/types";
   import { tourOpenChatPicker } from "$lib/stores/tour";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
@@ -158,7 +158,23 @@
     },
   ];
 
+  // Projects loaded once so we can render a small "Project X" chip on
+  // each conversation row (mirrors the badge in the open conversation
+  // header). Refreshed when the user creates/links sessions elsewhere.
+  let projectList = $state<ProjectSummary[]>([]);
+  const projectNameById = $derived(
+    new Map(projectList.map((p) => [p.id, p.name])),
+  );
+  async function reloadProjectList(): Promise<void> {
+    try {
+      projectList = await invoke<ProjectSummary[]>("list_projects");
+    } catch {
+      // Non-blocking — the chip just won't render.
+    }
+  }
+
   onMount(() => {
+    void reloadProjectList();
     const unsub = pendingChatSessionId.subscribe((id) => {
       if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
     });
@@ -475,6 +491,9 @@
             timestamp={relativeTime(session.lastActivityAt)}
             state={rowState(session, session.id === selectedSessionId)}
             live={session.status === "processing"}
+            projectLabel={session.project_id
+              ? (projectNameById.get(session.project_id) ?? undefined)
+              : undefined}
             onclick={() => { navigateToSession(session.id); closeSessionsDrawer(); }}
             onrename={(newTitle) => void handleRenameSession(session.id, newTitle)}
             ondelete={() => void handleDeleteSession(session.id)}

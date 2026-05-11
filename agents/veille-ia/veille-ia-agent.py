@@ -1,48 +1,14 @@
-"""veille-ia-agent — Director Agent for daily AI/LLM watch.
+"""veille-ia v3.0.0 — Director state machine appliquant les 4 piliers.
 
-Orchestrates a daily intelligence briefing on two axes :
-- **Technical** : new models, frameworks, tools, research breakthroughs.
-- **Competitive** : news on n8n, Make, Zapier AI, Lindy AI, Dust.tt, etc.
+Refonte complète (M5a release v0.1.0) :
+- Pilier 1 — Templates : Pydantic schemas (`schemas.py`) + Jinja2 (`templates/`).
+- Pilier 2 — Steps fonctionnels : state machine 15 étapes (`state.py`).
+- Pilier 3 — Datasources : YAML externalisés (`datasources/`), priorité ctx.workspace > local > defaults.
+- Pilier 4 — Mémoire : entités (`entity:{type}:{id}`) + dédup (`seen:{hash}`) + procédurale.
 
-## Architecture (Director + 2 Workers via A2A)
-
-  veille-ia-agent  (this file — director)
-  ├── web-search-worker   skill: ``search-and-extract``
-  │     Receives: queries, axis, seen_hashes
-  │     Returns:  articles list with deduplication
-  └── synthesis-worker    skill: ``synthesize-report``
-        Receives: all articles, date, axes definitions
-        Returns:  Markdown report + summary + top items
-
-The director never executes the search itself — it delegates. As a fallback
-when A2A is unavailable, it can call ``web_search`` / ``web_read`` directly.
-
-## Memory (namespace ``veille-ia``)
-
-Semantic :
-- ``bootstrap.snapshot``  — competitive landscape (refreshed every 7 days)
-- ``seen:{hash}``         — URL hashes seen in previous runs (cross-session dedup)
-- ``last_run_date``       — ISO date
-- ``total_runs``          — int
-
-Episodic :
-- one record per run with importance 0.7
-
-## Design notes (v2.0.0 — refonte)
-
-The earlier versions wrapped the LLM in heuristic guardrails (anti-
-hallucination gate, mandatory tool-call counts, file-mtime checks,
-preflight tool availability checks). They created more failure modes
-than they prevented and were antithetical to ADR-021's *agent at the
-helm* doctrine. v2.0.0 trusts the LLM and the runtime :
-
-- All research tools are in ``tools_required`` — fail-fast at startup
-  if missing (Principe #4) instead of probing at runtime.
-- The system prompt describes the goal, not policed behavior.
-- Anti-hallucination gate removed — output quality is judged by the
-  operator (or by post-hoc memory analysis), not by run-time rejection.
-- Memory dedup via ``seen:{hash}`` is the single hard contract kept,
-  because it's what makes daily runs progressive.
+Référence : docs/internal/release/M5-veille-ia-refonte-plan.md
+État de l'art : docs/internal/research/agents-2026/
+Skill ayant guidé la conception : .claude/skills/apollia-agent-forge/
 """
 
 from __future__ import annotations
@@ -50,464 +16,1116 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import date, datetime
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
-from apollia.agents import AIPResult, BaseReActAgent
+import jinja2
+import yaml
+from pydantic import ValidationError
 
-# ---------------------------------------------------------------------------
-# Bootstrap helpers — competitive landscape persisted to memory
-# ---------------------------------------------------------------------------
-
-_BOOTSTRAP_KEY_SNAPSHOT = "bootstrap.snapshot"
-_BOOTSTRAP_KEY_STATUS = "bootstrap.status"
-_BOOTSTRAP_KEY_META = "bootstrap.meta"
-_BOOTSTRAP_TTL_DAYS = 7
-
-_INITIAL_SNAPSHOT: dict[str, Any] = {
-    "competitors": [
-        "n8n", "Make", "Zapier AI", "Relay.app", "Lindy AI",
-        "Dust.tt", "Beam AI", "Cognosys", "Lutra AI", "Replit Agent",
-        "OpenClaw", "Claude Cowork", "Microsoft Copilot Studio",
-        "Office 365 Copilot", "Google Agentspace",
-    ],
-    "tech_queries": [
-        "new LLM model release 2026",
-        "AI agent framework news",
-        "Anthropic Claude news",
-        "OpenAI GPT news",
-        "Google Gemini news",
-        "MCP Model Context Protocol news",
-        "Agent-to-Agent protocol A2A",
-        "RAG retrieval augmented generation",
-        "LangGraph CrewAI AutoGen update",
-    ],
-    "competitive_queries": [
-        "n8n AI agent automation news",
-        "Make Integromat AI workflow",
-        "Zapier AI agents update",
-        "AI workflow automation startup funding",
-        "no-code AI agent platform launch",
-        "enterprise AI assistant product launch",
-    ],
-    "axes": {
-        "tech": "Actualités techniques IA/LLM (modèles, frameworks, outils, recherche)",
-        "competitive": "Actualités concurrentielles (produits, funding, lancements)",
-    },
-}
+from apollia.agents.react import AIPResult, BaseReActAgent
 
 
-async def _needs_bootstrap(ctx: Any) -> bool:
-    """Return True if the competitive landscape snapshot is missing or stale."""
-    if ctx.memory is None:
-        return False
-    status = await ctx.memory.recall(_BOOTSTRAP_KEY_STATUS)
-    if status != "complete":
-        return True
-    meta_raw = await ctx.memory.recall(_BOOTSTRAP_KEY_META)
-    if not meta_raw:
-        return True
-    try:
-        meta = json.loads(meta_raw)
-        created = datetime.fromisoformat(meta.get("created_at", "2000-01-01"))
-        return (datetime.now() - created).days > _BOOTSTRAP_TTL_DAYS
-    except Exception:
-        return True
+def _agent_dir() -> Path:
+    """Dossier de l'agent installé.
 
-
-async def _run_bootstrap(ctx: Any) -> dict[str, Any]:
-    """Persist the initial competitive landscape to memory and return it."""
-    if ctx.memory is None:
-        return _INITIAL_SNAPSHOT
-    snapshot = _INITIAL_SNAPSHOT.copy()
-    await ctx.memory.remember(
-        _BOOTSTRAP_KEY_SNAPSHOT,
-        json.dumps(snapshot, ensure_ascii=False),
-        source="veille-ia-agent",
-        confidence=1.0,
-    )
-    await ctx.memory.remember(
-        _BOOTSTRAP_KEY_META,
-        json.dumps({"created_at": datetime.now().isoformat(), "version": "2.0"}),
-        source="veille-ia-agent",
-    )
-    await ctx.memory.remember(
-        _BOOTSTRAP_KEY_STATUS,
-        "complete",
-        source="veille-ia-agent",
-    )
-    await ctx.memory.record(
-        "Bootstrap du paysage concurrentiel effectué",
-        importance=0.5,
-    )
-    return snapshot
-
-
-async def _load_snapshot(ctx: Any) -> dict[str, Any]:
-    """Load the bootstrap snapshot from memory, falling back to defaults."""
-    if ctx.memory is None:
-        return _INITIAL_SNAPSHOT
-    raw = await ctx.memory.recall(_BOOTSTRAP_KEY_SNAPSHOT)
-    if not raw:
-        return _INITIAL_SNAPSHOT
-    try:
-        return json.loads(raw)
-    except Exception:
-        return _INITIAL_SNAPSHOT
-
-
-async def _collect_seen_hashes(ctx: Any, limit: int = 500) -> list[str]:
-    """Return URL hashes seen in previous runs (for deduplication)."""
-    if ctx.memory is None:
-        return []
-    try:
-        results = await ctx.memory.search("seen:", limit=limit)
-        hashes: list[str] = []
-        for r in results:
-            content = r.get("content", "")
-            if content.startswith("seen:"):
-                hashes.append(content.split(":", 1)[1][:12])
-        return hashes
-    except Exception:
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Side effects — desktop notification, dual-write to ~/Documents
-# ---------------------------------------------------------------------------
-
-
-async def _notify_completion(ctx: Any, today: str, article_count: int) -> None:
-    """Emit a desktop notification at end of run."""
-    if ctx.notify is None:
-        return
-    try:
-        await ctx.notify.publish(
-            f"Veille IA du {today} : {article_count} articles",
-            severity="info",
-            title="Apollia — Veille IA",
-        )
-    except Exception as e:
-        ctx.log("debug", f"notify failed: {e}")
-
-
-async def _dual_write_report(ctx: Any, today: str, content: str) -> None:
-    """Mirror the report into ~/Documents/veille-ia/ for easy operator access."""
-    if ctx.tools is None:
-        return
-    try:
-        path = f"~/Documents/veille-ia/{today}.md"
-        await ctx.tools.call("file_write", {"path": path, "content": content})
-    except Exception as e:
-        ctx.log("debug", f"dual file_write failed: {e}")
-
-
-# ---------------------------------------------------------------------------
-# Memory persistence — seen URLs for cross-day dedup
-# ---------------------------------------------------------------------------
-
-# Markdown link `[title](url)` — preferred citation format.
-_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)")
-# Bare URL fallback — captures URLs the LLM didn't wrap in markdown.
-_BARE_URL_RE = re.compile(r"https?://[^\s)\]]+")
-
-
-def _extract_urls(report_text: str) -> list[dict[str, str]]:
-    """Pull (title, url, source) tuples from the LLM report.
-
-    Best-effort harvest for memory dedup — *never* used to validate or
-    reject the run. Returns deduped entries by URL hash.
+    `PyModule::from_code` (loader.rs:105) met `__file__` au simple nom de fichier
+    (relatif), donc `Path(__file__).parent` est inutilisable au runtime.
+    En revanche, le loader insère le chemin absolu du dossier parent dans
+    `sys.path[0]` (loader.rs:90), ce qui est notre source fiable.
     """
-    seen: set[str] = set()
-    out: list[dict[str, str]] = []
-    for m in _MD_LINK_RE.finditer(report_text):
-        title, url = m.group(1).strip(), m.group(2).strip().rstrip(".,;)")
-        if url in seen:
-            continue
-        seen.add(url)
-        out.append({"title": title, "url": url, "source": _hostname(url)})
-    for m in _BARE_URL_RE.finditer(report_text):
-        url = m.group(0).strip().rstrip(".,;)")
-        if url in seen:
-            continue
-        seen.add(url)
-        out.append({"title": "", "url": url, "source": _hostname(url)})
-    return out
+    if sys.path:
+        candidate = Path(sys.path[0])
+        if candidate.is_absolute() and candidate.exists():
+            return candidate
+    # Fallback développement local (tests directs)
+    return Path(__file__).resolve().parent
+
+# Imports absolus (pas relatifs) car le runtime Apollia (PyModule::from_code via PyO3)
+# charge le fichier sans contexte de package.
+#
+# IMPORTANT — Force purge sys.modules avant import : le runtime PyO3 recharge le
+# director à chaque task via PyModule::from_code, MAIS les sub-imports
+# (`from schemas import …`) sont résolus via `sys.modules` qui persiste tant que
+# le daemon Apollia tourne. Sans purge, après un `apollia agent install` qui
+# copie une nouvelle version de schemas.py, le director continue d'utiliser
+# l'ancienne version cachée — d'où ValidationErrors persistantes même après fix.
+for _local_mod_name in ("schemas", "state"):
+    if _local_mod_name in sys.modules:
+        del sys.modules[_local_mod_name]
+
+from schemas import Article, Entity, EntitySignal, VeilleReport  # type: ignore[import-not-found]  # noqa: E402
+from state import VeilleStep  # type: ignore[import-not-found]  # noqa: E402
 
 
-def _hostname(url: str) -> str:
-    try:
-        return (urlparse(url).hostname or "").removeprefix("www.")
-    except Exception:
-        return ""
-
-
-async def _persist_seen_articles(
-    ctx: Any, articles: list[dict[str, str]], run_date: str
-) -> int:
-    """Persist URL hashes for cross-day dedup. Returns new entries count."""
-    if ctx.memory is None:
-        return 0
-    new_count = 0
-    for article in articles:
-        url = article.get("url", "")
-        if not url:
-            continue
-        url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]
-        if await ctx.memory.recall(f"seen:{url_hash}"):
-            continue
-        await ctx.memory.remember(
-            f"seen:{url_hash}",
-            json.dumps({
-                "title": article.get("title", ""),
-                "url": url,
-                "source": article.get("source", ""),
-                "date_seen": run_date,
-            }),
-            source="veille-ia-agent",
-            confidence=1.0,
-        )
-        new_count += 1
-    return new_count
-
-
-# ---------------------------------------------------------------------------
-# System prompt — descriptive, not policed
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT: str = """\
-Tu es veille-ia-agent, l'agent directeur de la veille IA/LLM quotidienne
-d'Apollia OS.
-
-## Mission
-
-Chaque jour, produire une note de veille structurée sur deux axes :
-- **Technique** : nouveaux modèles, frameworks, outils, avancées recherche.
-- **Concurrentiel** : actualités sur n8n, Make, Zapier AI, Lindy AI,
-  Dust.tt et les autres acteurs du marché des agents.
-
-## Délégation A2A — chemin préféré
-
-Tu disposes de deux workers spécialisés. Privilégie-les :
-
-1. ``a2a:search-and-extract`` (web-search-worker) — un appel par axe.
-   Passe-lui les requêtes et la liste des `seen_hashes` (URLs déjà
-   couvertes par les runs précédents, fournie dans le user message).
-2. ``a2a:synthesize-report`` (synthesis-worker) — un appel avec tous
-   les articles fusionnés des deux axes pour obtenir le rapport
-   Markdown final.
-3. ``file_write`` — sauvegarde le rapport au chemin fourni.
-4. ``final_answer`` — résumé exécutif (3 top items + chemin du rapport).
-
-## Recherche directe — fallback
-
-Si un appel A2A échoue ou retourne `unknown skill`, fais-toi la
-recherche toi-même avec ``web_search`` et ``web_read`` (au moins 2
-requêtes par axe, lis 3-4 articles), puis synthétise ton rapport.
-N'abandonne pas la mission : produis le meilleur rapport possible avec
-les outils disponibles.
-
-## Format de rapport
-
-Markdown, deux sections « Technique » et « Concurrentiel ». Chaque
-entrée cite sa source sous la forme `[titre](url)` quand l'URL est
-disponible — c'est ce qui permet à la mémoire de te montrer les
-doublons au prochain run.
-
-Termine par `## Top items` listant 3 nouveautés saillantes.
-"""
-
-# ---------------------------------------------------------------------------
-# Manifest
-# ---------------------------------------------------------------------------
-
-
-def manifest() -> dict[str, Any]:
-    return {
-        "name": "veille-ia-agent",
-        "version": "2.0.0",
-        "description": (
-            "Agent directeur de veille quotidienne IA/LLM. Délègue la "
-            "collecte (web-search-worker via A2A) et la synthèse "
-            "(synthesis-worker via A2A) à deux workers spécialisés ; "
-            "fallback en recherche directe si l'A2A est indisponible. "
-            "Persiste les URLs vues pour la déduplication cross-jour."
-        ),
-        "execution_mode": "direct",
-        "agent_type": "assistant",
-        # Outils requis pour le fallback direct — fail-fast au démarrage.
-        "tools_required": ["web_search", "web_read", "file_write"],
-        "tools_optional": [
-            "file_read",
-            "file_list",
-            "memory_search",
-            "a2a:search-and-extract",
-            "a2a:synthesize-report",
-        ],
-        "tools_requiring_approval": [],
-        "packages": [],
-        "memory_namespace": "veille-ia",
-        "supports_streaming": False,
-        "supports_a2a": True,
-        "step_budget": {
-            "max_steps": 25,
-            "max_tool_calls": 20,
-            "wall_clock_secs": 1200,
-        },
-        "tags": ["watch", "research", "daily", "director", "a2a-orchestrator"],
-        "max_concurrent_tasks": 1,
-        "dangerous_tools_allowed": False,
-        "skills": [
-            {
-                "id": "run-daily-watch",
-                "name": "Lancer la veille quotidienne",
-                "description": (
-                    "Exécute un cycle complet de veille IA/LLM : recherche, "
-                    "déduplication, synthèse, sauvegarde rapport. "
-                    "Retourne le chemin du rapport et le résumé exécutif."
-                ),
-                "input_modes": ["text"],
-                "output_modes": ["text"],
-            }
-        ],
-        "examples": [
-            "Génère la veille IA du jour",
-            "Lance la veille IA/LLM",
-            "Quelles sont les news IA d'aujourd'hui ?",
-        ],
-        "limitations": [
-            "Fonctionne mieux quand web-search-worker et synthesis-worker "
-            "sont actifs (mode A2A) ; sinon recherche directe.",
-            "Les outils web (web_search, web_read) doivent être activés "
-            "globalement (Réglages → Outils).",
-        ],
-        "setup_notes": (
-            "Activer web_search et web_read dans Réglages → Outils. "
-            "Démarrer les deux workers du package en même temps que le "
-            "director pour bénéficier du chemin A2A préféré."
-        ),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Director agent
-# ---------------------------------------------------------------------------
+CRITICAL_KEYWORDS = [
+    "concurrent direct",
+    "compétiteur direct",
+    "Series A",
+    "Series B",
+    "Series C",
+    "Series D",
+    "fonds levés",
+    "raised",
+    "acquisition",
+    "acquired",
+    "breach",
+    "0-day",
+    "vulnérabilité critique",
+    "MCP breaking",
+    "open source",
+]
 
 
 class VeilleIaAgent(BaseReActAgent):
-    """Director Agent for daily AI/LLM intelligence watch.
+    """Director de la veille IA quotidienne — state machine déterministe."""
 
-    v2.0.0 refonte — agent in the helm. The director trusts its workers
-    and the LLM ; no anti-hallucination gates, no preflight checks. The
-    only post-processing is the persistence of cited URLs into memory
-    so tomorrow's run can avoid duplicates.
-    """
+    SYSTEM_PROMPT = """Tu es veille-ia-agent, le director de la veille IA/LLM quotidienne.
 
-    SYSTEM_PROMPT = SYSTEM_PROMPT
+<role>
+Orchestre la production d'un rapport quotidien deux axes (technologique + concurrentiel) en déléguant aux workers spécialisés via A2A. Chaque step est déterministe ; le LLM n'est appelé que sur extract_entities, score_and_rank, et generate_exec_summary.
+</role>
+
+<output_format>
+Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
+</output_format>
+"""
     MAX_STEPS = 25
-    TEMPERATURE = 0.1
+    TEMPERATURE = 0.2
 
     def manifest(self) -> dict[str, Any]:
-        return manifest()
+        return {
+            "name": "veille-ia-agent",
+            "version": "3.0.0",
+            "description": "Veille IA/LLM quotidienne — state machine + entités + datasources YAML.",
+            "execution_mode": "direct",
+            "agent_type": "user",
+            # web_search/web_read sont required car le director a un fallback direct
+            # quand A2A n'est pas disponible (cas : agent lancé via trigger ou `apollia agent run`,
+            # qui ne câble pas A2A — seul le mode chat le câble actuellement).
+            "tools_required": ["file_write", "web_search", "web_read"],
+            "tools_optional": [
+                "file_read",
+                "memory_search",
+                "a2a:search-and-extract",
+                "a2a:extract-entities",
+                "a2a:synthesize-report",
+            ],
+            "tools_requiring_approval": [],
+            "memory_namespace": "veille-ia",
+            "supports_a2a": True,
+            "max_concurrent_tasks": 1,
+            "user_memory_write": False,
+            "dangerous_tools_allowed": False,
+            "step_budget": {"max_steps": 25, "max_tool_calls": 25, "wall_clock_secs": 1800},
+            "skills": [
+                {
+                    "id": "run-veille",
+                    "name": "Lancer la veille du jour",
+                    "description": "Lance la veille du jour et produit un rapport Markdown structuré.",
+                    "input_modes": ["text"],
+                    "output_modes": ["text"],
+                }
+            ],
+            "packages": ["jinja2", "pydantic", "pyyaml"],
+            "tags": ["veille", "monitoring", "competitive-intelligence", "ia"],
+            "setup_notes": (
+                "Architecture : workflow déterministe (state machine 15 steps) avec LLM appelé chirurgicalement "
+                "sur extract_entities, score_and_rank, exec_summary. Choix workflow vs agent justifié par : "
+                "chemin prévisible, sources/output connus, déterminisme requis pour audit EU AI Act. "
+                "Datasources YAML dans `datasources/` modifiables sans toucher au code."
+            ),
+            "limitations": [
+                "Ne fait pas de scraping JS-lourd (web_read = parse statique).",
+                "Pas de mémoire vectorielle/graph (FTS5 BM25 seul).",
+                "Notification webhook configurée hors agent (via canaux Apollia).",
+            ],
+            "examples": [
+                "Génère la veille IA/LLM du jour",
+                "Quels sont les findings critiques de la semaine ?",
+                "Lance la veille concurrentielle uniquement",
+            ],
+        }
 
     async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
         if ctx.llm is None:
-            return AIPResult.failed(
-                "NO_LLM",
-                "veille-ia-agent requires ctx.llm — no LLM backend configured.",
-            )
+            return AIPResult.failed("NO_LLM", "Backend LLM requis")
 
-        today = date.today().isoformat()
+        start_ts = datetime.now()
+        state: dict[str, Any] = {
+            "step": VeilleStep.INIT,
+            "task": task,
+            "data": {},
+            "progress": [],
+            "errors": [],
+            "today": start_ts.strftime("%Y-%m-%d"),
+            "metrics": {
+                "tool_calls": 0,
+                "llm_calls": 0,
+                "wall_clock_start": start_ts.timestamp(),
+            },
+        }
 
-        # 1. Bootstrap competitive landscape (refresh every 7 days).
-        if await _needs_bootstrap(ctx):
-            snapshot = await _run_bootstrap(ctx)
-        else:
-            snapshot = await _load_snapshot(ctx)
-
-        # 2. Cross-day URL dedup — fed to the worker via the user message.
-        seen_hashes = await _collect_seen_hashes(ctx)
-
-        # 3. Bump total_runs counter (purely informational).
-        if ctx.memory is not None:
-            runs_raw = await ctx.memory.recall("total_runs")
+        max_iterations = 30
+        iteration = 0
+        while state["step"] != VeilleStep.DONE:
+            if iteration >= max_iterations:
+                return AIPResult.failed(
+                    "STATE_LOOP",
+                    f"Max iterations atteint. Progress: {state['progress']}. Errors: {state['errors']}",
+                )
+            iteration += 1
             try:
-                total_runs = int(runs_raw or "0") + 1
-            except ValueError:
-                total_runs = 1
-            await ctx.memory.remember(
-                "total_runs", str(total_runs), source="veille-ia-agent",
-            )
+                state = await self._dispatch(state, ctx)
+            except Exception as e:
+                ctx.log("error", f"Step {state['step'].value} failed: {e}")
+                state["errors"].append({"step": state["step"].value, "error": str(e)})
+                state["step"] = self._error_recovery(state["step"])
 
-        # 4. Run the ReAct loop.
-        user_message = self._build_user_message(today, snapshot, seen_hashes)
-        result = await self.react(task, ctx, user_message)
-
-        # 5. Failure path — record the attempt for episodic memory.
-        if isinstance(result, dict):
-            await self._record_run(ctx, today, 0, success=False)
-            return result
-
-        # 6. Success path — persist seen URLs (best-effort), notify, dual-write.
-        articles = _extract_urls(result)
-        new_count = await _persist_seen_articles(ctx, articles, today)
-        await self._record_run(
-            ctx, today, len(articles), success=True, new_count=new_count,
-        )
-        await _dual_write_report(ctx, today, result)
-        await _notify_completion(ctx, today, len(articles))
-
-        if ctx.memory is not None:
-            await ctx.memory.remember(
-                "last_run_date", today, source="veille-ia-agent", confidence=1.0,
-            )
-
-        return AIPResult.completed(result)
-
-    def _build_user_message(
-        self,
-        today: str,
-        snapshot: dict[str, Any],
-        seen_hashes: list[str],
-    ) -> str:
-        tech_queries = snapshot.get("tech_queries", _INITIAL_SNAPSHOT["tech_queries"])
-        competitive_queries = snapshot.get(
-            "competitive_queries", _INITIAL_SNAPSHOT["competitive_queries"],
-        )
-        report_path = f"~/.apollia/reports/veille-{today}.md"
-
-        return (
-            f"Lance la veille du {today}.\n\n"
-            f"**Requêtes tech ({len(tech_queries)}) :**\n"
-            f"{json.dumps(tech_queries, ensure_ascii=False)}\n\n"
-            f"**Requêtes concurrentielles ({len(competitive_queries)}) :**\n"
-            f"{json.dumps(competitive_queries, ensure_ascii=False)}\n\n"
-            f"**URLs déjà couvertes par les runs précédents "
-            f"({len(seen_hashes)} hashes 12-chars)** — passe-les aux workers "
-            f"pour qu'ils sautent les doublons :\n"
-            f"{json.dumps(seen_hashes[:50])}\n\n"
-            f"**Chemin de sauvegarde du rapport :** `{report_path}`"
+        state["metrics"]["wall_clock_secs"] = round(
+            datetime.now().timestamp() - state["metrics"]["wall_clock_start"], 1
         )
 
-    async def _record_run(
-        self,
-        ctx: Any,
-        today: str,
-        article_count: int,
-        success: bool,
-        new_count: int = 0,
-    ) -> None:
+        output_text = state["data"].get("rendered_report", "")
+        # AIPResult.completed n'accepte que `text` — pas de `data=`.
+        # Les métriques sont déjà persistées en mémoire épisodique (cf. _step_persist_memory).
+        return AIPResult.completed(output_text)
+
+    # ============================================================
+    # Dispatch
+    # ============================================================
+
+    async def _dispatch(self, state: dict, ctx: Any) -> dict:
+        handlers = {
+            VeilleStep.INIT: self._step_init,
+            VeilleStep.LOAD_DATASOURCES: self._step_load_datasources,
+            VeilleStep.LOAD_USER_CONTEXT: self._step_load_user_context,
+            VeilleStep.BOOTSTRAP_CHECK: self._step_bootstrap_check,
+            VeilleStep.LOAD_ENTITIES: self._step_load_entities,
+            VeilleStep.SEARCH_TECH: self._step_search_tech,
+            VeilleStep.SEARCH_COMPETITIVE: self._step_search_competitive,
+            VeilleStep.EXTRACT_ENTITIES: self._step_extract_entities,
+            VeilleStep.SCORE_AND_RANK: self._step_score_and_rank,
+            VeilleStep.DETECT_CRITICAL: self._step_detect_critical,
+            VeilleStep.GENERATE_REPORT: self._step_generate_report,
+            VeilleStep.PERSIST_MEMORY: self._step_persist_memory,
+            VeilleStep.WRITE_FILE: self._step_write_file,
+            VeilleStep.NOTIFY: self._step_notify,
+        }
+        handler = handlers.get(state["step"])
+        if handler is None:
+            raise RuntimeError(f"Pas de handler pour step {state['step'].value}")
+        return await handler(state, ctx)
+
+    def _error_recovery(self, current_step: VeilleStep) -> VeilleStep:
+        """Politique d'erreur par step. Skippable = continuer ; non-skippable = abandonner."""
+        transitions = {
+            VeilleStep.LOAD_USER_CONTEXT: VeilleStep.BOOTSTRAP_CHECK,
+            VeilleStep.LOAD_ENTITIES: VeilleStep.SEARCH_TECH,
+            VeilleStep.SEARCH_TECH: VeilleStep.SEARCH_COMPETITIVE,
+            VeilleStep.SEARCH_COMPETITIVE: VeilleStep.EXTRACT_ENTITIES,
+            VeilleStep.EXTRACT_ENTITIES: VeilleStep.SCORE_AND_RANK,
+            VeilleStep.DETECT_CRITICAL: VeilleStep.GENERATE_REPORT,
+            VeilleStep.PERSIST_MEMORY: VeilleStep.WRITE_FILE,
+            VeilleStep.WRITE_FILE: VeilleStep.NOTIFY,
+            VeilleStep.NOTIFY: VeilleStep.DONE,
+        }
+        return transitions.get(current_step, VeilleStep.DONE)
+
+    # ============================================================
+    # Steps
+    # ============================================================
+
+    async def _step_init(self, state, ctx):
+        ctx.log("info", f"veille-ia-agent run started: {state['today']}")
+        state["progress"].append("INIT ok")
+        state["step"] = VeilleStep.LOAD_DATASOURCES
+        return state
+
+    async def _step_load_datasources(self, state, ctx):
+        feeds = await self._load_yaml(ctx, "Veille IA — Feeds", "datasources/feeds.yaml")
+        competitors = await self._load_yaml(ctx, "Veille IA — Competitors", "datasources/competitors.yaml")
+        queries = await self._load_yaml(ctx, "Veille IA — Queries", "datasources/queries.yaml")
+        scoring = await self._load_yaml(ctx, "Veille IA — Scoring", "datasources/scoring.yaml")
+
+        state["data"]["feeds"] = feeds
+        state["data"]["competitors"] = competitors
+        state["data"]["queries"] = queries
+        state["data"]["scoring"] = scoring
+
+        state["progress"].append(
+            f"DATASOURCES ok ({len(feeds.get('feeds', []))} feeds, "
+            f"{len(competitors.get('competitors', []))} competitors)"
+        )
+        state["step"] = VeilleStep.LOAD_USER_CONTEXT
+        return state
+
+    async def _step_load_user_context(self, state, ctx):
         if ctx.memory is None:
-            return
-        if success:
-            note = (
-                f"Run du {today} : {article_count} articles "
-                f"({new_count} nouveaux), succès"
+            state["data"]["user_context"] = {}
+            state["progress"].append("USER_CONTEXT skip (no memory)")
+            state["step"] = VeilleStep.BOOTSTRAP_CHECK
+            return state
+
+        keys = ["user.role", "user.tech.stack", "user.domain.sector", "user.agents.hitl"]
+        ctx_user = {}
+        for k in keys:
+            try:
+                v = await ctx.memory.recall(k)
+                if v:
+                    ctx_user[k] = v
+            except Exception as e:
+                ctx.log("debug", f"recall {k} failed: {e}")
+        state["data"]["user_context"] = ctx_user
+        state["progress"].append(f"USER_CONTEXT ok ({len(ctx_user)} keys)")
+        state["step"] = VeilleStep.BOOTSTRAP_CHECK
+        return state
+
+    async def _step_bootstrap_check(self, state, ctx):
+        if ctx.memory is None:
+            state["progress"].append("BOOTSTRAP skip (no memory)")
+            state["step"] = VeilleStep.LOAD_ENTITIES
+            return state
+
+        if await self._needs_bootstrap(ctx):
+            snapshot = {
+                "created_at": state["today"],
+                "competitors": state["data"]["competitors"].get("competitors", []),
+                "feeds": state["data"]["feeds"].get("feeds", []),
+                "queries": state["data"]["queries"].get("axes", {}),
+                "version": 1,
+            }
+            await ctx.memory.remember(
+                "bootstrap.snapshot", json.dumps(snapshot, ensure_ascii=False), confidence=0.9
             )
+            await ctx.memory.remember(
+                "bootstrap.meta",
+                json.dumps({"created_at": datetime.now().isoformat(), "version": 1}),
+                confidence=1.0,
+            )
+            await ctx.memory.remember("bootstrap.status", "complete", confidence=1.0)
+            state["progress"].append("BOOTSTRAP refreshed")
         else:
-            note = f"Run du {today} : échec (aucun article retenu)"
-        await ctx.memory.record(note, importance=0.7)
+            state["progress"].append("BOOTSTRAP cached (TTL ok)")
+        state["step"] = VeilleStep.LOAD_ENTITIES
+        return state
+
+    async def _step_load_entities(self, state, ctx):
+        """Charge les entités connues + hashes d'URLs vues (dédup cross-run)."""
+        if ctx.memory is None:
+            state["data"]["seen_hashes"] = []
+            state["data"]["known_entities"] = {}
+            state["progress"].append("LOAD_ENTITIES skip (no memory)")
+            state["step"] = VeilleStep.SEARCH_TECH
+            return state
+
+        try:
+            seen_results = await ctx.memory.search("seen:", limit=500)
+            seen_hashes = [
+                r["key"].replace("seen:", "")
+                for r in seen_results
+                if r.get("key", "").startswith("seen:")
+            ]
+        except Exception as e:
+            ctx.log("warn", f"memory search seen: failed: {e}")
+            seen_hashes = []
+
+        try:
+            entity_results = await ctx.memory.search("entity:", limit=200)
+            known_entities = {}
+            for r in entity_results:
+                key = r.get("key", "")
+                if key.startswith("entity:"):
+                    try:
+                        known_entities[key] = json.loads(r.get("value", "{}"))
+                    except json.JSONDecodeError:
+                        pass
+        except Exception as e:
+            ctx.log("warn", f"memory search entity: failed: {e}")
+            known_entities = {}
+
+        state["data"]["seen_hashes"] = seen_hashes
+        state["data"]["known_entities"] = known_entities
+        state["progress"].append(
+            f"LOAD_ENTITIES ok ({len(seen_hashes)} hashes, {len(known_entities)} entities)"
+        )
+        state["step"] = VeilleStep.SEARCH_TECH
+        return state
+
+    async def _step_search_tech(self, state, ctx):
+        return await self._search_axis(state, ctx, "tech", VeilleStep.SEARCH_COMPETITIVE)
+
+    async def _step_search_competitive(self, state, ctx):
+        return await self._search_axis(state, ctx, "competitive", VeilleStep.EXTRACT_ENTITIES)
+
+    async def _search_axis(self, state, ctx, axis: str, next_step: VeilleStep):
+        queries_axis = state["data"]["queries"].get("axes", {}).get(axis, {})
+        queries = queries_axis.get("queries", [])
+        max_articles = state["data"]["queries"].get("depth", {}).get(axis, 5)
+
+        if not queries:
+            ctx.log("warn", f"Aucune requête pour axe {axis}")
+            state["data"][f"articles_{axis}_raw"] = []
+            state["progress"].append(f"SEARCH_{axis.upper()} skip (no queries)")
+            state["step"] = next_step
+            return state
+
+        articles: list[dict] = []
+        skipped = 0
+        a2a_used = False
+
+        # Try A2A first (worker spécialisé si dispo)
+        try:
+            result = await ctx.a2a_invoke(
+                "search-and-extract",
+                {
+                    "queries": queries,
+                    "axis": axis,
+                    "seen_hashes": state["data"]["seen_hashes"],
+                    "max_articles": max_articles,
+                },
+                timeout_secs=300,
+            )
+            state["metrics"]["tool_calls"] += 1
+            if result.get("status") == "completed":
+                payload = result.get("result", {})
+                articles_data = (
+                    json.loads(payload.get("text", "{}"))
+                    if isinstance(payload.get("text"), str)
+                    else payload
+                )
+                articles = articles_data.get("articles", [])
+                skipped = articles_data.get("skipped_dupes", 0)
+                a2a_used = True
+        except Exception as e:
+            ctx.log("info", f"a2a unavailable for {axis} ({e}) → fallback direct")
+
+        # Fallback direct si A2A indispo OU 0 articles retournés
+        if not a2a_used or not articles:
+            articles, skipped = await self._direct_search_fallback(
+                ctx, queries, axis, state["data"]["seen_hashes"], max_articles
+            )
+
+        state["data"][f"articles_{axis}_raw"] = articles
+        state["metrics"][f"skipped_dupes_{axis}"] = skipped
+        mode = "a2a" if a2a_used else "direct"
+        state["progress"].append(
+            f"SEARCH_{axis.upper()} ok ({len(articles)} articles, {mode})"
+        )
+        state["step"] = next_step
+        return state
+
+    async def _direct_search_fallback(
+        self, ctx, queries: list[str], axis: str, seen_hashes: list[str], max_articles: int
+    ) -> tuple[list[dict], int]:
+        """Recherche web directe quand A2A n'est pas câblé au runtime.
+
+        Le runtime Apollia (cf. `crates/apollia-cli/src/commands/start.rs:244`)
+        ne câble `a2a_invoker` qu'en mode chat. Pour les agents lancés via
+        trigger ou `apollia agent run`, on doit faire la recherche en direct.
+        """
+        seen_set = set(seen_hashes)
+        articles: list[dict] = []
+        skipped = 0
+        # Limiter le nombre de requêtes pour rester dans le step budget
+        for q in queries[: min(len(queries), 5)]:
+            if len(articles) >= max_articles:
+                break
+            try:
+                search_result = await ctx.tools.call("web_search", {"query": q, "max_results": 5})
+                state_results = search_result.get("results", []) if isinstance(search_result, dict) else []
+            except Exception as e:
+                ctx.log("warn", f"web_search failed for '{q}': {e}")
+                continue
+
+            for r in state_results:
+                if len(articles) >= max_articles:
+                    break
+                url = r.get("url", "") if isinstance(r, dict) else ""
+                if not url:
+                    continue
+                url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]
+                if url_hash in seen_set:
+                    skipped += 1
+                    continue
+                # Excerpt par défaut depuis le snippet du moteur
+                excerpt = r.get("snippet", "")[:2000] if isinstance(r, dict) else ""
+                # Tenter web_read pour contenu complet (best-effort)
+                try:
+                    read_result = await ctx.tools.call("web_read", {"url": url, "max_length": 2000})
+                    if isinstance(read_result, dict):
+                        full_text = read_result.get("text") or read_result.get("content", "")
+                        if full_text:
+                            excerpt = full_text[:2000]
+                except Exception as e:
+                    ctx.log("debug", f"web_read failed for {url}: {e}")
+                source = url.split("/")[2] if "://" in url else url[:50]
+                articles.append({
+                    "title": (r.get("title") if isinstance(r, dict) else "") or url[:100],
+                    "url": url,
+                    "source": source,
+                    "excerpt": excerpt,
+                    "axis": axis,
+                })
+        return articles, skipped
+
+    async def _step_extract_entities(self, state, ctx):
+        """Extrait les entités via A2A si dispo, sinon fallback direct LLM."""
+        all_articles = state["data"].get("articles_tech_raw", []) + state["data"].get(
+            "articles_competitive_raw", []
+        )
+        if not all_articles:
+            state["data"]["new_entities"] = []
+            state["progress"].append("EXTRACT_ENTITIES skip (no articles)")
+            state["step"] = VeilleStep.SCORE_AND_RANK
+            return state
+
+        entities: list[dict] = []
+        article_to_entities: dict[str, list[str]] = {}
+        a2a_used = False
+
+        # Try A2A first
+        try:
+            result = await ctx.a2a_invoke(
+                "extract-entities",
+                {
+                    "articles": all_articles,
+                    "known_entities": list(state["data"].get("known_entities", {}).keys()),
+                    "today": state["today"],
+                },
+                timeout_secs=180,
+            )
+            state["metrics"]["tool_calls"] += 1
+            if result.get("status") == "completed":
+                payload = result.get("result", {})
+                ent_data = (
+                    json.loads(payload.get("text", "{}"))
+                    if isinstance(payload.get("text"), str)
+                    else payload
+                )
+                entities = ent_data.get("entities", [])
+                article_to_entities = ent_data.get("article_to_entities", {})
+                a2a_used = True
+        except Exception as e:
+            ctx.log("info", f"a2a extract-entities unavailable ({e}) → fallback direct LLM")
+
+        # Fallback direct LLM
+        if not a2a_used:
+            entities, article_to_entities = await self._direct_extract_entities_fallback(
+                ctx, all_articles, state["today"]
+            )
+            state["metrics"]["llm_calls"] += 1
+
+        # Persiste les entités en mémoire
+        new_entity_ids = []
+        if ctx.memory:
+            for ent in entities:
+                if not isinstance(ent, dict) or "id" not in ent or "type" not in ent:
+                    continue
+                ent_id = f"entity:{ent['type']}:{ent['id']}"
+                existing_raw = await ctx.memory.recall(ent_id)
+                existing = json.loads(existing_raw) if existing_raw else None
+                merged = self._merge_entity(existing, ent, state["today"])
+                await ctx.memory.remember(
+                    ent_id,
+                    json.dumps(merged, ensure_ascii=False),
+                    confidence=0.9,
+                )
+                if existing is None:
+                    new_entity_ids.append(ent_id)
+
+        state["data"]["new_entities"] = new_entity_ids
+        state["data"]["article_to_entities"] = article_to_entities
+        mode = "a2a" if a2a_used else "direct"
+        state["progress"].append(
+            f"EXTRACT_ENTITIES ok ({len(entities)} entities, {len(new_entity_ids)} new, {mode})"
+        )
+        state["step"] = VeilleStep.SCORE_AND_RANK
+        return state
+
+    _ENTITY_EXTRACTION_PROMPT = """Tu extrais les entités d'articles de veille IA/LLM.
+
+Pour chaque entité (companies, products, events, topics), retourne :
+{
+  "entities": [
+    {
+      "id": "kebab-case-unique",
+      "type": "company" | "product" | "event" | "topic",
+      "name": "Nom officiel",
+      "category": "direct" | "indirect" | "neutral",
+      "threat_level": "low" | "medium" | "high",
+      "summary": "1-2 phrases",
+      "score": 1-5,
+      "source_url": "url"
+    }
+  ],
+  "article_to_entities": { "url1": ["entity:company:n8n"], ... }
+}
+
+Réponds UNIQUEMENT avec le JSON, max 15 entités, ne pas inventer ce qui n'est pas dans les articles."""
+
+    async def _direct_extract_entities_fallback(
+        self, ctx, articles: list[dict], today: str
+    ) -> tuple[list[dict], dict[str, list[str]]]:
+        """Fallback LLM direct quand A2A non câblé."""
+        user_msg = json.dumps({"today": today, "articles": articles}, ensure_ascii=False)
+        try:
+            resp = await ctx.llm.chat(self._ENTITY_EXTRACTION_PROMPT, user_msg)
+            text = self._extract_llm_text(resp)
+            if not text:
+                ctx.log("warn", f"entity extraction: LLM returned empty text (resp type={type(resp).__name__})")
+                return [], {}
+            ctx.log("info", f"entity extraction: LLM returned {len(text)} chars; preview={text[:200]!r}")
+            cleaned = self._extract_json_block(text)
+            if not cleaned:
+                ctx.log("warn", "entity extraction: no JSON block found in LLM response")
+                return [], {}
+            parsed = json.loads(cleaned)
+            return parsed.get("entities", []), parsed.get("article_to_entities", {})
+        except Exception as e:
+            ctx.log("warn", f"direct entity extraction failed: {e}")
+            return [], {}
+
+    async def _step_score_and_rank(self, state, ctx):
+        """Synthèse via A2A si dispo, sinon fallback direct LLM."""
+        all_articles_tech = state["data"].get("articles_tech_raw", [])
+        all_articles_competitive = state["data"].get("articles_competitive_raw", [])
+
+        if not all_articles_tech and not all_articles_competitive:
+            state["data"]["report"] = VeilleReport(
+                date=state["today"],
+                executive_summary="Aucun article significatif aujourd'hui.",
+                articles_tech=[],
+                articles_competitive=[],
+                critical_findings=[],
+                new_entities=state["data"].get("new_entities", []),
+                metrics={"total_articles": 0},
+            )
+            state["progress"].append("SCORE_AND_RANK skip (no articles)")
+            state["step"] = VeilleStep.DETECT_CRITICAL
+            return state
+
+        report: VeilleReport | None = None
+        a2a_used = False
+
+        # Try A2A first
+        try:
+            result = await ctx.a2a_invoke(
+                "synthesize-report",
+                {
+                    "articles_tech": all_articles_tech,
+                    "articles_competitive": all_articles_competitive,
+                    "scoring": state["data"]["scoring"],
+                    "user_context": state["data"]["user_context"],
+                    "article_to_entities": state["data"].get("article_to_entities", {}),
+                    "date": state["today"],
+                },
+                timeout_secs=300,
+            )
+            state["metrics"]["tool_calls"] += 1
+            if result.get("status") == "completed":
+                payload = result.get("result", {})
+                raw_text = (
+                    payload.get("text", "{}")
+                    if isinstance(payload.get("text"), str)
+                    else json.dumps(payload)
+                )
+                report = await self._validate_with_repair(raw_text, VeilleReport, ctx)
+                a2a_used = True
+        except Exception as e:
+            ctx.log("info", f"a2a synthesize-report unavailable ({e}) → fallback direct LLM")
+
+        # Fallback direct LLM
+        if report is None:
+            report = await self._direct_synthesis_fallback(
+                ctx,
+                all_articles_tech,
+                all_articles_competitive,
+                state["data"]["scoring"],
+                state["data"]["user_context"],
+                state["data"].get("article_to_entities", {}),
+                state["today"],
+            )
+            state["metrics"]["llm_calls"] += 1
+
+        state["data"]["report"] = report
+        mode = "a2a" if a2a_used else "direct"
+        state["progress"].append(
+            f"SCORE_AND_RANK ok (tech={len(report.articles_tech)}, "
+            f"competitive={len(report.articles_competitive)}, {mode})"
+        )
+        state["step"] = VeilleStep.DETECT_CRITICAL
+        return state
+
+    _SYNTHESIS_PROMPT = """Tu es synthesis-worker, expert en synthèse de veille IA/LLM.
+
+Produis un VeilleReport JSON conforme :
+{
+  "date": "YYYY-MM-DD",
+  "executive_summary": "1-2 lignes en français",
+  "articles_tech": [Article, ...],
+  "articles_competitive": [Article, ...],
+  "critical_findings": [],
+  "new_entities": [],
+  "metrics": {}
+}
+
+Article = {title, url, source, excerpt (max 2000 chars), score (1-5), score_stars (★),
+           axis ("tech"|"competitive"), entities (list str), impact_apollia, impact_for_user, is_critical, matched_criteria}
+
+Scoring : pondération additive selon `scoring.criteria` matchés. Score plafonné à 5.
+score_stars : 5→"★★★★★", 4→"★★★★☆", 3→"★★★☆☆", 2→"★★☆☆☆", 1→"★☆☆☆☆".
+Filter score < scoring.include_threshold. Max 6 articles par axe (top score).
+Adapter executive_summary au user_context.user_role si fourni.
+
+Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
+
+    async def _direct_synthesis_fallback(
+        self,
+        ctx,
+        articles_tech: list[dict],
+        articles_competitive: list[dict],
+        scoring: dict,
+        user_context: dict,
+        article_to_entities: dict,
+        today: str,
+    ) -> VeilleReport:
+        """Fallback synthèse direct LLM quand A2A non câblé."""
+        user_msg = json.dumps(
+            {
+                "date": today,
+                "articles_tech": articles_tech,
+                "articles_competitive": articles_competitive,
+                "scoring": scoring,
+                "user_context": user_context,
+                "article_to_entities": article_to_entities,
+            },
+            ensure_ascii=False,
+        )
+        try:
+            resp = await ctx.llm.chat(self._SYNTHESIS_PROMPT, user_msg)
+            text = self._extract_llm_text(resp)
+            if not text:
+                ctx.log("warn", f"synthesis: LLM returned empty text (resp type={type(resp).__name__})")
+                return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
+            ctx.log("info", f"synthesis: LLM returned {len(text)} chars; preview={text[:200]!r}")
+            cleaned = self._extract_json_block(text)
+            if not cleaned:
+                ctx.log("warn", f"synthesis: no JSON block found in LLM response; falling back to minimal report")
+                return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
+            return await self._validate_with_repair(cleaned, VeilleReport, ctx)
+        except Exception as e:
+            ctx.log("warn", f"direct synthesis failed: {e}")
+            # Avant d'abandonner, produire un rapport minimal des articles bruts
+            return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
+
+    @staticmethod
+    def _extract_json_block(text: str) -> str:
+        """Extrait le bloc JSON principal d'une réponse LLM.
+
+        Gère :
+        - Code fences ```json ... ```.
+        - Prose narrative autour du JSON.
+        - **Modèles "thinking"** (Qwen/DeepSeek-R1 et dérivés) qui émettent
+          `<think>...</think>` avant le JSON. On strip ces blocs en premier.
+        """
+        if not text:
+            return ""
+        s = text.strip()
+        # Strip blocs <think>...</think> (Qwen, DeepSeek-R1, etc.) — peut être multi-ligne, parfois non fermé
+        s = re.sub(r"<think>.*?</think>", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
+        # Si <think> non fermé, couper tout ce qui est avant le premier {
+        if "<think>" in s.lower():
+            brace_idx = s.find("{")
+            if brace_idx >= 0:
+                s = s[brace_idx:]
+        # Strip code fences
+        s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s, flags=re.MULTILINE).strip()
+        # Chercher le premier { jusqu'au } correspondant (matching brace count)
+        start = s.find("{")
+        if start == -1:
+            return ""
+        depth = 0
+        end = -1
+        in_string = False
+        escape = False
+        for i in range(start, len(s)):
+            c = s[i]
+            if escape:
+                escape = False
+                continue
+            if c == "\\" and in_string:
+                escape = True
+                continue
+            if c == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end == -1:
+            return ""
+        return s[start : end + 1]
+
+    def _build_minimal_report(
+        self,
+        today: str,
+        articles_tech: list[dict],
+        articles_competitive: list[dict],
+        user_context: dict,
+    ) -> VeilleReport:
+        """Rapport minimal fabriqué côté Python quand le LLM ne produit pas de JSON exploitable.
+
+        On préserve les articles trouvés (ce serait dommage de les perdre après 2m de scraping)
+        en leur attribuant un score neutre 3 et en générant un excerpt depuis les données brutes.
+        """
+        def _to_article(raw: dict, axis: str) -> Article:
+            return Article(
+                title=raw.get("title", "")[:300] or "(Sans titre)",
+                url=raw.get("url", ""),
+                source=raw.get("source", "unknown"),
+                excerpt=raw.get("excerpt", "")[:2000],
+                score=3,
+                score_stars="★★★☆☆",
+                axis=axis,  # type: ignore[arg-type]
+                entities=[],
+                impact_apollia="(Synthèse LLM indisponible — articles bruts conservés)",
+                impact_for_user="",
+                is_critical=False,
+                matched_criteria=[],
+            )
+
+        tech_arts = [_to_article(a, "tech") for a in articles_tech if a.get("url")]
+        comp_arts = [_to_article(a, "competitive") for a in articles_competitive if a.get("url")]
+        total = len(tech_arts) + len(comp_arts)
+        role = user_context.get("user.role", "lecteur")
+        return VeilleReport(
+            date=today,
+            executive_summary=(
+                f"Synthèse LLM indisponible — {total} articles bruts conservés "
+                f"(scoring neutre, sans analyse). Adapté pour {role}."
+            ),
+            articles_tech=tech_arts,
+            articles_competitive=comp_arts,
+            critical_findings=[],
+            new_entities=[],
+            metrics={"total_articles": total, "degraded": True},
+        )
+
+    async def _step_detect_critical(self, state, ctx):
+        """Filtre les findings critiques (score >= threshold OR keyword match)."""
+        report: VeilleReport = state["data"]["report"]
+        threshold = state["data"]["scoring"].get("critical_threshold", 5)
+
+        all_articles = report.articles_tech + report.articles_competitive
+        critical = []
+        for a in all_articles:
+            is_crit = a.is_critical or a.score >= threshold
+            if not is_crit:
+                lower = (a.title + " " + a.excerpt).lower()
+                if any(kw.lower() in lower for kw in CRITICAL_KEYWORDS):
+                    is_crit = True
+            if is_crit:
+                a.is_critical = True
+                critical.append(a)
+
+        report.critical_findings = critical
+        state["data"]["report"] = report
+        state["progress"].append(f"DETECT_CRITICAL ok ({len(critical)} critical)")
+        state["step"] = VeilleStep.GENERATE_REPORT
+        return state
+
+    async def _step_generate_report(self, state, ctx):
+        """Rendu Jinja2 du VeilleReport."""
+        report: VeilleReport = state["data"]["report"]
+        all_articles = report.articles_tech + report.articles_competitive
+        report.metrics = {
+            "total_articles": len(all_articles),
+            "avg_score": (sum(a.score for a in all_articles) / len(all_articles)) if all_articles else 0.0,
+            "skipped_dupes": (
+                state["metrics"].get("skipped_dupes_tech", 0)
+                + state["metrics"].get("skipped_dupes_competitive", 0)
+            ),
+            "tool_calls": state["metrics"]["tool_calls"],
+            "wall_clock_secs": round(
+                datetime.now().timestamp() - state["metrics"]["wall_clock_start"], 1
+            ),
+        }
+        state["data"]["report"] = report
+
+        rendered = self._render_template(
+            "report.md.j2",
+            date=report.date,
+            executive_summary=report.executive_summary,
+            articles_tech=[a.model_dump() for a in report.articles_tech],
+            articles_competitive=[a.model_dump() for a in report.articles_competitive],
+            critical_findings=[a.model_dump() for a in report.critical_findings],
+            new_entities=report.new_entities,
+            metrics=report.metrics,
+            user_context=state["data"].get("user_context", {}),
+        )
+        state["data"]["rendered_report"] = rendered
+        state["progress"].append(f"GENERATE_REPORT ok ({len(rendered)} chars)")
+        state["step"] = VeilleStep.PERSIST_MEMORY
+        return state
+
+    async def _step_persist_memory(self, state, ctx):
+        """Persiste épisode + seen:{hash} pour les nouvelles URLs."""
+        if ctx.memory is None:
+            state["progress"].append("PERSIST skip (no memory)")
+            state["step"] = VeilleStep.WRITE_FILE
+            return state
+
+        report: VeilleReport = state["data"]["report"]
+        await ctx.memory.record(
+            content=(
+                f"Run {state['today']} : {report.metrics.get('total_articles', 0)} articles, "
+                f"{len(report.critical_findings)} critiques"
+            ),
+            importance=0.7,
+            task_id=state["task"].get("task_id"),
+            metadata={"date": state["today"], "metrics": report.metrics},
+        )
+        await ctx.memory.remember("last_run_date", state["today"], source=state["task"].get("task_id"))
+
+        all_articles = report.articles_tech + report.articles_competitive + report.critical_findings
+        seen_count = 0
+        for a in all_articles:
+            url_hash = hashlib.sha256(a.url.encode()).hexdigest()[:12]
+            seen_key = f"seen:{url_hash}"
+            already = await ctx.memory.recall(seen_key)
+            if not already:
+                await ctx.memory.remember(
+                    seen_key,
+                    json.dumps(
+                        {
+                            "title": a.title[:200],
+                            "url": a.url,
+                            "source": a.source,
+                            "date": state["today"],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    confidence=1.0,
+                )
+                seen_count += 1
+
+        try:
+            existing_proc = await ctx.memory.recall_procedure("daily-veille")
+            if not existing_proc:
+                await ctx.memory.learn_procedure(
+                    "daily-veille",
+                    [
+                        "Charger datasources YAML (feeds, competitors, queries, scoring)",
+                        "Recharger user.* + entités connues",
+                        "Bootstrap snapshot si TTL > 7j",
+                        "Délégation A2A search-and-extract (axes tech + competitive) avec dédup",
+                        "Délégation A2A extract-entities pour upsert entity:* mémoire",
+                        "Délégation A2A synthesize-report pour scoring + Pydantic VeilleReport",
+                        "Filter critical findings (threshold + keywords)",
+                        "Rendu Jinja2 + écriture fichier + notification",
+                    ],
+                )
+        except Exception as e:
+            ctx.log("debug", f"learn_procedure failed: {e}")
+
+        state["progress"].append(f"PERSIST ok ({seen_count} new seen, episode recorded)")
+        state["step"] = VeilleStep.WRITE_FILE
+        return state
+
+    async def _step_write_file(self, state, ctx):
+        """Sauvegarde du rapport sur disque."""
+        rendered = state["data"]["rendered_report"]
+        path = f"~/.apollia/reports/veille-{state['today']}.md"
+        try:
+            await ctx.tools.call("file_write", {"path": path, "content": rendered})
+            state["metrics"]["tool_calls"] += 1
+            state["progress"].append(f"WRITE_FILE ok ({path})")
+        except Exception as e:
+            ctx.log("warn", f"file_write failed: {e}")
+            state["progress"].append(f"WRITE_FILE failed: {e}")
+        state["step"] = VeilleStep.NOTIFY
+        return state
+
+    async def _step_notify(self, state, ctx):
+        """Notifications : desktop + alerte critique webhook si applicable."""
+        report: VeilleReport = state["data"]["report"]
+        articles_count = len(report.articles_tech) + len(report.articles_competitive)
+        critical_count = len(report.critical_findings)
+
+        if ctx.notify:
+            top_3 = sorted(
+                report.articles_tech + report.articles_competitive,
+                key=lambda a: a.score,
+                reverse=True,
+            )[:3]
+            summary = self._render_template(
+                "summary.md.j2",
+                agent_name="veille-ia",
+                date=state["today"],
+                articles_count=articles_count,
+                critical_count=critical_count,
+                top_3=[a.model_dump() for a in top_3],
+            )
+            severity = "warning" if critical_count > 0 else "info"
+            try:
+                await ctx.notify.publish(
+                    message=summary,
+                    severity=severity,
+                    title="Apollia · Veille IA",
+                )
+            except Exception as e:
+                ctx.log("warn", f"notify desktop failed: {e}")
+
+            if critical_count > 0:
+                alert = self._render_template(
+                    "alert.md.j2",
+                    date=state["today"],
+                    critical_findings=[a.model_dump() for a in report.critical_findings],
+                )
+                try:
+                    await ctx.notify.publish(
+                        message=alert,
+                        severity="warning",
+                        title="⚠️ Veille IA — Finding critique",
+                        channel="webhook",
+                    )
+                except Exception as e:
+                    ctx.log("warn", f"notify webhook failed: {e}")
+
+        state["progress"].append(f"NOTIFY ok ({articles_count} articles, {critical_count} critical)")
+        state["step"] = VeilleStep.DONE
+        return state
+
+    # ============================================================
+    # Helpers
+    # ============================================================
+
+    async def _load_yaml(self, ctx, workspace_title: str, local_relative: str) -> dict:
+        """Lecture priorisée : ctx.workspace > local YAML > {} fallback."""
+        if ctx.workspace:
+            ws_yaml = ctx.workspace.get(workspace_title)
+            if ws_yaml:
+                try:
+                    return yaml.safe_load(ws_yaml) or {}
+                except yaml.YAMLError as e:
+                    ctx.log("warn", f"workspace YAML invalid for '{workspace_title}': {e}")
+        local_path = _agent_dir() / local_relative
+        if local_path.exists():
+            try:
+                return yaml.safe_load(local_path.read_text()) or {}
+            except yaml.YAMLError as e:
+                ctx.log("warn", f"local YAML invalid {local_path}: {e}")
+        return {}
+
+    async def _needs_bootstrap(self, ctx) -> bool:
+        if ctx.memory is None:
+            return False
+        meta_raw = await ctx.memory.recall("bootstrap.meta")
+        if not meta_raw:
+            return True
+        try:
+            meta = json.loads(meta_raw)
+            last = datetime.fromisoformat(meta["created_at"])
+            return (datetime.now() - last) > timedelta(days=7)
+        except Exception:
+            return True
+
+    def _merge_entity(self, existing: dict | None, new: dict, today: str) -> dict:
+        """Merge incrémental d'une entité avec timeline."""
+        signal = {
+            "date": today,
+            "summary": new.get("summary", ""),
+            "source_url": new.get("source_url", ""),
+            "score": int(new.get("score", 3)),
+        }
+        if not existing:
+            return {
+                "id": new.get("id"),
+                "type": new.get("type"),
+                "name": new.get("name"),
+                "category": new.get("category", "direct"),
+                "threat_level": new.get("threat_level", "medium"),
+                "first_seen": today,
+                "last_event_date": today,
+                "signals": [signal],
+            }
+        existing["last_event_date"] = today
+        existing.setdefault("signals", []).append(signal)
+        return existing
+
+    async def _validate_with_repair(self, raw: str, schema, ctx, max_retries: int = 3):
+        """Validation Pydantic avec auto-repair (re-prompt LLM en cas de ValidationError)."""
+        for attempt in range(max_retries):
+            try:
+                return schema.model_validate_json(raw)
+            except ValidationError as e:
+                ctx.log("warn", f"Validation failed (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    raise
+                repair_prompt = (
+                    f"Le JSON suivant ne respecte pas le schema attendu.\n"
+                    f"Erreur: {e}\n\n"
+                    f"JSON original:\n{raw}\n\n"
+                    f"Retourne un JSON corrigé conforme au schema. Réponds avec le JSON uniquement."
+                )
+                resp = await ctx.llm.complete([{"role": "user", "content": repair_prompt}])
+                raw_text = self._extract_llm_text(resp)
+                # Re-appliquer extraction JSON robuste : strip <think>, code fences, brace matching
+                raw = self._extract_json_block(raw_text) or raw_text.strip()
+        raise RuntimeError(f"Auto-repair failed after {max_retries}")
+
+    def _fallback_report(self, state: dict) -> VeilleReport:
+        """Rapport minimal si la synthesis échoue."""
+        return VeilleReport(
+            date=state["today"],
+            executive_summary=f"Run dégradé : {len(state['errors'])} erreurs durant la synthèse.",
+            articles_tech=[],
+            articles_competitive=[],
+            critical_findings=[],
+            new_entities=state["data"].get("new_entities", []),
+            metrics={"degraded": True, "errors_count": len(state["errors"])},
+        )
+
+    @staticmethod
+    def _extract_llm_text(resp: Any) -> str:
+        """Extrait le texte d'une LlmResponse PyO3.
+
+        L'attribut exposé par le runtime est `content` (cf. crates/apollia-aip/src/llm.rs:54-65),
+        pas `text`. On gère les deux noms par défense : selon les variantes du SDK
+        (chat() vs complete() vs run_tools), l'API peut évoluer.
+        """
+        if resp is None:
+            return ""
+        for attr in ("content", "text", "message", "output"):
+            value = getattr(resp, attr, None)
+            if isinstance(value, str):
+                return value
+        # Dernier recours : str() — peut retourner une repr() inutilisable comme `<...object at 0x...>`,
+        # mais évite de péter avec une exception en aval.
+        s = str(resp)
+        if s.startswith("<") and "object at 0x" in s:
+            return ""  # signal explicite : pas de texte exploitable
+        return s
+
+    def _render_template(self, template_name: str, **vars) -> str:
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(str(_agent_dir() / "templates")),
+            autoescape=False,
+            trim_blocks=True,
+            lstrip_blocks=True,
+        )
+        return env.get_template(template_name).render(**vars)
 
 
+# Variable module-level requise par le runtime Apollia (loader.rs:113-115).
+# Le runtime fait `module.getattr("agent")` après avoir exécuté le fichier.
 agent = VeilleIaAgent()

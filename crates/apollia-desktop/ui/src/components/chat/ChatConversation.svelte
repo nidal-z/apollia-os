@@ -14,7 +14,13 @@
     getPendingUserInputForSession, removePendingUserInput,
   } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
-  import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
+  import type {
+    ChatSessionDetail,
+    ChatMessageView,
+    ConversationStatsView,
+    ProjectSummary,
+    UserMemoryProfileView,
+  } from "$lib/types";
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
   import ChatInput from "./ChatInput.svelte";
@@ -214,6 +220,7 @@
   onMount(async () => {
     await loadSession();
     restoreGlobalState();
+    void loadAvailableProjects();
 
     unlistenToken = await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -665,6 +672,65 @@
     }
   }
 
+  // ─── Project linking ─────────────────────────────────────────────────────
+
+  let availableProjects = $state<ProjectSummary[]>([]);
+
+  const linkedProject = $derived<ProjectSummary | null>(
+    (() => {
+      const pid = sessionDetail?.project_id ?? null;
+      if (!pid) return null;
+      return availableProjects.find((p) => p.id === pid) ?? null;
+    })(),
+  );
+
+  async function loadAvailableProjects(): Promise<void> {
+    try {
+      availableProjects = await invoke<ProjectSummary[]>("list_projects");
+    } catch (err) {
+      console.warn("list_projects failed", err);
+    }
+  }
+
+  async function handleLinkProject(projectId: string | null): Promise<void> {
+    try {
+      await invoke("link_chat_to_project", {
+        sessionId,
+        projectId,
+      });
+      await refreshSession();
+      // Refresh the global chat-sessions store so the sidebar chip updates
+      // immediately (link_chat_to_project does not emit a runtime event).
+      try {
+        const updated = await invoke<import("$lib/types").ChatSessionSummary[]>(
+          "list_chat_sessions",
+        );
+        const { chatSessions } = await import("$lib/stores/sse");
+        chatSessions.set(updated);
+      } catch { /* non-blocking */ }
+      if (projectId) {
+        const project = availableProjects.find((p) => p.id === projectId);
+        addToast(
+          $t("chat.project_linked_toast", {
+            values: { name: project?.name ?? "" },
+          }),
+          "success",
+        );
+      } else {
+        addToast($t("chat.project_unlinked_toast"), "success");
+      }
+    } catch (err) {
+      addToast(
+        `${$t("chat.project_link_failed")} — ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+    }
+  }
+
+  function handleProjectChipOpen(_projectId: string): void {
+    import("$lib/stores/navigation").then((m) => m.navigateTo("projects"));
+  }
+
   async function exportCorruptedSessionRaw(): Promise<void> {
     // The UX contract is "give me something to send to support". We dump
     // whatever the backend was able to surface — even if only the raw
@@ -799,8 +865,11 @@
       onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
       {onsessionsopen}
       onrename={handleRename}
-      onexport={(format) => exportCurrentSession(format)}
       ondelete={handleDeleteSession}
+      {linkedProject}
+      {availableProjects}
+      onlink={(projectId) => void handleLinkProject(projectId)}
+      onprojectopen={handleProjectChipOpen}
     />
   {/if}
 

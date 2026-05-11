@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use apollia_tools::ProjectRepository;
+use tracing::{debug, info, warn};
 
 use super::types::ProjectContextProvider;
 
@@ -34,13 +35,36 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
     async fn build_context(&self, project_id: &str) -> Option<String> {
         let repo = self.repo.clone();
         let pid = project_id.to_string();
+        let pid_for_log = pid.clone();
 
-        let detail = tokio::task::spawn_blocking(move || repo.get_project(&pid))
-            .await
-            .ok()?
-            .ok()?;
+        let detail = match tokio::task::spawn_blocking(move || repo.get_project(&pid)).await {
+            Ok(Ok(d)) => d,
+            Ok(Err(e)) => {
+                warn!(project_id = %pid_for_log, error = %e, "project context: get_project failed");
+                return None;
+            }
+            Err(e) => {
+                warn!(project_id = %pid_for_log, error = %e, "project context: join failure");
+                return None;
+            }
+        };
 
-        let mut block = String::from("## Project Context\n");
+        debug!(
+            project_id = %pid_for_log,
+            documents = detail.documents.len(),
+            providers_total = detail.providers.len(),
+            providers_enabled = detail.providers.iter().filter(|p| p.enabled).count(),
+            workspace_path = ?detail.workspace_path,
+            "project context: building"
+        );
+
+        let mut block = String::from(
+            "## Project Context\n\
+             Le snapshot suivant a été collecté juste avant ce tour par les \
+             providers du projet (git, rules, tree, etc.). Privilégie ces \
+             informations à un appel d'outil pour répondre aux questions \
+             factuelles auxquelles elles répondent déjà.\n",
+        );
         let mut has_content = false;
 
         // 1. Project instructions
@@ -117,8 +141,19 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
         }
 
         if has_content {
+            info!(
+                project_id = %pid_for_log,
+                context_bytes = block.len(),
+                "project context: injected into system prompt"
+            );
             Some(block)
         } else {
+            warn!(
+                project_id = %pid_for_log,
+                "project context: built block is empty — \
+                 no instructions, documents, or applicable provider sections; \
+                 check provider configuration and workspace_path"
+            );
             None
         }
     }

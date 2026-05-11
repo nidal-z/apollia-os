@@ -1,13 +1,10 @@
-# agent.toml — Apollia OS agent package descriptor
+# agent.toml — Apollia OS agent package descriptor (veille-ia v3.0.0)
 #
-# Ce fichier déclare tous les agents du package et leurs triggers. Il est
-# chargé par le runtime au démarrage pour enregistrer les agents et
-# planifier les triggers — sans toucher à la config globale.
-#
-# Convention : un dossier agent = un agent.toml = un package autonome et
-# distribuable. Les outils (web_search, web_read, file_write…) sont déclarés
-# par chaque agent dans son manifeste Python (`tools_required`/`tools_optional`)
-# et activés globalement via Réglages → Outils.
+# Refonte M5a release v0.1.0 — 4 piliers obligatoires :
+# - Pilier 1 — Templates : Pydantic + Jinja2.
+# - Pilier 2 — Steps fonctionnels : state machine 15 étapes (state.py).
+# - Pilier 3 — Datasources : YAML externalisés (datasources/), priorité ctx.workspace > local > defaults.
+# - Pilier 4 — Mémoire : entités + dédup + procédurale.
 
 # ---------------------------------------------------------------------------
 # Package
@@ -15,9 +12,10 @@
 
 [package]
 name    = "veille-ia"
-version = "2.0.0"
-description = "Veille quotidienne IA/LLM — technologique et concurrentielle."
+version = "3.0.0"
+description = "Veille quotidienne IA/LLM — technologique et concurrentielle. State machine + entités + datasources YAML."
 author  = "Apollia OS"
+license = "MIT"
 
 # ---------------------------------------------------------------------------
 # Agents déclarés dans ce package
@@ -27,30 +25,117 @@ author  = "Apollia OS"
 name  = "veille-ia-agent"
 entry = "veille-ia-agent.py"
 role  = "director"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "veille-ia"
+supports_a2a = true
+max_concurrent_tasks = 1
+tools_required = ["file_write", "web_search", "web_read"]
+tools_optional = [
+    "file_read",
+    "memory_search",
+    "a2a:search-and-extract",
+    "a2a:extract-entities",
+    "a2a:synthesize-report",
+]
+user_memory_write = false
+dangerous_tools_allowed = false
+step_budget = { max_steps = 25, max_tool_calls = 25, wall_clock_secs = 1800 }
+packages = ["jinja2", "pydantic", "pyyaml"]
+tags = ["veille", "monitoring", "competitive-intelligence", "ia"]
+
+[[agents.skills]]
+id = "run-veille"
+name = "Lancer la veille du jour"
+description = "Lance la veille du jour et produit un rapport Markdown structuré."
+input_modes = ["text"]
+output_modes = ["text"]
 
 [[agents]]
 name  = "web-search-worker"
 entry = "workers/web-search-worker.py"
 role  = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "veille-ia"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = ["web_search", "web_read"]
+step_budget = { max_steps = 30, max_tool_calls = 60, wall_clock_secs = 300 }
+tags = ["worker", "web-search", "extraction"]
+
+[[agents.skills]]
+id = "search-and-extract"
+name = "Rechercher et extraire"
+description = "Recherche web + extraction articles + filtre les seen_hashes."
+input_modes = ["text"]
+output_modes = ["text"]
 
 [[agents]]
 name  = "synthesis-worker"
 entry = "workers/synthesis-worker.py"
 role  = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "veille-ia"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = []
+step_budget = { max_steps = 8, max_tool_calls = 0, wall_clock_secs = 300 }
+packages = ["pydantic"]
+tags = ["worker", "synthesis", "scoring"]
+
+[[agents.skills]]
+id = "synthesize-report"
+name = "Synthétiser le rapport de veille"
+description = "Score les articles et produit un VeilleReport JSON validable Pydantic."
+input_modes = ["text"]
+output_modes = ["text"]
+
+[[agents]]
+name  = "entity-extraction-worker"
+entry = "workers/entity-extraction-worker.py"
+role  = "worker"
+agent_type = "user"
+execution_mode = "direct"
+memory_namespace = "veille-ia"
+supports_a2a = true
+max_concurrent_tasks = 2
+tools_required = []
+step_budget = { max_steps = 6, max_tool_calls = 0, wall_clock_secs = 180 }
+tags = ["worker", "entity-extraction", "ner"]
+
+[[agents.skills]]
+id = "extract-entities"
+name = "Extraire les entités des articles"
+description = "Extrait les entités (companies, products, events, topics) depuis articles."
+input_modes = ["text"]
+output_modes = ["text"]
+
+# ---------------------------------------------------------------------------
+# Outils activés pour ce package
+# ---------------------------------------------------------------------------
+
+[tools]
+web = { enabled = true, ssrf_guard = true }
+file_write = { enabled = true }
+memory_search = { enabled = true }
 
 # ---------------------------------------------------------------------------
 # Triggers
-# Planification déclarée ici — injectée en DB par le runtime au chargement.
-# Modifier ici, recharger le package → DB mise à jour.
 # ---------------------------------------------------------------------------
 
 [[triggers]]
 id             = "daily-veille-ia"
 agent          = "veille-ia-agent"
 enabled        = true
-on_busy        = "skip"                           # skip | queue | block
+on_busy        = "skip"
 input_template = "Génère la veille IA/LLM du jour"
 
 [triggers.source]
 type     = "cron"
-schedule = "0 7 * * 1-5"   # Lundi–Vendredi à 7h00
+# Le crate `cron` Rust (format Quartz) accepte des noms de jours individuels
+# (cf. test apollia-triggers : "0 8 * * MON" passe). Les ranges `MON-FRI`
+# peuvent rejeter selon la version du crate — utiliser énumération
+# explicite avec virgules pour robustesse maximale.
+schedule = "0 7 * * MON,TUE,WED,THU,FRI"   # Lundi–Vendredi à 7h00 UTC

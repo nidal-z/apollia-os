@@ -1,0 +1,197 @@
+# datasources/competitors.yaml
+# Concurrents Apollia OS à monitorer (extrait de docs/internal/research/agents-2026/10-cartographie-concurrents.md).
+# Lecture priorité : ctx.workspace.get("Veille IA — Competitors") > ce fichier > defaults.
+
+competitors:
+  # ===== DIRECTS — plateformes d'agents autonomes =====
+  - id: n8n
+    name: n8n
+    category: direct
+    urls:
+      - https://blog.n8n.io
+      - https://github.com/n8n-io/n8n/releases
+      - https://n8n.io/ai-agents/
+    signals: ["AI", "agent", "multi-agent", "MCP", "vector store", "self-host"]
+    threat_level: high
+    notes: "Concurrent le plus dangereux DIY/PME. Sustainable Use License, hybrid open/closed."
+
+  - id: zapier-central
+    name: Zapier Central
+    category: direct
+    urls:
+      - https://zapier.com/blog/categories/agents/
+    signals: ["AI agent", "Central", "Activities", "Connectors"]
+    threat_level: medium
+    notes: "Géant grand public, vendor lock-in. Pas direct sur Apollia (cible knowledge workers)."
+
+  - id: make
+    name: Make.com
+    category: direct
+    urls:
+      - https://www.make.com/en/blog
+      - https://www.make.com/en/ai-agents
+    signals: ["AI agent", "MCP server", "Make Grid", "scenario"]
+    threat_level: medium
+    notes: "Concurrent de n8n/Zapier. Differenciation transparence."
+
+  - id: lindy
+    name: Lindy AI
+    category: direct
+    urls:
+      - https://www.lindy.ai/blog
+    signals: ["AI employee", "Agent Swarms", "Computer Use", "voice agent"]
+    threat_level: medium
+    notes: "100% cloud SaaS, cible PME US (différent positionnement)."
+
+  - id: relevance-ai
+    name: Relevance AI
+    category: direct
+    urls:
+      - https://relevanceai.com/blog
+    signals: ["AI workforce", "no-code", "Sales", "GTM"]
+    threat_level: low
+    notes: "Niche Sales/GTM, ne recouvre pas Apollia."
+
+  - id: dust
+    name: Dust.tt
+    category: direct
+    urls:
+      - https://blog.dust.tt
+      - https://dust.tt
+    signals: ["enterprise agent", "GDPR", "SOC2", "data residency", "Slack", "Notion", "MCP"]
+    threat_level: high
+    notes: "Concurrent #1 EU. Ouverture self-host probable < 12 mois — à monitorer mensuel."
+
+  - id: sema4
+    name: Sema4.ai
+    category: direct
+    urls:
+      - https://sema4.ai/newsroom
+    signals: ["enterprise AI agent", "Action Server", "RPA", "MCP", "Document Intelligence"]
+    threat_level: low
+    notes: "Cible Fortune 500, pas direct sur PME Apollia."
+
+  - id: cognition-devin
+    name: Cognition AI (Devin)
+    category: direct
+    urls:
+      - https://cognition.ai/blog
+    signals: ["Devin", "ACU", "coding agent", "multi-Devin"]
+    threat_level: low
+    notes: "Coding agent — Apollia ≠ coding agent. Recouvrement limité."
+
+  - id: crewai
+    name: CrewAI
+    category: direct
+    urls:
+      - https://crewai.com/blog
+      - https://github.com/joaomdmoura/crewAI/releases
+    signals: ["multi-agent", "AMP", "MCP support", "Apache 2.0"]
+    threat_level: medium
+    notes: "Co-existence > concurrence. Un agent CrewAI peut tourner DANS Apollia."
+
+  - id: autogen
+    name: Microsoft AutoGen / MAF
+    category: direct
+    urls:
+      - https://devblogs.microsoft.com/agent-framework/
+      - https://github.com/microsoft/autogen
+    signals: ["MAF", "Agent Framework", "AutoGen", "Magentic-One", "MCP", "A2A"]
+    threat_level: medium
+    notes: "Pas une menace prod hors écosystème MS."
+
+  - id: openai-agentkit
+    name: OpenAI AgentKit
+    category: direct
+    urls:
+      - https://openai.com/blog/rss.xml
+      - https://openai.com/index/introducing-agentkit/
+    signals: ["AgentKit", "Agent Builder", "Connector Registry", "ChatKit", "Responses API", "Assistants API sunset"]
+    threat_level: high
+    notes: "Plus grand risque pour Apollia : OpenAI = ergonomie + brand. Sunset Assistants API 26 août 2026."
+
+  - id: anthropic-claude
+    name: Anthropic Claude (Claude Code, Managed Agents)
+    category: direct
+    urls:
+      - https://www.anthropic.com/news
+      - https://www.anthropic.com/product/claude-code
+    signals: ["Claude Code", "Managed Agents", "Skills", "Sub-agents", "MCP", "Memory tool"]
+    threat_level: high
+    notes: "Apollia même technologie de runtime, positionnement opposé : Apollia = on-device souverain, Anthropic = managed cloud."
+
+  # ===== INDIRECTS — souveraineté locale =====
+  - id: openfang
+    name: OpenFANG
+    category: indirect-souverainete
+    urls:
+      - https://github.com/RightNow-AI/openfang
+    signals: ["Rust", "agent OS", "local-first", "open source"]
+    threat_level: high
+    notes: "MENACE #1 DIRECTE. Même thèse Rust + agent OS, sorti mars 2026. Fork-monitor mensuel."
+
+  - id: letta
+    name: Letta (ex-MemGPT)
+    category: indirect-souverainete
+    urls:
+      - https://www.letta.com/blog
+      - https://github.com/letta-ai/letta
+    signals: ["stateful agent", "Letta Code", "memory blocks", "auto-edit", "subagents"]
+    threat_level: medium
+    notes: "Concurrent partiel sur la brique Memory Engine."
+
+  - id: mistral
+    name: Mistral La Plateforme + Workflows + Forge
+    category: indirect-souverainete
+    urls:
+      - https://mistral.ai/news/
+    signals: ["Workflows", "Forge", "souveraineté FR", "Temporal", "OTel", "agents durable"]
+    threat_level: high
+    notes: "Concurrent souveraineté FR le plus puissant. Workflows = orchestration agents (avr 2026)."
+
+  - id: cohere-north
+    name: Cohere North
+    category: indirect-souverainete
+    urls:
+      - https://cohere.com/blog
+    signals: ["North", "on-prem", "air-gap", "sovereign AI", "Aleph Alpha"]
+    threat_level: medium
+    notes: "Cible régulés. Descente PME via SAP plausible."
+
+  - id: khoj
+    name: Khoj
+    category: indirect-souverainete
+    urls:
+      - https://blog.khoj.dev
+      - https://github.com/khoj-ai/khoj
+    signals: ["self-host", "AGPL", "automations", "second brain"]
+    threat_level: low
+    notes: "Cloud sunset → 100% self-host. Pas multi-agent prod."
+
+  - id: manus-ai
+    name: Manus AI
+    category: indirect-souverainete
+    urls:
+      - https://manus.im/blog
+    signals: ["Wide Research", "Agent Skills", "SKILL.md", "Web App Builder", "Desktop"]
+    threat_level: medium
+    notes: "Pattern Skills SKILL.md auto-contenu = converge avec convention Apollia."
+
+  # ===== INDIRECTS — orchestration / dev frameworks =====
+  - id: langgraph
+    name: LangGraph / LangSmith Deployment
+    category: indirect-orchestration
+    urls:
+      - https://www.langchain.com/blog
+    signals: ["LangGraph", "LangSmith Deployment", "supervisor", "swarm", "MCP", "checkpointer"]
+    threat_level: low
+    notes: "Co-existence : un agent LangGraph peut tourner dans Apollia."
+
+  - id: pydantic-ai
+    name: Pydantic AI
+    category: indirect-orchestration
+    urls:
+      - https://github.com/pydantic/pydantic-ai/releases
+    signals: ["MCP natif", "A2A natif", "type-safe", "durable execution"]
+    threat_level: low
+    notes: "Compatible Apollia (Python agent + duck typing)."

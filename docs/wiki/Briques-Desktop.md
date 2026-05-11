@@ -94,7 +94,7 @@ crates/apollia-desktop/
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
-        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte
+        │   ├── memory/        ← NamespaceSidebar.svelte, MemoryEntryRow.svelte, MemoryEntrySheet.svelte, MemorySearch.svelte, UserMemoryDashboard.svelte, MemoryRow.svelte (la page Memory.svelte expose 2 onglets : "User Memory" + "Memory explorateur" — l'ancien onglet "Tools" a migré vers settings/Tools.svelte qui est désormais la page autoritaire des outils)
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte, DelegationTree.svelte
         │   ├── settings/      ← SettingsNav.svelte, ToolCard.svelte, ToolConfigDrawer.svelte, CredentialField.svelte, PermissionRuleCard.svelte
@@ -430,7 +430,7 @@ type Route =
   | "integrations"   // Connexions MCP (operator) / MCP Servers (builder)
   | "llm"            // Backends LLM, ping, statistiques
   | "triggers"       // Triggers TOML, enable/disable, fire
-  | "memory"         // Namespaces, recherche FTS5, suppression
+  | "memory"         // 2 onglets : User Memory (chips Préférences/Habitudes/Contexte) + Memory (sidebar namespaces classifiés Profil/Agents/Projets/Autres + filtre type Épisodique/Sémantique/Procédurale + FTS5 + Sheet détail JSON pretty-print)
   | "notifications"  // Canaux, test, historique
   | "observability"  // Timeline, audit trail, couts LLM
   | "settings";      // Configuration lecture seule (ADR-029)

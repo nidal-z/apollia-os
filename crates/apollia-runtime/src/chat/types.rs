@@ -55,6 +55,13 @@ pub struct ChatSession {
     /// Project this session belongs to (None = standalone).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    /// Force project context injection on the next user message.
+    ///
+    /// Set when a project link is changed after the session has started; the
+    /// initial-injection path (gated on `is_first_message`) would otherwise
+    /// skip context for already-active sessions. Transient — not persisted.
+    #[serde(skip)]
+    pub force_project_context_inject: bool,
     /// In-memory filesystem allow rules for this session (not persisted).
     ///
     /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
@@ -1039,6 +1046,7 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),

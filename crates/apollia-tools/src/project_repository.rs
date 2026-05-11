@@ -413,10 +413,15 @@ impl ProjectRepository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Insère ou remplace un provider pour un projet (upsert par `project_id` + `name`).
+    /// Insère ou met à jour un provider pour un projet.
+    ///
+    /// Si `provider_id` est `Some(id)` et qu'une ligne avec cet id existe pour
+    /// ce projet, elle est mise à jour. Sinon, une nouvelle ligne est insérée
+    /// avec un UUID frais. Retourne l'id de la ligne effectivement affectée.
     #[allow(clippy::too_many_arguments)]
     pub fn set_provider(
         &self,
+        provider_id: Option<&str>,
         project_id: &str,
         provider_type: impl Into<String>,
         name: impl Into<String>,
@@ -424,34 +429,61 @@ impl ProjectRepository {
         path: Option<String>,
         enabled: bool,
         priority: u8,
-    ) -> Result<(), ProjectRepositoryError> {
-        let id = uuid();
+    ) -> Result<String, ProjectRepositoryError> {
         let conn = self
             .conn
             .lock()
             .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+
+        let provider_type_str = provider_type.into();
+        let name_str = name.into();
+        let config_json_str = config_json.into();
+
+        if let Some(id) = provider_id {
+            let updated = conn.execute(
+                "UPDATE project_providers
+                    SET provider_type = ?1,
+                        name          = ?2,
+                        config_json   = ?3,
+                        path          = ?4,
+                        enabled       = ?5,
+                        priority      = ?6
+                  WHERE id = ?7 AND project_id = ?8",
+                params![
+                    provider_type_str,
+                    name_str,
+                    config_json_str,
+                    path,
+                    enabled as i64,
+                    priority as i64,
+                    id,
+                    project_id,
+                ],
+            )?;
+            if updated > 0 {
+                return Ok(id.to_owned());
+            }
+            // Fall through to INSERT if the id was unknown — keeps callers
+            // resilient if a stale id is passed (e.g. after a delete).
+        }
+
+        let new_id = uuid();
         conn.execute(
             "INSERT INTO project_providers
                 (id, project_id, provider_type, name, config_json, path, enabled, priority)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-             ON CONFLICT(id) DO UPDATE SET
-                provider_type = excluded.provider_type,
-                config_json   = excluded.config_json,
-                path          = excluded.path,
-                enabled       = excluded.enabled,
-                priority      = excluded.priority",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
-                id,
+                new_id,
                 project_id,
-                provider_type.into(),
-                name.into(),
-                config_json.into(),
+                provider_type_str,
+                name_str,
+                config_json_str,
                 path,
                 enabled as i64,
                 priority as i64,
             ],
         )?;
-        Ok(())
+        Ok(new_id)
     }
 
     /// Liste tous les templates de projets disponibles (builtins + custom).

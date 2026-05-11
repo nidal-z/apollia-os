@@ -18,17 +18,20 @@
     Menu,
     MoreHorizontal,
     Edit3,
-    Download,
+    Folder,
+    FolderOpen,
+    FolderMinus,
     Trash2,
-    FileJson,
-    FileText,
     Clock,
     Gauge,
   } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Spinner } from "$lib/components/ui/progress";
-  import type { ChatSessionDetail, ConversationStatsView } from "$lib/types";
-  import type { ExportFormat } from "$lib/chat/exportConversation";
+  import type {
+    ChatSessionDetail,
+    ConversationStatsView,
+    ProjectSummary,
+  } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
 
   interface Props {
@@ -46,8 +49,15 @@
     onconfigtoggle?: () => void;
     onsessionsopen?: () => void;
     onrename: (title: string) => void;
-    onexport: (format: ExportFormat) => void;
     ondelete: () => void;
+    /** Project this session is currently linked to (null = standalone). */
+    linkedProject?: ProjectSummary | null;
+    /** Projects the user can link this session to. */
+    availableProjects?: ProjectSummary[];
+    /** Called when the user picks a project (or null to unlink). */
+    onlink?: (projectId: string | null) => void;
+    /** Called when the user clicks the project chip in the meta row. */
+    onprojectopen?: (projectId: string) => void;
   }
 
   let {
@@ -63,12 +73,15 @@
     onconfigtoggle,
     onsessionsopen,
     onrename,
-    onexport,
     ondelete,
+    linkedProject = null,
+    availableProjects = [],
+    onlink,
+    onprojectopen,
   }: Props = $props();
 
   let menuOpen = $state(false);
-  let exportOpen = $state(false);
+  let linkOpen = $state(false);
   let editing = $state(false);
   let draftTitle = $state("");
   let titleInput = $state<HTMLInputElement | undefined>(undefined);
@@ -170,14 +183,18 @@
     }
   }
 
-  function handleExport(format: ExportFormat): void {
-    exportOpen = false;
+  function handleLinkPick(projectId: string | null): void {
+    linkOpen = false;
     menuOpen = false;
-    onexport(format);
+    onlink?.(projectId);
+  }
+
+  function handleProjectChipClick(): void {
+    if (linkedProject && onprojectopen) onprojectopen(linkedProject.id);
   }
 
   function handleDocumentClick(ev: MouseEvent): void {
-    if (!menuOpen && !exportOpen) return;
+    if (!menuOpen && !linkOpen) return;
     const target = ev.target as Node | null;
     if (!target) return;
     const root = document.querySelector<HTMLElement>(
@@ -185,12 +202,12 @@
     );
     if (root && !root.contains(target)) {
       menuOpen = false;
-      exportOpen = false;
+      linkOpen = false;
     }
   }
 
   $effect(() => {
-    if (menuOpen || exportOpen) {
+    if (menuOpen || linkOpen) {
       document.addEventListener("click", handleDocumentClick);
       return () => document.removeEventListener("click", handleDocumentClick);
     }
@@ -327,44 +344,64 @@
               <Edit3 size={12} /> {$t("chat.rename_session")}
             </button>
 
-            <!-- Export submenu -->
-            <div class="relative">
+            <!-- Link to project submenu -->
+            {#if linkedProject}
               <button
                 type="button"
                 role="menuitem"
-                onclick={() => (exportOpen = !exportOpen)}
-                class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                aria-expanded={exportOpen}
-                data-testid="chat-header-menu-export"
+                onclick={() => handleLinkPick(null)}
+                disabled={!onlink}
+                class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                data-testid="chat-header-menu-unlink-project"
               >
-                <Download size={12} /> {$t("chat.export_session")}
+                <FolderMinus size={12} />
+                <span class="truncate">
+                  {$t("chat.unlink_project", {
+                    values: { name: linkedProject.name },
+                  })}
+                </span>
               </button>
-              {#if exportOpen}
-                <div
-                  class="absolute right-full top-0 mr-1 min-w-[11rem] rounded-md border border-border/50 bg-card shadow-elev-2 py-1"
-                  role="menu"
+            {:else}
+              <div class="relative">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => (linkOpen = !linkOpen)}
+                  disabled={!onlink || availableProjects.length === 0}
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-expanded={linkOpen}
+                  data-testid="chat-header-menu-link-project"
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => handleExport("markdown-with-tools")}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                    data-testid="chat-header-menu-export-md"
+                  <Folder size={12} /> {$t("chat.link_project")}
+                </button>
+                {#if linkOpen}
+                  <div
+                    class="absolute right-full top-0 mr-1 min-w-[13rem] max-h-72 overflow-auto rounded-md border border-border/50 bg-card shadow-elev-2 py-1"
+                    role="menu"
+                    data-testid="chat-header-link-project-menu"
                   >
-                    <FileText size={12} /> {$t("chat.export_markdown")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={() => handleExport("json")}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                    data-testid="chat-header-menu-export-json"
-                  >
-                    <FileJson size={12} /> {$t("chat.export_json")}
-                  </button>
-                </div>
-              {/if}
-            </div>
+                    {#if availableProjects.length === 0}
+                      <div class="px-3 py-1.5 text-[11px] text-muted-foreground">
+                        {$t("chat.no_project_to_link")}
+                      </div>
+                    {:else}
+                      {#each availableProjects as project (project.id)}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onclick={() => handleLinkPick(project.id)}
+                          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
+                          data-testid="chat-header-link-project-item"
+                        >
+                          <Folder size={12} class="shrink-0" />
+                          <span class="truncate">{project.name}</span>
+                        </button>
+                      {/each}
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {/if}
 
             {#if !hideConfig && onconfigtoggle}
               <button
@@ -428,6 +465,20 @@
       <Clock size={10} class="shrink-0" />
       <span>{formatDuration(elapsedSeconds)}</span>
     </span>
+    {#if linkedProject}
+      <button
+        type="button"
+        onclick={handleProjectChipClick}
+        title={$t("chat.linked_project_tooltip", {
+          values: { name: linkedProject.name },
+        })}
+        class="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] text-primary/80 bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer max-w-[12rem]"
+        data-testid="chat-header-meta-project"
+      >
+        <FolderOpen size={10} class="shrink-0" />
+        <span class="truncate">{linkedProject.name}</span>
+      </button>
+    {/if}
     <!-- A2A badge on xs viewports — keeps it visible without header overflow. -->
     <div class="sm:hidden ml-auto">
       <A2AWorkerBadge />

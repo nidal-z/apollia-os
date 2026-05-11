@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X } from "lucide-svelte";
+  import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
 
   export type ConversationState =
@@ -28,6 +28,8 @@
     onrename?: (newTitle: string) => void;
     /** Optional delete action — shows a kebab menu when provided. */
     ondelete?: () => void;
+    /** Project this conversation is linked to (displayed as a small chip). */
+    projectLabel?: string;
   }
 
   let {
@@ -40,6 +42,7 @@
     onclick,
     onrename,
     ondelete,
+    projectLabel,
   }: Props = $props();
 
   const isActive = $derived(rowStateProp === "active");
@@ -230,9 +233,19 @@
         {title}
       </div>
     {/if}
-    <div class="text-[10.5px] text-muted-foreground mt-0.5 inline-flex items-center gap-1.5">
+    <div class="text-[10.5px] text-muted-foreground mt-0.5 inline-flex items-center gap-1.5 flex-wrap">
       {#if lastMessage}<span class="truncate">{lastMessage}</span>{/if}
       <span>· il y a {timestamp}</span>
+      {#if projectLabel}
+        <span
+          class="inline-flex items-center gap-0.5 rounded-sm px-1 py-px text-[9.5px] text-primary/80 bg-primary/10 max-w-[9rem]"
+          title={projectLabel}
+          data-testid="conversation-row-project-chip"
+        >
+          <FolderOpen size={9} class="shrink-0" />
+          <span class="truncate">{projectLabel}</span>
+        </span>
+      {/if}
       {#if live}
         <span>·</span>
         <span class="text-primary inline-flex items-center gap-1">

@@ -283,8 +283,8 @@ pub async fn list_project_templates(
 /// Collecte un snapshot workspace live pour un projet donné.
 ///
 /// Charge les providers configurés pour le projet et les lance en parallèle
-/// sur le répertoire courant de travail. Retourne les sections produites
-/// pour prévisualisation dans l'interface.
+/// sur le `workspace_path` du projet (cwd du processus en repli). Retourne les
+/// sections produites pour prévisualisation dans l'interface.
 #[tauri::command]
 pub async fn get_project_snapshot(
     state: State<'_, RuntimeHandle>,
@@ -292,11 +292,18 @@ pub async fn get_project_snapshot(
 ) -> Result<WorkspaceSnapshotView, String> {
     let repo = get_repo(&state)?;
 
-    // Load provider rows for this project.
-    let providers = tokio::task::spawn_blocking(move || repo.list_providers(&project_id))
-        .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
-        .map_err(|e| e.to_string())?;
+    // Load project + providers in one blocking pass. The project's
+    // `workspace_path` is the cwd we hand to the runtime — same source of
+    // truth as the real agent execution path (cf. project_context.rs).
+    let pid = project_id.clone();
+    let (workspace_path, providers) = tokio::task::spawn_blocking(move || {
+        let detail = repo.get_project(&pid)?;
+        let providers = repo.list_providers(&pid)?;
+        Ok::<_, apollia_tools::ProjectRepositoryError>((detail.workspace_path, providers))
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    .map_err(|e| e.to_string())?;
 
     // Convert to ProviderEntry for ProjectRuntime.
     let entries: Vec<apollia_workspace::ProviderEntry> = providers
@@ -318,7 +325,11 @@ pub async fn get_project_snapshot(
     let llm_router = state.llm_router.clone();
     let runtime = apollia_workspace::ProjectRuntime::from_providers_config(&entries, llm_router);
 
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
+    let cwd = workspace_path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        });
     let snapshot = runtime.collect(&cwd).await;
 
     let error_count = snapshot
@@ -418,9 +429,14 @@ pub async fn list_projects_for_agent(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Ajoute ou met à jour un provider de contexte pour un projet.
+///
+/// Si `provider_id` est `Some`, met à jour la ligne existante ; sinon insère
+/// une nouvelle ligne. Retourne l'id de la ligne affectée.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn set_project_provider(
     state: State<'_, RuntimeHandle>,
+    provider_id: Option<String>,
     project_id: String,
     provider_type: String,
     name: String,
@@ -428,10 +444,11 @@ pub async fn set_project_provider(
     path: Option<String>,
     enabled: bool,
     priority: u8,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let repo = get_repo(&state)?;
     tokio::task::spawn_blocking(move || {
         repo.set_provider(
+            provider_id.as_deref(),
             &project_id,
             &provider_type,
             &name,

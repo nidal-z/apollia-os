@@ -1,0 +1,11 @@
+{# templates/summary.md.j2 — résumé exécutif (notification desktop) #}
+{{ agent_name }} {{ date }} terminé
+
+{{ articles_count }} article{{ 's' if articles_count > 1 else '' }} analysé{{ 's' if articles_count > 1 else '' }}{% if critical_count > 0 %} · ⚠️ {{ critical_count }} critique{{ 's' if critical_count > 1 else '' }}{% endif %}.
+{% if top_3 %}
+
+Top 3 :
+{% for a in top_3 %}
+- {{ a.title }} {{ a.score_stars }}
+{% endfor %}
+{% endif %}

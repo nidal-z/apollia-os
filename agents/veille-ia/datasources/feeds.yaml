@@ -1,0 +1,115 @@
+# datasources/feeds.yaml
+# Sources de veille IA/LLM consultées par l'agent veille-ia.
+# Lecture priorité : ctx.workspace.get("Veille IA — Feeds") > ce fichier > defaults Python.
+#
+# Format :
+#   - id: identifiant unique kebab-case
+#     url: URL du flux (RSS/Atom recommandé) ou page racine
+#     category: tech-news | research | competitor-blog | standards | regulation
+#     weight: 0.0-1.0 (poids dans le scoring)
+#     enabled: true/false
+#     notes: justification (optionnel)
+
+feeds:
+  # Tech news généralistes
+  - id: hn-frontpage
+    url: https://news.ycombinator.com/rss
+    category: tech-news
+    weight: 0.6
+    enabled: true
+    notes: "Front page Hacker News — bruyant mais signaux forts en early stage"
+
+  - id: techcrunch-ai
+    url: https://techcrunch.com/category/artificial-intelligence/feed/
+    category: tech-news
+    weight: 0.7
+    enabled: true
+
+  - id: theverge-ai
+    url: https://www.theverge.com/ai-artificial-intelligence/rss/index.xml
+    category: tech-news
+    weight: 0.6
+    enabled: true
+
+  # Recherche académique
+  - id: arxiv-cs-ai
+    url: https://arxiv.org/rss/cs.AI
+    category: research
+    weight: 0.9
+    enabled: true
+    notes: "Papers cs.AI — qualité variable mais signaux breakthrough"
+
+  - id: arxiv-cs-cl
+    url: https://arxiv.org/rss/cs.CL
+    category: research
+    weight: 0.85
+    enabled: true
+    notes: "Computation and Language (NLP, LLM)"
+
+  # Blogs entreprises IA (référence industrielle)
+  - id: anthropic-news
+    url: https://www.anthropic.com/news
+    category: standards
+    weight: 0.95
+    enabled: true
+    notes: "Anthropic — créateur MCP, référence agentic"
+
+  - id: openai-blog
+    url: https://openai.com/blog/rss.xml
+    category: standards
+    weight: 0.9
+    enabled: true
+
+  - id: google-deepmind
+    url: https://deepmind.google/discover/blog/rss.xml
+    category: research
+    weight: 0.85
+    enabled: true
+
+  - id: simonw-blog
+    url: https://simonwillison.net/atom/everything/
+    category: tech-news
+    weight: 0.8
+    enabled: true
+    notes: "Simon Willison — agentic engineering patterns"
+
+  # Standards & gouvernance
+  - id: mcp-blog
+    url: https://blog.modelcontextprotocol.io/rss.xml
+    category: standards
+    weight: 0.95
+    enabled: true
+
+  - id: a2a-protocol
+    url: https://a2a-protocol.org/changelog/
+    category: standards
+    weight: 0.9
+    enabled: true
+
+  # Régulation EU AI Act
+  - id: eu-ai-act
+    url: https://artificialintelligenceact.eu/feed/
+    category: regulation
+    weight: 0.7
+    enabled: true
+    notes: "Veille EU AI Act — application août 2026"
+
+  # Concurrents directs blogs (ex: enrichi en plus de competitors.yaml)
+  - id: dust-blog
+    url: https://blog.dust.tt/rss/
+    category: competitor-blog
+    weight: 0.85
+    enabled: true
+    notes: "Dust.tt — concurrent #1 EU"
+
+  - id: n8n-blog
+    url: https://blog.n8n.io/rss/
+    category: competitor-blog
+    weight: 0.7
+    enabled: true
+
+  - id: lindy-blog
+    url: https://blog.lindy.ai/rss
+    category: competitor-blog
+    weight: 0.6
+    enabled: true

@@ -138,18 +138,18 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 | Spec CLI | `docs/wiki/Briques-CLI.md` |
 | Stories et sprints | `docs/internal/STORIES/sprint-index.md` |
 | Décisions (ADR) | `docs/wiki/Decisions-Log.md` · fichiers : `docs/adr/` |
-| Planning launch v0.1.0 | `docs/internal/RELEASE-MOSCOW.md` (MoSCoW) · `docs/internal/WEEK-PLAN.md` (plan jour par jour) |
+| Planning launch v0.1.0 | `docs/internal/RELEASE-MOSCOW.md` (MoSCoW) · `docs/internal/release/PLAN-13-JOURS-2026-05-08.md` (séquençage 8 → 20 mai) · `docs/internal/release/BACKLOG-2026-05-08.md` (tâches détaillées) |
 | Design system frontend | `docs/wiki/DESIGN-SYSTEM.md` |
 
 ---
 
 ## État courant — Phase release publique
 
-**Mode :** Semaine de release publique — 28 avril au 19 mai 2026.
-**Référence journalière :** `docs/internal/WEEK-PLAN.md` (plan jour par jour, source de vérité).
-**Release :** dimanche 18 mai (repo public + tag v0.1.0) · **Annonce :** lundi 19 mai.
+**Mode :** Semaine de release publique — 8 mai au 20 mai 2026 (annonce mercredi 20 mai).
+**Référence journalière :** `docs/internal/release/PLAN-13-JOURS-2026-05-08.md` (plan jour par jour, source de vérité). Le précédent `WEEK-PLAN.md` est archivé dans `docs/internal/archive/2026-04-30-WEEK-PLAN.md`.
+**Release :** dimanche 18 mai (repo public + tag v0.1.0) · **Pré-launch soft :** lundi 19 mai · **Annonce officielle :** mercredi 20 mai.
 
-**Pas de nouveau sprint feature avant la release.** Toutes les sessions suivent le WEEK-PLAN.
+**Pas de nouveau sprint feature avant la release.** Toutes les sessions suivent le PLAN-13-JOURS.
 
 **Tâches release en cours (MoSCoW) :**
 - M1 Distribution .dmg — CI prête, jamais testée

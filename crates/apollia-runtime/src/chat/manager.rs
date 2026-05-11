@@ -1008,6 +1008,7 @@ impl ChatSessionManager {
             parent_session_id: None,
             fork_depth: 0,
             project_id,
+            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
@@ -1145,6 +1146,22 @@ impl ChatSessionManager {
 
         if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
             let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
+            // Read and consume the late-link injection flag — it triggers a
+            // single re-injection of the project context on the next message
+            // after a session was linked to a project mid-conversation.
+            let force_inject_project_context = {
+                let s_mut = self
+                    .sessions
+                    .get_mut(session_id)
+                    .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
+                let v = s_mut.force_project_context_inject;
+                s_mut.force_project_context_inject = false;
+                v
+            };
+            let session = self
+                .sessions
+                .get(session_id)
+                .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
             // Companion sessions are intentionally isolated from user memory and
             // cross-session history (Principle #6 — memory at agent initiative).
@@ -1158,6 +1175,7 @@ impl ChatSessionManager {
             let history = session.history.clone();
             let is_first_message = history.len() == 1;
             let is_companion = session.mode == ChatMode::Companion;
+            let inject_project_context = is_first_message || force_inject_project_context;
             // On the first message, enrich the system prompt with cross-session context.
             // Companion sessions are excluded — they must not inherit personal history.
             let system_prompt = if is_first_message && !is_companion {
@@ -1255,8 +1273,16 @@ impl ChatSessionManager {
                 )
                 .with_workspace_path(agent_workspace);
 
-                // On the first message, inject project context if the session belongs to a project.
-                let system_prompt = if is_first_message && !is_companion {
+                // Inject project context on first message OR right after the
+                // session was linked to a project (consumed flag).
+                tracing::info!(
+                    session_id = %sid,
+                    inject_project_context,
+                    has_project = session_project_id.is_some(),
+                    has_provider = project_ctx.is_some(),
+                    "Chat send: project-context gate"
+                );
+                let system_prompt = if inject_project_context && !is_companion {
                     if let (Some(ref pid), Some(ref provider)) = (&session_project_id, &project_ctx)
                     {
                         match provider.build_context(pid).await {
@@ -1812,6 +1838,7 @@ impl ChatSessionManager {
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
             project_id: row.project_id,
+            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),
@@ -2038,9 +2065,16 @@ impl ChatSessionManager {
         self.repository
             .set_session_project(session_id, project_id)?;
 
-        // Update in-memory cache
+        // Update in-memory cache and flag the next user message so the
+        // project-context provider re-runs (the initial-injection path is
+        // gated on `is_first_message`, which is false for already-active
+        // sessions).
         if let Some(session) = self.sessions.get_mut(session_id) {
-            session.project_id = project_id.map(|s| s.to_string());
+            let new_pid = project_id.map(|s| s.to_string());
+            if session.project_id != new_pid {
+                session.force_project_context_inject = new_pid.is_some();
+            }
+            session.project_id = new_pid;
         }
         Ok(())
     }
@@ -2210,6 +2244,7 @@ impl ChatSessionManager {
                 parent_session_id: row.parent_session_id,
                 fork_depth: row.fork_depth,
                 project_id: row.project_id,
+                force_project_context_inject: false,
                 fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                     std::collections::HashSet::new(),
                 )),
@@ -3327,6 +3362,7 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            force_project_context_inject: false,
             fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashSet::new(),
             )),

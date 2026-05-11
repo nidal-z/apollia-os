@@ -19,14 +19,9 @@
 
   const CATEGORIES = ["preferences", "habits", "context"] as const;
 
-  type Tone = "primary" | "secondary" | "warning" | "info" | "success" | "neutral";
-
-  const CATEGORY_TONE: Record<string, Tone> = {
-    preferences: "primary",
-    habits: "secondary",
-    context: "warning",
-  };
-
+  // Couleurs sémantiques par catégorie — appliquées uniquement au StatusDot
+  // (signal visuel discret), pas au background du chip. Réduit la charge tonale
+  // tout en gardant la lecture rapide.
   const CATEGORY_DOT: Record<string, string> = {
     preferences: "hsl(var(--primary))",
     habits: "hsl(var(--secondary))",
@@ -96,7 +91,6 @@
 
   const sourceKey = $derived(SOURCE_LABELS[entry.source] ?? "source_explicit");
   const validated = $derived(entry.confidence >= 0.95);
-  const categoryTone = $derived(CATEGORY_TONE[entry.category] ?? "neutral");
   const categoryDot = $derived(CATEGORY_DOT[entry.category] ?? "hsl(var(--muted-foreground))");
 </script>
 
@@ -134,17 +128,22 @@
     {/if}
   </div>
 
-  <!-- CATEGORY + SOURCE -->
-  <div class="w-[180px] flex items-center gap-1.5 flex-wrap min-w-0">
-    <Chip size="sm" tone={categoryTone}>
-      {#snippet icon()}<StatusDot color={categoryDot} />{/snippet}
-      {entry.category}
-    </Chip>
+  <!-- CATEGORY + SOURCE — palette épurée :
+       - Category : dot sémantique coloré + texte neutre (pas de chip coloré).
+       - Source : chip outline neutral.
+       - Validated : chip outline success (uniquement si confiance >= 0.95).
+       Cette approche réduit le "multicolor" : un seul accent coloré (le dot)
+       par row, le reste reste neutre. -->
+  <div class="w-[180px] flex items-center gap-2 flex-wrap min-w-0">
+    <div class="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <StatusDot color={categoryDot} />
+      <span class="text-foreground/85 capitalize">{entry.category}</span>
+    </div>
     <Chip size="sm" tone="neutral" outline>
       {$t(`memory.user_memory.${sourceKey}`)}
     </Chip>
     {#if validated}
-      <Chip size="sm" tone="success">
+      <Chip size="sm" tone="success" outline>
         {$t("memory.user_memory.badge_validated")}
       </Chip>
     {/if}

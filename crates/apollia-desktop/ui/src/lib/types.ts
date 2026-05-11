@@ -1456,6 +1456,7 @@ export interface UpdateProjectRequest {
   name?: string;
   description?: string | null;
   instructions?: string | null;
+  workspace_path?: string | null;
 }
 
 /** Section d'un snapshot workspace. */

@@ -16,13 +16,16 @@
     ChevronRight,
     Sparkles,
     MessageSquare,
+    FolderOpen,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Select } from "$lib/components/ui/select";
   import { LoadingSpinner } from "$lib/components/feedback";
   import type {
     AgentListItem,
     ChatSessionSummary,
     CreateSessionRequest,
+    ProjectSummary,
   } from "$lib/types";
   import { agents } from "$lib/stores/sse";
   import {
@@ -55,7 +58,10 @@
 
   let prompt = $state("");
   let creating = $state(false);
-  let selectedProjectId = $state<string | null>(defaultProjectId);
+  // Stored as a string ("" == no project) to match the native <select>'s
+  // value model used by the DS Select component, which expects `bind:value`
+  // on a string.
+  let selectedProjectId = $state<string>(defaultProjectId ?? "");
 
   const EXPANDED_STORAGE_KEY = "apollia.quickpicker.expanded";
   interface ExpandedState {
@@ -97,6 +103,11 @@
     void invoke<AgentListItem[]>("list_agents")
       .then((list) => agents.set(list))
       .catch(() => { /* SSE will eventually populate */ });
+    // Seed the projects store so the linker is populated even when the
+    // user has not visited the Projects route yet in this session.
+    void invoke<ProjectSummary[]>("list_projects")
+      .then((list) => projects.set(list))
+      .catch(() => { /* link selector will just stay empty */ });
     const stopPolling = startAgentStatusPolling();
     return () => {
       stopPolling();
@@ -120,7 +131,7 @@
     try {
       const request: CreateSessionRequest = {
         mode: "libre",
-        project_id: selectedProjectId ?? undefined,
+        project_id: selectedProjectId || undefined,
         tools,
       };
       const session = await invoke<ChatSessionSummary>("create_chat_session", {
@@ -148,7 +159,7 @@
       const request: CreateSessionRequest = {
         mode: "agent",
         agent_name: agentName,
-        project_id: selectedProjectId ?? undefined,
+        project_id: selectedProjectId || undefined,
       };
       const session = await invoke<ChatSessionSummary>("create_chat_session", {
         request,
@@ -222,26 +233,32 @@
     </button>
   </div>
 
-  <!-- Project selector -->
+  <!-- Project selector — second entry point for the chat ⇄ project link.
+       Hidden only when the user has zero projects; the same action is also
+       available later from the conversation header's kebab menu. -->
   {#if $projects.length > 0}
     <div class="mb-3 flex items-center gap-2">
-      <span class="text-[11px] text-muted-foreground/70">
-        {$t("chat.project_selector")}:
-      </span>
-      <select
-        class="h-7 flex-1 rounded-md border border-border bg-card px-2 text-xs
-          focus:outline-none focus:ring-1 focus:ring-primary/40"
-        value={selectedProjectId ?? ""}
-        onchange={(e) => {
-          selectedProjectId = e.currentTarget.value || null;
-        }}
-        data-testid="quickpicker-project"
+      <label
+        for="quickpicker-project-select"
+        class="text-[11px] font-medium text-muted-foreground/80 shrink-0"
       >
-        <option value="">{$t("chat.no_project")}</option>
-        {#each $projects as proj (proj.id)}
-          <option value={proj.id}>{proj.name}</option>
-        {/each}
-      </select>
+        {$t("chat.project_selector")}
+      </label>
+      <div class="flex-1 min-w-0">
+        <Select
+          id="quickpicker-project-select"
+          icon={FolderOpen}
+          class="h-8 text-xs"
+          bind:value={selectedProjectId}
+          data-testid="quickpicker-project"
+          disabled={creating}
+        >
+          <option value="">{$t("chat.no_project")}</option>
+          {#each $projects as proj (proj.id)}
+            <option value={proj.id}>{proj.name}</option>
+          {/each}
+        </Select>
+      </div>
     </div>
   {/if}
 
