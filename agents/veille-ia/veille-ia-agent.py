@@ -269,15 +269,30 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
             state["step"] = VeilleStep.BOOTSTRAP_CHECK
             return state
 
+        # ADR-087 — prefer ctx.profile when available; the canonical API
+        # returns the user profile as a flat dict.  The legacy
+        # `ctx.memory.recall("user.X")` path is retained as a fallback for
+        # runtime contexts that do not expose ctx.profile yet.
         keys = ["user.role", "user.tech.stack", "user.domain.sector", "user.agents.hitl"]
         ctx_user = {}
-        for k in keys:
+        profile = getattr(ctx, "profile", None)
+        if profile is not None:
             try:
-                v = await ctx.memory.recall(k)
-                if v:
-                    ctx_user[k] = v
+                all_entries = await profile.all()
+                for k in keys:
+                    flat = k.removeprefix("user.")
+                    if all_entries.get(flat):
+                        ctx_user[k] = all_entries[flat]
             except Exception as e:
-                ctx.log("debug", f"recall {k} failed: {e}")
+                ctx.log("debug", f"profile.all() failed: {e}")
+        else:
+            for k in keys:
+                try:
+                    v = await ctx.memory.recall(k)
+                    if v:
+                        ctx_user[k] = v
+                except Exception as e:
+                    ctx.log("debug", f"recall {k} failed: {e}")
         state["data"]["user_context"] = ctx_user
         state["progress"].append(f"USER_CONTEXT ok ({len(ctx_user)} keys)")
         state["step"] = VeilleStep.BOOTSTRAP_CHECK

@@ -385,18 +385,31 @@ async def _remember(
     remain in the agent's own namespace — they describe the run, not the
     user.
 
+    ADR-087: ``user.*`` keys are written through ``ctx.profile.set`` when
+    available, which stores flat keys under the canonical profile schema.
+    The legacy ``ctx.memory.remember_user`` path is retained as a fallback
+    for runtime contexts that do not expose ``ctx.profile`` (older bridges,
+    tests).
+
     Writing to ``__user__`` requires the manifest to declare
     ``user_memory_write = true``; this agent is the only system agent that
     holds that permission.
     """
     confidence = CONFIDENCE_EXPLICIT if explicit else CONFIDENCE_INFERRED
     if key.startswith("user."):
-        await ctx.memory.remember_user(
-            key=key,
-            value=_truncate(value),
-            source=MEMORY_SOURCE,
-            confidence=confidence,
-        )
+        profile = getattr(ctx, "profile", None)
+        if profile is not None:
+            # `set` strips the `user.` prefix itself; pass the key as-is so
+            # tests calling _persist_fact("user.name", ...) end up writing
+            # the flat `name` key under `__user__`.
+            await profile.set(key=key, value=_truncate(value))
+        else:
+            await ctx.memory.remember_user(
+                key=key,
+                value=_truncate(value),
+                source=MEMORY_SOURCE,
+                confidence=confidence,
+            )
     else:
         await ctx.memory.remember(
             key=key,
@@ -834,7 +847,8 @@ class OnboardingAgent(ConversationalAgent):
             "dangerous_tools_allowed": False,
             "tags": ["onboarding", "conversational"],
             # Only this system agent owns the user profile and may write
-            # into the global `__user__` namespace via remember_user().
+            # into the global `__user__` namespace via ctx.profile.set
+            # (ADR-087, supersedes the legacy remember_user path).
             "user_memory_write": True,
         }
 
