@@ -19,7 +19,7 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
 1. Dans la sidebar, cliquez sur **Mémoire**. La page affiche un layout deux colonnes : sidebar des namespaces à gauche, panneau central avec la liste des entrées du namespace sélectionné.
 
-   `[SCREENSHOT: page Mémoire en plein écran, sidebar gauche avec namespaces groupés par catégorie (Profil, Agents, Projets, Autres), panneau central avec barre de filtres et liste d'entrées, header "MÉMOIRE"]`
+   `[SCREENSHOT: page Mémoire — sidebar gauche avec namespaces classifiés (Profil / Agents / Projets / Autres) et segmented control de catégorie, panneau central avec barre de filtres (Toutes / Épisodique / Sémantique / Procédurale) + recherche + breadcrumb, liste d'entrées en dessous]`
 
 2. **Sidebar gauche** — la liste des **namespaces** (un namespace = un espace mémoire isolé). Chaque namespace est classifié automatiquement :
    - **Profil** : votre profil utilisateur partagé (`__user__`). En lecture seule depuis cette page — l'édition se fait dans **Paramètres → Profil**. Une bannière le rappelle quand vous sélectionnez `__user__`.
@@ -29,29 +29,21 @@ Cette page couvre la deuxième : naviguer dans les namespaces mémoire et y supp
 
    Un **segmented control** en haut permet de filtrer la liste par catégorie. Un champ **Filtrer…** permet de retrouver un namespace par nom.
 
-   `[SCREENSHOT: sidebar avec segmented control Tous/Agents/Projets/Profil/Autres, champ Filtrer…, namespaces groupés par catégorie, le "Profil utilisateur" (__user__) sélectionné et la bannière "Le profil utilisateur s'édite dans Paramètres → Profil"]`
-
 3. **Panneau central** — la liste des entrées du namespace sélectionné, avec :
    - Un **segmented control** par type d'entrée : **Toutes / Épisodique / Sémantique / Procédurale**.
    - Une **barre de recherche** plein texte (FTS5) qui interroge le contenu.
    - Un **breadcrumb** sous le filtre qui rappelle le namespace courant.
    - Chaque ligne montre l'icône du type, la clé, un aperçu de la valeur, et la date relative.
 
-   `[SCREENSHOT: barre de filtres en haut du panneau central avec segmented control Toutes/Épisodique/Sémantique/Procédurale et compteurs, barre de recherche à droite, breadcrumb sous le filtre affichant le namespace, liste d'entrées en dessous]`
-
 4. **Cliquez sur une entrée** pour ouvrir le **panneau de détail** à droite. Il affiche la valeur complète (avec pretty-print JSON automatique si applicable), toutes les métadonnées (type, namespace, ID, dates, score BM25 en mode recherche), et expose deux actions : **Copier** la valeur et **Supprimer** l'entrée.
 
-   `[SCREENSHOT: panneau de détail (Sheet) ouvert à droite, valeur JSON pretty-printée, bloc de métadonnées (type, ID, dates), boutons Copier et Supprimer en bas]`
+   `[SCREENSHOT: panneau de détail (Sheet) ouvert à droite — valeur JSON pretty-printée, métadonnées (type, ID, dates), boutons Copier / Supprimer en bas]`
 
 5. Pour **rechercher**, tapez quelques mots-clés dans la **barre de recherche** en haut du panneau central. Les entrées correspondantes s'affichent triées par pertinence (score BM25), et le breadcrumb indique « *N résultats* ».
-
-   `[SCREENSHOT: recherche active avec terme dans la barre, breadcrumb "N résultats" avec icône loupe bleue, liste filtrée en dessous]`
 
 6. Pour **supprimer une entrée** précise, deux options équivalentes :
    - Survolez la ligne, cliquez sur le menu **⋯** en bout de ligne, choisissez **Supprimer**, puis confirmez sur le bouton **Confirmer** qui apparaît.
    - Ou ouvrez le panneau de détail (click sur la ligne) et utilisez le bouton **Supprimer** en bas.
-
-   `[SCREENSHOT: menu contextuel ⋯ ouvert sur une ligne survolée avec option Supprimer en surbrillance]`
 
    L'entrée disparaît immédiatement et ne reviendra pas.
 
