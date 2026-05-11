@@ -33,7 +33,7 @@
 - [[Outils-Reference|Référence des Outils Natifs]]
 - [[Briques-MCP|Client MCP (apollia-mcp)]]
 - [[Briques-Memory-Engine|Memory Engine]]
-- [[Briques-User-Memory|User Memory]]
+- [[Briques-User-Profile|User Profile]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
 - [[LLM-Sampling-Defaults|LLM — Sampling Defaults]]
