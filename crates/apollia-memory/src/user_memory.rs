@@ -1,73 +1,157 @@
-//! UserMemoryRepository — global user memory backed by SemanticMemory.
+//! UserMemoryRepository — canonical user profile backed by SemanticMemory.
 //!
-//! Persists user preferences, habits, and contextual information under
-//! the reserved `__user__` namespace.  The repository delegates storage
-//! to [`SemanticMemory`] and [`MemorySearch`], adding domain-specific
-//! typing (category, source) and an LLM-friendly recall format.
+//! Persists the global user profile under the reserved `__user__` namespace.
+//! Keys are flat (no `category.` or `user.` prefix) and either match a
+//! canonical [`crate::profile_schema::PROFILE_SCHEMA`] entry or live as
+//! "extras" (free-form, surfaced separately in the UI).
+//!
+//! Internal state markers (onboarding bookkeeping, migration receipts) use a
+//! double-underscore prefix and are hidden from the profile listing.
+//!
+//! ADR-087 amends ADR-038: the namespace and the SemanticMemory backend are
+//! preserved, but the public API and storage layout are simplified.
 
 use std::fmt;
 use std::path::Path;
 
+use crate::profile_schema::{field_for, is_canonical, PROFILE_SCHEMA};
 use crate::search::{MemorySearch, SearchSource};
 use crate::semantic::SemanticMemory;
 use crate::store::MemoryStore;
 
-/// Reserved SemanticMemory namespace for user-level data.
-const USER_NAMESPACE: &str = "__user__";
+/// Reserved SemanticMemory namespace for the global user profile.
+pub const USER_NAMESPACE: &str = "__user__";
 
-/// Default confidence score assigned to user memory entries.
-const DEFAULT_CONFIDENCE: f64 = 1.0;
+/// All keys in `__user__` starting with this prefix are considered internal
+/// state (onboarding bookkeeping, migration receipts) and are hidden from the
+/// profile listing returned to the UI.
+const INTERNAL_KEY_PREFIX: &str = "__";
 
-/// Separator between the category prefix and the key in semantic storage.
-const KEY_SEPARATOR: char = '.';
+/// Internal key: ISO 8601 timestamp of the last onboarding session.
+const KEY_ONBOARDING_LAST_SESSION: &str = "__onboarding_last_session";
+
+/// Internal key: `"true"` when the user dismissed onboarding.
+const KEY_ONBOARDING_SKIPPED: &str = "__onboarding_skipped";
+
+/// Internal key prefix: one entry per topic covered by the onboarding agent
+/// (e.g. `__onboarding_topic_identity`).
+const KEY_ONBOARDING_TOPIC_PREFIX: &str = "__onboarding_topic_";
 
 // ---------------------------------------------------------------------------
-// Public types
+// Public types — canonical (ADR-087)
 // ---------------------------------------------------------------------------
 
-/// Category of a user memory entry (ADR-038).
+/// Provenance of a profile entry — what wrote it.
+///
+/// Replaces the legacy 4-variant [`UserMemorySource`] with 3 cases; agent
+/// observations (including legacy `chat_inference`) collapse into
+/// [`WrittenBy::Agent`] tagged with the agent name.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "name")]
+pub enum WrittenBy {
+    /// Written by the onboarding-agent during initial setup.
+    Onboarding,
+    /// Written explicitly by the user (Settings → Profile, CLI, IPC).
+    User,
+    /// Written by an agent during task execution (name = agent identifier).
+    Agent(String),
+}
+
+impl WrittenBy {
+    /// Serialization tag stored in the SemanticMemory `source` column.
+    pub fn tag(&self) -> String {
+        match self {
+            Self::Onboarding => "onboarding".to_owned(),
+            Self::User => "user".to_owned(),
+            Self::Agent(name) => format!("agent:{name}"),
+        }
+    }
+
+    /// Reconstructs a [`WrittenBy`] from a storage tag.  Unknown or legacy
+    /// tags are best-effort mapped: `user_explicit` → [`Self::User`],
+    /// `chat_inference`/`agent_observation` → [`Self::Agent`] with a
+    /// descriptive name.
+    pub fn from_tag(tag: &str) -> Self {
+        if tag == "onboarding" {
+            Self::Onboarding
+        } else if tag == "user" || tag == "user_explicit" {
+            Self::User
+        } else if let Some(name) = tag.strip_prefix("agent:") {
+            Self::Agent(name.to_owned())
+        } else if tag == "chat_inference" {
+            Self::Agent("chat-extractor".to_owned())
+        } else if tag == "agent_observation" {
+            Self::Agent("legacy".to_owned())
+        } else {
+            Self::Agent("legacy".to_owned())
+        }
+    }
+}
+
+/// A single profile entry returned by recall operations.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProfileEntry {
+    /// Flat storage key (e.g. `name`, `agents.hitl`).
+    pub key: String,
+    /// Plain-text value.
+    pub value: String,
+    /// Who wrote this entry.
+    pub written_by: WrittenBy,
+    /// ISO 8601 creation timestamp.
+    pub created_at: String,
+    /// ISO 8601 last-update timestamp.
+    pub updated_at: String,
+    /// `true` when [`key`] matches a canonical [`PROFILE_SCHEMA`] entry.
+    pub in_schema: bool,
+}
+
+/// Errors from [`UserMemoryRepository`] operations.
+#[derive(Debug, thiserror::Error)]
+pub enum UserMemoryError {
+    /// A storage operation failed.
+    #[error("storage error: {0}")]
+    StorageError(String),
+    /// The provided category string is not recognized (legacy API).
+    #[error("invalid category: {0}")]
+    InvalidCategory(String),
+    /// The requested entry was not found.
+    #[error("entry not found: {0}")]
+    NotFound(String),
+    /// The provided key is empty or starts with the internal prefix.
+    #[error("invalid key: {0}")]
+    InvalidKey(String),
+}
+
+// ---------------------------------------------------------------------------
+// Legacy types — kept for backward compatibility (deprecated)
+// ---------------------------------------------------------------------------
+
+/// Category of a user memory entry.
+///
+/// **Deprecated (ADR-087)**: kept for backward compatibility while callers
+/// migrate.  Storage no longer uses categories; calls receiving a category
+/// argument simply ignore it on the write side, and on the read side return
+/// schema entries grouped by the corresponding [`crate::profile_schema::ProfileSection`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UserMemoryCategory {
-    /// User profile identity (name, role, industry, goals, etc.).
+    /// User profile identity (legacy).
     Profile,
-    /// User preferences (language, output format, tone, etc.).
+    /// User preferences (legacy).
     Preferences,
-    /// Observed user habits (working hours, review frequency, etc.).
+    /// Observed user habits (legacy).
     Habits,
-    /// Contextual information (current project, role, team, etc.).
+    /// Contextual information (legacy).
     Context,
 }
 
 impl UserMemoryCategory {
-    /// Returns the string tag used as key prefix in SemanticMemory.
     fn as_str(&self) -> &'static str {
         match self {
             Self::Profile => "profile",
             Self::Preferences => "preferences",
             Self::Habits => "habits",
             Self::Context => "context",
-        }
-    }
-
-    /// Ordered list of all categories, used for grouped recall.
-    fn all() -> &'static [Self] {
-        &[
-            Self::Profile,
-            Self::Preferences,
-            Self::Habits,
-            Self::Context,
-        ]
-    }
-
-    /// Parses a category from its string tag.
-    fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "profile" => Some(Self::Profile),
-            "preferences" => Some(Self::Preferences),
-            "habits" => Some(Self::Habits),
-            "context" => Some(Self::Context),
-            _ => None,
         }
     }
 }
@@ -79,60 +163,67 @@ impl fmt::Display for UserMemoryCategory {
 }
 
 /// Source of a user memory entry.
+///
+/// **Deprecated (ADR-087)**: use [`WrittenBy`] instead.  Conversion is provided
+/// via [`Self::into_written_by`] and [`From`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UserMemorySource {
-    /// Set during first-run onboarding wizard.
+    /// Set during onboarding (legacy).
     Onboarding,
-    /// Inferred by the LLM from a chat conversation.
+    /// Inferred by the LLM from a chat conversation (legacy).
     ChatInference,
-    /// Explicitly provided by the user.
+    /// Explicitly provided by the user (legacy).
     UserExplicit,
-    /// Observed by an agent during task execution.
+    /// Observed by an agent during task execution (legacy).
     AgentObservation,
 }
 
 impl UserMemorySource {
-    /// Returns the string tag stored in SemanticMemory's `source` field.
-    fn as_str(&self) -> &'static str {
+    /// Converts a legacy source enum into the canonical [`WrittenBy`].
+    pub fn into_written_by(self) -> WrittenBy {
         match self {
-            Self::Onboarding => "onboarding",
-            Self::ChatInference => "chat_inference",
-            Self::UserExplicit => "user_explicit",
-            Self::AgentObservation => "agent_observation",
+            Self::Onboarding => WrittenBy::Onboarding,
+            Self::UserExplicit => WrittenBy::User,
+            Self::ChatInference => WrittenBy::Agent("chat-extractor".to_owned()),
+            Self::AgentObservation => WrittenBy::Agent("legacy".to_owned()),
         }
     }
+}
 
-    /// Parses a source from its string tag.
-    fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "onboarding" => Some(Self::Onboarding),
-            "chat_inference" => Some(Self::ChatInference),
-            "user_explicit" => Some(Self::UserExplicit),
-            "agent_observation" => Some(Self::AgentObservation),
-            _ => None,
-        }
+impl From<UserMemorySource> for WrittenBy {
+    fn from(src: UserMemorySource) -> Self {
+        src.into_written_by()
     }
 }
 
 impl fmt::Display for UserMemorySource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        let s = match self {
+            Self::Onboarding => "onboarding",
+            Self::ChatInference => "chat_inference",
+            Self::UserExplicit => "user_explicit",
+            Self::AgentObservation => "agent_observation",
+        };
+        f.write_str(s)
     }
 }
 
-/// A single user memory entry returned by recall operations.
+/// A single user memory entry — legacy shape.
+///
+/// **Deprecated (ADR-087)**: use [`ProfileEntry`] instead.  The `category`
+/// field is derived best-effort from the canonical schema section.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserMemoryEntry {
-    /// Category of the entry.
+    /// Legacy category (derived).
     pub category: UserMemoryCategory,
-    /// Short key identifying the entry within its category.
+    /// Short key.
     pub key: String,
-    /// Human-readable value.
+    /// Plain-text value.
     pub value: String,
-    /// How this entry was created.
+    /// Legacy source.
     pub source: UserMemorySource,
-    /// Confidence score (0.0..=1.0).
+    /// Confidence score — always `1.0` in the simplified model.
     pub confidence: f64,
     /// ISO 8601 creation timestamp.
     pub created_at: String,
@@ -140,29 +231,15 @@ pub struct UserMemoryEntry {
     pub updated_at: String,
 }
 
-/// Errors from [`UserMemoryRepository`] operations.
-#[derive(Debug, thiserror::Error)]
-pub enum UserMemoryError {
-    /// A storage operation failed.
-    #[error("storage error: {0}")]
-    StorageError(String),
-    /// The provided category string is not recognized.
-    #[error("invalid category: {0}")]
-    InvalidCategory(String),
-    /// The requested entry was not found.
-    #[error("entry not found: {0}")]
-    NotFound(String),
-}
-
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
 
-/// Repository for global user memory backed by [`SemanticMemory`].
+/// Repository for the global user profile, backed by [`SemanticMemory`].
 ///
-/// All entries live under the `__user__` namespace in a shared
-/// [`MemoryStore`].  Keys are prefixed with the category tag
-/// (`preferences.language`, `habits.working_hours`, etc.).
+/// All entries live under the [`USER_NAMESPACE`] namespace, with flat keys.
+/// Canonical fields are described by [`PROFILE_SCHEMA`]; free-form keys are
+/// tolerated and surfaced as "extras".
 pub struct UserMemoryRepository {
     store: MemoryStore,
 }
@@ -175,107 +252,137 @@ impl UserMemoryRepository {
         Ok(Self { store })
     }
 
-    /// Returns `true` if the repository contains no user memory entries.
+    /// Returns `true` when no user-visible (non-internal) entry is present.
     pub fn is_empty(&self) -> Result<bool, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
             .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-        Ok(all.is_empty())
+        Ok(all
+            .iter()
+            .all(|e| e.key.starts_with(INTERNAL_KEY_PREFIX)))
     }
 
-    /// Stores or updates a user memory entry with the default confidence (1.0).
+    // -- Canonical API (ADR-087) --
+
+    /// Upserts a profile entry under [`key`] with the given provenance.
     ///
-    /// If an entry with the same `key` already exists in `category`,
-    /// the value is replaced (upsert semantics).
-    pub fn store(
+    /// Empty keys and keys starting with the internal prefix `__` are
+    /// rejected with [`UserMemoryError::InvalidKey`].
+    pub fn set(
         &self,
-        category: UserMemoryCategory,
         key: &str,
         value: &str,
-        source: UserMemorySource,
+        written_by: WrittenBy,
     ) -> Result<(), UserMemoryError> {
-        self.store_with_confidence(category, key, value, source, DEFAULT_CONFIDENCE)
+        Self::validate_external_key(key)?;
+        self.write_raw(key, value, written_by)
     }
 
-    /// Stores or updates a user memory entry with a custom confidence score.
-    ///
-    /// If an entry with the same `key` already exists in `category`,
-    /// the value is replaced (upsert semantics).
-    pub fn store_with_confidence(
-        &self,
-        category: UserMemoryCategory,
-        key: &str,
-        value: &str,
-        source: UserMemorySource,
-        confidence: f64,
-    ) -> Result<(), UserMemoryError> {
-        let compound_key = Self::compound_key(category, key);
+    /// Reads a single profile entry by key.  Returns `Ok(None)` when missing.
+    pub fn get(&self, key: &str) -> Result<Option<ProfileEntry>, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
-        let json_value = serde_json::Value::String(value.to_owned());
-
-        sem.remember(
-            USER_NAMESPACE,
-            &compound_key,
-            &json_value,
-            confidence,
-            Some(source.as_str()),
-            None,
-        )
-        .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-        Ok(())
+        let entry = sem
+            .recall(USER_NAMESPACE, key)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(entry.map(|se| Self::semantic_to_profile(&se)))
     }
 
-    /// Recalls entries for a given category, ordered by key, up to `limit`.
-    pub fn recall(
-        &self,
-        category: UserMemoryCategory,
-        limit: usize,
-    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
+    /// Lists all user-visible entries (schema fields + extras), ordered by
+    /// schema position first, then alphabetically for extras.
+    pub fn list_all(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
-        let prefix = format!("{}{KEY_SEPARATOR}", category.as_str());
-
         let all = sem
             .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
-        let entries: Vec<UserMemoryEntry> = all
+        let mut by_key: std::collections::HashMap<String, ProfileEntry> = all
             .into_iter()
-            .filter(|e| e.key.starts_with(&prefix))
-            .take(limit)
-            .filter_map(|e| Self::semantic_to_entry(&e.key, &e))
+            .filter(|e| !e.key.starts_with(INTERNAL_KEY_PREFIX))
+            .map(|e| (e.key.clone(), Self::semantic_to_profile(&e)))
             .collect();
 
-        Ok(entries)
+        let mut ordered = Vec::with_capacity(by_key.len());
+        for field in PROFILE_SCHEMA {
+            if let Some(entry) = by_key.remove(field.key) {
+                ordered.push(entry);
+            }
+        }
+        let mut extras: Vec<ProfileEntry> = by_key.into_values().collect();
+        extras.sort_by(|a, b| a.key.cmp(&b.key));
+        ordered.extend(extras);
+        Ok(ordered)
     }
 
-    /// Looks up a single entry by category and key.
-    ///
-    /// Returns `None` if no entry matches the given category/key pair.
-    pub fn recall_by_key(
-        &self,
-        category: UserMemoryCategory,
-        key: &str,
-    ) -> Result<Option<UserMemoryEntry>, UserMemoryError> {
-        let compound_key = Self::compound_key(category, key);
+    /// Lists only canonical schema entries (filtered subset of [`list_all`]).
+    pub fn list_schema(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        Ok(self.list_all()?.into_iter().filter(|e| e.in_schema).collect())
+    }
+
+    /// Lists only free-form entries (not in schema).
+    pub fn list_extras(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+        Ok(self
+            .list_all()?
+            .into_iter()
+            .filter(|e| !e.in_schema)
+            .collect())
+    }
+
+    /// Deletes a single entry by key.  Returns [`UserMemoryError::NotFound`]
+    /// when the key did not exist.
+    pub fn forget(&self, key: &str) -> Result<(), UserMemoryError> {
+        Self::validate_external_key(key)?;
         let sem = SemanticMemory::new(&self.store);
-
-        let entry = sem
-            .recall(USER_NAMESPACE, &compound_key)
+        let deleted = sem
+            .forget(USER_NAMESPACE, key)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-        Ok(entry.and_then(|se| Self::semantic_to_entry(&compound_key, &se)))
+        if deleted {
+            Ok(())
+        } else {
+            Err(UserMemoryError::NotFound(key.to_owned()))
+        }
     }
 
-    /// Full-text search across all categories.
-    ///
-    /// Returns entries matching `query` via FTS5 BM25 ranking.
+    /// Deletes every user-visible entry.  Internal state markers (onboarding
+    /// bookkeeping, migration receipts) are preserved.  Returns the number of
+    /// deleted entries.
+    pub fn reset(&self) -> Result<usize, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(USER_NAMESPACE, None)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        let mut count = 0usize;
+        for entry in all {
+            if entry.key.starts_with(INTERNAL_KEY_PREFIX) {
+                continue;
+            }
+            let removed = sem
+                .forget(USER_NAMESPACE, &entry.key)
+                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+            if removed {
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    /// Updates the value of an existing entry, preserving its provenance.
+    /// Returns [`UserMemoryError::NotFound`] when the key does not exist.
+    pub fn update(&self, key: &str, value: &str) -> Result<(), UserMemoryError> {
+        Self::validate_external_key(key)?;
+        let existing = self.get(key)?;
+        let Some(entry) = existing else {
+            return Err(UserMemoryError::NotFound(key.to_owned()));
+        };
+        self.write_raw(key, value, entry.written_by)
+    }
+
+    /// Full-text search across user-visible entries.
     pub fn search(
         &self,
         query: &str,
         limit: usize,
-    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
+    ) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let searcher = MemorySearch::new(&self.store);
         let sem = SemanticMemory::new(&self.store);
 
@@ -289,73 +396,82 @@ impl UserMemoryRepository {
             )
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
-        let mut entries = Vec::with_capacity(results.len());
-        for result in &results {
-            let maybe = sem
-                .recall_all(USER_NAMESPACE, None)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?
-                .into_iter()
-                .find(|e| e.id == result.source_id);
-
-            if let Some(se) = maybe {
-                if let Some(entry) = Self::semantic_to_entry(&se.key, &se) {
-                    entries.push(entry);
-                }
-            }
-        }
-
-        Ok(entries)
-    }
-
-    /// Produces a text block suitable for LLM system-prompt injection.
-    ///
-    /// Entries are grouped by category. Output format:
-    /// ```text
-    /// Category: preferences
-    /// - language: francais
-    /// - format: markdown
-    /// Category: habits
-    /// - working_hours: 9h-18h
-    /// ```
-    pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
         let all = sem
             .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
+        let mut entries = Vec::with_capacity(results.len());
+        for result in &results {
+            if let Some(se) = all.iter().find(|e| e.id == result.source_id) {
+                if se.key.starts_with(INTERNAL_KEY_PREFIX) {
+                    continue;
+                }
+                entries.push(Self::semantic_to_profile(se));
+            }
+        }
+        Ok(entries)
+    }
+
+    /// Produces a text block suitable for LLM system-prompt injection
+    /// (legacy `recall_all_for_injection` shape, kept for chat user_context).
+    ///
+    /// Output groups entries by schema section:
+    /// ```text
+    /// Section: identity
+    /// - name: Nidal
+    /// - role: CTO
+    /// Section: preferences
+    /// - preferences.language: fr
+    /// ```
+    pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
+        let entries = self.list_all()?;
         let mut output = String::new();
         let mut total = 0usize;
 
-        for &cat in UserMemoryCategory::all() {
-            let prefix = format!("{}{KEY_SEPARATOR}", cat.as_str());
-            let entries_for_cat: Vec<_> =
-                all.iter().filter(|e| e.key.starts_with(&prefix)).collect();
+        let sections = [
+            crate::profile_schema::ProfileSection::Identity,
+            crate::profile_schema::ProfileSection::Work,
+            crate::profile_schema::ProfileSection::Preferences,
+            crate::profile_schema::ProfileSection::Constraints,
+        ];
 
-            if entries_for_cat.is_empty() {
+        for section in sections {
+            let in_section: Vec<&ProfileEntry> = entries
+                .iter()
+                .filter(|e| field_for(&e.key).map(|f| f.section) == Some(section))
+                .collect();
+            if in_section.is_empty() {
                 continue;
             }
-
             if !output.is_empty() {
                 output.push('\n');
             }
-            output.push_str(&format!("Category: {}\n", cat.as_str()));
-
-            for entry in entries_for_cat {
+            output.push_str(&format!("Section: {}\n", section.tag()));
+            for entry in in_section {
                 if total >= max_entries {
                     break;
                 }
-                let short_key = &entry.key[prefix.len()..];
-                let value = entry
-                    .value
-                    .as_str()
-                    .map(|s| s.to_owned())
-                    .unwrap_or_else(|| entry.value.to_string());
-                output.push_str(&format!("- {short_key}: {value}\n"));
+                output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
                 total += 1;
             }
-
             if total >= max_entries {
                 break;
+            }
+        }
+
+        // Append extras under a trailing section.
+        let extras: Vec<&ProfileEntry> = entries.iter().filter(|e| !e.in_schema).collect();
+        if !extras.is_empty() && total < max_entries {
+            if !output.is_empty() {
+                output.push('\n');
+            }
+            output.push_str("Section: other\n");
+            for entry in extras {
+                if total >= max_entries {
+                    break;
+                }
+                output.push_str(&format!("- {}: {}\n", entry.key, entry.value));
+                total += 1;
             }
         }
 
@@ -364,57 +480,43 @@ impl UserMemoryRepository {
 
     /// Produces a structured persona brief for LLM system-prompt injection.
     ///
-    /// Unlike [`recall_all_for_injection`] which dumps raw key-values, this
-    /// method generates a narrative persona summary with adaptation
-    /// instructions.  Entries with `confidence < 0.3` are filtered out.
-    ///
-    /// Falls back gracefully when identity keys are missing — the narrative
-    /// header simply omits unknown fields.
+    /// Unlike [`Self::recall_all_for_injection`], this method renders a French
+    /// narrative summary aimed at agent system prompts.  Reads flat canonical
+    /// keys (no `category.` prefix); extras under `goal*` / `tools*` are
+    /// folded into the brief.
     pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-        let all = sem
-            .recall_all(USER_NAMESPACE, None)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-        // Early return if no entries with sufficient confidence exist.
-        let qualified: Vec<_> = all.iter().filter(|e| e.confidence >= 0.3).collect();
-        if qualified.is_empty() {
+        let entries = self.list_all()?;
+        if entries.is_empty() {
             return Ok(String::new());
         }
 
-        // Helper: find a value by scanning all entries for a compound key suffix.
-        let find_value = |suffix: &str| -> Option<String> {
-            all.iter()
-                .find(|e| e.key.ends_with(suffix) && e.confidence >= 0.3)
-                .and_then(|e| e.value.as_str().map(|s| s.to_owned()))
+        let find = |k: &str| -> Option<String> {
+            entries
+                .iter()
+                .find(|e| e.key == k)
+                .map(|e| e.value.clone())
         };
+
+        let name = find("name");
+        let role = find("role");
+        let industry = find("domain.sector");
+        let team_size = find("domain.team_size");
+        let expertise = find("tech.proficiency");
+        let language = find("preferences.language");
+        let hitl = find("agents.hitl");
+        let sovereignty = find("constraints.sovereignty");
+        let compliance = find("constraints.compliance");
 
         let mut output = String::new();
 
-        // --- Narrative header ---
-        // Suffix lookups support both legacy keys (`.industry`, `.expertise_level`)
-        // and the canonical onboarding/Profile keys written today
-        // (`.context.sector`, `.tech.proficiency`).
-        let name = find_value(".name").or_else(|| find_value(".user_name"));
-        let role = find_value(".role").or_else(|| find_value(".user_role"));
-        let industry = find_value(".domain.sector").or_else(|| find_value(".industry"));
-        let team_size = find_value(".domain.team_size");
-        let expertise = find_value(".tech.proficiency").or_else(|| find_value(".expertise_level"));
-        let language = find_value(".language");
-        let verbosity = find_value(".verbosity");
-        let tone = find_value(".tone");
-        let hitl = find_value(".agents.hitl");
-        let sovereignty = find_value(".constraints.sovereignty");
-        let compliance = find_value(".constraints.compliance");
-
-        // Build the persona headline.
+        // Narrative header
         let mut headline_parts: Vec<String> = Vec::new();
         if let Some(ref n) = name {
             headline_parts.push(n.clone());
         }
         if let Some(ref r) = role {
             if headline_parts.is_empty() {
-                headline_parts.push(format!("Role: {r}"));
+                headline_parts.push(format!("Rôle : {r}"));
             } else {
                 headline_parts.push(format!("({r})"));
             }
@@ -433,8 +535,7 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // --- Gouvernance (HITL, souveraineté, compliance) ---
-        // Critical for agents adapting their tool-call strategy and refusal patterns.
+        // Governance
         let mut gov_parts: Vec<String> = Vec::new();
         if let Some(ref h) = hitl {
             let label = match h.as_str() {
@@ -464,27 +565,16 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // --- Language & preferences ---
-        let mut pref_parts: Vec<String> = Vec::new();
+        // Preferences
         if let Some(ref lang) = language {
-            pref_parts.push(format!("Langue : {lang}"));
-        }
-        if let Some(ref v) = verbosity {
-            pref_parts.push(format!("Réponses : {v}"));
-        }
-        if let Some(ref t) = tone {
-            pref_parts.push(format!("Ton : {t}"));
-        }
-        if !pref_parts.is_empty() {
-            output.push_str(&pref_parts.join(" | "));
-            output.push('\n');
+            output.push_str(&format!("Langue : {lang}\n"));
         }
 
-        // --- Goals ---
-        let goals: Vec<String> = all
+        // Goals
+        let goals: Vec<String> = entries
             .iter()
-            .filter(|e| e.key.contains("goal") && e.confidence >= 0.3)
-            .filter_map(|e| e.value.as_str().map(|s| s.to_owned()))
+            .filter(|e| e.key == "goals" || e.key.starts_with("goal"))
+            .map(|e| e.value.clone())
             .collect();
         if !goals.is_empty() {
             output.push_str("\nObjectifs :\n");
@@ -493,11 +583,11 @@ impl UserMemoryRepository {
             }
         }
 
-        // --- Daily tools ---
-        let tools: Vec<String> = all
+        // Daily tools
+        let tools: Vec<String> = entries
             .iter()
-            .filter(|e| e.key.contains("tools") && e.confidence >= 0.3)
-            .filter_map(|e| e.value.as_str().map(|s| s.to_owned()))
+            .filter(|e| e.key == "tools.daily" || e.key.starts_with("tools"))
+            .map(|e| e.value.clone())
             .collect();
         if !tools.is_empty() {
             output.push_str("\nOutils : ");
@@ -505,13 +595,10 @@ impl UserMemoryRepository {
             output.push('\n');
         }
 
-        // --- Adaptation instructions ---
+        // Adaptation hints
         output.push_str("\nAdaptation :\n");
         if let Some(ref lang) = language {
             output.push_str(&format!("- Langue : {lang}\n"));
-        }
-        if let Some(ref v) = verbosity {
-            output.push_str(&format!("- Profondeur : {v}\n"));
         }
         if let Some(ref r) = role {
             let r_lower = r.to_lowercase();
@@ -547,67 +634,189 @@ impl UserMemoryRepository {
             }
         }
 
-        // --- Remaining context (capped) ---
-        let used_suffixes = [
+        // Remaining context (extras + non-mentioned schema fields), capped.
+        let mentioned = [
             "name",
             "role",
-            "industry",
-            "expertise_level",
-            "language",
-            "verbosity",
-            "tone",
             "domain.sector",
             "domain.team_size",
             "tech.proficiency",
+            "preferences.language",
             "agents.hitl",
             "constraints.sovereignty",
             "constraints.compliance",
+            "tools.daily",
+            "goals",
         ];
-        let remaining: Vec<_> = all
+        let remaining: Vec<&ProfileEntry> = entries
             .iter()
-            .filter(|e| e.confidence >= 0.3)
             .filter(|e| {
-                !used_suffixes.iter().any(|s| e.key.ends_with(s))
-                    && !e.key.contains("goal")
-                    && !e.key.contains("tools")
-                    && !e.key.contains("onboarding_topic_")
-                    && !e.key.contains("onboarding_skipped")
-                    && !e.key.contains("onboarding_last_session")
-                    && !e.key.contains("onboarding.state")
+                !mentioned.iter().any(|k| *k == e.key)
+                    && !e.key.starts_with("goal")
+                    && !e.key.starts_with("tools")
             })
             .take(max_entries)
             .collect();
-
         if !remaining.is_empty() {
             output.push_str("\nContexte :\n");
             for entry in remaining {
-                let short_key = entry
-                    .key
-                    .split(KEY_SEPARATOR)
-                    .next_back()
-                    .unwrap_or(&entry.key);
-                let value = entry
-                    .value
-                    .as_str()
-                    .map(|s| s.to_owned())
-                    .unwrap_or_else(|| entry.value.to_string());
-
-                // Flag stale entries (older than ~6 months = 180 days).
                 let stale_marker = if Self::is_stale(&entry.updated_at) {
                     " (peut-être obsolète)"
                 } else {
                     ""
                 };
-                output.push_str(&format!("- {short_key}: {value}{stale_marker}\n"));
+                output.push_str(&format!(
+                    "- {}: {}{stale_marker}\n",
+                    entry.key, entry.value
+                ));
             }
         }
 
         Ok(output)
     }
 
+    // -- Onboarding bookkeeping (internal state, hidden from profile UI) --
+
+    /// Returns the list of onboarding topics already covered.
+    pub fn get_covered_topics(&self) -> Result<Vec<String>, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(USER_NAMESPACE, None)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(all
+            .into_iter()
+            .filter_map(|e| {
+                e.key
+                    .strip_prefix(KEY_ONBOARDING_TOPIC_PREFIX)
+                    .map(|t| t.to_owned())
+            })
+            .collect())
+    }
+
+    /// Marks an onboarding topic as covered.
+    pub fn mark_topic_covered(&self, topic: &str) -> Result<(), UserMemoryError> {
+        let key = format!("{KEY_ONBOARDING_TOPIC_PREFIX}{topic}");
+        self.write_raw(&key, "covered", WrittenBy::Onboarding)
+    }
+
+    /// Returns `true` when the user dismissed the onboarding.
+    pub fn get_onboarding_skipped(&self) -> Result<bool, UserMemoryError> {
+        let entry = SemanticMemory::new(&self.store)
+            .recall(USER_NAMESPACE, KEY_ONBOARDING_SKIPPED)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(entry
+            .and_then(|e| e.value.as_str().map(|s| s.to_owned()))
+            .map(|v| v == "true")
+            .unwrap_or(false))
+    }
+
+    /// Marks or unmarks the onboarding as skipped.
+    pub fn set_onboarding_skipped(&self, skipped: bool) -> Result<(), UserMemoryError> {
+        self.write_raw(
+            KEY_ONBOARDING_SKIPPED,
+            if skipped { "true" } else { "false" },
+            WrittenBy::Onboarding,
+        )
+    }
+
+    /// Returns the ISO 8601 timestamp of the last onboarding session, if any.
+    pub fn get_last_onboarding_session(&self) -> Result<Option<String>, UserMemoryError> {
+        let entry = SemanticMemory::new(&self.store)
+            .recall(USER_NAMESPACE, KEY_ONBOARDING_LAST_SESSION)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(entry.and_then(|e| e.value.as_str().map(|s| s.to_owned())))
+    }
+
+    /// Records the timestamp of the current onboarding session.
+    pub fn set_last_onboarding_session(&self, timestamp: &str) -> Result<(), UserMemoryError> {
+        self.write_raw(
+            KEY_ONBOARDING_LAST_SESSION,
+            timestamp,
+            WrittenBy::Onboarding,
+        )
+    }
+
+    // -- Legacy API (deprecated, ADR-087) --
+
+    /// Stores or updates a user memory entry with the default confidence.
+    ///
+    /// **Deprecated (ADR-087)**: prefer [`Self::set`].  The `category`
+    /// argument is ignored — keys are stored flat.  `user.`-prefixed legacy
+    /// keys are accepted and stripped to maintain backwards compatibility.
+    pub fn store(
+        &self,
+        _category: UserMemoryCategory,
+        key: &str,
+        value: &str,
+        source: UserMemorySource,
+    ) -> Result<(), UserMemoryError> {
+        let flat_key = Self::strip_user_prefix(key);
+        self.set(flat_key, value, source.into_written_by())
+    }
+
+    /// Stores or updates a user memory entry with a custom confidence score.
+    ///
+    /// **Deprecated (ADR-087)**: the `confidence` argument is ignored; the
+    /// simplified model always stores at confidence `1.0`.
+    pub fn store_with_confidence(
+        &self,
+        _category: UserMemoryCategory,
+        key: &str,
+        value: &str,
+        source: UserMemorySource,
+        _confidence: f64,
+    ) -> Result<(), UserMemoryError> {
+        let flat_key = Self::strip_user_prefix(key);
+        self.set(flat_key, value, source.into_written_by())
+    }
+
+    /// Returns entries from the profile, ignoring the `_category` filter.
+    ///
+    /// **Deprecated (ADR-087)**: prefer [`Self::list_all`] /
+    /// [`Self::list_schema`].  Returned entries have their `category` field
+    /// best-effort derived from the canonical schema section.
+    pub fn recall(
+        &self,
+        _category: UserMemoryCategory,
+        limit: usize,
+    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
+        let entries = self.list_all()?;
+        Ok(entries
+            .into_iter()
+            .take(limit)
+            .map(Self::profile_to_legacy)
+            .collect())
+    }
+
+    /// Looks up a single entry by key (category ignored).
+    ///
+    /// **Deprecated (ADR-087)**: prefer [`Self::get`].
+    pub fn recall_by_key(
+        &self,
+        _category: UserMemoryCategory,
+        key: &str,
+    ) -> Result<Option<UserMemoryEntry>, UserMemoryError> {
+        let flat_key = Self::strip_user_prefix(key);
+        Ok(self.get(flat_key)?.map(Self::profile_to_legacy))
+    }
+
+    /// Updates only the confidence score of an existing entry.
+    ///
+    /// **Deprecated (ADR-087)**: the confidence model is removed in the
+    /// simplified API.  This method is a no-op except for verifying the entry
+    /// exists, returning [`UserMemoryError::NotFound`] otherwise.
+    pub fn update_confidence(&self, key: &str, _confidence: f64) -> Result<(), UserMemoryError> {
+        let flat_key = Self::strip_user_prefix(key);
+        if self.get(flat_key)?.is_none() {
+            return Err(UserMemoryError::NotFound(key.to_owned()));
+        }
+        Ok(())
+    }
+
+    // -- Internal helpers --
+
     /// Returns `true` if `iso_ts` is older than 180 days from now.
     fn is_stale(iso_ts: &str) -> bool {
-        // Best-effort: parse the date prefix (YYYY-MM-DD) and compare.
         let Some(date_str) = iso_ts.get(..10) else {
             return false;
         };
@@ -618,195 +827,100 @@ impl UserMemoryRepository {
         now.signed_duration_since(then).num_days() > 180
     }
 
-    /// Removes the entry with the given `key` from any category.
-    ///
-    /// Returns `Ok(())` if the entry was found and deleted, or
-    /// `Err(NotFound)` if no entry matched.
-    pub fn forget(&self, key: &str) -> Result<(), UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-
-        for &cat in UserMemoryCategory::all() {
-            let compound = Self::compound_key(cat, key);
-            let deleted = sem
-                .forget(USER_NAMESPACE, &compound)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-            if deleted {
-                return Ok(());
-            }
+    /// Validates an externally-supplied key.  Empty keys and `__`-prefixed
+    /// keys are rejected.
+    fn validate_external_key(key: &str) -> Result<(), UserMemoryError> {
+        if key.is_empty() {
+            return Err(UserMemoryError::InvalidKey("(empty)".to_owned()));
         }
-
-        Err(UserMemoryError::NotFound(key.to_owned()))
-    }
-
-    /// Updates only the confidence score of an existing entry.
-    ///
-    /// The value and source are preserved.  Scans all categories for a
-    /// matching key.  Returns `Err(NotFound)` if the key does not exist.
-    pub fn update_confidence(&self, key: &str, confidence: f64) -> Result<(), UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-
-        for &cat in UserMemoryCategory::all() {
-            let compound = Self::compound_key(cat, key);
-            let existing = sem
-                .recall(USER_NAMESPACE, &compound)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-            if let Some(entry) = existing {
-                let source = entry
-                    .source
-                    .as_deref()
-                    .and_then(UserMemorySource::from_str)
-                    .unwrap_or(UserMemorySource::UserExplicit);
-
-                let value = entry
-                    .value
-                    .as_str()
-                    .map(|s| s.to_owned())
-                    .unwrap_or_else(|| entry.value.to_string());
-
-                self.store_with_confidence(cat, key, &value, source, confidence)?;
-                return Ok(());
-            }
+        if key.starts_with(INTERNAL_KEY_PREFIX) {
+            return Err(UserMemoryError::InvalidKey(key.to_owned()));
         }
-
-        Err(UserMemoryError::NotFound(key.to_owned()))
+        Ok(())
     }
 
-    /// Updates the value of an existing entry, preserving its source.
-    ///
-    /// Scans all categories for a matching key.
-    /// Returns `Err(NotFound)` if the key does not exist.
-    pub fn update(&self, key: &str, value: &str) -> Result<(), UserMemoryError> {
+    /// Strips the legacy `user.` prefix when present.  Returns the input
+    /// untouched otherwise.
+    fn strip_user_prefix(key: &str) -> &str {
+        key.strip_prefix("user.").unwrap_or(key)
+    }
+
+    /// Writes an entry without external-key validation — used by both the
+    /// canonical API (after validation) and internal-state setters.
+    fn write_raw(
+        &self,
+        key: &str,
+        value: &str,
+        written_by: WrittenBy,
+    ) -> Result<(), UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
-
-        for &cat in UserMemoryCategory::all() {
-            let compound = Self::compound_key(cat, key);
-            let existing = sem
-                .recall(USER_NAMESPACE, &compound)
-                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-            if let Some(entry) = existing {
-                let source = entry
-                    .source
-                    .as_deref()
-                    .and_then(UserMemorySource::from_str)
-                    .unwrap_or(UserMemorySource::UserExplicit);
-
-                self.store(cat, key, value, source)?;
-                return Ok(());
-            }
-        }
-
-        Err(UserMemoryError::NotFound(key.to_owned()))
-    }
-
-    // -- onboarding helpers --
-
-    /// Returns the list of onboarding topics that have been covered.
-    ///
-    /// A topic is considered covered when a key `onboarding_topic_{topic}`
-    /// exists in the `Context` category with source `Onboarding`.
-    pub fn get_covered_topics(&self) -> Result<Vec<String>, UserMemoryError> {
-        let sem = SemanticMemory::new(&self.store);
-        let prefix = format!(
-            "{}{KEY_SEPARATOR}onboarding_topic_",
-            UserMemoryCategory::Context.as_str()
-        );
-
-        let all = sem
-            .recall_all(USER_NAMESPACE, None)
-            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
-
-        let topics: Vec<String> = all
-            .into_iter()
-            .filter(|e| e.key.starts_with(&prefix))
-            .filter_map(|e| e.key.strip_prefix(&prefix).map(|t| t.to_owned()))
-            .collect();
-
-        Ok(topics)
-    }
-
-    /// Returns the ISO 8601 timestamp of the last onboarding session, if any.
-    pub fn get_last_onboarding_session(&self) -> Result<Option<String>, UserMemoryError> {
-        let entry = self.recall_by_key(UserMemoryCategory::Context, "onboarding_last_session")?;
-        Ok(entry.map(|e| e.value))
-    }
-
-    /// Returns `true` if the user has explicitly dismissed (skipped) the onboarding.
-    pub fn get_onboarding_skipped(&self) -> Result<bool, UserMemoryError> {
-        let entry = self.recall_by_key(UserMemoryCategory::Context, "onboarding_skipped")?;
-        Ok(entry.map(|e| e.value == "true").unwrap_or(false))
-    }
-
-    /// Marks or unmarks the onboarding as skipped.
-    pub fn set_onboarding_skipped(&self, skipped: bool) -> Result<(), UserMemoryError> {
-        self.store(
-            UserMemoryCategory::Context,
-            "onboarding_skipped",
-            if skipped { "true" } else { "false" },
-            UserMemorySource::Onboarding,
+        let json_value = serde_json::Value::String(value.to_owned());
+        sem.remember(
+            USER_NAMESPACE,
+            key,
+            &json_value,
+            1.0,
+            Some(&written_by.tag()),
+            None,
         )
+        .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(())
     }
 
-    /// Records that an onboarding topic has been covered.
-    pub fn mark_topic_covered(&self, topic: &str) -> Result<(), UserMemoryError> {
-        let key = format!("onboarding_topic_{topic}");
-        self.store(
-            UserMemoryCategory::Context,
-            &key,
-            "covered",
-            UserMemorySource::Onboarding,
-        )
-    }
-
-    /// Records the timestamp of the current onboarding session.
-    pub fn set_last_onboarding_session(&self, timestamp: &str) -> Result<(), UserMemoryError> {
-        self.store(
-            UserMemoryCategory::Context,
-            "onboarding_last_session",
-            timestamp,
-            UserMemorySource::Onboarding,
-        )
-    }
-
-    // -- helpers --
-
-    /// Builds the compound key stored in SemanticMemory (`category.key`).
-    fn compound_key(category: UserMemoryCategory, key: &str) -> String {
-        format!("{}{KEY_SEPARATOR}{key}", category.as_str())
-    }
-
-    /// Converts a [`SemanticEntry`] to a [`UserMemoryEntry`].
-    ///
-    /// Returns `None` if the key does not contain a valid category prefix.
-    fn semantic_to_entry(
-        compound_key: &str,
-        se: &crate::semantic::SemanticEntry,
-    ) -> Option<UserMemoryEntry> {
-        let (cat_str, short_key) = compound_key.split_once(KEY_SEPARATOR)?;
-        let category = UserMemoryCategory::from_str(cat_str)?;
-        let source = se
-            .source
-            .as_deref()
-            .and_then(UserMemorySource::from_str)
-            .unwrap_or(UserMemorySource::UserExplicit);
-
+    /// Converts a [`SemanticEntry`] to a canonical [`ProfileEntry`].
+    fn semantic_to_profile(se: &crate::semantic::SemanticEntry) -> ProfileEntry {
         let value = se
             .value
             .as_str()
             .map(|s| s.to_owned())
             .unwrap_or_else(|| se.value.to_string());
-
-        Some(UserMemoryEntry {
-            category,
-            key: short_key.to_owned(),
+        let written_by = se
+            .source
+            .as_deref()
+            .map(WrittenBy::from_tag)
+            .unwrap_or_else(|| WrittenBy::Agent("legacy".to_owned()));
+        ProfileEntry {
+            key: se.key.clone(),
             value,
-            source,
-            confidence: se.confidence,
+            written_by,
             created_at: se.created_at.clone(),
             updated_at: se.updated_at.clone(),
-        })
+            in_schema: is_canonical(&se.key),
+        }
+    }
+
+    /// Converts a canonical [`ProfileEntry`] into a legacy
+    /// [`UserMemoryEntry`].
+    fn profile_to_legacy(entry: ProfileEntry) -> UserMemoryEntry {
+        let category = field_for(&entry.key)
+            .map(|f| match f.section {
+                crate::profile_schema::ProfileSection::Identity => UserMemoryCategory::Context,
+                crate::profile_schema::ProfileSection::Work => UserMemoryCategory::Context,
+                crate::profile_schema::ProfileSection::Preferences => {
+                    UserMemoryCategory::Preferences
+                }
+                crate::profile_schema::ProfileSection::Constraints => {
+                    UserMemoryCategory::Preferences
+                }
+            })
+            .unwrap_or(UserMemoryCategory::Context);
+        let source = match entry.written_by {
+            WrittenBy::Onboarding => UserMemorySource::Onboarding,
+            WrittenBy::User => UserMemorySource::UserExplicit,
+            WrittenBy::Agent(ref name) if name == "chat-extractor" => {
+                UserMemorySource::ChatInference
+            }
+            WrittenBy::Agent(_) => UserMemorySource::AgentObservation,
+        };
+        UserMemoryEntry {
+            category,
+            key: entry.key,
+            value: entry.value,
+            source,
+            confidence: 1.0,
+            created_at: entry.created_at,
+            updated_at: entry.updated_at,
+        }
     }
 }
 
@@ -826,451 +940,218 @@ mod tests {
         (repo, path)
     }
 
-    // Store + recall round-trip for each category
     #[test]
-    fn test_store_recall_round_trip() {
-        // GIVEN
+    fn set_and_get_roundtrip() {
         let (repo, _) = setup();
-
-        // WHEN
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Habits,
-            "working_hours",
-            "9h-18h",
-            UserMemorySource::AgentObservation,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Context,
-            "current_project",
-            "apollia-os",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-
-        // THEN
-        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
-        assert_eq!(prefs.len(), 1);
-        assert_eq!(prefs[0].key, "language");
-        assert_eq!(prefs[0].value, "francais");
-        assert_eq!(prefs[0].source, UserMemorySource::UserExplicit);
-        assert_eq!(prefs[0].category, UserMemoryCategory::Preferences);
-
-        let habits = repo.recall(UserMemoryCategory::Habits, 10).unwrap();
-        assert_eq!(habits.len(), 1);
-        assert_eq!(habits[0].key, "working_hours");
-
-        let ctx = repo.recall(UserMemoryCategory::Context, 10).unwrap();
-        assert_eq!(ctx.len(), 1);
-        assert_eq!(ctx[0].key, "current_project");
-    }
-
-    // recall_all_for_injection produces correct grouped format
-    #[test]
-    fn test_recall_all_for_injection_format() {
-        // GIVEN
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "format",
-            "markdown",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Habits,
-            "working_hours",
-            "9h-18h",
-            UserMemorySource::AgentObservation,
-        )
-        .unwrap();
-
-        // WHEN
-        let text = repo.recall_all_for_injection(50).unwrap();
-
-        // THEN
-        assert!(text.contains("Category: preferences"));
-        assert!(text.contains("- language: francais"));
-        assert!(text.contains("- format: markdown"));
-        assert!(text.contains("Category: habits"));
-        assert!(text.contains("- working_hours: 9h-18h"));
-        // Preferences appear before habits (ordered by category)
-        let pref_pos = text.find("Category: preferences").unwrap();
-        let habit_pos = text.find("Category: habits").unwrap();
-        assert!(pref_pos < habit_pos);
-    }
-
-    // FTS5 search returns results cross-categories
-    #[test]
-    fn test_search_fts5_cross_categories() {
-        // GIVEN
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Context,
-            "locale",
-            "francais",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-
-        // WHEN
-        let results = repo.search("francais", 10).unwrap();
-
-        // THEN
-        assert!(results.len() >= 2);
-        let categories: Vec<_> = results.iter().map(|e| e.category).collect();
-        assert!(categories.contains(&UserMemoryCategory::Preferences));
-        assert!(categories.contains(&UserMemoryCategory::Context));
-    }
-
-    // Forget removes the entry
-    #[test]
-    fn test_forget_removes_entry() {
-        // GIVEN
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-
-        // WHEN
-        repo.forget("language").unwrap();
-
-        // THEN
-        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
-        assert!(prefs.is_empty());
-    }
-
-    // Update modifies the value
-    #[test]
-    fn test_update_modifies_value() {
-        // GIVEN
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-
-        // WHEN
-        repo.update("language", "english").unwrap();
-
-        // THEN
-        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
-        assert_eq!(prefs.len(), 1);
-        assert_eq!(prefs[0].value, "english");
-        assert_eq!(prefs[0].source, UserMemorySource::UserExplicit);
-    }
-
-    // Forget nonexistent key returns NotFound
-    #[test]
-    fn test_forget_nonexistent_returns_not_found() {
-        // GIVEN
-        let (repo, _) = setup();
-
-        // WHEN
-        let result = repo.forget("nonexistent");
-
-        // THEN
-        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
-    }
-
-    // Update nonexistent key returns NotFound
-    #[test]
-    fn test_update_nonexistent_returns_not_found() {
-        // GIVEN
-        let (repo, _) = setup();
-
-        // WHEN
-        let result = repo.update("nonexistent", "value");
-
-        // THEN
-        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
-    }
-
-    // recall_all_for_injection respects max_entries limit
-    #[test]
-    fn test_recall_all_for_injection_respects_limit() {
-        // GIVEN
-        let (repo, _) = setup();
-        for i in 0..10 {
-            repo.store(
-                UserMemoryCategory::Preferences,
-                &format!("key_{i}"),
-                &format!("value_{i}"),
-                UserMemorySource::UserExplicit,
-            )
-            .unwrap();
-        }
-
-        // WHEN
-        let text = repo.recall_all_for_injection(3).unwrap();
-
-        // THEN — at most 3 "- key:" lines
-        let entry_count = text.lines().filter(|l| l.starts_with("- ")).count();
-        assert_eq!(entry_count, 3);
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        let entry = repo.get("name").unwrap().expect("entry should exist");
+        assert_eq!(entry.value, "Nidal");
+        assert_eq!(entry.written_by, WrittenBy::Onboarding);
+        assert!(entry.in_schema);
     }
 
     #[test]
-    fn test_update_confidence_preserves_value_and_source() {
-        // GIVEN an entry with confidence 0.5
+    fn list_schema_and_extras_are_partitioned() {
         let (repo, _) = setup();
-        repo.store_with_confidence(
-            UserMemoryCategory::Preferences,
-            "language",
-            "francais",
-            UserMemorySource::ChatInference,
-            0.5,
-        )
-        .unwrap();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        repo.set("favorite_color", "blue", WrittenBy::User).unwrap();
 
-        // WHEN confidence is updated to 0.95
-        repo.update_confidence("language", 0.95).unwrap();
-
-        // THEN value and source are preserved, confidence is 0.95
-        let entry = repo
-            .recall_by_key(UserMemoryCategory::Preferences, "language")
-            .unwrap()
-            .expect("entry should exist");
-        assert_eq!(entry.value, "francais");
-        assert_eq!(entry.source, UserMemorySource::ChatInference);
-        assert!((entry.confidence - 0.95).abs() < f64::EPSILON);
+        let schema = repo.list_schema().unwrap();
+        let extras = repo.list_extras().unwrap();
+        assert!(schema.iter().any(|e| e.key == "name"));
+        assert!(!schema.iter().any(|e| e.key == "favorite_color"));
+        assert!(extras.iter().any(|e| e.key == "favorite_color"));
+        assert!(!extras.iter().any(|e| e.key == "name"));
     }
 
     #[test]
-    fn test_update_confidence_not_found() {
-        // GIVEN an empty repo
+    fn set_rejects_internal_keys() {
         let (repo, _) = setup();
-
-        // WHEN updating confidence for a non-existent key
-        let result = repo.update_confidence("nonexistent", 0.95);
-
-        // THEN NotFound is returned
-        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
+        let err = repo
+            .set("__sneaky", "x", WrittenBy::User)
+            .expect_err("internal keys must be rejected");
+        assert!(matches!(err, UserMemoryError::InvalidKey(_)));
     }
 
     #[test]
-    fn test_is_empty_on_fresh_repo() {
-        // GIVEN a fresh repository with no entries
+    fn reset_preserves_internal_state() {
         let (repo, _) = setup();
-
-        // WHEN / THEN
-        assert!(repo.is_empty().unwrap(), "fresh repo should be empty");
-    }
-
-    #[test]
-    fn test_is_empty_after_store() {
-        // GIVEN a repository with one entry
-        let (repo, _) = setup();
-        repo.store(
-            UserMemoryCategory::Preferences,
-            "language",
-            "fr",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-
-        // WHEN / THEN
-        assert!(
-            !repo.is_empty().unwrap(),
-            "repo with entries should not be empty"
-        );
-    }
-
-    #[test]
-    fn test_get_covered_topics_empty() {
-        // GIVEN a fresh repository
-        let (repo, _) = setup();
-
-        // WHEN
-        let topics = repo.get_covered_topics().unwrap();
-
-        // THEN
-        assert!(topics.is_empty());
-    }
-
-    #[test]
-    fn test_get_covered_topics_with_entries() {
-        // GIVEN topics marked as covered
-        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::User).unwrap();
         repo.mark_topic_covered("identity").unwrap();
-        repo.mark_topic_covered("preferences").unwrap();
-        repo.mark_topic_covered("tools").unwrap();
-
-        // WHEN
-        let topics = repo.get_covered_topics().unwrap();
-
-        // THEN
-        assert_eq!(topics.len(), 3);
-        assert!(topics.contains(&"identity".to_string()));
-        assert!(topics.contains(&"preferences".to_string()));
-        assert!(topics.contains(&"tools".to_string()));
-    }
-
-    #[test]
-    fn test_get_onboarding_skipped_default() {
-        // GIVEN a fresh repository
-        let (repo, _) = setup();
-
-        // WHEN / THEN
-        assert!(!repo.get_onboarding_skipped().unwrap());
-    }
-
-    #[test]
-    fn test_set_and_get_onboarding_skipped() {
-        // GIVEN a repository
-        let (repo, _) = setup();
-
-        // WHEN skipping onboarding
         repo.set_onboarding_skipped(true).unwrap();
 
-        // THEN
+        let removed = repo.reset().unwrap();
+        assert_eq!(removed, 1, "only the user-visible entry should be removed");
+        assert!(repo.get("name").unwrap().is_none());
         assert!(repo.get_onboarding_skipped().unwrap());
+        assert_eq!(repo.get_covered_topics().unwrap(), vec!["identity"]);
     }
 
     #[test]
-    fn test_get_last_onboarding_session_default() {
-        // GIVEN a fresh repository
+    fn list_orders_schema_then_extras() {
         let (repo, _) = setup();
+        repo.set("zzz_extra", "x", WrittenBy::User).unwrap();
+        repo.set("role", "CTO", WrittenBy::User).unwrap();
+        repo.set("aaa_extra", "y", WrittenBy::User).unwrap();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
 
-        // WHEN / THEN
-        assert!(repo.get_last_onboarding_session().unwrap().is_none());
+        let all = repo.list_all().unwrap();
+        assert_eq!(all[0].key, "name");
+        assert_eq!(all[1].key, "role");
+        let extras_keys: Vec<&str> = all
+            .iter()
+            .filter(|e| !e.in_schema)
+            .map(|e| e.key.as_str())
+            .collect();
+        assert_eq!(extras_keys, vec!["aaa_extra", "zzz_extra"]);
     }
 
     #[test]
-    fn test_set_and_get_last_onboarding_session() {
-        // GIVEN a repository
-        let (repo, _) = setup();
-        let timestamp = "2026-06-15T14:30:00Z";
-
-        // WHEN
-        repo.set_last_onboarding_session(timestamp).unwrap();
-
-        // THEN
-        assert_eq!(
-            repo.get_last_onboarding_session().unwrap().as_deref(),
-            Some(timestamp)
-        );
-    }
-
-    #[test]
-    fn test_dismiss_preserves_topics() {
-        // GIVEN topics already covered
-        let (repo, _) = setup();
-        repo.mark_topic_covered("identity").unwrap();
-        repo.mark_topic_covered("domain").unwrap();
-
-        // WHEN dismissing onboarding
-        repo.set_onboarding_skipped(true).unwrap();
-
-        // THEN topics are preserved
-        let topics = repo.get_covered_topics().unwrap();
-        assert_eq!(topics.len(), 2);
-        assert!(topics.contains(&"identity".to_string()));
-        assert!(topics.contains(&"domain".to_string()));
-    }
-
-    // recall_persona_brief reflects the keys actually written by onboarding +
-    // Profile (name, role, agents.hitl, constraints.sovereignty, context.sector,
-    // tech.proficiency). Guards against the prior bug where the brief scanned
-    // only orphan suffixes (.industry, .expertise_level) that nothing wrote.
-    #[test]
-    fn test_recall_persona_brief_reflects_onboarding_keys() {
-        // GIVEN a repository populated as the onboarding agent + Profile do
+    fn legacy_store_drops_category_and_user_prefix() {
         let (repo, _) = setup();
         repo.store(
-            UserMemoryCategory::Context,
-            "name",
+            UserMemoryCategory::Preferences,
+            "user.name",
             "Nidal",
             UserMemorySource::Onboarding,
         )
         .unwrap();
-        repo.store(
-            UserMemoryCategory::Context,
-            "role",
-            "CTO startup fintech",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Habits,
-            "agents.hitl",
-            "critical-only",
-            UserMemorySource::Onboarding,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Preferences,
+        let entry = repo.get("name").unwrap().expect("entry should exist");
+        assert_eq!(entry.value, "Nidal");
+        assert_eq!(entry.written_by, WrittenBy::Onboarding);
+    }
+
+    #[test]
+    fn legacy_recall_returns_all_entries() {
+        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        repo.set("role", "CTO", WrittenBy::User).unwrap();
+
+        let legacy = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
+        assert_eq!(legacy.len(), 2);
+        let keys: Vec<&str> = legacy.iter().map(|e| e.key.as_str()).collect();
+        assert!(keys.contains(&"name"));
+        assert!(keys.contains(&"role"));
+    }
+
+    #[test]
+    fn forget_returns_not_found_when_missing() {
+        let (repo, _) = setup();
+        let err = repo.forget("nonexistent").expect_err("must fail");
+        assert!(matches!(err, UserMemoryError::NotFound(_)));
+    }
+
+    #[test]
+    fn forget_removes_entry() {
+        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::User).unwrap();
+        repo.forget("name").unwrap();
+        assert!(repo.get("name").unwrap().is_none());
+    }
+
+    #[test]
+    fn update_preserves_provenance() {
+        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        repo.update("name", "Alice").unwrap();
+        let entry = repo.get("name").unwrap().unwrap();
+        assert_eq!(entry.value, "Alice");
+        assert_eq!(entry.written_by, WrittenBy::Onboarding);
+    }
+
+    #[test]
+    fn recall_persona_brief_reflects_canonical_keys() {
+        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        repo.set("role", "CTO fintech", WrittenBy::Onboarding).unwrap();
+        repo.set("agents.hitl", "critical-only", WrittenBy::Onboarding)
+            .unwrap();
+        repo.set(
             "constraints.sovereignty",
             "local-preferred",
-            UserMemorySource::Onboarding,
+            WrittenBy::Onboarding,
         )
         .unwrap();
-        repo.store(
-            UserMemoryCategory::Context,
-            "domain.sector",
-            "fintech",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
-        repo.store(
-            UserMemoryCategory::Context,
-            "tech.proficiency",
-            "expert",
-            UserMemorySource::UserExplicit,
-        )
-        .unwrap();
+        repo.set("domain.sector", "fintech", WrittenBy::User).unwrap();
+        repo.set("tech.proficiency", "expert", WrittenBy::User).unwrap();
 
-        // WHEN
         let brief = repo.recall_persona_brief(20).unwrap();
-
-        // THEN the persona reflects all four canonical Tier 1 keys + Tier 2
-        assert!(brief.contains("Nidal"), "brief should contain user name: {brief}");
-        assert!(
-            brief.contains("CTO startup fintech"),
-            "brief should contain role: {brief}"
-        );
+        assert!(brief.contains("Nidal"), "brief should contain name: {brief}");
+        assert!(brief.contains("CTO fintech"), "{brief}");
         assert!(
             brief.contains("supervision sur actions critiques"),
-            "brief should reflect agents.hitl=critical-only: {brief}"
+            "{brief}"
         );
+        assert!(brief.contains("local préféré"), "{brief}");
+        assert!(brief.contains("fintech"), "{brief}");
+        assert!(brief.contains("expert"), "{brief}");
+    }
+
+    #[test]
+    fn is_empty_on_fresh_and_after_set() {
+        let (repo, _) = setup();
+        assert!(repo.is_empty().unwrap());
+        repo.set_onboarding_skipped(true).unwrap();
         assert!(
-            brief.contains("local préféré"),
-            "brief should reflect sovereignty=local-preferred: {brief}"
+            repo.is_empty().unwrap(),
+            "internal markers should not count as 'visible' entries"
         );
-        assert!(
-            brief.contains("fintech"),
-            "brief should mention sector fintech: {brief}"
+        repo.set("name", "Nidal", WrittenBy::User).unwrap();
+        assert!(!repo.is_empty().unwrap());
+    }
+
+    #[test]
+    fn search_returns_visible_entries() {
+        let (repo, _) = setup();
+        repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        repo.set("preferences.language", "francais", WrittenBy::User)
+            .unwrap();
+        let results = repo.search("francais", 10).unwrap();
+        assert!(results.iter().any(|e| e.key == "preferences.language"));
+    }
+
+    #[test]
+    fn onboarding_topics_round_trip() {
+        let (repo, _) = setup();
+        repo.mark_topic_covered("identity").unwrap();
+        repo.mark_topic_covered("preferences").unwrap();
+        let topics = repo.get_covered_topics().unwrap();
+        assert_eq!(topics.len(), 2);
+        assert!(topics.contains(&"identity".to_string()));
+        assert!(topics.contains(&"preferences".to_string()));
+    }
+
+    #[test]
+    fn onboarding_session_round_trip() {
+        let (repo, _) = setup();
+        assert!(repo.get_last_onboarding_session().unwrap().is_none());
+        repo.set_last_onboarding_session("2026-05-11T10:00:00Z")
+            .unwrap();
+        assert_eq!(
+            repo.get_last_onboarding_session().unwrap().as_deref(),
+            Some("2026-05-11T10:00:00Z")
         );
-        assert!(
-            brief.contains("expert"),
-            "brief should mention tech proficiency: {brief}"
+    }
+
+    #[test]
+    fn written_by_tag_round_trip() {
+        assert_eq!(WrittenBy::Onboarding.tag(), "onboarding");
+        assert_eq!(WrittenBy::User.tag(), "user");
+        assert_eq!(
+            WrittenBy::Agent("veille-ia".to_owned()).tag(),
+            "agent:veille-ia"
+        );
+        assert_eq!(WrittenBy::from_tag("onboarding"), WrittenBy::Onboarding);
+        assert_eq!(WrittenBy::from_tag("user"), WrittenBy::User);
+        assert_eq!(
+            WrittenBy::from_tag("agent:veille-ia"),
+            WrittenBy::Agent("veille-ia".to_owned())
+        );
+        // Legacy mapping
+        assert_eq!(WrittenBy::from_tag("user_explicit"), WrittenBy::User);
+        assert_eq!(
+            WrittenBy::from_tag("chat_inference"),
+            WrittenBy::Agent("chat-extractor".to_owned())
         );
     }
 }

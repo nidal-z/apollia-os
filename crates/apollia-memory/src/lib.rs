@@ -20,6 +20,7 @@ pub mod injection_tracker;
 pub mod manager;
 pub mod plan_choice_store;
 pub mod procedural;
+pub mod profile_schema;
 pub mod search;
 pub mod semantic;
 pub mod store;

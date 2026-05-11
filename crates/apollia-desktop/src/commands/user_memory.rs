@@ -1,12 +1,22 @@
-//! Tauri IPC commands for user memory management and conversation statistics.
+//! Tauri IPC commands for the user profile and conversation statistics.
 //!
 //! Provides direct access to [`UserMemoryRepository`] and
 //! [`ChatSessionManagerHandle`] from the frontend, bypassing the REST API
 //! layer for lower latency.  All data stays local (Principle #1).
+//!
+//! After ADR-087, the canonical surface is profile-shaped:
+//! [`get_profile_schema`], [`get_profile`], [`set_profile_entry`],
+//! [`delete_profile_entry`], [`reset_user_profile`].  The legacy commands
+//! [`get_user_memory_profile`], [`update_user_memory_entry`],
+//! [`delete_user_memory_entry`], [`clear_user_memory`], [`search_user_memory`]
+//! are kept as thin wrappers for the transition.
 
 use std::sync::Arc;
 
-use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryEntry, UserMemoryRepository};
+use apollia_memory::profile_schema::{PROFILE_SCHEMA, ProfileFieldType, ProfileSection};
+use apollia_memory::user_memory::{
+    ProfileEntry, UserMemoryRepository, WrittenBy,
+};
 use apollia_runtime::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -15,37 +25,97 @@ use tauri::State;
 /// Maximum number of results returned by a memory search.
 const MAX_SEARCH_RESULTS: usize = 50;
 
-/// Upper limit of entries fetched per category during profile aggregation.
-const MAX_RECALL_PER_CATEGORY: usize = 500;
-
-/// Valid category names accepted by [`update_user_memory_entry`].
-const VALID_CATEGORIES: &[&str] = &["preferences", "habits", "context"];
-
 // ---------------------------------------------------------------------------
 // View types (serialised to the Svelte frontend)
 // ---------------------------------------------------------------------------
 
-/// Aggregated user profile with statistics.
+/// A single canonical schema field exposed to the UI.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileFieldView {
+    /// Storage key (`name`, `agents.hitl`, ...).
+    pub key: String,
+    /// French label.
+    pub label_fr: String,
+    /// English label.
+    pub label_en: String,
+    /// French inline help.
+    pub help_fr: String,
+    /// English inline help.
+    pub help_en: String,
+    /// UI section (`identity`, `work`, `preferences`, `constraints`).
+    pub section: String,
+    /// `true` for fields whose change warrants a "rerun onboarding" notice.
+    pub sensitive: bool,
+    /// Input control to render (`text`, `long_text`, `select`).
+    pub field_type: String,
+    /// Allowed values for `select` fields; empty otherwise.
+    pub options: Vec<String>,
+}
+
+/// A single profile entry formatted for the frontend.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProfileEntryView {
+    /// Flat storage key.
+    pub key: String,
+    /// Plain-text value.
+    pub value: String,
+    /// Provenance tag (`onboarding`, `user`, `agent:<name>`).
+    pub written_by: String,
+    /// ISO 8601 creation timestamp.
+    pub created_at: String,
+    /// ISO 8601 last-update timestamp.
+    pub updated_at: String,
+    /// `true` when the key matches a canonical [`PROFILE_SCHEMA`] entry.
+    pub in_schema: bool,
+}
+
+/// Aggregated user profile for the Settings → Profile page.
+#[derive(Debug, Clone, Serialize)]
+pub struct UserProfileView {
+    /// Schema-driven entries (subset of [`Self::entries`] where `in_schema`).
+    pub schema_entries: Vec<ProfileEntryView>,
+    /// Free-form entries not present in the schema.
+    pub extras: Vec<ProfileEntryView>,
+    /// All entries combined (schema first, then extras).
+    pub entries: Vec<ProfileEntryView>,
+    /// Most recent `updated_at` across all entries.
+    pub last_updated_at: Option<String>,
+}
+
+/// Request payload for [`set_profile_entry`].
+#[derive(Debug, Deserialize)]
+pub struct SetProfileEntryRequest {
+    /// Flat storage key.
+    pub key: String,
+    /// Plain-text value (empty value = delete).
+    pub value: String,
+}
+
+// ---------------------------------------------------------------------------
+// Legacy view types (deprecated, kept for backward compatibility)
+// ---------------------------------------------------------------------------
+
+/// Aggregated user profile with statistics — legacy shape.
 #[derive(Debug, Clone, Serialize)]
 pub struct UserMemoryProfileView {
-    /// All memory entries across categories.
+    /// All memory entries.
     pub entries: Vec<UserMemoryEntryView>,
     /// Aggregated statistics.
     pub stats: UserMemoryStats,
 }
 
-/// A single user memory entry formatted for the frontend.
+/// A single user memory entry — legacy shape.
 #[derive(Debug, Clone, Serialize)]
 pub struct UserMemoryEntryView {
-    /// Category of the entry.
+    /// Derived legacy category (`preferences`/`habits`/`context`).
     pub category: String,
-    /// Short key within its category.
+    /// Flat key.
     pub key: String,
-    /// Human-readable value.
+    /// Plain-text value.
     pub value: String,
-    /// How this entry was created.
+    /// Provenance tag.
     pub source: String,
-    /// Confidence score (0.0–1.0).
+    /// Always `1.0` in the simplified model.
     pub confidence: f64,
     /// ISO 8601 creation timestamp.
     pub created_at: String,
@@ -53,55 +123,31 @@ pub struct UserMemoryEntryView {
     pub updated_at: String,
 }
 
-/// Aggregated statistics over user memory entries.
+/// Aggregated statistics over user memory entries — legacy shape.
 #[derive(Debug, Clone, Serialize)]
 pub struct UserMemoryStats {
     /// Total number of entries.
     pub total: usize,
-    /// Entry count per category.
-    pub by_category: CategoryCounts,
-    /// Entry count per source.
-    pub by_source: SourceCounts,
-    /// Most recent `updated_at` across all entries, if any.
+    /// Most recent `updated_at`, if any.
     pub last_updated_at: Option<String>,
 }
 
-/// Entry counts grouped by category.
-#[derive(Debug, Clone, Serialize)]
-pub struct CategoryCounts {
-    /// Number of preference entries.
-    pub preferences: usize,
-    /// Number of habit entries.
-    pub habits: usize,
-    /// Number of context entries.
-    pub context: usize,
-}
-
-/// Entry counts grouped by source.
-#[derive(Debug, Clone, Serialize)]
-pub struct SourceCounts {
-    /// Entries created during onboarding.
-    pub onboarding: usize,
-    /// Entries inferred by the LLM from conversations.
-    pub chat_inference: usize,
-    /// Entries explicitly provided by the user.
-    pub user_explicit: usize,
-    /// Entries observed by agents during execution.
-    pub agent_observation: usize,
-}
-
-/// Request payload for creating or updating a user memory entry.
+/// Request payload for [`update_user_memory_entry`] — legacy shape.
 #[derive(Debug, Deserialize)]
 pub struct UpdateUserMemoryRequest {
-    /// Category (`"preferences"`, `"habits"`, or `"context"`).
+    /// Category (ignored — kept for legacy callers).
     pub category: String,
-    /// Short key identifying the entry within its category.
+    /// Flat key.
     pub key: String,
-    /// Human-readable value.
+    /// Plain-text value.
     pub value: String,
-    /// Optional confidence override (defaults to 1.0).
+    /// Ignored — confidence is no longer exposed.
     pub confidence: Option<f64>,
 }
+
+// ---------------------------------------------------------------------------
+// Conversation stats view
+// ---------------------------------------------------------------------------
 
 /// Statistics for a single chat conversation session.
 #[derive(Debug, Clone, Serialize)]
@@ -122,8 +168,6 @@ pub struct ConversationStatsView {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Acquires the `UserMemoryRepository` from the runtime handle or returns
-/// a structured error string for the frontend.
 fn get_repo(state: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<UserMemoryRepository>>, String> {
     state
         .user_memory
@@ -132,7 +176,6 @@ fn get_repo(state: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<UserMemoryRepo
         .ok_or_else(|| "NOT_INITIALIZED: User memory repository is not initialized".to_string())
 }
 
-/// Acquires the `ChatSessionManagerHandle` or returns a structured error.
 fn get_chat_manager(state: &RuntimeHandle) -> Result<&ChatSessionManagerHandle, String> {
     state
         .chat_manager
@@ -140,79 +183,54 @@ fn get_chat_manager(state: &RuntimeHandle) -> Result<&ChatSessionManagerHandle, 
         .ok_or_else(|| "NOT_INITIALIZED: Chat subsystem is not available".to_string())
 }
 
-/// Converts a [`UserMemoryEntry`] to its frontend-friendly view.
-fn entry_to_view(entry: &UserMemoryEntry) -> UserMemoryEntryView {
-    UserMemoryEntryView {
-        category: entry.category.to_string(),
+fn profile_entry_to_view(entry: &ProfileEntry) -> ProfileEntryView {
+    ProfileEntryView {
         key: entry.key.clone(),
         value: entry.value.clone(),
-        source: entry.source.to_string(),
-        confidence: entry.confidence,
+        written_by: entry.written_by.tag(),
+        created_at: entry.created_at.clone(),
+        updated_at: entry.updated_at.clone(),
+        in_schema: entry.in_schema,
+    }
+}
+
+/// Maps a canonical [`ProfileEntry`] to the legacy view shape, deriving a
+/// best-effort legacy category from the schema section.
+fn profile_entry_to_legacy_view(entry: &ProfileEntry) -> UserMemoryEntryView {
+    let category = apollia_memory::profile_schema::field_for(&entry.key)
+        .map(|f| match f.section {
+            ProfileSection::Identity | ProfileSection::Work => "context",
+            ProfileSection::Preferences => "preferences",
+            ProfileSection::Constraints => "preferences",
+        })
+        .unwrap_or("context")
+        .to_owned();
+    let source = match &entry.written_by {
+        WrittenBy::Onboarding => "onboarding",
+        WrittenBy::User => "user_explicit",
+        WrittenBy::Agent(name) if name == "chat-extractor" => "chat_inference",
+        WrittenBy::Agent(_) => "agent_observation",
+    }
+    .to_owned();
+    UserMemoryEntryView {
+        category,
+        key: entry.key.clone(),
+        value: entry.value.clone(),
+        source,
+        confidence: 1.0,
         created_at: entry.created_at.clone(),
         updated_at: entry.updated_at.clone(),
     }
 }
 
-/// Parses and validates a category string.
-fn parse_category(raw: &str) -> Result<UserMemoryCategory, String> {
-    match raw {
-        "preferences" => Ok(UserMemoryCategory::Preferences),
-        "habits" => Ok(UserMemoryCategory::Habits),
-        "context" => Ok(UserMemoryCategory::Context),
-        other => Err(format!(
-            "VALIDATION_ERROR: Invalid category: {other}. Valid categories: {}",
-            VALID_CATEGORIES.join(", ")
-        )),
+fn field_type_tag(t: ProfileFieldType) -> &'static str {
+    match t {
+        ProfileFieldType::Text => "text",
+        ProfileFieldType::LongText => "long_text",
+        ProfileFieldType::Select => "select",
     }
 }
 
-/// Builds aggregated statistics from a flat list of entries.
-fn build_stats(entries: &[UserMemoryEntryView]) -> UserMemoryStats {
-    let mut by_category = CategoryCounts {
-        preferences: 0,
-        habits: 0,
-        context: 0,
-    };
-    let mut by_source = SourceCounts {
-        onboarding: 0,
-        chat_inference: 0,
-        user_explicit: 0,
-        agent_observation: 0,
-    };
-    let mut last_updated_at: Option<&str> = None;
-
-    for entry in entries {
-        match entry.category.as_str() {
-            "preferences" => by_category.preferences += 1,
-            "habits" => by_category.habits += 1,
-            "context" => by_category.context += 1,
-            _ => {}
-        }
-
-        match entry.source.as_str() {
-            "onboarding" => by_source.onboarding += 1,
-            "chat_inference" => by_source.chat_inference += 1,
-            "user_explicit" => by_source.user_explicit += 1,
-            "agent_observation" => by_source.agent_observation += 1,
-            _ => {}
-        }
-
-        let candidate = entry.updated_at.as_str();
-        if last_updated_at.is_none_or(|prev| candidate > prev) {
-            last_updated_at = Some(candidate);
-        }
-    }
-
-    UserMemoryStats {
-        total: entries.len(),
-        by_category,
-        by_source,
-        last_updated_at: last_updated_at.map(String::from),
-    }
-}
-
-/// Counts occurrences of `"- ["` in a system prompt to estimate how many
-/// past sessions were injected via cross-session recall.
 fn count_cross_session_refs(system_prompt: &str) -> usize {
     let marker = "## Previous conversations (for reference)";
     if !system_prompt.contains(marker) {
@@ -222,217 +240,106 @@ fn count_cross_session_refs(system_prompt: &str) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// Tauri commands
+// Canonical commands (ADR-087)
 // ---------------------------------------------------------------------------
 
-/// Maps an onboarding-agent memory key to a `UserMemoryCategory`.
-fn category_for_agent_key(key: &str) -> Option<UserMemoryCategory> {
-    if key.starts_with("user.preferences") {
-        Some(UserMemoryCategory::Preferences)
-    } else if key.starts_with("user.tools") || key.starts_with("user.agents") {
-        Some(UserMemoryCategory::Habits)
-    } else if key.starts_with("user.name")
-        || key.starts_with("user.role")
-        || key.starts_with("user.languages")
-        || key.starts_with("user.expertise")
-        || key.starts_with("user.domain")
-    {
-        Some(UserMemoryCategory::Context)
-    } else {
-        None
-    }
-}
-
-/// Syncs onboarding-agent semantic memory entries into the global user memory.
+/// Returns the canonical profile schema declared in
+/// [`apollia_memory::profile_schema::PROFILE_SCHEMA`].
 ///
-/// The onboarding agent writes insights (e.g. `user.name`, `user.tools.ide`)
-/// into its own namespace DB. This function copies them into `UserMemoryRepository`
-/// so the "Mon profil" view can display them.
-fn sync_onboarding_insights(repo: &UserMemoryRepository) {
-    let memory_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        std::path::PathBuf::from(home)
-            .join(".apollia")
-            .join("memory")
-    };
-    let agent_db_path = memory_dir.join("onboarding-agent.db");
-
-    if !agent_db_path.exists() {
-        return;
-    }
-
-    let Ok(agent_store) = apollia_memory::store::MemoryStore::open(&agent_db_path) else {
-        return;
-    };
-
-    let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
-    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
-        return;
-    };
-
-    for entry in &entries {
-        let Some(category) = category_for_agent_key(&entry.key) else {
-            continue;
-        };
-
-        // Use a human-friendly key (strip "user." prefix).
-        let display_key = entry.key.strip_prefix("user.").unwrap_or(&entry.key);
-
-        // Only sync if not already present in global memory.
-        let existing = repo.recall(category, MAX_RECALL_PER_CATEGORY);
-        let already_exists = existing
-            .as_ref()
-            .map(|entries| entries.iter().any(|e| e.key == display_key))
-            .unwrap_or(false);
-
-        if !already_exists {
-            let value_str = match &entry.value {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            let _ = repo.store(
-                category,
-                display_key,
-                &value_str,
-                apollia_memory::user_memory::UserMemorySource::Onboarding,
-            );
-        }
-    }
+/// The UI consumes this to render the form sections, labels, help text, and
+/// allowed options.  Adding a new schema field requires recompilation —
+/// the result is identical for every running instance until then.
+#[tauri::command]
+pub async fn get_profile_schema() -> Result<Vec<ProfileFieldView>, String> {
+    Ok(PROFILE_SCHEMA
+        .iter()
+        .map(|f| ProfileFieldView {
+            key: f.key.to_owned(),
+            label_fr: f.label_fr.to_owned(),
+            label_en: f.label_en.to_owned(),
+            help_fr: f.help_fr.to_owned(),
+            help_en: f.help_en.to_owned(),
+            section: f.section.tag().to_owned(),
+            sensitive: f.sensitive,
+            field_type: field_type_tag(f.field_type).to_owned(),
+            options: f.options.iter().map(|s| (*s).to_owned()).collect(),
+        })
+        .collect())
 }
 
-/// Returns the full user memory profile with per-category and per-source
-/// statistics.
+/// Returns the user profile (schema entries + extras) for the
+/// Settings → Profile page.
 #[tauri::command]
-pub async fn get_user_memory_profile(
+pub async fn get_profile(
     state: State<'_, RuntimeHandle>,
-) -> Result<UserMemoryProfileView, String> {
+) -> Result<UserProfileView, String> {
     let repo = get_repo(&state)?;
 
     let entries = tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-
-        // Sync onboarding-agent insights into global user memory.
-        sync_onboarding_insights(&repo);
-
-        let mut all = Vec::new();
-        for &cat in &[
-            UserMemoryCategory::Preferences,
-            UserMemoryCategory::Habits,
-            UserMemoryCategory::Context,
-        ] {
-            let batch = repo
-                .recall(cat, MAX_RECALL_PER_CATEGORY)
-                .map_err(|e| e.to_string())?;
-            all.extend(batch);
-        }
-
-        Ok::<Vec<UserMemoryEntry>, String>(all)
+        repo.list_all().map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    let views: Vec<UserMemoryEntryView> = entries.iter().map(entry_to_view).collect();
-    let stats = build_stats(&views);
+    let views: Vec<ProfileEntryView> = entries.iter().map(profile_entry_to_view).collect();
+    let schema_entries = views.iter().filter(|e| e.in_schema).cloned().collect();
+    let extras = views.iter().filter(|e| !e.in_schema).cloned().collect();
+    let last_updated_at = views.iter().map(|e| e.updated_at.clone()).max();
 
-    Ok(UserMemoryProfileView {
+    Ok(UserProfileView {
+        schema_entries,
+        extras,
         entries: views,
-        stats,
+        last_updated_at,
     })
 }
 
-/// Creates or updates a user memory entry.
+/// Creates or updates a single profile entry.
 ///
-/// Source is always `UserExplicit` for entries created via the UI.
-/// Confidence defaults to 1.0 when not provided.
+/// Always written with [`WrittenBy::User`] — the source represents the
+/// frontend operator action.
 #[tauri::command]
-pub async fn update_user_memory_entry(
+pub async fn set_profile_entry(
     state: State<'_, RuntimeHandle>,
-    request: UpdateUserMemoryRequest,
-) -> Result<UserMemoryEntryView, String> {
+    request: SetProfileEntryRequest,
+) -> Result<ProfileEntryView, String> {
     if request.key.is_empty() {
         return Err("VALIDATION_ERROR: Key must not be empty".to_string());
     }
 
-    let category = parse_category(&request.category)?;
     let repo = get_repo(&state)?;
-
     let key = request.key.clone();
     let value = request.value.clone();
-    let confidence = request.confidence.unwrap_or(1.0);
 
-    let view = tokio::task::spawn_blocking(move || {
+    let entry = tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-
-        repo.store(
-            category,
-            &key,
-            &value,
-            apollia_memory::user_memory::UserMemorySource::UserExplicit,
-        )
-        .map_err(|e| e.to_string())?;
-
-        let entries = repo
-            .recall(category, MAX_RECALL_PER_CATEGORY)
+        repo.set(&key, &value, WrittenBy::User)
             .map_err(|e| e.to_string())?;
-        let found = entries
-            .iter()
-            .find(|e| e.key == key)
-            .ok_or_else(|| format!("entry '{key}' not found after store"))?;
-
-        let mut view = entry_to_view(found);
-        view.confidence = confidence;
-        Ok::<UserMemoryEntryView, String>(view)
+        let stored = repo
+            .get(&key)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("entry '{key}' missing after store"))?;
+        Ok::<ProfileEntry, String>(stored)
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    Ok(view)
+    Ok(profile_entry_to_view(&entry))
 }
 
-/// Confidence score assigned when the user validates a memory entry.
-const VALIDATED_CONFIDENCE: f64 = 0.95;
-
-/// Validates a user memory entry by setting its confidence to 0.95.
-///
-/// The value and source are preserved.  Returns an error with code
-/// `NOT_FOUND` if no entry matches the given key.
+/// Deletes a single profile entry by key.
 #[tauri::command]
-pub async fn validate_user_memory(
+pub async fn delete_profile_entry(
     state: State<'_, RuntimeHandle>,
     key: String,
 ) -> Result<(), String> {
     let repo = get_repo(&state)?;
-
-    tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.update_confidence(&key, VALIDATED_CONFIDENCE)
-            .map_err(|e| {
-                if e.to_string().contains("not found") {
-                    format!("NOT_FOUND: User memory entry not found: {key}")
-                } else {
-                    e.to_string()
-                }
-            })
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
-}
-
-/// Deletes a user memory entry by key.
-///
-/// Returns an error with code `NOT_FOUND` if no entry matches.
-#[tauri::command]
-pub async fn delete_user_memory_entry(
-    state: State<'_, RuntimeHandle>,
-    key: String,
-) -> Result<(), String> {
-    let repo = get_repo(&state)?;
-
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
         repo.forget(&key).map_err(|e| {
             if e.to_string().contains("not found") {
-                format!("NOT_FOUND: User memory entry not found: {key}")
+                format!("NOT_FOUND: Profile entry not found: {key}")
             } else {
                 e.to_string()
             }
@@ -442,54 +349,106 @@ pub async fn delete_user_memory_entry(
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
-/// Deletes every user memory entry across all categories.
-///
-/// Returns the count of removed entries. Destructive — called from the
-/// Settings/Danger page.
-///
-/// Loops until all entries are removed (handles cases where a category
-/// has more than MAX_RECALL_PER_CATEGORY entries).
+/// Deletes every user-visible profile entry, preserving onboarding markers.
 #[tauri::command]
-pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
+pub async fn reset_user_profile(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
     let repo = get_repo(&state)?;
-
     tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        let mut removed = 0usize;
-
-        for &cat in &[
-            UserMemoryCategory::Preferences,
-            UserMemoryCategory::Habits,
-            UserMemoryCategory::Context,
-        ] {
-            // Loop until no more entries are found in this category.
-            // This handles the case where a category has > MAX_RECALL_PER_CATEGORY entries.
-            loop {
-                let batch = repo
-                    .recall(cat, MAX_RECALL_PER_CATEGORY)
-                    .map_err(|e| e.to_string())?;
-
-                if batch.is_empty() {
-                    break;
-                }
-
-                for entry in batch {
-                    if repo.forget(&entry.key).is_ok() {
-                        removed += 1;
-                    }
-                }
-            }
-        }
-        Ok::<usize, String>(removed)
+        repo.reset().map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
+// ---------------------------------------------------------------------------
+// Legacy commands (deprecated — kept until the UI fully migrates)
+// ---------------------------------------------------------------------------
+
+/// Returns the user memory profile in the legacy shape.
+///
+/// **Deprecated (ADR-087)**: prefer [`get_profile`].  Categories in the
+/// returned view are derived from the canonical schema section.
+#[tauri::command]
+pub async fn get_user_memory_profile(
+    state: State<'_, RuntimeHandle>,
+) -> Result<UserMemoryProfileView, String> {
+    let repo = get_repo(&state)?;
+
+    let entries = tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        repo.list_all().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    let views: Vec<UserMemoryEntryView> =
+        entries.iter().map(profile_entry_to_legacy_view).collect();
+    let last_updated_at = views.iter().map(|e| e.updated_at.clone()).max();
+    let stats = UserMemoryStats {
+        total: views.len(),
+        last_updated_at,
+    };
+
+    Ok(UserMemoryProfileView {
+        entries: views,
+        stats,
+    })
+}
+
+/// Creates or updates a user memory entry (legacy shape).
+///
+/// **Deprecated (ADR-087)**: prefer [`set_profile_entry`].  The `category`
+/// and `confidence` fields of the request are ignored.
+#[tauri::command]
+pub async fn update_user_memory_entry(
+    state: State<'_, RuntimeHandle>,
+    request: UpdateUserMemoryRequest,
+) -> Result<UserMemoryEntryView, String> {
+    if request.key.is_empty() {
+        return Err("VALIDATION_ERROR: Key must not be empty".to_string());
+    }
+    let repo = get_repo(&state)?;
+    let key = request.key.clone();
+    let value = request.value.clone();
+
+    let entry = tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        repo.set(&key, &value, WrittenBy::User)
+            .map_err(|e| e.to_string())?;
+        let stored = repo
+            .get(&key)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("entry '{key}' missing after store"))?;
+        Ok::<ProfileEntry, String>(stored)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    Ok(profile_entry_to_legacy_view(&entry))
+}
+
+/// Deletes a user memory entry (legacy shape, alias of
+/// [`delete_profile_entry`]).
+#[tauri::command]
+pub async fn delete_user_memory_entry(
+    state: State<'_, RuntimeHandle>,
+    key: String,
+) -> Result<(), String> {
+    delete_profile_entry(state, key).await
+}
+
+/// Deletes every user memory entry (legacy shape, alias of
+/// [`reset_user_profile`]).
+#[tauri::command]
+pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
+    reset_user_profile(state).await
+}
+
 /// Searches user memory via FTS5 full-text search.
 ///
 /// Returns up to [`MAX_SEARCH_RESULTS`] entries sorted by BM25 relevance.
-/// An empty query or zero matches returns an empty list (not an error).
+/// The returned views use the legacy shape for backward compatibility.
 #[tauri::command]
 pub async fn search_user_memory(
     state: State<'_, RuntimeHandle>,
@@ -498,7 +457,6 @@ pub async fn search_user_memory(
     if query.is_empty() {
         return Ok(Vec::new());
     }
-
     let repo = get_repo(&state)?;
 
     let entries = tokio::task::spawn_blocking(move || {
@@ -509,13 +467,14 @@ pub async fn search_user_memory(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    Ok(entries.iter().map(entry_to_view).collect())
+    Ok(entries.iter().map(profile_entry_to_legacy_view).collect())
 }
 
+// ---------------------------------------------------------------------------
+// Conversation stats
+// ---------------------------------------------------------------------------
+
 /// Returns statistics for a chat conversation session.
-///
-/// Computes message count, summarization status, context window usage,
-/// user memory injection flag, and cross-session reference count.
 #[tauri::command]
 pub async fn get_conversation_stats(
     state: State<'_, RuntimeHandle>,
@@ -550,8 +509,14 @@ pub async fn get_conversation_stats(
     };
 
     let prompt = &detail.session.system_prompt;
+    // Detect both legacy ("Category: …") and new ("Section: …") markers.
     let user_memory_injected = state.user_memory.is_some()
-        && (prompt.contains("Category: preferences")
+        && (prompt.contains("Section: identity")
+            || prompt.contains("Section: work")
+            || prompt.contains("Section: preferences")
+            || prompt.contains("Section: constraints")
+            || prompt.contains("Section: other")
+            || prompt.contains("Category: preferences")
             || prompt.contains("Category: habits")
             || prompt.contains("Category: context"));
 
@@ -575,185 +540,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_build_stats_aggregates_correctly() {
-        // GIVEN entries across categories and sources
-        let entries = vec![
-            UserMemoryEntryView {
-                category: "preferences".into(),
-                key: "language".into(),
-                value: "francais".into(),
-                source: "user_explicit".into(),
-                confidence: 1.0,
-                created_at: "2026-03-20T10:00:00Z".into(),
-                updated_at: "2026-03-20T10:00:00Z".into(),
-            },
-            UserMemoryEntryView {
-                category: "preferences".into(),
-                key: "format".into(),
-                value: "markdown".into(),
-                source: "onboarding".into(),
-                confidence: 1.0,
-                created_at: "2026-03-20T09:00:00Z".into(),
-                updated_at: "2026-03-20T09:00:00Z".into(),
-            },
-            UserMemoryEntryView {
-                category: "habits".into(),
-                key: "working_hours".into(),
-                value: "9h-18h".into(),
-                source: "chat_inference".into(),
-                confidence: 0.8,
-                created_at: "2026-03-20T08:00:00Z".into(),
-                updated_at: "2026-03-20T14:30:00Z".into(),
-            },
-            UserMemoryEntryView {
-                category: "habits".into(),
-                key: "review_frequency".into(),
-                value: "daily".into(),
-                source: "chat_inference".into(),
-                confidence: 0.7,
-                created_at: "2026-03-20T07:00:00Z".into(),
-                updated_at: "2026-03-20T12:00:00Z".into(),
-            },
-            UserMemoryEntryView {
-                category: "context".into(),
-                key: "current_project".into(),
-                value: "apollia-os".into(),
-                source: "agent_observation".into(),
-                confidence: 0.9,
-                created_at: "2026-03-20T06:00:00Z".into(),
-                updated_at: "2026-03-20T13:00:00Z".into(),
-            },
-        ];
-
-        // WHEN
-        let stats = build_stats(&entries);
-
-        // THEN
-        assert_eq!(stats.total, 5);
-        assert_eq!(stats.by_category.preferences, 2);
-        assert_eq!(stats.by_category.habits, 2);
-        assert_eq!(stats.by_category.context, 1);
-        assert_eq!(stats.by_source.onboarding, 1);
-        assert_eq!(stats.by_source.chat_inference, 2);
-        assert_eq!(stats.by_source.user_explicit, 1);
-        assert_eq!(stats.by_source.agent_observation, 1);
-        assert_eq!(
-            stats.last_updated_at.as_deref(),
-            Some("2026-03-20T14:30:00Z")
-        );
-    }
-
-    #[test]
-    fn test_build_stats_empty() {
-        // GIVEN no entries
-        let stats = build_stats(&[]);
-
-        // THEN
-        assert_eq!(stats.total, 0);
-        assert!(stats.last_updated_at.is_none());
-    }
-
-    #[test]
-    fn test_parse_category_valid() {
-        // GIVEN valid category strings
-        // THEN they parse correctly
-        assert_eq!(
-            parse_category("preferences").expect("valid"),
-            UserMemoryCategory::Preferences
-        );
-        assert_eq!(
-            parse_category("habits").expect("valid"),
-            UserMemoryCategory::Habits
-        );
-        assert_eq!(
-            parse_category("context").expect("valid"),
-            UserMemoryCategory::Context
-        );
-    }
-
-    #[test]
-    fn test_parse_category_invalid() {
-        // GIVEN an invalid category
-        let result = parse_category("invalid_cat");
-
-        // THEN a validation error is returned
-        let err = result.expect_err("should fail");
-        assert!(err.starts_with("VALIDATION_ERROR:"));
-        assert!(err.contains("invalid_cat"));
-    }
-
-    #[test]
-    fn test_entry_to_view_converts_correctly() {
-        // GIVEN a UserMemoryEntry
-        let entry = UserMemoryEntry {
-            category: UserMemoryCategory::Preferences,
-            key: "language".into(),
-            value: "francais".into(),
-            source: apollia_memory::user_memory::UserMemorySource::UserExplicit,
-            confidence: 1.0,
-            created_at: "2026-03-20T10:00:00Z".into(),
-            updated_at: "2026-03-20T10:00:00Z".into(),
-        };
-
-        // WHEN
-        let view = entry_to_view(&entry);
-
-        // THEN
-        assert_eq!(view.category, "preferences");
-        assert_eq!(view.key, "language");
-        assert_eq!(view.value, "francais");
-        assert_eq!(view.source, "user_explicit");
-    }
-
-    #[test]
-    fn test_count_cross_session_refs_with_refs() {
-        // GIVEN a system prompt with cross-session references
-        let prompt = "You are a helpful assistant.\n\n\
+    fn cross_session_refs_with_marker() {
+        let prompt = "Hello.\n\n\
             ## Previous conversations (for reference)\n\
-            - [2026-03-20T10:00:00Z] Discussion about Rust async patterns\n\
-            - [2026-03-19T14:00:00Z] Pipeline configuration for data ingestion\n";
-
-        // THEN
+            - [2026-03-20T10:00:00Z] foo\n\
+            - [2026-03-19T14:00:00Z] bar\n";
         assert_eq!(count_cross_session_refs(prompt), 2);
     }
 
     #[test]
-    fn test_count_cross_session_refs_without_marker() {
-        // GIVEN a prompt without cross-session references
-        assert_eq!(count_cross_session_refs("You are a helpful assistant."), 0);
+    fn cross_session_refs_without_marker() {
+        assert_eq!(count_cross_session_refs("Hi"), 0);
     }
 
     #[test]
-    fn test_validation_empty_key_rejected() {
-        // GIVEN an empty key
-        let request = UpdateUserMemoryRequest {
-            category: "preferences".into(),
-            key: String::new(),
-            value: "v".into(),
-            confidence: None,
+    fn field_type_tag_maps_correctly() {
+        assert_eq!(field_type_tag(ProfileFieldType::Text), "text");
+        assert_eq!(field_type_tag(ProfileFieldType::LongText), "long_text");
+        assert_eq!(field_type_tag(ProfileFieldType::Select), "select");
+    }
+
+    #[test]
+    fn profile_entry_to_view_preserves_fields() {
+        let entry = ProfileEntry {
+            key: "name".to_owned(),
+            value: "Nidal".to_owned(),
+            written_by: WrittenBy::Onboarding,
+            created_at: "2026-05-11T10:00:00Z".to_owned(),
+            updated_at: "2026-05-11T10:00:00Z".to_owned(),
+            in_schema: true,
         };
-
-        // THEN validation catches it before any repo access
-        assert!(request.key.is_empty());
+        let view = profile_entry_to_view(&entry);
+        assert_eq!(view.key, "name");
+        assert_eq!(view.value, "Nidal");
+        assert_eq!(view.written_by, "onboarding");
+        assert!(view.in_schema);
     }
 
     #[test]
-    fn test_valid_categories_constant() {
-        // GIVEN the VALID_CATEGORIES constant
-        // THEN it contains exactly the three accepted categories
-        assert_eq!(VALID_CATEGORIES.len(), 3);
-        assert!(VALID_CATEGORIES.contains(&"preferences"));
-        assert!(VALID_CATEGORIES.contains(&"habits"));
-        assert!(VALID_CATEGORIES.contains(&"context"));
-    }
-
-    #[test]
-    fn test_max_search_results_value() {
-        assert_eq!(MAX_SEARCH_RESULTS, 50);
-    }
-
-    #[test]
-    fn test_validated_confidence_value() {
-        assert!((VALIDATED_CONFIDENCE - 0.95).abs() < f64::EPSILON);
+    fn profile_entry_to_legacy_view_derives_category() {
+        let entry = ProfileEntry {
+            key: "agents.hitl".to_owned(),
+            value: "critical-only".to_owned(),
+            written_by: WrittenBy::User,
+            created_at: "2026-05-11T10:00:00Z".to_owned(),
+            updated_at: "2026-05-11T10:00:00Z".to_owned(),
+            in_schema: true,
+        };
+        let view = profile_entry_to_legacy_view(&entry);
+        assert_eq!(view.category, "preferences");
+        assert_eq!(view.source, "user_explicit");
     }
 }
