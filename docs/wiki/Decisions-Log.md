@@ -1231,6 +1231,14 @@ Abandon d'une story prévoyant un *derivation engine* Rust qui mappait automatiq
 
 [Détail → docs/adr/ADR-086-permissions-agent-driven-source-unique.md](adr/ADR-086-permissions-agent-driven-source-unique.md)
 
+## ADR-087 — Profil utilisateur canonique avec schéma déclaratif
+
+**Date :** 2026-05-11 — **Statut :** Accepté
+
+Refonte de la mémoire utilisateur globale (namespace `__user__`) en un profil canonique unique. Constat : le backend exposait 4 catégories (dont `Profile` morte), 4 sources, un score `confidence`, un badge `validated`, un champ `expires_at` non utilisé — pour ~4 entrées réellement écrites en production par l'onboarding et 3 agents consommateurs. L'UI redoublait cette complexité (`UserMemoryDashboard.svelte` avec chips + confidence bars + badges) en parallèle d'une page `settings/Profile.svelte` form-based déjà en place. Décision : (1) schéma déclaratif central `PROFILE_SCHEMA` Rust (~15 champs canoniques, 4 sections d'affichage, flag `sensitive`) ; (2) clés plates en stockage SQLite (`__user__.semantic_memories`, migration one-shot idempotente avec backup) ; (3) nouvelle API SDK `ctx.profile.{name|role|get|has|all|set|update}` (rétrocompat `recall("user.X")` et `remember_user` conservée) ; (4) `UserMemorySource` (4 variantes) → `WrittenBy { Onboarding | User | Agent(name) }` (3 variantes), `validated` supprimé, `confidence` interne forcé à 1.0 ; (5) UI unifiée — `Paramètres → Profil` devient l'unique surface d'édition, tab `user_memory` supprimé de la page Mémoire. ADR-038 amendé (non superseded).
+
+[Détail → docs/adr/ADR-087-user-profile-redesign.md](adr/ADR-087-user-profile-redesign.md)
+
 ---
 
 *Ce log est maintenu à jour à chaque décision architecturale significative.*

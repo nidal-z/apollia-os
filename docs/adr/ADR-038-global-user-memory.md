@@ -1,9 +1,16 @@
 # ADR-038 — Mémoire utilisateur globale
 
 **Date :** 2026-03-23
-**Statut :** Accepté
+**Statut :** Accepté — **amendé par [ADR-087](ADR-087-user-profile-redesign.md) (2026-05-11)**
 **Décideur :** Nidal (solo)
 **Sprint :** 22
+
+> **Amendement (ADR-087, 2026-05-11)** — Le namespace `__user__` reste la source de
+> vérité globale du profil utilisateur, et le fallback automatique de
+> `ctx.memory.recall("user.X")` vers `__user__` est conservé. En revanche, la
+> structure interne (catégories, sources multi-valeurs, score de confiance, badge
+> validated) est simplifiée au profit d'un **schéma canonique déclaratif** et d'une
+> API SDK dédiée `ctx.profile.*`. Voir ADR-087 pour le détail.
 
 ---
 
