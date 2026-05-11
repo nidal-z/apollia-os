@@ -380,7 +380,7 @@
   - Right content: per-tab PageHeader + lazy-loaded sub-route component.
 -->
 <div
-  class="flex min-h-0 flex-1 flex-col"
+  class="flex h-full min-h-0 flex-1 flex-col"
   data-testid="settings-page"
 >
   <div class="flex min-h-0 flex-1">

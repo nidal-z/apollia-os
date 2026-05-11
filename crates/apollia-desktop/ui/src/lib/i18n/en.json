@@ -2637,18 +2637,19 @@
   },
   "onboarding_permissions": {
     "title": "Suggested permission rules",
-    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Approve what you want, refuse the rest — you can always edit them later under <strong>Settings → Permissions</strong>.",
+    "subtitle_html": "Based on your answers, Apollia suggests the rules below. Apply the ones you want, dismiss the rest — you can always edit them under <strong>Settings → Permissions</strong>.",
     "loading": "Loading…",
     "empty": "No rules left.",
-    "approve": "Approve",
-    "deny": "Refuse",
+    "apply": "Apply",
+    "dismiss": "Dismiss",
     "action_allow": "Allow",
     "action_deny": "Deny",
-    "scope_label": "scope: {scope}",
+    "scope_label": "{scope}",
     "rule_applied": "Rule applied",
     "tool_title": "Tool",
-    "prefix_title": "Argument prefix",
-    "scope_title": "Scope"
+    "prefix_title": "Target",
+    "scope_title": "Scope",
+    "count_aria": "Pending rules"
   },
   "onboarding_stt": {
     "hotkey_label": "Global keyboard shortcut",

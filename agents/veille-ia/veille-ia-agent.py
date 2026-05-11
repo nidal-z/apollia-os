@@ -28,20 +28,35 @@ from pydantic import ValidationError
 from apollia.agents.react import AIPResult, BaseReActAgent
 
 
-def _agent_dir() -> Path:
-    """Dossier de l'agent installé.
+def _capture_agent_dir() -> Path:
+    """Snap le dossier de l'agent **à l'import du module**.
 
-    `PyModule::from_code` (loader.rs:105) met `__file__` au simple nom de fichier
-    (relatif), donc `Path(__file__).parent` est inutilisable au runtime.
-    En revanche, le loader insère le chemin absolu du dossier parent dans
-    `sys.path[0]` (loader.rs:90), ce qui est notre source fiable.
+    `PyModule::from_code` (loader.rs:105) met `__file__` au simple nom de
+    fichier (relatif), donc `Path(__file__).parent` est inutilisable.
+    Le loader Rust insère le chemin absolu du dossier parent dans
+    `sys.path[0]` *juste avant* d'exécuter ce fichier (loader.rs:90), donc
+    cette valeur est fiable **uniquement à l'import-time**. Au runtime,
+    un autre agent chargé entre-temps peut avoir poussé son propre path
+    en tête de `sys.path`, ce qui ferait diverger les résolutions
+    relatives (templates, datasources, etc.) vers le mauvais agent.
     """
     if sys.path:
         candidate = Path(sys.path[0])
         if candidate.is_absolute() and candidate.exists():
             return candidate
-    # Fallback développement local (tests directs)
+    # Fallback développement local (tests directs).
     return Path(__file__).resolve().parent
+
+
+# Mémoïsation au top-level du module : capturée pendant `PyModule::from_code`,
+# elle reste correcte pour toute la durée de vie du module — même si un autre
+# agent vient ensuite éclipser `sys.path[0]`.
+_AGENT_DIR: Path = _capture_agent_dir()
+
+
+def _agent_dir() -> Path:
+    """Retourne le dossier de l'agent (snap pris à l'import du module)."""
+    return _AGENT_DIR
 
 # Imports absolus (pas relatifs) car le runtime Apollia (PyModule::from_code via PyO3)
 # charge le fichier sans contexte de package.

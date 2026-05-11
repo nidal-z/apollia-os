@@ -3,9 +3,9 @@
    * Renders permission rule proposals (one card per rule) emitted by the
    * onboarding agent under the memory key `onboarding.proposed_rules`.
    *
-   * Each card lets the user approve or refuse one proposal. Approval calls
+   * Each card lets the user apply or dismiss one proposal. Apply calls
    * `apply_proposed_permission_rule` (which persists directly to
-   * `governance.db`), refusal calls `dismiss_proposed_permission_rule`.
+   * `governance.db`), dismiss calls `dismiss_proposed_permission_rule`.
    * When the list becomes empty, fires `oncomplete`.
    */
   import { onMount } from "svelte";
@@ -32,7 +32,7 @@
 
   let pending = $state<ProposedRuleView[]>([]);
   let loading = $state(true);
-  let busy = $state<Record<number, "approving" | "dismissing" | undefined>>({});
+  let busy = $state<Record<number, "applying" | "dismissing" | undefined>>({});
 
   async function refresh(): Promise<void> {
     try {
@@ -55,8 +55,8 @@
     void refresh();
   });
 
-  async function approve(rule: ProposedRuleView): Promise<void> {
-    busy = { ...busy, [rule.index]: "approving" };
+  async function apply(rule: ProposedRuleView): Promise<void> {
+    busy = { ...busy, [rule.index]: "applying" };
     try {
       await invoke("apply_proposed_permission_rule", { index: rule.index });
       addToast($t("onboarding_permissions.rule_applied"), "success");
@@ -80,27 +80,26 @@
     }
   }
 
-  function actionPill(action: string): { label: string; cls: string } {
+  function actionPill(action: string): { label: string; cls: string; allow: boolean } {
     if (action === "allow") {
       return {
         label: $t("onboarding_permissions.action_allow"),
-        cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+        cls: "pill-allow",
+        allow: true,
       };
     }
-    if (action === "deny") {
-      return {
-        label: $t("onboarding_permissions.action_deny"),
-        cls: "bg-destructive/15 text-destructive border-destructive/30",
-      };
-    }
-    return { label: action, cls: "bg-muted text-muted-foreground border-border" };
+    return {
+      label: $t("onboarding_permissions.action_deny"),
+      cls: "pill-deny",
+      allow: false,
+    };
   }
 </script>
 
 <div class="permission-step" data-testid="onboarding-permission-step">
   <header class="step-header">
     <div class="step-icon">
-      <ShieldCheck size={18} strokeWidth={1.75} aria-hidden="true" />
+      <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
     </div>
     <div class="step-text">
       <p class="step-title">{$t("onboarding_permissions.title")}</p>
@@ -109,6 +108,11 @@
         {@html $t("onboarding_permissions.subtitle_html")}
       </p>
     </div>
+    {#if !loading && pending.length > 0}
+      <span class="count-badge" aria-label={$t("onboarding_permissions.count_aria")}>
+        {pending.length}
+      </span>
+    {/if}
   </header>
 
   {#if loading}
@@ -121,28 +125,33 @@
     <ul class="rule-list">
       {#each pending as rule (rule.index)}
         {@const pill = actionPill(rule.action)}
-        <li class="rule-card">
-          <div class="rule-meta">
+        <li class="rule-card" class:rule-card-allow={pill.allow} class:rule-card-deny={!pill.allow}>
+          <div class="rule-head">
             <span class={`pill ${pill.cls}`}>
-              {#if rule.action === "deny"}
-                <ShieldX size={12} aria-hidden="true" />
-              {:else}
+              {#if pill.allow}
                 <ShieldCheck size={12} aria-hidden="true" />
+              {:else}
+                <ShieldX size={12} aria-hidden="true" />
               {/if}
               {pill.label}
             </span>
             <span class="rule-tool" title={$t("onboarding_permissions.tool_title")}>{rule.tool_name}</span>
-            {#if rule.arg_prefix}
-              <code class="rule-prefix" title={$t("onboarding_permissions.prefix_title")}>{rule.arg_prefix}</code>
-            {/if}
             <span class="rule-scope" title={$t("onboarding_permissions.scope_title")}>
               {$t("onboarding_permissions.scope_label", { values: { scope: rule.scope } })}
             </span>
           </div>
+
+          {#if rule.arg_prefix}
+            <div class="rule-target">
+              <span class="rule-target-label">{$t("onboarding_permissions.prefix_title")}</span>
+              <code class="rule-prefix">{rule.arg_prefix}</code>
+            </div>
+          {/if}
+
           <div class="rule-actions">
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               disabled={busy[rule.index] !== undefined}
               onclick={() => dismiss(rule)}
               data-testid={`onboarding-rule-dismiss-${rule.index}`}
@@ -152,21 +161,21 @@
               {:else}
                 <X size={14} />
               {/if}
-              {$t("onboarding_permissions.deny")}
+              {$t("onboarding_permissions.dismiss")}
             </Button>
             <Button
               size="sm"
               variant="primary-gradient"
               disabled={busy[rule.index] !== undefined}
-              onclick={() => approve(rule)}
+              onclick={() => apply(rule)}
               data-testid={`onboarding-rule-approve-${rule.index}`}
             >
-              {#if busy[rule.index] === "approving"}
+              {#if busy[rule.index] === "applying"}
                 <Loader2 size={14} class="anim-spin" />
               {:else}
                 <Check size={14} />
               {/if}
-              {$t("onboarding_permissions.approve")}
+              {$t("onboarding_permissions.apply")}
             </Button>
           </div>
         </li>
@@ -179,24 +188,22 @@
   .permission-step {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem 1rem 1rem;
-    border-top: 1px solid hsl(var(--border) / 0.6);
-    background: hsl(var(--muted) / 0.25);
-    flex-shrink: 0;
-    max-height: 50%;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem 1.5rem;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
   }
 
   .step-header {
     display: flex;
-    gap: 0.625rem;
+    gap: 0.75rem;
     align-items: flex-start;
   }
 
   .step-icon {
-    width: 2rem;
-    height: 2rem;
+    width: 2.25rem;
+    height: 2.25rem;
     border-radius: 999px;
     background: hsl(var(--primary) / 0.12);
     color: hsl(var(--primary));
@@ -213,16 +220,32 @@
 
   .step-title {
     margin: 0;
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
   }
 
   .step-subtitle {
-    margin: 0.125rem 0 0 0;
-    font-size: 0.75rem;
-    line-height: 1.4;
+    margin: 0.1875rem 0 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
     color: hsl(var(--muted-foreground));
+  }
+
+  .count-badge {
+    flex-shrink: 0;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    background: hsl(var(--primary) / 0.14);
+    color: hsl(var(--primary));
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .rule-list {
@@ -231,81 +254,138 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.625rem;
   }
 
   .rule-card {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid hsl(var(--border) / 0.6);
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.625rem;
+    border: 1px solid hsl(var(--border) / 0.7);
     background: hsl(var(--card));
+    position: relative;
+    overflow: hidden;
   }
 
-  .rule-meta {
+  /* Left accent stripe colour-codes the proposed action at a glance. */
+  .rule-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+  }
+  .rule-card-allow::before {
+    background: hsl(142 71% 45%);
+  }
+  .rule-card-deny::before {
+    background: hsl(var(--destructive));
+  }
+
+  .rule-head {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-    min-width: 0;
+    gap: 0.625rem;
     flex-wrap: wrap;
+    min-width: 0;
   }
 
   .pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.125rem 0.5rem;
+    gap: 0.3125rem;
+    padding: 0.1875rem 0.5625rem;
     border-radius: 999px;
     font-size: 0.6875rem;
     font-weight: 600;
-    border-width: 1px;
-    border-style: solid;
+    border: 1px solid transparent;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .pill-allow {
+    background: hsl(142 71% 45% / 0.12);
+    color: hsl(142 71% 32%);
+    border-color: hsl(142 71% 45% / 0.3);
+  }
+  :global(.dark) .pill-allow {
+    color: hsl(142 71% 60%);
+  }
+
+  .pill-deny {
+    background: hsl(var(--destructive) / 0.12);
+    color: hsl(var(--destructive));
+    border-color: hsl(var(--destructive) / 0.3);
   }
 
   .rule-tool {
     font-family:
       ui-monospace, SFMono-Regular, "Menlo", "Monaco", "Consolas", "Liberation Mono",
       "Courier New", monospace;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: hsl(var(--foreground));
-  }
-
-  .rule-prefix {
-    padding: 0.0625rem 0.375rem;
-    border-radius: 0.25rem;
-    background: hsl(var(--muted) / 0.6);
-    font-size: 0.7rem;
-    color: hsl(var(--muted-foreground));
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 16rem;
+    flex-shrink: 0;
   }
 
   .rule-scope {
+    margin-left: auto;
     font-size: 0.6875rem;
     color: hsl(var(--muted-foreground));
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .rule-target {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .rule-target-label {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .rule-prefix {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.3125rem;
+    background: hsl(var(--muted) / 0.7);
+    border: 1px solid hsl(var(--border) / 0.5);
+    font-family:
+      ui-monospace, SFMono-Regular, "Menlo", "Monaco", "Consolas", "Liberation Mono",
+      "Courier New", monospace;
+    font-size: 0.75rem;
+    color: hsl(var(--foreground));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .rule-actions {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    flex-shrink: 0;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-top: 0.125rem;
   }
 
   .empty {
-    padding: 0.75rem;
+    padding: 2rem 0.75rem;
     text-align: center;
     color: hsl(var(--muted-foreground));
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;

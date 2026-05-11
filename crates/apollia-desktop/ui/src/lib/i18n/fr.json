@@ -2637,18 +2637,19 @@
   },
   "onboarding_permissions": {
     "title": "Règles de permissions proposées",
-    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Approuve ce qui te convient, refuse le reste — tu pourras toujours les modifier plus tard dans <strong>Paramètres → Permissions</strong>.",
+    "subtitle_html": "D'après tes choix, Apollia te suggère les règles ci-dessous. Applique celles qui te conviennent, ignore les autres — tu pourras toujours les modifier dans <strong>Paramètres → Permissions</strong>.",
     "loading": "Chargement…",
     "empty": "Aucune règle restante.",
-    "approve": "Approuver",
-    "deny": "Refuser",
+    "apply": "Appliquer",
+    "dismiss": "Ignorer",
     "action_allow": "Autoriser",
     "action_deny": "Refuser",
-    "scope_label": "scope: {scope}",
+    "scope_label": "{scope}",
     "rule_applied": "Règle appliquée",
     "tool_title": "Outil concerné",
-    "prefix_title": "Préfixe d'argument",
-    "scope_title": "Portée"
+    "prefix_title": "Cible",
+    "scope_title": "Portée",
+    "count_aria": "Règles en attente"
   },
   "onboarding_stt": {
     "hotkey_label": "Raccourci clavier global",
