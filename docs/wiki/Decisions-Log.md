@@ -1241,5 +1241,63 @@ Refonte de la mémoire utilisateur globale (namespace `__user__`) en un profil c
 
 ---
 
+## ADR-088 — Architecture hybride : connecteurs natifs + MCP officiels
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+Pour matérialiser la promesse local-first ("vos données restent sur votre machine, l'agent s'y connecte vraiment"), la v0.1.0 mixe **connecteurs natifs Rust + OAuth** pour Google Workspace et Microsoft 365 (deux SaaS sans MCP officiel maintenu par l'éditeur) et **MCP officiels intégrés au catalogue** pour les autres (Notion, Slack, GitHub, Linear, Atlassian Rovo, Stripe, Figma, Sentry, Cloudflare). Frontière économique : les SaaS qui publient leur propre MCP transfèrent la maintenance externe ; ceux qui ne le font pas (Google, Microsoft) nécessitent du custom maison où les concurrents (Dust, Claude) facturent leur valeur perçue. Salesforce/HubSpot reportés post-v0.1.0.
+
+[Détail → docs/adr/ADR-088-architecture-hybride-connecteurs-natifs-mcp.md](adr/ADR-088-architecture-hybride-connecteurs-natifs-mcp.md)
+
+## ADR-089 — Client MCP OAuth 2.1 conforme (RFC 9728 + 8707 + CIMD)
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+Extension de `apollia-auth` avec un module `mcp_oauth` qui implémente le flow OAuth 2.1 spec MCP 2025-11-25 : RFC 9728 PRM discovery, RFC 8414 + OIDC AS metadata, RFC 8707 Resource Indicators (MUST), CIMD prioritaire avec hébergement statique sur `https://apollia.fr/.well-known/mcp-client-metadata`, DCR (RFC 7591) en fallback, PKCE S256 obligatoire, singleflight refresh via DashMap pour éviter les rate-limit cascade. N'importe quel MCP server HTTP officiel se connecte sans configuration.
+
+[Détail → docs/adr/ADR-089-mcp-oauth-21-rfc-9728-rfc-8707-cimd.md](adr/ADR-089-mcp-oauth-21-rfc-9728-rfc-8707-cimd.md)
+
+## ADR-090 — Abstraction `Connector` trait dans `apollia-connectors`
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+Nouveau crate `apollia-connectors` avec un trait `Connector` minimal (4 méthodes : `id`, `manifest`, `operations`, `check`) qui rend l'ajout d'un futur connecteur (Salesforce, HubSpot, Asana en v0.2+) mécanique : un module + une impl du trait + déclaration `OperationSpec` + enregistrement build-time dans `ConnectorRegistry`. HTTP client centralisé avec retry exponential + 401-refresh-once + 429-Retry-After. Plugin dynamique (.so/WASM) explicitement rejeté en v0.1.0 ; build-time only.
+
+[Détail → docs/adr/ADR-090-connector-trait-apollia-connectors.md](adr/ADR-090-connector-trait-apollia-connectors.md)
+
+## ADR-091 — Catalogue MCP : statique → registry → marketplace + override user-side
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+v0.1.0 livre un catalogue **statique enrichi de 18 entrées** dans `crates/apollia-desktop/src/mcp/enrichments.json`, avec un champ `cost_model` obligatoire (`free` / `freemium` / `paid` — aucune entrée `paid` en v1). Un mécanisme **override user-side** via `~/.apollia/mcp-overrides.json` (clés `add` / `disable` / `override` JSON deep-merge) permet aux power users de patcher le catalogue sans attendre une release Apollia. Roadmap : v0.3 = registry remote dynamique, v0.4+ = marketplace communautaire signé. Schéma stable cross-paliers.
+
+[Détail → docs/adr/ADR-091-catalogue-mcp-statique-registry-marketplace.md](adr/ADR-091-catalogue-mcp-statique-registry-marketplace.md)
+
+## ADR-092 — Spec exposition `resources` MCP côté agent ReAct
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+Les `resources` MCP sont exposées par **deux voies complémentaires, jamais auto-injectées** (conformément au principe #6 — mémoire à initiative de l'agent) : (1) **voie agent** via deux tools implicites `mcp_resources.list` + `mcp_resources.read` que l'agent ReAct appelle de sa propre initiative ; (2) **voie utilisateur** via le sélecteur @-mention du desktop — l'utilisateur épingle explicitement une resource, elle devient un message system prefix au tour suivant. Notifications `resources/updated` invalident le cache mais ne déclenchent aucune ré-injection automatique.
+
+[Détail → docs/adr/ADR-092-exposition-resources-mcp-cote-agent-react.md](adr/ADR-092-exposition-resources-mcp-cote-agent-react.md)
+
+## ADR-093 — `sampling` MCP avec HITL pré-approval
+
+**Date :** 2026-05-12 — **Statut :** Proposé
+
+`sampling/createMessage` (serveur MCP → client demandant un appel LLM) est routé via `apollia-llm::LlmRouter` **avec HITL pré-approval obligatoire** : le prompt complet + l'identifiant du serveur source apparaissent dans l'inbox sous `HITLCard` (composant existant réutilisé sans modification). L'utilisateur approuve ou refuse avant exécution. **Rate limiting** : 100 sampling/heure par serveur source par défaut, configurable — empêche le DoS budget d'un serveur malveillant. Aligné avec les recommandations spec MCP §sampling.
+
+[Détail → docs/adr/ADR-093-sampling-mcp-hitl-pre-approval.md](adr/ADR-093-sampling-mcp-hitl-pre-approval.md)
+
+## ADR-094 — Linux keyring fallback strategy
+
+**Date :** 2026-05-12 — **Statut :** Proposé (Option A provisoirement retenue)
+
+Sur Linux headless (server, container, distros minimales sans Secret Service daemon), le crate `keyring` Rust échoue à l'initialisation. Décision provisoire : **Option A — `age` symétrique avec passphrase utilisateur** (`X25519` / `scrypt`, lib `rage`). Active via `APOLLIA_TOKEN_STORAGE=file` + `APOLLIA_TOKEN_PASSPHRASE`. Pro : zéro dépendance système, fonctionne identiquement partout, crypto auditée. Con : exige une passphrase à l'init (prompt-once + cache acteur prévu). Option B (system-keyring-with-prompt D-Bus) rejetée pour non-respect du principe #4 fail-fast (échoue silencieusement sur certaines distros). Implémentation différée à M1.5.
+
+[Détail → docs/adr/ADR-094-linux-keyring-fallback-strategy.md](adr/ADR-094-linux-keyring-fallback-strategy.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
