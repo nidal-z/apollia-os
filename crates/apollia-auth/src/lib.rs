@@ -21,6 +21,7 @@ pub mod auth_manager;
 pub mod callback;
 pub mod connector_providers;
 pub mod error;
+pub mod mcp_oauth;
 pub mod multi_account;
 pub mod pkce;
 pub mod providers;
@@ -33,6 +34,12 @@ pub use connector_providers::{
     ConnectorProvider, GoogleScope, MicrosoftScope,
 };
 pub use error::AuthError;
+pub use mcp_oauth::{
+    as_metadata_candidates, canonical_resource_uri, parse_www_authenticate,
+    AuthorizationServerMetadata, ClientIdMetadataDocument, DcrRequest, DcrResponse,
+    McpDiscoveryClient, ProtectedResourceMetadata, WwwAuthenticate, APOLLIA_CIMD,
+    APOLLIA_CIMD_URL,
+};
 pub use multi_account::{AccountId, MultiAccountStorage};
 pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
 pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
