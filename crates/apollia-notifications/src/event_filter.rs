@@ -22,7 +22,20 @@ pub const KNOWN_EVENT_NAMES: &[&str] = &[
     "pipeline.suspended",
     "chat.approval_required",
     "chat.tool_failed",
+    "chat.user_input_required",
 ];
+
+/// Extrait le texte de la première question depuis le JSON sérialisé du tool
+/// `ask_user` (`Vec<UserQuestion>`).
+///
+/// Retourne `None` si le JSON est invalide ou la liste vide. Utilisé pour
+/// remplir `output_preview` dans les notifications `chat.user_input_required`.
+fn first_question_preview(questions_json: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(questions_json).ok()?;
+    let first = value.as_array()?.first()?;
+    let text = first.get("question")?.as_str()?;
+    Some(text.to_string())
+}
 
 /// Emit a `tracing::warn!` for every event name in `events` that is not in
 /// [`KNOWN_EVENT_NAMES`].
@@ -305,6 +318,35 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 task_id: None,
                 agent: None,
                 message: format!("Approbation requise pour {tool_name}"),
+                metadata,
+                severity: Severity::Warning,
+            })
+        }
+
+        RuntimeEvent::ChatUserInputRequired {
+            request_id,
+            session_id,
+            questions_json,
+            context,
+            ..
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("request_id".into(), request_id.clone());
+            metadata.insert("session_id".into(), session_id.clone());
+            metadata.insert("action_url".into(), format!("/chat/{session_id}"));
+            metadata.insert("dashboard_url".into(), dashboard_url);
+            if let Some(preview) = first_question_preview(questions_json) {
+                metadata.insert("output_preview".into(), preview);
+            }
+            if let Some(ctx) = context {
+                metadata.insert("context".into(), ctx.clone());
+            }
+            Some(Notification {
+                event: "chat.user_input_required".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: None,
+                message: "Un agent vous pose une question".into(),
                 metadata,
                 severity: Severity::Warning,
             })
@@ -696,6 +738,82 @@ mod tests {
             resume_url.ends_with("/resume"),
             "resume_url doit se terminer par /resume : {resume_url}"
         );
+    }
+
+    // ── Chat user-input notification ──────────────────────────────────────
+
+    #[test]
+    fn test_chat_user_input_required_maps_to_warning_notification() {
+        // GIVEN a ChatUserInputRequired event with two questions
+        let questions = serde_json::json!([
+            {
+                "id": "stack",
+                "question": "Quelle stack web ?",
+                "question_type": "single_choice",
+                "options": ["FastAPI", "Django"],
+                "hint": null,
+            },
+            {
+                "id": "notes",
+                "question": "Autre chose à préciser ?",
+                "question_type": "open",
+                "options": [],
+                "hint": null,
+            }
+        ])
+        .to_string();
+        let event = RuntimeEvent::ChatUserInputRequired {
+            request_id: "req-001".into(),
+            session_id: "sess-001".into(),
+            message_id: "msg-006".into(),
+            questions_json: questions,
+            context: Some("Besoin de votre input avant de coder".into()),
+        };
+        // WHEN
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.event, "chat.user_input_required");
+        assert_eq!(notif.severity, Severity::Warning);
+        assert!(notif.task_id.is_none());
+        assert_eq!(
+            notif.metadata.get("request_id").map(String::as_str),
+            Some("req-001")
+        );
+        assert_eq!(
+            notif.metadata.get("session_id").map(String::as_str),
+            Some("sess-001")
+        );
+        assert_eq!(
+            notif.metadata.get("output_preview").map(String::as_str),
+            Some("Quelle stack web ?")
+        );
+        assert_eq!(
+            notif.metadata.get("context").map(String::as_str),
+            Some("Besoin de votre input avant de coder")
+        );
+        assert_eq!(
+            notif.metadata.get("action_url").map(String::as_str),
+            Some("/chat/sess-001")
+        );
+    }
+
+    #[test]
+    fn test_chat_user_input_required_with_empty_payload() {
+        // GIVEN a ChatUserInputRequired with an empty questions array and no context
+        let event = RuntimeEvent::ChatUserInputRequired {
+            request_id: "req-002".into(),
+            session_id: "sess-002".into(),
+            message_id: String::new(),
+            questions_json: "[]".into(),
+            context: None,
+        };
+        // WHEN
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        // THEN — la notification existe, mais sans preview ni context
+        assert_eq!(notif.event, "chat.user_input_required");
+        assert_eq!(notif.severity, Severity::Warning);
+        assert!(!notif.metadata.contains_key("output_preview"));
+        assert!(!notif.metadata.contains_key("context"));
     }
 
     #[test]

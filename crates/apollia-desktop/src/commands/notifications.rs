@@ -213,6 +213,72 @@ pub async fn get_notification_logs(
     Ok(result)
 }
 
+/// Liste les événements runtime informatifs (échecs/dégradations/LLM)
+/// extraits de `notification_logs` sur les `days` derniers jours.
+///
+/// Filtre Rust-side sur `event_name ∈ { "task.failed", "agent.degraded",
+/// "trigger.error", "llm.backend_down" }`. Les succès (`task.completed`)
+/// ne sont volontairement pas inclus — ils vont dans Mes assistants → Logs.
+///
+/// Délègue à `GET /api/v1/notifications/logs?last=500` puis filtre.
+#[tauri::command]
+pub async fn list_runtime_activity(
+    state: State<'_, RuntimeHandle>,
+    days: Option<i64>,
+) -> Result<Vec<NotificationLogEntry>, String> {
+    const ACTIVITY_EVENTS: &[&str] = &[
+        "task.failed",
+        "agent.degraded",
+        "trigger.error",
+        "llm.backend_down",
+    ];
+
+    let window_days = days.unwrap_or(14).max(1);
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(window_days);
+
+    let path = "/api/v1/notifications/logs?last=500";
+    let json = http_get_json(state.api_port, path).await?;
+    let entries = json
+        .get("entries")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let result: Vec<NotificationLogEntry> = entries
+        .into_iter()
+        .filter_map(|e| {
+            let event_name = e.get("event_name").and_then(|v| v.as_str()).unwrap_or("");
+            if !ACTIVITY_EVENTS.contains(&event_name) {
+                return None;
+            }
+            let sent_at_raw = e.get("sent_at").and_then(|v| v.as_str()).unwrap_or("");
+            let in_window = chrono::DateTime::parse_from_rfc3339(sent_at_raw)
+                .map(|dt| dt.with_timezone(&chrono::Utc) >= cutoff)
+                .unwrap_or(true);
+            if !in_window {
+                return None;
+            }
+            Some(NotificationLogEntry {
+                id: e
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                event_name: event_name.to_string(),
+                task_id: e.get("task_id").and_then(|v| v.as_str()).map(String::from),
+                sent_at: sent_at_raw.to_string(),
+                channels: e
+                    .get("channels")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+                error: e.get("error").and_then(|v| v.as_str()).map(String::from),
+            })
+        })
+        .collect();
+
+    Ok(result)
+}
+
 // ─── CRUD types & commands ──────────────────────────────────────────────────
 
 /// Définition complète d'un canal de notification retournée par les opérations

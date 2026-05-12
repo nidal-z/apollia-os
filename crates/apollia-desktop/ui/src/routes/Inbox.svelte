@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Inbox as InboxIcon } from "lucide-svelte";
+  import { Inbox as InboxIcon, Activity as ActivityIcon, Bell } from "lucide-svelte";
 
   import {
     pendingApprovals,
@@ -18,6 +18,11 @@
 
   import { addToast } from "$lib/components/ui/toast/store";
   import RejectReasonDialog from "../components/inbox/RejectReasonDialog.svelte";
+  import AskUserForm from "../components/inbox/AskUserForm.svelte";
+  import ActivityRow from "../components/inbox/ActivityRow.svelte";
+  import NotificationLog from "../components/notifications/NotificationLog.svelte";
+  import { TabBar } from "$lib/components/ui/tabs";
+  import { Select } from "$lib/components/ui/select";
 
   import {
     PageHeader,
@@ -29,7 +34,13 @@
   import type { InboxType } from "$lib/components/operator";
   import type { RiskLevel } from "$lib/components/operator";
   import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
-  import type { ResolvedChatApproval } from "$lib/types";
+  import type {
+    AskUserAnswer,
+    AskUserQuestion,
+    NotificationChannel,
+    NotificationLogEntry,
+    ResolvedChatApproval,
+  } from "$lib/types";
   import { CheckCircle2, XCircle, ShieldCheck } from "lucide-svelte";
 
   import type { InboxItem, InboxRisk } from "../components/inbox/types";
@@ -38,6 +49,38 @@
     PendingChatApproval,
     PendingUserInputView,
   } from "$lib/types";
+
+  // ── Tab state ────────────────────────────────────────────────────────────
+  type Tab = "pending" | "activity" | "notifications";
+  const TAB_STORAGE_KEY = "inbox.active_tab";
+
+  let activeTab = $state<Tab>("pending");
+
+  function loadInitialTab(): Tab {
+    if (typeof window === "undefined") return "pending";
+    const url = new URL(window.location.href);
+    const fromQuery = url.searchParams.get("tab");
+    if (fromQuery === "activity" || fromQuery === "notifications" || fromQuery === "pending") {
+      return fromQuery;
+    }
+    const stored = sessionStorage.getItem(TAB_STORAGE_KEY);
+    if (stored === "activity" || stored === "notifications" || stored === "pending") {
+      return stored;
+    }
+    return "pending";
+  }
+
+  function selectTab(next: string): void {
+    if (next !== "pending" && next !== "activity" && next !== "notifications") return;
+    activeTab = next;
+    try {
+      sessionStorage.setItem(TAB_STORAGE_KEY, next);
+    } catch {
+      /* sessionStorage unavailable — non-fatal */
+    }
+    if (next === "activity") void loadActivity();
+    if (next === "notifications") void loadNotificationLogs();
+  }
 
   // ── State ────────────────────────────────────────────────────────────────
   let loading = $state(true);
@@ -48,15 +91,23 @@
   let history = $state<ResolvedChatApproval[]>([]);
   let historyError = $state<string | null>(null);
 
-  type FilterKey =
-    | "all"
-    | "approval"
-    | "deliverable"
-    | "trigger"
-    | "error"
-    | "memory"
-    | "cost";
+  // Pending tab — filter chips reduced to "all / approval / ask_user".
+  type FilterKey = "all" | "approval" | "ask_user";
   let activeFilter = $state<FilterKey>("all");
+  let agentFilter = $state<string>("all");
+
+  // Activity tab state.
+  let activityEntries = $state<NotificationLogEntry[]>([]);
+  let activityLoading = $state(false);
+  let activityError = $state<string | null>(null);
+  type ActivityFilter = "all" | "failures" | "degradations" | "llm";
+  let activityFilter = $state<ActivityFilter>("all");
+
+  // Notifications tab state (sent log).
+  let notificationLogs = $state<NotificationLogEntry[]>([]);
+  let channels = $state<NotificationChannel[]>([]);
+  let notificationsLoading = $state(false);
+  let notificationsError = $state<string | null>(null);
 
   // ── Risk extraction ──────────────────────────────────────────────────────
   function extractRisk(ctx: Record<string, unknown> | undefined): InboxRisk | undefined {
@@ -113,14 +164,15 @@
   }
 
   function askUserToInbox(u: PendingUserInputView): InboxItem {
-    let questions: unknown[] = [];
+    let parsed: unknown[] = [];
     try {
-      questions = JSON.parse(u.questions_json);
+      const raw = JSON.parse(u.questions_json);
+      if (Array.isArray(raw)) parsed = raw;
     } catch {
-      /* ignore */
+      /* ignore — empty list keeps the form harmless */
     }
     const firstQ =
-      (questions[0] as { question?: string } | undefined)?.question ?? "Question";
+      (parsed[0] as { question?: string } | undefined)?.question ?? "Question";
     return {
       id: `ask_user:${u.request_id}`,
       kind: "ask_user" as const,
@@ -129,8 +181,43 @@
       summary: firstQ.slice(0, 140),
       suspendedAt: u.created_at,
       source: u,
-      questions,
+      questions: parsed,
     };
+  }
+
+  /**
+   * Normalize the raw `questions_json` payload coming from the runtime into
+   * the strongly-typed shape expected by `<AskUserForm>`.
+   *
+   * The runtime uses snake_case `question_type`; the form uses `type`. We
+   * coerce here so the form stays free of payload-shape concerns.
+   */
+  function questionsForForm(raw: unknown[]): AskUserQuestion[] {
+    const out: AskUserQuestion[] = [];
+    for (const entry of raw) {
+      if (!entry || typeof entry !== "object") continue;
+      const rec = entry as Record<string, unknown>;
+      const id = typeof rec.id === "string" ? rec.id : undefined;
+      const question = typeof rec.question === "string" ? rec.question : undefined;
+      if (!id || !question) continue;
+      const rawType =
+        (typeof rec.type === "string" ? rec.type : undefined) ??
+        (typeof rec.question_type === "string" ? rec.question_type : undefined);
+      const type: AskUserQuestion["type"] =
+        rawType === "single_choice" || rawType === "multi_choice" ? rawType : "open";
+      const options = Array.isArray(rec.options)
+        ? (rec.options as unknown[]).filter((o): o is string => typeof o === "string")
+        : [];
+      const hint = typeof rec.hint === "string" ? rec.hint : undefined;
+      out.push({ id, question, type, options, hint });
+    }
+    return out;
+  }
+
+  function contextForForm(item: InboxItem): string | undefined {
+    if (item.kind !== "ask_user") return undefined;
+    const ctx = (item.source as PendingUserInputView).context;
+    return typeof ctx === "string" && ctx.trim().length > 0 ? ctx : undefined;
   }
 
   // ── Derived inbox stream ─────────────────────────────────────────────────
@@ -148,38 +235,45 @@
     $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
   );
 
-  // Map every InboxItem to the V3 InboxRow type.
   function rowType(item: InboxItem): InboxType {
-    // All current backend kinds surface as approvals in the V3 design.
-    // memory / cost / trigger / error / deliverable categories will be
-    // populated as new event sources land.
+    // The V3 InboxRow uses a richer taxonomy; everything we currently surface
+    // is still an "approval" from the operator's standpoint.
     void item;
     return "approval";
   }
 
   function rowFilterKey(item: InboxItem): FilterKey {
-    return rowType(item) as FilterKey;
+    return item.kind === "ask_user" ? "ask_user" : "approval";
   }
 
-  const filteredItems = $derived.by(() => {
-    if (activeFilter === "all") return allItems;
-    return allItems.filter((i) => rowFilterKey(i) === activeFilter);
+  // Distinct agents for the agent <Select>.
+  const agentOptions = $derived.by(() => {
+    const set = new Map<string, string>();
+    for (const i of allItems) set.set(i.agentName, i.agentName);
+    return [...set.values()].sort((a, b) => a.localeCompare(b));
   });
 
-  // Counts per filter (for chip labels).
+  const filteredItems = $derived.by(() => {
+    let list = allItems;
+    if (activeFilter !== "all") {
+      list = list.filter((i) => rowFilterKey(i) === activeFilter);
+    }
+    if (agentFilter !== "all") {
+      list = list.filter((i) => i.agentName === agentFilter);
+    }
+    return list;
+  });
+
+  // Counts per filter (for chip labels). Always derived from the agent-scoped
+  // list so the chip numbers reflect what the user is currently looking at.
   const counts = $derived.by(() => {
-    const c: Record<FilterKey, number> = {
-      all: allItems.length,
-      approval: 0,
-      deliverable: 0,
-      trigger: 0,
-      error: 0,
-      memory: 0,
-      cost: 0,
-    };
-    for (const i of allItems) {
-      const k = rowFilterKey(i);
-      if (k in c) c[k] += 1;
+    const scoped =
+      agentFilter === "all"
+        ? allItems
+        : allItems.filter((i) => i.agentName === agentFilter);
+    const c: Record<FilterKey, number> = { all: scoped.length, approval: 0, ask_user: 0 };
+    for (const i of scoped) {
+      c[rowFilterKey(i)] += 1;
     }
     return c;
   });
@@ -211,11 +305,6 @@
   });
 
   const GROUP_ORDER: GroupKey[] = ["today", "yesterday", "earlier"];
-  const GROUP_LABEL: Record<GroupKey, string> = {
-    today: "Aujourd'hui",
-    yesterday: "Hier",
-    earlier: "Plus tôt",
-  };
 
   // ── Time formatting ──────────────────────────────────────────────────────
   function relTime(iso: string): string {
@@ -247,14 +336,25 @@
 
   function expiresLabel(item: InboxItem): string | undefined {
     void item;
-    // Backend doesn't currently expose a deterministic expiry — leave blank.
     return undefined;
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
   onMount(() => {
+    activeTab = loadInitialTab();
     requestNotificationPermission();
     void loadData();
+    // Allow other routes (Notifications page) to deep-link a specific tab.
+    function onSelectTab(ev: Event) {
+      const detail = (ev as CustomEvent).detail as { tab?: string } | undefined;
+      if (detail?.tab) selectTab(detail.tab);
+    }
+    window.addEventListener("apollia:inbox:select-tab", onSelectTab);
+    if (activeTab === "activity") void loadActivity();
+    if (activeTab === "notifications") void loadNotificationLogs();
+    return () => {
+      window.removeEventListener("apollia:inbox:select-tab", onSelectTab);
+    };
   });
 
   async function loadData(): Promise<void> {
@@ -291,6 +391,39 @@
     }
   }
 
+  async function loadActivity(): Promise<void> {
+    activityLoading = true;
+    activityError = null;
+    try {
+      activityEntries = await invoke<NotificationLogEntry[]>("list_runtime_activity", {
+        days: 14,
+      });
+    } catch (err: unknown) {
+      activityError = err instanceof Error ? err.message : String(err);
+      activityEntries = [];
+    } finally {
+      activityLoading = false;
+    }
+  }
+
+  async function loadNotificationLogs(): Promise<void> {
+    notificationsLoading = true;
+    notificationsError = null;
+    try {
+      const [logs, ch] = await Promise.all([
+        invoke<NotificationLogEntry[]>("get_notification_logs", { limit: 50 }),
+        invoke<NotificationChannel[]>("list_notification_channels").catch(() => []),
+      ]);
+      notificationLogs = logs;
+      channels = ch;
+    } catch (err: unknown) {
+      notificationsError = err instanceof Error ? err.message : String(err);
+      notificationLogs = [];
+    } finally {
+      notificationsLoading = false;
+    }
+  }
+
   // ── Resolve handlers (preserved invoke calls) ────────────────────────────
   async function resolveItem(
     item: InboxItem,
@@ -304,20 +437,17 @@
         reason: reason ?? null,
       });
     } else if (item.kind === "ask_user") {
+      // ask_user resolution is handled through `respondAskUser` /
+      // `rejectAskUser` so the structured answers flow back to the agent.
+      // This branch only runs for the unlikely outer "Approve / Reject"
+      // path — never invoked from the redesigned form.
       if (!approved && reason) {
         await invoke("respond_user_input_rejected", {
           requestId: item.source.request_id,
           reason,
         });
-      } else {
-        await invoke("respond_user_input", {
-          requestId: item.source.request_id,
-          answers: [],
-        });
       }
     } else {
-      // Chat tool approval — forward the operator-provided reason so the
-      // builtin agent can surface it to the LLM on the next iteration.
       await invoke("authorize_chat_tool", {
         sessionId: item.source.sessionId,
         messageId: item.source.messageId,
@@ -328,8 +458,6 @@
     }
   }
 
-  /** "Toujours autoriser" path for chat tool approvals (not applicable to
-   *  task-level pauses or ask_user). */
   async function resolveAlwaysAccept(item: InboxItem, scope: AlwaysScope): Promise<void> {
     if (item.kind === "task" || item.kind === "ask_user") return;
     await invoke("authorize_chat_tool", {
@@ -397,163 +525,326 @@
     expandedId = expandedId === item.id ? null : item.id;
   }
 
+  // ── ask_user — structured submit ─────────────────────────────────────────
+  async function respondAskUser(item: InboxItem, answers: AskUserAnswer[]): Promise<void> {
+    if (item.kind !== "ask_user") return;
+    submitting = true;
+    try {
+      await invoke("respond_user_input", {
+        requestId: item.source.request_id,
+        answers,
+      });
+      addToast($t("inbox.toast.ask_user_replied"), "success");
+      if (expandedId === item.id) expandedId = null;
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      submitting = false;
+    }
+  }
+
+  async function rejectAskUser(item: InboxItem, reason: string): Promise<void> {
+    if (item.kind !== "ask_user") return;
+    submitting = true;
+    try {
+      await invoke("respond_user_input_rejected", {
+        requestId: item.source.request_id,
+        reason,
+      });
+      addToast($t("inbox.toast.rejected"), "success");
+      if (expandedId === item.id) expandedId = null;
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      submitting = false;
+    }
+  }
+
   // ── Filter chip definitions ──────────────────────────────────────────────
-  const FILTERS: { key: FilterKey; label: string }[] = [
-    { key: "all", label: "Tous" },
-    { key: "approval", label: "Approbations" },
-    { key: "deliverable", label: "Livrables" },
-    { key: "trigger", label: "Triggers" },
-    { key: "error", label: "Erreurs" },
-    { key: "memory", label: "Mémoire" },
-    { key: "cost", label: "Coût" },
-  ];
+  const ACTIVITY_GROUPS: Record<ActivityFilter, string[]> = {
+    all: [],
+    failures: ["task.failed", "trigger.error"],
+    degradations: ["agent.degraded"],
+    llm: ["llm.backend_down"],
+  };
+
+  const filteredActivity = $derived.by(() => {
+    if (activityFilter === "all") return activityEntries;
+    const wanted = new Set(ACTIVITY_GROUPS[activityFilter]);
+    return activityEntries.filter((e) => wanted.has(e.event_name));
+  });
+
+  // Tab items + counts
+  const tabItems = $derived([
+    {
+      key: "pending",
+      label: $t("inbox.tab_pending"),
+      count: totalPending,
+    },
+    {
+      key: "activity",
+      label: $t("inbox.tab_activity"),
+      count: activityEntries.length,
+    },
+    {
+      key: "notifications",
+      label: $t("inbox.tab_notifications"),
+      count: notificationLogs.length,
+    },
+  ]);
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col overflow-hidden" data-testid="inbox-page">
   <PageHeader
-    kicker="BOÎTE DE RÉCEPTION"
-    title="Boîte de réception"
-    subtitle={totalPending > 0
+    kicker={$t("inbox.kicker")}
+    title={$t("inbox.title_operator")}
+    subtitle={activeTab === "pending" && totalPending > 0
       ? $t("inbox.pending_count", { values: { count: totalPending } })
       : $t("inbox.subtitle")}
   />
 
-  <!-- Filter chips ---------------------------------------------------- -->
-  <div class="flex flex-wrap items-center gap-1.5 px-8 pt-4 pb-2">
-    {#each FILTERS as f (f.key)}
-      {@const isActive = activeFilter === f.key}
-      <button
-        type="button"
-        class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
-          ? 'bg-primary/10 text-primary border-primary/20'
-          : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
-        onclick={() => (activeFilter = f.key)}
-        aria-pressed={isActive}
-        data-testid="inbox-filter-{f.key}"
-      >
-        {f.label} · {counts[f.key]}
-      </button>
-    {/each}
+  <!-- Tab bar -------------------------------------------------------- -->
+  <div class="px-8 pt-3">
+    <TabBar
+      items={tabItems}
+      activeTab={activeTab}
+      ontabchange={selectTab}
+      testidPrefix="inbox"
+    />
   </div>
 
-  <!-- Body ------------------------------------------------------------ -->
-  <div class="flex-1 min-h-0 overflow-y-auto">
-    {#if loading}
-      <p class="px-8 py-6 text-sm text-muted-foreground">{$t("common.loading")}</p>
-    {:else if error}
-      <p class="px-8 py-6 text-sm text-destructive">{error}</p>
-    {:else if filteredItems.length === 0}
-      <div class="px-8 py-10">
-        <EmptyState
-          title={$t("inbox.empty_title")}
-          desc={$t("inbox.empty_subtitle")}
-          tone="success"
-        >
-          {#snippet icon()}<InboxIcon size={22} />{/snippet}
-        </EmptyState>
+  {#if activeTab === "pending"}
+    <!-- Filter chips + agent select -------------------------------- -->
+    <div class="flex flex-wrap items-center justify-between gap-2 px-8 pt-3 pb-2">
+      <div class="flex flex-wrap items-center gap-1.5">
+        {#each [{ key: "all", labelKey: "inbox.chips.all" }, { key: "approval", labelKey: "inbox.chips.approvals" }, { key: "ask_user", labelKey: "inbox.chips.questions" }] as f (f.key)}
+          {@const isActive = activeFilter === f.key}
+          <button
+            type="button"
+            class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
+              ? 'bg-primary/10 text-primary border-primary/20'
+              : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
+            onclick={() => (activeFilter = f.key as FilterKey)}
+            aria-pressed={isActive}
+            data-testid="inbox-filter-{f.key}"
+          >
+            {$t(f.labelKey)} · {counts[f.key as FilterKey]}
+          </button>
+        {/each}
       </div>
-    {:else}
-      {#each GROUP_ORDER as g (g)}
-        {#if grouped[g].length > 0}
-          <SectionTitle count={grouped[g].length}>{GROUP_LABEL[g]}</SectionTitle>
-          <div class="px-8 pb-2">
-            <div class="rounded-xl border border-border overflow-hidden bg-card">
-              {#each grouped[g] as item (item.id)}
-                {@const isApproval = item.kind === "task" || item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash" || item.kind === "ask_user"}
-                {@const isExpanded = expandedId === item.id}
-                <div>
-                  <InboxRow
-                    type={rowType(item)}
-                    title={item.summary || "—"}
-                    agent={item.agentName}
-                    timestamp={relTime(item.suspendedAt)}
-                    unread={true}
-                    onclick={isApproval ? () => toggleExpand(item) : undefined}
-                    onAction={isApproval
-                      ? (e) => {
-                          e.stopPropagation?.();
-                          toggleExpand(item);
-                        }
-                      : undefined}
-                  />
-                  {#if isExpanded && isApproval}
-                    <div class="px-4 py-3 border-b border-border bg-muted/20">
-                      <HITLCard
-                        agent={item.agentName}
-                        action={actionLabel(item)}
-                        risk={riskLevel(item)}
-                        tool={item.toolName}
-                        scope={item.kind === "task" ? item.risk?.impact : undefined}
-                        summary={item.risk?.rationale}
-                        params={item.risk?.consequences ?? []}
-                        expires={expiresLabel(item)}
-                        onApprove={() => handleApprove(item)}
-                        onReject={() => openReject(item)}
-                        onAlwaysAccept={isChatToolItem(item)
-                          ? (s) => handleAlwaysAccept(item, s)
-                          : undefined}
-                        hasProject={false}
-                      />
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      {/each}
-    {/if}
 
-    <!-- Historique des décisions résolues (lecture seule) ----------------- -->
-    {#if !loading && (history.length > 0 || historyError)}
-      <SectionTitle count={history.length}>{$t("inbox.history_title")}</SectionTitle>
-      <div class="px-8 pb-10">
-        {#if historyError}
-          <p class="text-xs text-destructive">{historyError}</p>
-        {:else}
-          <ul class="rounded-xl border border-border bg-card divide-y divide-border/60">
-            {#each history as h (h.message_id + "::" + h.tool_name + "::" + h.resolved_at)}
-              {@const isAccept = h.decision === "accept"}
-              {@const isAlways = h.decision === "always_accept"}
-              {@const isRefuse = h.decision === "refuse"}
-              <li class="flex items-start gap-3 px-4 py-2.5 text-[12px]">
-                <span class="shrink-0 mt-0.5">
-                  {#if isAccept}
-                    <CheckCircle2 size={14} class="text-success" />
-                  {:else if isAlways}
-                    <ShieldCheck size={14} class="text-primary" />
-                  {:else if isRefuse}
-                    <XCircle size={14} class="text-destructive" />
-                  {/if}
-                </span>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-baseline justify-between gap-2">
-                    <div class="min-w-0 flex items-baseline gap-2">
-                      <code class="font-mono text-[11.5px] text-foreground truncate">{h.tool_name}</code>
-                      <span class="text-[10.5px] text-muted-foreground">
-                        {#if isAccept}Autorisé{:else if isAlways}Toujours autorisé{:else}Refusé{/if}
+      {#if agentOptions.length > 0}
+        <div class="flex items-center gap-2">
+          <label for="inbox-agent-filter" class="text-[11px] text-muted-foreground">
+            {$t("inbox.filter_by_agent")}
+          </label>
+          <Select
+            id="inbox-agent-filter"
+            class="h-8 w-auto text-xs"
+            bind:value={agentFilter}
+            data-testid="inbox-agent-filter"
+          >
+            <option value="all">{$t("inbox.all_agents")}</option>
+            {#each agentOptions as agent}
+              <option value={agent}>{agent}</option>
+            {/each}
+          </Select>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Pending list ----------------------------------------------- -->
+    <div class="flex-1 min-h-0 overflow-y-auto">
+      {#if loading}
+        <p class="px-8 py-6 text-sm text-muted-foreground">{$t("common.loading")}</p>
+      {:else if error}
+        <p class="px-8 py-6 text-sm text-destructive">{error}</p>
+      {:else if filteredItems.length === 0}
+        <div class="px-8 py-10">
+          <EmptyState
+            title={$t("inbox.empty_title")}
+            desc={$t("inbox.empty_subtitle")}
+            tone="success"
+          >
+            {#snippet icon()}<InboxIcon size={22} />{/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        {#each GROUP_ORDER as g (g)}
+          {#if grouped[g].length > 0}
+            <SectionTitle count={grouped[g].length}>{$t(`inbox.group.${g}`)}</SectionTitle>
+            <div class="px-8 pb-2">
+              <div class="rounded-xl border border-border overflow-hidden bg-card">
+                {#each grouped[g] as item (item.id)}
+                  {@const isApproval = item.kind === "task" || item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash" || item.kind === "ask_user"}
+                  {@const isExpanded = expandedId === item.id}
+                  <div>
+                    <InboxRow
+                      type={rowType(item)}
+                      title={item.summary || "—"}
+                      agent={item.agentName}
+                      timestamp={relTime(item.suspendedAt)}
+                      unread={true}
+                      onclick={isApproval ? () => toggleExpand(item) : undefined}
+                      onAction={isApproval
+                        ? (e) => {
+                            e.stopPropagation?.();
+                            toggleExpand(item);
+                          }
+                        : undefined}
+                    />
+                    {#if isExpanded && isApproval}
+                      <div class="px-4 py-3 border-b border-border bg-muted/20">
+                        {#if item.kind === "ask_user"}
+                          <AskUserForm
+                            questions={questionsForForm(item.questions)}
+                            context={contextForForm(item)}
+                            {submitting}
+                            onsubmit={(answers) => respondAskUser(item, answers)}
+                            oncancel={(reason) => rejectAskUser(item, reason)}
+                          />
+                        {:else}
+                          <HITLCard
+                            agent={item.agentName}
+                            action={actionLabel(item)}
+                            risk={riskLevel(item)}
+                            tool={item.toolName}
+                            scope={item.kind === "task" ? item.risk?.impact : undefined}
+                            summary={item.risk?.rationale}
+                            params={item.risk?.consequences ?? []}
+                            expires={expiresLabel(item)}
+                            onApprove={() => handleApprove(item)}
+                            onReject={() => openReject(item)}
+                            onAlwaysAccept={isChatToolItem(item)
+                              ? (s) => handleAlwaysAccept(item, s)
+                              : undefined}
+                            hasProject={false}
+                          />
+                        {/if}
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {/each}
+      {/if}
+
+      <!-- Historique récent (HITL résolu) -------------------------- -->
+      {#if !loading && (history.length > 0 || historyError)}
+        <SectionTitle count={history.length}>{$t("inbox.history_title")}</SectionTitle>
+        <div class="px-8 pb-10">
+          {#if historyError}
+            <p class="text-xs text-destructive">{historyError}</p>
+          {:else}
+            <ul class="rounded-xl border border-border bg-card divide-y divide-border/60">
+              {#each history as h (h.message_id + "::" + h.tool_name + "::" + h.resolved_at)}
+                {@const isAccept = h.decision === "accept"}
+                {@const isAlways = h.decision === "always_accept"}
+                {@const isRefuse = h.decision === "refuse"}
+                <li class="flex items-start gap-3 px-4 py-2.5 text-[12px]">
+                  <span class="shrink-0 mt-0.5">
+                    {#if isAccept}
+                      <CheckCircle2 size={14} class="text-success" />
+                    {:else if isAlways}
+                      <ShieldCheck size={14} class="text-primary" />
+                    {:else if isRefuse}
+                      <XCircle size={14} class="text-destructive" />
+                    {/if}
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <div class="min-w-0 flex items-baseline gap-2">
+                        <code class="font-mono text-[11.5px] text-foreground truncate">{h.tool_name}</code>
+                        <span class="text-[10.5px] text-muted-foreground">
+                          {#if isAccept}{$t("inbox.history.accepted")}{:else if isAlways}{$t("inbox.history.always_accepted")}{:else}{$t("inbox.history.refused")}{/if}
+                        </span>
+                      </div>
+                      <span class="text-[10.5px] text-muted-foreground/70 font-mono shrink-0" title={h.resolved_at}>
+                        {relTime(h.resolved_at)}
                       </span>
                     </div>
-                    <span class="text-[10.5px] text-muted-foreground/70 font-mono shrink-0" title={h.resolved_at}>
-                      {relTime(h.resolved_at)}
-                    </span>
-                  </div>
-                  {#if isRefuse && h.reason}
-                    <p class="mt-0.5 text-[11px] text-destructive/80 line-clamp-2" title={h.reason}>
-                      <span class="font-medium">Raison :</span> {h.reason}
+                    {#if isRefuse && h.reason}
+                      <p class="mt-0.5 text-[11px] text-destructive/80 line-clamp-2" title={h.reason}>
+                        <span class="font-medium">{$t("inbox.history.reason")}</span> {h.reason}
+                      </p>
+                    {/if}
+                    <p class="mt-0.5 text-[10.5px] text-muted-foreground/60">
+                      {$t("inbox.history.session")} <code class="font-mono">{h.session_id.slice(0, 8)}</code>
                     </p>
-                  {/if}
-                  <p class="mt-0.5 text-[10.5px] text-muted-foreground/60">
-                    Session <code class="font-mono">{h.session_id.slice(0, 8)}</code>
-                  </p>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
-    {/if}
-  </div>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {:else if activeTab === "activity"}
+    <!-- Activity filter chips -------------------------------------- -->
+    <div class="flex flex-wrap items-center gap-1.5 px-8 pt-3 pb-2">
+      {#each [{ key: "all", labelKey: "inbox.activity.filter.all" }, { key: "failures", labelKey: "inbox.activity.filter.failures" }, { key: "degradations", labelKey: "inbox.activity.filter.degradations" }, { key: "llm", labelKey: "inbox.activity.filter.llm" }] as f (f.key)}
+        {@const isActive = activityFilter === f.key}
+        <button
+          type="button"
+          class="rounded-full text-[11px] font-medium transition-colors px-2.5 py-1 border {isActive
+            ? 'bg-primary/10 text-primary border-primary/20'
+            : 'bg-transparent text-muted-foreground border-border hover:bg-muted/40'}"
+          onclick={() => (activityFilter = f.key as ActivityFilter)}
+          aria-pressed={isActive}
+          data-testid="inbox-activity-filter-{f.key}"
+        >
+          {$t(f.labelKey)}
+        </button>
+      {/each}
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto px-8 pb-10">
+      {#if activityLoading}
+        <p class="py-6 text-sm text-muted-foreground">{$t("common.loading")}</p>
+      {:else if activityError}
+        <p class="py-6 text-sm text-destructive">{activityError}</p>
+      {:else if filteredActivity.length === 0}
+        <div class="py-10">
+          <EmptyState
+            title={$t("inbox.activity.empty")}
+            desc={$t("inbox.activity.empty_desc")}
+            tone="neutral"
+          >
+            {#snippet icon()}<ActivityIcon size={22} />{/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        <div class="flex flex-col gap-2 pt-3">
+          {#each filteredActivity as entry (entry.id)}
+            <ActivityRow {entry} />
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {:else}
+    <!-- Notifications envoyées tab -------------------------------- -->
+    <div class="flex-1 min-h-0 overflow-y-auto px-8 pb-10 pt-3">
+      {#if notificationsLoading}
+        <p class="py-6 text-sm text-muted-foreground">{$t("common.loading")}</p>
+      {:else if notificationsError}
+        <p class="py-6 text-sm text-destructive">{notificationsError}</p>
+      {:else if notificationLogs.length === 0}
+        <div class="py-10">
+          <EmptyState
+            title={$t("inbox.notifications.empty")}
+            desc={$t("inbox.notifications.empty_desc")}
+            tone="neutral"
+          >
+            {#snippet icon()}<Bell size={22} />{/snippet}
+          </EmptyState>
+        </div>
+      {:else}
+        <NotificationLog logs={notificationLogs} {channels} />
+      {/if}
+    </div>
+  {/if}
 
   <RejectReasonDialog
     open={rejectTarget !== null}

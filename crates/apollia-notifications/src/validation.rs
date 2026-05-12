@@ -24,6 +24,7 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "llm.backend_down",
     "chat.approval_required",
     "chat.tool_failed",
+    "chat.user_input_required",
 ];
 
 /// Erreur retournée par les opérations du [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository).

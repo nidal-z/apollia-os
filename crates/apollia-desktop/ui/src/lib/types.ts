@@ -1657,3 +1657,28 @@ export interface SessionMetricsUpdatedEvent {
   metrics: SessionMetrics;
   alert: BudgetAlertLevel;
 }
+
+// ─── ask_user tool — dynamic form payload ─────────────────────────────────
+
+/** Type de question posée par un agent via le tool `ask_user`. */
+export type AskUserQuestionType = "open" | "single_choice" | "multi_choice";
+
+/** Une question individuelle dans une requête `ask_user`. */
+export interface AskUserQuestion {
+  id: string;
+  question: string;
+  type: AskUserQuestionType;
+  options: string[];
+  hint?: string;
+}
+
+/** Réponse de l'opérateur à une question `ask_user`. */
+export interface AskUserAnswer {
+  id: string;
+  /** Valeur unique pour les questions `open` ou `single_choice`. */
+  value?: string;
+  /** Valeurs multiples pour les questions `multi_choice`. */
+  values?: string[];
+  /** `true` si l'opérateur n'a pas répondu (validation soft). */
+  skipped: boolean;
+}

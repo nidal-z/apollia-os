@@ -3,7 +3,6 @@
    * Top-level command palette orchestrator.
    *
    * Composes:
-   *   - `paletteMode`            — all vs. actions-only
    *   - `commandPaletteOpen`     — dialog visibility
    *   - `paletteGroups` derived  — pages / actions / sessions / settings / help
    *
@@ -17,18 +16,9 @@
   import { commandPaletteOpen } from "$lib/stores/commandPalette";
   import {
     paletteGroups,
-    paletteMode,
     setPaletteActions,
   } from "$lib/command-palette/paletteIndex";
   import { buildPaletteActions } from "$lib/command-palette/actions";
-
-  // Reset to "all" whenever the palette closes so the next Cmd+K opens
-  // with the default (pages + actions) view.
-  $effect(() => {
-    if (!$commandPaletteOpen) {
-      paletteMode.set("all");
-    }
-  });
 
   // Palette actions reference translated strings, so we can't build them
   // until svelte-i18n has loaded. Rebuild whenever loading flips.
@@ -41,11 +31,7 @@
     return stop;
   });
 
-  const placeholder = $derived(
-    $paletteMode === "actions"
-      ? $t("commandPalette.placeholder.actions")
-      : $t("commandPalette.placeholder.all"),
-  );
+  const placeholder = $derived($t("commandPalette.placeholder.all"));
 
   function onExecute(id: string): void {
     // Telemetry hook — observability pipeline picks this up via console.

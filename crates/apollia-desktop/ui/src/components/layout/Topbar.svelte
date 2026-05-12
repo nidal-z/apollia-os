@@ -86,9 +86,9 @@
       type="button"
       class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       onclick={() => navigateTo("inbox")}
-      aria-label={$t("nav.approvals")}
+      aria-label={$t("nav.inbox")}
       data-testid="topbar-inbox"
-      title={$t("nav.approvals")}
+      title={$t("nav.inbox")}
     >
       <ShieldCheck size={14} strokeWidth={1.5} />
     </button>

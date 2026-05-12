@@ -44,7 +44,7 @@ export const routeMeta: Record<Route, RouteMeta> = {
   projects: { labelKey: "nav.projects", parent: null, icon: FolderKanban },
   tasks: { labelKey: "nav.tasks", parent: null, icon: ListChecks },
   chat: { labelKey: "nav.chat", parent: null, icon: MessageSquare },
-  inbox: { labelKey: "nav.approvals", parent: null, icon: ShieldCheck },
+  inbox: { labelKey: "nav.inbox", parent: null, icon: ShieldCheck },
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },
   llm: { labelKey: "nav.llm", parent: null, icon: Brain },
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },

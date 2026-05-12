@@ -60,13 +60,6 @@ export const SHORTCUTS: ShortcutEntry[] = [
     category: "global",
   },
   {
-    id: "palette.actions",
-    combo: { mac: "⌘+⇧+P", win: "Ctrl+Shift+P" },
-    descriptionKey: "settings.shortcuts.items.palette_actions",
-    scope: "global",
-    category: "global",
-  },
-  {
     id: "help.overlay",
     combo: { mac: "?", win: "?" },
     descriptionKey: "settings.shortcuts.items.help_overlay",
@@ -166,7 +159,7 @@ export const SHORTCUTS: ShortcutEntry[] = [
   // ── Companion ──────────────────────────────────────────────────────
   {
     id: "companion.toggle",
-    combo: { mac: "⌘+\\", win: "Ctrl+\\" },
+    combo: { mac: "⌘+/", win: "Ctrl+/" },
     descriptionKey: "settings.shortcuts.items.companion_toggle",
     scope: "global",
     category: "companion",

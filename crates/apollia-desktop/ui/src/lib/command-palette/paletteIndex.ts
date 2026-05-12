@@ -29,11 +29,6 @@ import {
 } from "$lib/stores/settings";
 import type { PaletteAction } from "./actions";
 
-/** Palette display mode — `actions` hides navigation entries (Cmd+Shift+P). */
-export type PaletteMode = "all" | "actions";
-
-export const paletteMode = writable<PaletteMode>("all");
-
 const _actions = writable<PaletteAction[]>([]);
 
 /** Registered action catalogue; set once at startup by the orchestrator. */
@@ -73,19 +68,17 @@ function filterByPersona<T extends { persona?: UIMode }>(list: T[], mode: UIMode
   return list.filter((x) => !x.persona || x.persona === mode);
 }
 
-/** Groups shown by the palette — reactive to stores + persona + mode. */
+/** Groups shown by the palette — reactive to stores + persona. */
 export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
   [
     _actions,
     uiMode,
-    paletteMode,
     recentActionIds,
     recentSessions,
     commands,
   ],
-  ([$actions, $mode, $paletteMode, $recentIds, $recentSessions, $extra]) => {
+  ([$actions, $mode, $recentIds, $recentSessions, $extra]) => {
     const groups: CommandPaletteGroup[] = [];
-    const actionsOnly = $paletteMode === "actions";
 
     // Persona-filtered catalogue.
     const visible = filterByPersona($actions, $mode);
@@ -97,7 +90,6 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
       for (const id of $recentIds.slice(0, 5)) {
         const a = byId.get(id);
         if (!a) continue;
-        if (actionsOnly && a.navigation) continue;
         recent.push(actionToCommandItem(a, tr("commandPalette.groups.recent")));
       }
       if (recent.length > 0) {
@@ -106,13 +98,11 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
     }
 
     // ── Pages ────────────────────────────────────────────────────────
-    if (!actionsOnly) {
-      const pages = visible
-        .filter((a) => a.kind === "pages")
-        .map((a) => actionToCommandItem(a, tr("commandPalette.groups.pages")));
-      if (pages.length > 0) {
-        groups.push({ label: tr("commandPalette.groups.pages"), items: pages });
-      }
+    const pages = visible
+      .filter((a) => a.kind === "pages")
+      .map((a) => actionToCommandItem(a, tr("commandPalette.groups.pages")));
+    if (pages.length > 0) {
+      groups.push({ label: tr("commandPalette.groups.pages"), items: pages });
     }
 
     // ── Actions ──────────────────────────────────────────────────────
@@ -124,7 +114,7 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
     }
 
     // ── Sessions (chat) ──────────────────────────────────────────────
-    if (!actionsOnly && $recentSessions.length > 0) {
+    if ($recentSessions.length > 0) {
       const sessionItems: CommandItem[] = $recentSessions.slice(0, 10).map((s) => ({
         id: `session.${s.id}`,
         label: s.title?.trim() || tr("chat.untitled_session"),
@@ -144,21 +134,19 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
     }
 
     // ── Settings sub-routes ──────────────────────────────────────────
-    if (!actionsOnly) {
-      const settings: CommandItem[] = SETTINGS_SUB_ROUTES.map((sub) => ({
-        id: `settings.${sub}`,
-        label: `${tr("nav.settings")} → ${settingsSubRouteLabel(sub)}`,
-        icon: SettingsIcon,
-        group: tr("commandPalette.groups.settings"),
-        keywords: ["settings", "preferences", sub],
-        action: () => {
-          touchRecentAction(`settings.${sub}`);
-          navigateTo("settings");
-          goToSettingsSubRoute(sub);
-        },
-      }));
-      groups.push({ label: tr("commandPalette.groups.settings"), items: settings });
-    }
+    const settings: CommandItem[] = SETTINGS_SUB_ROUTES.map((sub) => ({
+      id: `settings.${sub}`,
+      label: `${tr("nav.settings")} → ${settingsSubRouteLabel(sub)}`,
+      icon: SettingsIcon,
+      group: tr("commandPalette.groups.settings"),
+      keywords: ["settings", "preferences", sub],
+      action: () => {
+        touchRecentAction(`settings.${sub}`);
+        navigateTo("settings");
+        goToSettingsSubRoute(sub);
+      },
+    }));
+    groups.push({ label: tr("commandPalette.groups.settings"), items: settings });
 
     // ── Plugin-style extras registered via `registerCommand` (e.g. the
     // chat route contributes recent sessions / templates / slash commands

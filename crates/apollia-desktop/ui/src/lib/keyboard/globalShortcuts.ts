@@ -1,17 +1,13 @@
 /**
  * Global keyboard shortcuts for the command palette.
  *
- * Mounts a single `window` keydown listener that understands the two
- * palette entry points:
- *   - Cmd/Ctrl+K        → open palette in "all" mode (pages + actions)
- *   - Cmd/Ctrl+Shift+P  → open palette in "actions" mode (commands only)
+ * Mounts a single `window` keydown listener that opens the palette on
+ * Cmd/Ctrl+K. The palette already supports text filtering for narrowing
+ * to actions, so a second entry point would be redundant.
  *
- * Returns a disposer that components must call on unmount. The listener
- * ignores key events whose target is an editable field unless the combo
- * is one of the palette triggers (the palette is always reachable).
+ * Returns a disposer that components must call on unmount.
  */
 import { commandPaletteOpen } from "$lib/stores/commandPalette";
-import { paletteMode } from "$lib/command-palette/paletteIndex";
 
 const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 
@@ -24,20 +20,9 @@ export function installGlobalShortcuts(): () => void {
     const mod = isModKey(event);
     if (!mod) return;
 
-    // Cmd/Ctrl+K — toggle palette in "all" mode.
     if (!event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();
-      paletteMode.set("all");
       commandPaletteOpen.update((v) => !v);
-      return;
-    }
-
-    // Cmd/Ctrl+Shift+P — open palette in "actions" mode.
-    if (event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
-      event.preventDefault();
-      paletteMode.set("actions");
-      commandPaletteOpen.set(true);
-      return;
     }
   }
 

@@ -159,6 +159,7 @@
     "agents": "Agents",
     "tasks": "Tâches",
     "approvals": "Approbations",
+    "inbox": "Boîte de réception",
     "inbox_operator": "Boîte de réception",
     "inbox_builder": "Inbox",
     "llm": "LLM",
@@ -785,8 +786,52 @@
   "inbox": {
     "title_operator": "Boîte de réception",
     "title_builder": "Inbox",
+    "kicker": "BOÎTE DE RÉCEPTION",
     "subtitle": "Actions en attente qui requièrent votre attention",
     "pending_count": "{count} en attente",
+    "tab_pending": "À traiter",
+    "tab_activity": "Activité",
+    "tab_notifications": "Notifications envoyées",
+    "filter_by_agent": "Agent",
+    "all_agents": "Tous les agents",
+    "chips": {
+      "all": "Tous",
+      "approvals": "Approbations",
+      "questions": "Questions"
+    },
+    "group": {
+      "today": "Aujourd'hui",
+      "yesterday": "Hier",
+      "earlier": "Plus tôt"
+    },
+    "history": {
+      "accepted": "Autorisé",
+      "always_accepted": "Toujours autorisé",
+      "refused": "Refusé",
+      "reason": "Raison :",
+      "session": "Session"
+    },
+    "activity": {
+      "empty": "Aucune activité récente.",
+      "empty_desc": "Les échecs et dégradations sur les 14 derniers jours apparaîtront ici.",
+      "see_logs": "Voir les logs",
+      "filter": {
+        "all": "Toutes",
+        "failures": "Échecs",
+        "degradations": "Dégradations",
+        "llm": "LLM"
+      }
+    },
+    "notifications": {
+      "empty": "Aucune notification envoyée.",
+      "empty_desc": "L'historique des notifications poussées vers vos canaux apparaîtra ici."
+    },
+    "ask_user": {
+      "submit": "Répondre",
+      "submitting": "Envoi…",
+      "refuse": "Refuser de répondre",
+      "refuse_title": "Refuser de répondre"
+    },
     "empty_title": "Tout est traité",
     "empty_subtitle": "Aucune action en attente. Les nouvelles demandes apparaîtront ici.",
     "list_aria": "Liste des actions en attente",
@@ -847,6 +892,7 @@
       "accepted": "Action approuvée",
       "rejected": "Action refusée",
       "always_accepted": "Règle enregistrée — futurs appels auto-approuvés",
+      "ask_user_replied": "Réponses envoyées à l'agent",
       "bulk_approved": "{count} actions approuvées",
       "bulk_rejected": "{count} actions refusées"
     },
@@ -1358,6 +1404,8 @@
     "subtitle": "Canaux d'alerte et historique des notifications",
     "channels_title": "Canaux",
     "history_title": "Historique",
+    "history_moved": "L'historique d'envoi se trouve désormais dans la Boîte de réception → onglet Notifications envoyées.",
+    "history_open_inbox": "Ouvrir l'historique",
     "empty_channels": "Aucun canal de notification configuré.",
     "empty_history": "Aucune notification dans l'historique.",
     "enabled": "Activé",
@@ -1414,6 +1462,9 @@
       },
       "llm": {
         "backend_down": "Fournisseur LLM indisponible"
+      },
+      "chat": {
+        "user_input_required": "Question d'agent"
       }
     },
     "events_desc": {
@@ -1430,6 +1481,9 @@
       },
       "llm": {
         "backend_down": "Le fournisseur d'IA configuré ne répond plus."
+      },
+      "chat": {
+        "user_input_required": "Un agent attend votre réponse à une question (ask_user)."
       }
     },
     "field_throttle": "Limiter les notifications",
@@ -1699,8 +1753,7 @@
       },
       "items": {
         "palette_open": "Ouvrir la palette de commandes",
-        "palette_actions": "Palette — actions uniquement",
-        "help_overlay": "Afficher l'aperçu des raccourcis",
+        "help_overlay": "Afficher la cheatsheet contextuelle",
         "app_quit": "Quitter Apollia",
         "nav_back": "Revenir en arrière",
         "nav_forward": "Aller en avant",
@@ -1712,7 +1765,7 @@
         "chat_stop": "Annuler la génération en cours",
         "settings_save": "Enregistrer l'onglet Réglages courant",
         "settings_close": "Fermer la fenêtre ou le panneau",
-        "companion_toggle": "Afficher/masquer le Companion",
+        "companion_toggle": "Ouvrir / fermer l'Aide Apollia",
         "companion_move": "Déplacer le Companion à l'écran",
         "companion_focus": "Focaliser la saisie du Companion",
         "approvals_accept": "Accepter l'approbation courante",
@@ -3441,8 +3494,7 @@
   },
   "commandPalette": {
     "placeholder": {
-      "all": "Rechercher pages, actions, sessions…",
-      "actions": "Exécuter une action…"
+      "all": "Rechercher pages, actions, sessions…"
     },
     "groups": {
       "recent": "Récemment utilisés",

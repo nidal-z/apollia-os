@@ -621,6 +621,7 @@ fn main() {
             commands::notifications::list_notification_channels,
             commands::notifications::test_notification_channel,
             commands::notifications::get_notification_logs,
+            commands::notifications::list_runtime_activity,
             commands::notifications::create_notification_channel,
             commands::notifications::update_notification_channel,
             commands::notifications::delete_notification_channel,

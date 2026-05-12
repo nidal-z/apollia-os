@@ -159,6 +159,7 @@
     "agents": "Agents",
     "tasks": "Tasks",
     "approvals": "Approvals",
+    "inbox": "Inbox",
     "inbox_operator": "Inbox",
     "inbox_builder": "Inbox",
     "llm": "LLM",
@@ -785,8 +786,52 @@
   "inbox": {
     "title_operator": "Inbox",
     "title_builder": "Inbox",
+    "kicker": "INBOX",
     "subtitle": "Pending actions waiting on you",
     "pending_count": "{count} pending",
+    "tab_pending": "To do",
+    "tab_activity": "Activity",
+    "tab_notifications": "Notifications sent",
+    "filter_by_agent": "Agent",
+    "all_agents": "All agents",
+    "chips": {
+      "all": "All",
+      "approvals": "Approvals",
+      "questions": "Questions"
+    },
+    "group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "earlier": "Earlier"
+    },
+    "history": {
+      "accepted": "Approved",
+      "always_accepted": "Always approved",
+      "refused": "Rejected",
+      "reason": "Reason:",
+      "session": "Session"
+    },
+    "activity": {
+      "empty": "No recent activity.",
+      "empty_desc": "Failures and degradations from the last 14 days will appear here.",
+      "see_logs": "View logs",
+      "filter": {
+        "all": "All",
+        "failures": "Failures",
+        "degradations": "Degradations",
+        "llm": "LLM"
+      }
+    },
+    "notifications": {
+      "empty": "No notifications sent.",
+      "empty_desc": "History of notifications pushed to your channels will appear here."
+    },
+    "ask_user": {
+      "submit": "Reply",
+      "submitting": "Sending…",
+      "refuse": "Decline to answer",
+      "refuse_title": "Decline to answer"
+    },
     "empty_title": "Nothing waiting",
     "empty_subtitle": "All caught up. New requests will show up here.",
     "list_aria": "Pending actions list",
@@ -847,6 +892,7 @@
       "accepted": "Action approved",
       "rejected": "Action rejected",
       "always_accepted": "Rule saved — future calls auto-approved",
+      "ask_user_replied": "Answers sent to the agent",
       "bulk_approved": "{count} actions approved",
       "bulk_rejected": "{count} actions rejected"
     },
@@ -1358,6 +1404,8 @@
     "subtitle": "Alert channels and notification history",
     "channels_title": "Channels",
     "history_title": "History",
+    "history_moved": "The delivery history now lives in the Inbox → Notifications sent tab.",
+    "history_open_inbox": "Open history",
     "empty_channels": "No notification channels configured.",
     "empty_history": "No notifications in history.",
     "enabled": "Enabled",
@@ -1414,6 +1462,9 @@
       },
       "llm": {
         "backend_down": "LLM provider unavailable"
+      },
+      "chat": {
+        "user_input_required": "Agent question"
       }
     },
     "events_desc": {
@@ -1430,6 +1481,9 @@
       },
       "llm": {
         "backend_down": "The configured AI provider is no longer responding."
+      },
+      "chat": {
+        "user_input_required": "An agent is waiting for your answer to a question (ask_user)."
       }
     },
     "field_throttle": "Throttle notifications",
@@ -1699,8 +1753,7 @@
       },
       "items": {
         "palette_open": "Open the Command Palette",
-        "palette_actions": "Open the palette (actions only)",
-        "help_overlay": "Show the keyboard shortcuts overlay",
+        "help_overlay": "Show contextual cheatsheet",
         "app_quit": "Quit Apollia",
         "nav_back": "Navigate back",
         "nav_forward": "Navigate forward",
@@ -1712,7 +1765,7 @@
         "chat_stop": "Cancel the current generation",
         "settings_save": "Save the current settings panel",
         "settings_close": "Close dialog or sheet",
-        "companion_toggle": "Show or hide the Companion",
+        "companion_toggle": "Show / hide Apollia Help",
         "companion_move": "Move the Companion across the screen",
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
@@ -3441,8 +3494,7 @@
   },
   "commandPalette": {
     "placeholder": {
-      "all": "Search pages, actions, sessions…",
-      "actions": "Run an action…"
+      "all": "Search pages, actions, sessions…"
     },
     "groups": {
       "recent": "Recently used",

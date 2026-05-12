@@ -26,7 +26,6 @@ export const COMMAND_KEYS = {
 export const COMMAND_PALETTE_KEYS = {
   placeholder: {
     all: "commandPalette.placeholder.all",
-    actions: "commandPalette.placeholder.actions",
   },
   groups: {
     recent: "commandPalette.groups.recent",

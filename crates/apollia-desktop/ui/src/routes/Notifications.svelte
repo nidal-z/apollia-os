@@ -2,22 +2,21 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { NotificationChannel, NotificationLogEntry, NotificationChannelView } from "$lib/types";
+  import type { NotificationChannel, NotificationChannelView } from "$lib/types";
   import { Separator } from "$lib/components/ui/separator";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Button } from "$lib/components/ui/button";
   import { EmptyState } from "$lib/components/layout";
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
-  import NotificationLog from "../components/notifications/NotificationLog.svelte";
   import GlobalEventsEditor from "../components/notifications/GlobalEventsEditor.svelte";
   import CreateChannelDialog from "../components/notifications/CreateChannelDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import EditChannelDialog from "../components/notifications/EditChannelDialog.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { navigateTo } from "$lib/stores/navigation";
 
   let channels = $state<NotificationChannel[]>([]);
-  let logs = $state<NotificationLogEntry[]>([]);
   let globalEvents = $state<string[]>([]);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -33,19 +32,25 @@
     loading = true;
     error = null;
     try {
-      const [channelResult, logResult, eventsResult] = await Promise.all([
+      const [channelResult, eventsResult] = await Promise.all([
         invoke<NotificationChannel[]>("list_notification_channels"),
-        invoke<NotificationLogEntry[]>("get_notification_logs", { limit: 50 }),
         invoke<string[]>("get_notification_events"),
       ]);
       channels = channelResult;
-      logs = logResult;
       globalEvents = eventsResult;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
     }
+  }
+
+  function openInboxNotificationsTab() {
+    navigateTo("inbox");
+    // The Inbox listens for this event to switch its active tab.
+    window.dispatchEvent(
+      new CustomEvent("apollia:inbox:select-tab", { detail: { tab: "notifications" } }),
+    );
   }
 
   function handleChannelCreated(id: string) {
@@ -162,13 +167,18 @@
       {/if}
     </section>
 
-    <Separator />
-
-    <!-- History section -->
-    <section>
-      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.history_title')}</h2>
-      <NotificationLog {logs} {channels} />
-    </section>
+    <!-- History moved to the Inbox -->
+    <p class="text-xs text-muted-foreground" data-testid="notifications-history-moved">
+      {$t("notifications.history_moved")}
+      <button
+        type="button"
+        class="ml-1 text-primary underline-offset-2 hover:underline"
+        onclick={openInboxNotificationsTab}
+        data-testid="notifications-history-link"
+      >
+        {$t("notifications.history_open_inbox")}
+      </button>
+    </p>
   {/if}
 </div>
 

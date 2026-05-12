@@ -15,6 +15,7 @@ export const NOTIFICATION_EVENT_TYPES = [
   "agent.degraded",
   "trigger.error",
   "llm.backend_down",
+  "chat.user_input_required",
 ] as const;
 
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];

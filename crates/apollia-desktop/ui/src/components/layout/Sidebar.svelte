@@ -21,7 +21,7 @@
     { route: "projects"      as Route, Icon: FolderKanban,    label: "Projets",         badge: "none"      },
     { route: "tasks"         as Route, Icon: ListChecks,      label: "Mon travail",     badge: "tasks"     },
     { route: "automations"   as Route, Icon: Repeat,          label: "Automatisations", badge: "none"      },
-    { route: "inbox"         as Route, Icon: ShieldCheck,     label: "Approbations",    badge: "approvals" },
+    { route: "inbox"         as Route, Icon: ShieldCheck,     label: "Boîte de réception", badge: "approvals" },
     { route: "notifications" as Route, Icon: Bell,            label: "Notifications",   badge: "none"      },
     { route: "memory"        as Route, Icon: Database,        label: "Mémoire",         badge: "none"      },
     { route: "observability" as Route, Icon: Activity,        label: "Observabilité",   badge: "none"      },
