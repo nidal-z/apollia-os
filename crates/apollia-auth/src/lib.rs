@@ -25,6 +25,7 @@ pub mod mcp_oauth;
 pub mod multi_account;
 pub mod pkce;
 pub mod providers;
+pub mod secret_storage;
 pub mod storage;
 pub mod token;
 
@@ -41,6 +42,9 @@ pub use mcp_oauth::{
     APOLLIA_CIMD_URL,
 };
 pub use multi_account::{AccountId, MultiAccountStorage};
+pub use secret_storage::{
+    select_default as select_secret_store, AgeFileSecretStore, KeyringSecretStore, SecretStore,
+};
 pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
 pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
 pub use storage::KeyringStorage;
