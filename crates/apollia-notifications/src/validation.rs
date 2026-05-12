@@ -43,10 +43,21 @@ pub enum NotificationConfigError {
     Database(#[from] rusqlite::Error),
 }
 
+/// Longueur maximale du `label` d'un canal, en caractères Unicode (`char`).
+pub const MAX_LABEL_LEN: usize = 80;
+
+/// Borne supérieure du throttle d'un canal — 24 heures.
+///
+/// Au-delà, on bascule en territoire de digest planifié, qui sort du périmètre
+/// de cette feature.
+pub const MAX_MIN_INTERVAL_SECONDS: u32 = 86_400;
+
 /// Valide un canal de notification avant insertion ou mise à jour.
 ///
 /// Règles :
 /// - Un canal de type `"webhook"` doit avoir une clé `"url"` non vide dans `config_json`.
+/// - Si `label` est `Some`, il doit être non vide après trim et ≤ [`MAX_LABEL_LEN`] caractères.
+/// - `min_interval_seconds` ≤ [`MAX_MIN_INTERVAL_SECONDS`].
 pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationConfigError> {
     if ch.channel_type == "webhook" {
         let has_url = ch
@@ -59,6 +70,44 @@ pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationC
                 "webhook channel requires 'url' in config".into(),
             ));
         }
+    }
+    validate_label(ch.label.as_deref())?;
+    validate_min_interval(ch.min_interval_seconds)?;
+    Ok(())
+}
+
+/// Valide une valeur de `min_interval_seconds`.
+///
+/// `0` est accepté (pas de throttling). Au-delà de [`MAX_MIN_INTERVAL_SECONDS`],
+/// la valeur est refusée pour éviter des fenêtres absurdes côté UI.
+pub fn validate_min_interval(seconds: u32) -> Result<(), NotificationConfigError> {
+    if seconds > MAX_MIN_INTERVAL_SECONDS {
+        return Err(NotificationConfigError::ValidationError(format!(
+            "min_interval_seconds too large: {seconds} (max {MAX_MIN_INTERVAL_SECONDS})"
+        )));
+    }
+    Ok(())
+}
+
+/// Valide un label libre.
+///
+/// - `None` est accepté (le canal retombera sur son `id` côté UI).
+/// - `Some("")` ou `Some("   ")` (whitespace seul) est refusé.
+/// - Plus de [`MAX_LABEL_LEN`] caractères Unicode est refusé.
+pub fn validate_label(label: Option<&str>) -> Result<(), NotificationConfigError> {
+    let Some(label) = label else {
+        return Ok(());
+    };
+    if label.trim().is_empty() {
+        return Err(NotificationConfigError::ValidationError(
+            "label cannot be empty or whitespace-only".into(),
+        ));
+    }
+    let char_count = label.chars().count();
+    if char_count > MAX_LABEL_LEN {
+        return Err(NotificationConfigError::ValidationError(format!(
+            "label too long: {char_count} chars (max {MAX_LABEL_LEN})"
+        )));
     }
     Ok(())
 }
@@ -84,10 +133,12 @@ mod tests {
     fn make_webhook_channel(config: serde_json::Value) -> NotificationChannelRow {
         NotificationChannelRow {
             id: "test-webhook".into(),
+            label: None,
             channel_type: "webhook".into(),
             enabled: true,
             config_json: config,
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -119,14 +170,79 @@ mod tests {
     fn test_validate_channel_desktop_no_url_ok() {
         let ch = NotificationChannelRow {
             id: "desktop".into(),
+            label: None,
             channel_type: "desktop".into(),
             enabled: true,
             config_json: serde_json::json!({}),
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         };
         assert!(validate_channel(&ch).is_ok());
+    }
+
+    #[test]
+    fn test_validate_min_interval_zero_ok() {
+        assert!(validate_min_interval(0).is_ok());
+    }
+
+    #[test]
+    fn test_validate_min_interval_reasonable_ok() {
+        for v in [1u32, 60, 300, 3600, 7200, MAX_MIN_INTERVAL_SECONDS] {
+            assert!(validate_min_interval(v).is_ok(), "expected {v} to be ok");
+        }
+    }
+
+    #[test]
+    fn test_validate_min_interval_over_cap_rejects() {
+        let err = validate_min_interval(MAX_MIN_INTERVAL_SECONDS + 1).unwrap_err();
+        assert!(matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too large")));
+    }
+
+    #[test]
+    fn test_validate_label_none_ok() {
+        // GIVEN no label
+        // WHEN / THEN validation passes (legacy channels without label)
+        assert!(validate_label(None).is_ok());
+    }
+
+    #[test]
+    fn test_validate_label_human_text_ok() {
+        // GIVEN un label libre avec espaces et accents
+        // WHEN / THEN validation passes
+        assert!(validate_label(Some("Alertes Slack équipe")).is_ok());
+    }
+
+    #[test]
+    fn test_validate_label_empty_rejects() {
+        // GIVEN an empty or whitespace-only label
+        // WHEN / THEN validation fails
+        assert!(validate_label(Some("")).is_err());
+        assert!(validate_label(Some("   ")).is_err());
+    }
+
+    #[test]
+    fn test_validate_label_too_long_rejects() {
+        // GIVEN a label of 81 chars
+        let too_long: String = "a".repeat(81);
+        // WHEN / THEN validation fails
+        let err = validate_label(Some(&too_long)).unwrap_err();
+        assert!(
+            matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too long")),
+            "expected too-long error, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_validate_label_unicode_chars_counted() {
+        // GIVEN 80 emoji (1 char each in Unicode), should pass
+        let just_under: String = "🚀".repeat(80);
+        assert!(validate_label(Some(&just_under)).is_ok());
+
+        // GIVEN 81 emoji
+        let over: String = "🚀".repeat(81);
+        assert!(validate_label(Some(&over)).is_err());
     }
 
     #[test]

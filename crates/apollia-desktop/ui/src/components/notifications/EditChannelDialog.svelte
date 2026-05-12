@@ -8,6 +8,12 @@
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
+  import {
+    THROTTLE_PRESETS,
+    MAX_MIN_INTERVAL_SECONDS,
+    isPreset,
+  } from "$lib/notifications/throttle-options";
 
   interface Props {
     open: boolean;
@@ -21,15 +27,27 @@
 
   type ChannelType = "desktop" | "webhook";
 
+  const LABEL_MAX_LEN = 80;
+
+  let label = $state("");
   let channelType = $state<ChannelType>("desktop");
   let enabled = $state(true);
   let webhookUrl = $state("");
   let headersText = $state("");
   let selectedEvents = $state<Set<string>>(new Set());
+  let throttlePreset = $state<string>("0");
+  let throttleCustom = $state("0"); // string for Input binding
+  let originalThrottle = $state(0);
 
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
   let touched = $state(false);
+
+  const labelError = $derived.by(() => {
+    if (!touched) return null;
+    if (label.length > LABEL_MAX_LEN) return $t("notifications.field_label_too_long");
+    return null;
+  });
 
   const urlError = $derived.by(() => {
     if (!touched) return null;
@@ -50,9 +68,23 @@
     }
   });
 
+  const throttleValue = $derived(
+    throttlePreset === "custom"
+      ? Math.max(0, Math.floor(Number.parseFloat(throttleCustom) || 0))
+      : parseInt(throttlePreset, 10) || 0,
+  );
+
+  const throttleError = $derived.by(() => {
+    if (!touched) return null;
+    if (throttleValue > MAX_MIN_INTERVAL_SECONDS) return $t("notifications.field_throttle_too_large");
+    return null;
+  });
+
   const isValid = $derived(
+    label.length <= LABEL_MAX_LEN &&
     (channelType !== "webhook" || !!webhookUrl.trim()) &&
-    !headersError
+    !headersError &&
+    !throttleError
   );
 
   function toggleEvent(event: string) {
@@ -81,13 +113,22 @@
         }
       }
 
+      const trimmedLabel = label.trim();
+      const originalLabel = channel.label ?? "";
       const request: UpdateChannelRequest = {
         channel_type: channelType,
         enabled,
         config,
       };
+      // Only include `label` when changed — distinguishes "keep" from "clear".
+      if (trimmedLabel !== originalLabel.trim()) {
+        request.label = trimmedLabel || null;
+      }
       if (selectedEvents.size > 0) {
         request.events = [...selectedEvents];
+      }
+      if (throttleValue !== originalThrottle) {
+        request.min_interval_seconds = throttleValue;
       }
 
       await invoke<NotificationChannelView>("update_notification_channel", {
@@ -105,6 +146,7 @@
 
   function populateForm() {
     if (!channel) return;
+    label = channel.label ?? "";
     channelType = channel.channel_type as ChannelType;
     enabled = channel.enabled;
     if (channelType === "webhook") {
@@ -116,6 +158,14 @@
       headersText = "";
     }
     selectedEvents = channel.events ? new Set(channel.events) : new Set();
+    originalThrottle = channel.min_interval_seconds ?? 0;
+    if (isPreset(originalThrottle)) {
+      throttlePreset = String(originalThrottle);
+      throttleCustom = "0";
+    } else {
+      throttlePreset = "custom";
+      throttleCustom = String(originalThrottle);
+    }
     submitting = false;
     submitError = null;
     touched = false;
@@ -137,12 +187,29 @@
     data-testid="edit-channel-dialog"
   >
     <div class="space-y-4">
-      <!-- ID (readonly) -->
+      <!-- Label (free-form display name) -->
+      <div>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-label">{$t("notifications.field_label")}</label>
+        <Input
+          id="edit-channel-label"
+          class={labelError ? 'border-destructive' : ''}
+          placeholder={$t("notifications.field_label_placeholder")}
+          bind:value={label}
+          maxlength={LABEL_MAX_LEN}
+          data-testid="edit-channel-label-input"
+        />
+        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_label_help")}</p>
+        {#if labelError}
+          <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-label-error">{labelError}</p>
+        {/if}
+      </div>
+
+      <!-- ID (readonly, slug fixed at creation time) -->
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-id">{$t("notifications.field_id")}</label>
         <Input
           id="edit-channel-id"
-          class="bg-muted"
+          class="bg-muted font-mono"
           value={channel.id}
           readonly
           data-testid="edit-channel-id-input"
@@ -203,19 +270,62 @@
         <div>
           <p class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</p>
           <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+          <div class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {#each globalEvents as event}
-              <label class="flex items-center gap-2 text-sm" data-testid="edit-channel-event-{event}">
+              <label class="flex items-start gap-2 text-sm" data-testid="edit-channel-event-{event}">
                 <Checkbox
+                  class="mt-0.5"
                   checked={selectedEvents.has(event)}
                   onchange={() => toggleEvent(event)}
                 />
-                <span class="font-mono text-xs">{event}</span>
+                <span class="flex flex-1 flex-col gap-0.5 min-w-0">
+                  <span class="font-medium leading-tight">{$t(eventLabelKey(event))}</span>
+                  <span class="text-[11px] leading-snug text-muted-foreground">
+                    {$t(eventDescriptionKey(event))}
+                  </span>
+                  <span class="text-[10px] font-mono text-muted-foreground/60 truncate">
+                    {event}
+                  </span>
+                </span>
               </label>
             {/each}
           </div>
         </div>
       {/if}
+
+      <!-- Throttle -->
+      <div>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-throttle">{$t("notifications.field_throttle")}</label>
+        <Select
+          id="edit-channel-throttle"
+          bind:value={throttlePreset}
+          data-testid="edit-channel-throttle-select"
+        >
+          {#each THROTTLE_PRESETS as preset}
+            <option value={String(preset.value)}>{$t(preset.key)}</option>
+          {/each}
+          <option value="custom">{$t("notifications.throttle_options.custom")}</option>
+        </Select>
+        {#if throttlePreset === "custom"}
+          <div class="mt-2">
+            <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-throttle-custom">
+              {$t("notifications.throttle_custom_label")}
+            </label>
+            <Input
+              id="edit-channel-throttle-custom"
+              type="number"
+              min={1}
+              max={MAX_MIN_INTERVAL_SECONDS}
+              bind:value={throttleCustom}
+              data-testid="edit-channel-throttle-custom-input"
+            />
+          </div>
+        {/if}
+        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_throttle_help")}</p>
+        {#if throttleError}
+          <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-throttle-error">{throttleError}</p>
+        {/if}
+      </div>
 
       <!-- Enabled toggle -->
       <label class="flex items-center gap-2 text-sm">

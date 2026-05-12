@@ -61,10 +61,12 @@
   function handleEditChannel(ch: NotificationChannel) {
     editingChannel = {
       id: ch.channel_id,
+      label: ch.label ?? null,
       channel_type: ch.type as "desktop" | "webhook",
       enabled: ch.enabled,
       config: {},
       events: ch.events.length > 0 ? ch.events : null,
+      min_interval_seconds: ch.min_interval_seconds ?? 0,
       created_at: "",
       updated_at: "",
     };
@@ -165,7 +167,7 @@
     <!-- History section -->
     <section>
       <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.history_title')}</h2>
-      <NotificationLog {logs} />
+      <NotificationLog {logs} {channels} />
     </section>
   {/if}
 </div>

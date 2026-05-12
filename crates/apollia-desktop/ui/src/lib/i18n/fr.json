@@ -1364,11 +1364,63 @@
     "global_events_saving": "Enregistrement...",
     "global_events_saved": "Événements globaux enregistrés",
     "global_events_error": "Échec de l'enregistrement : {message}",
+    "field_label": "Nom",
+    "field_label_placeholder": "Alertes Slack équipe",
+    "field_label_help": "Nom affiché dans l'interface, libre (espaces, accents et emojis acceptés)",
+    "field_label_too_long": "Le nom doit faire 80 caractères maximum",
+    "field_id_advanced": "Identifiant technique (avancé)",
     "field_id": "ID du canal",
     "field_id_placeholder": "mon-canal",
-    "field_id_help": "Identifiant unique (minuscules, tirets autorisés)",
+    "field_id_help": "Identifiant unique (minuscules, tirets autorisés). Généré automatiquement depuis le Nom.",
     "field_id_required": "L'ID est requis",
     "field_id_invalid": "L'ID doit être alphanumérique minuscule avec tirets",
+    "test_success": "Test du canal réussi",
+    "toggle_enabled_toast": "Canal {label} activé",
+    "toggle_disabled_toast": "Canal {label} désactivé",
+    "toggle_error_toast": "Impossible de mettre à jour le canal : {message}",
+    "events": {
+      "task": {
+        "completed": "Tâche terminée avec succès",
+        "failed": "Tâche échouée",
+        "input_required": "Approbation requise"
+      },
+      "agent": {
+        "degraded": "Agent en mode dégradé"
+      },
+      "trigger": {
+        "error": "Erreur de déclencheur"
+      },
+      "llm": {
+        "backend_down": "Fournisseur LLM indisponible"
+      }
+    },
+    "events_desc": {
+      "task": {
+        "completed": "Un agent vient d'achever sa mission.",
+        "failed": "Une tâche d'agent s'est interrompue sur un échec.",
+        "input_required": "Un agent attend votre décision (HITL)."
+      },
+      "agent": {
+        "degraded": "Un outil optionnel est indisponible ; l'agent continue avec des capacités réduites."
+      },
+      "trigger": {
+        "error": "Une automatisation programmée n'a pas pu se déclencher."
+      },
+      "llm": {
+        "backend_down": "Le fournisseur d'IA configuré ne répond plus."
+      }
+    },
+    "field_throttle": "Limiter les notifications",
+    "field_throttle_help": "Une notification au maximum par fenêtre, pour ce canal et ce type d'événement. Les notifications dépassant la limite sont regroupées dans un récapitulatif.",
+    "field_throttle_too_large": "Intervalle trop long (max 86400 s = 24 h)",
+    "throttle_options": {
+      "none": "Aucune limite",
+      "minute": "1 par minute (60 s)",
+      "five_min": "1 toutes les 5 min (300 s)",
+      "hour": "1 par heure (3600 s)",
+      "custom": "Personnalisé…"
+    },
+    "throttle_custom_label": "Intervalle minimal (secondes)",
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",

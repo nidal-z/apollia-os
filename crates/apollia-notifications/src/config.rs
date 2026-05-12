@@ -56,6 +56,14 @@ pub struct ChannelConfig {
     /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
     /// ignorées. Défaut : `Info` (toutes les notifications sont transmises).
     pub min_severity: Option<Severity>,
+    /// Intervalle minimal entre deux notifications pour le même couple
+    /// `(canal, événement)`, en secondes. `0` = pas de throttling.
+    ///
+    /// Appliqué par [`crate::engine::NotificationEngine`] avant le dispatch.
+    /// Les notifications dropées sont comptabilisées et synthétisées en un
+    /// récapitulatif émis à la fin de la fenêtre.
+    #[serde(default)]
+    pub min_interval_seconds: u32,
 }
 
 /// Type de canal de notification.
@@ -66,8 +74,6 @@ pub enum ChannelKind {
     Desktop,
     /// Requête HTTP POST vers une URL configurée.
     Webhook,
-    /// Server-Sent Events via le dashboard local.
-    Sse,
     /// Notification dans le terminal via séquences OSC (iTerm2, GNOME/VTE, ou bell).
     Terminal,
 }
@@ -114,13 +120,11 @@ impl ChannelConfig {
     /// - `Desktop` → [`Severity::Error`] (bureau ne reçoit que les alertes graves)
     /// - `Webhook` → [`Severity::Info`] (webhook reçoit tout)
     /// - `Terminal` → [`Severity::Warning`] (terminal filtre les informations de bas niveau)
-    /// - `Sse` → [`Severity::Info`] (SSE géré par le dashboard, pas de filtrage strict)
     pub fn default_min_severity(kind: &ChannelKind) -> Severity {
         match kind {
             ChannelKind::Desktop => Severity::Error,
             ChannelKind::Webhook => Severity::Info,
             ChannelKind::Terminal => Severity::Warning,
-            ChannelKind::Sse => Severity::Info,
         }
     }
 }
@@ -168,7 +172,6 @@ pub enum NotifConfigError {
 /// - `type = "desktop"` → [`DesktopChannel`] ajouté
 /// - `type = "webhook"` → [`WebhookChannel`] ajouté (erreur si `url` absent)
 /// - `type = "terminal"` → [`TerminalChannel`] ajouté (détection automatique de l'émulateur)
-/// - `type = "sse"` → ignoré (géré directement par le dashboard)
 ///
 /// Retourne une erreur si un canal `webhook` actif n'a pas de `url`.
 pub fn build_channels(
@@ -213,9 +216,6 @@ pub fn build_channels(
                     cfg.events.clone(),
                     min_severity,
                 )));
-            }
-            ChannelKind::Sse => {
-                // Le canal SSE est géré directement par le dashboard.
             }
         }
     }
@@ -360,6 +360,7 @@ mod tests {
             url: None,
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN
@@ -383,6 +384,7 @@ mod tests {
             url: Some("https://hooks.slack.com/test".into()),
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN
@@ -405,6 +407,7 @@ mod tests {
             url: None,
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN

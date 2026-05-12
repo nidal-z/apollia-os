@@ -37,6 +37,9 @@ use crate::coordinator::ExecutionBackend;
 pub struct CreateChannelRequest {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface, libre. `None` = retombe sur `id` côté UI.
+    #[serde(default)]
+    pub label: Option<String>,
     /// Type de canal : `"desktop"` ou `"webhook"`.
     pub channel_type: String,
     /// Indique si le canal est actif (défaut : `true`).
@@ -45,11 +48,22 @@ pub struct CreateChannelRequest {
     pub config: serde_json::Value,
     /// Liste d'événements spécifiques. `null` = utilise les événements globaux.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes. Défaut : `0` (aucun).
+    #[serde(default)]
+    pub min_interval_seconds: u32,
 }
 
 /// Corps de requête pour `PUT /api/v1/notifications/channels/:id`.
+///
+/// Le champ `label` utilise un double-`Option` :
+/// - absent du JSON → `None` → conserver le label existant ;
+/// - `null` → `Some(None)` → effacer le label ;
+/// - `"texte"` → `Some(Some("texte"))` → remplacer.
 #[derive(Debug, Deserialize)]
 pub struct UpdateChannelRequest {
+    /// Nouveau label. Voir le doc du struct pour la sémantique du double-Option.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub label: Option<Option<String>>,
     /// Type de canal (optionnel — conserve l'existant si absent).
     pub channel_type: Option<String>,
     /// Indique si le canal est actif.
@@ -58,6 +72,17 @@ pub struct UpdateChannelRequest {
     pub config: Option<serde_json::Value>,
     /// Liste d'événements spécifiques.
     pub events: Option<Vec<String>>,
+    /// Nouvel intervalle minimal de throttling (s). Absent = conserver.
+    pub min_interval_seconds: Option<u32>,
+}
+
+/// Distingue `field: null` (`Some(None)`) de l'absence du champ (`None`).
+fn deserialize_optional_field<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 /// Corps de requête pour `PUT /api/v1/notifications/events`.
@@ -74,6 +99,8 @@ pub struct SetEventsRequest {
 pub struct ChannelResponse {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface, libre. `null` = retombe sur `id` côté UI.
+    pub label: Option<String>,
     /// Type de canal.
     pub channel_type: String,
     /// `true` si le canal est activé.
@@ -82,6 +109,8 @@ pub struct ChannelResponse {
     pub config: serde_json::Value,
     /// Événements spécifiques au canal.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes.
+    pub min_interval_seconds: u32,
     /// Horodatage de création (ISO 8601).
     pub created_at: String,
     /// Horodatage de dernière modification (ISO 8601).
@@ -100,13 +129,17 @@ pub struct EventsResponse {
 pub struct ChannelInfo {
     /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
     pub channel_id: String,
-    /// Type de canal : `"desktop"`, `"webhook"`, ou `"sse"`.
+    /// Nom affiché dans l'interface (`None` = retombe sur `channel_id` côté UI).
+    pub label: Option<String>,
+    /// Type de canal : `"desktop"`, `"webhook"`, ou `"terminal"`.
     #[serde(rename = "type")]
     pub kind: String,
     /// `true` si le canal est activé dans la configuration.
     pub enabled: bool,
     /// Liste des événements que ce canal accepte.
     pub events: Vec<String>,
+    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    pub min_interval_seconds: u32,
 }
 
 /// Résultat du test d'un canal individuel retourné par `POST /test`.
@@ -175,10 +208,12 @@ pub async fn create_channel<B: ExecutionBackend + Clone>(
 
     let row = NotificationChannelRow {
         id: body.id,
+        label: body.label,
         channel_type: body.channel_type,
         enabled: body.enabled.unwrap_or(true),
         config_json: body.config,
         events_json: body.events,
+        min_interval_seconds: body.min_interval_seconds,
         created_at: String::new(),
         updated_at: String::new(),
     };
@@ -242,10 +277,18 @@ pub async fn update_channel<B: ExecutionBackend + Clone>(
 
         let merged = NotificationChannelRow {
             id: id.clone(),
+            // Double-Option : absent → conserver ; Some(None) → effacer ; Some(Some(s)) → remplacer.
+            label: match body.label {
+                Some(value) => value,
+                None => existing.label,
+            },
             channel_type: body.channel_type.unwrap_or(existing.channel_type),
             enabled: body.enabled.unwrap_or(existing.enabled),
             config_json: body.config.unwrap_or(existing.config_json),
             events_json: body.events.or(existing.events_json),
+            min_interval_seconds: body
+                .min_interval_seconds
+                .unwrap_or(existing.min_interval_seconds),
             created_at: existing.created_at,
             updated_at: existing.updated_at,
         };
@@ -398,9 +441,11 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
         .iter()
         .map(|ch| ChannelInfo {
             channel_id: ch.id.clone(),
+            label: None,
             kind: channel_kind_str(&ch.kind),
             enabled: ch.enabled,
             events: ch.events.clone().unwrap_or_else(|| config.events.clone()),
+            min_interval_seconds: ch.min_interval_seconds,
         })
         .collect();
 
@@ -544,10 +589,12 @@ pub async fn notification_logs<B: ExecutionBackend + Clone>(
 fn row_to_response(row: &NotificationChannelRow) -> ChannelResponse {
     ChannelResponse {
         id: row.id.clone(),
+        label: row.label.clone(),
         channel_type: row.channel_type.clone(),
         enabled: row.enabled,
         config: row.config_json.clone(),
         events: row.events_json.clone(),
+        min_interval_seconds: row.min_interval_seconds,
         created_at: row.created_at.clone(),
         updated_at: row.updated_at.clone(),
     }
@@ -629,7 +676,6 @@ fn channel_kind_str(kind: &ChannelKind) -> String {
     match kind {
         ChannelKind::Desktop => "desktop".to_string(),
         ChannelKind::Webhook => "webhook".to_string(),
-        ChannelKind::Sse => "sse".to_string(),
         ChannelKind::Terminal => "terminal".to_string(),
     }
 }
@@ -1130,7 +1176,7 @@ mod tests {
     fn test_channel_kind_str_all_variants() {
         assert_eq!(channel_kind_str(&ChannelKind::Desktop), "desktop");
         assert_eq!(channel_kind_str(&ChannelKind::Webhook), "webhook");
-        assert_eq!(channel_kind_str(&ChannelKind::Sse), "sse");
+        assert_eq!(channel_kind_str(&ChannelKind::Terminal), "terminal");
     }
 
     #[test]
@@ -1145,6 +1191,7 @@ mod tests {
                 url: None,
                 signing_secret: None,
                 min_severity: None,
+                min_interval_seconds: 0,
             }],
             inactivity_timeout_secs: 30,
         };

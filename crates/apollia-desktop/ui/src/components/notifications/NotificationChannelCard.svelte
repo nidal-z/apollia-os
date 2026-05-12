@@ -1,29 +1,37 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { NotificationChannel, ChannelTestResult } from "$lib/types";
+  import type {
+    ChannelTestResult,
+    NotificationChannel,
+    NotificationChannelView,
+    UpdateChannelRequest,
+  } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Toggle } from "$lib/components/ui/toggle";
   import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     channel: NotificationChannel;
     onedit: () => void;
     ondelete: () => void;
+    /** Bubble up the new `enabled` state so the parent can refresh its store. */
+    ontoggled?: (id: string, enabled: boolean) => void;
   }
 
-  let { channel, onedit, ondelete }: Props = $props();
+  let { channel, onedit, ondelete, ontoggled }: Props = $props();
 
   const FEEDBACK_DURATION_MS = 5_000;
 
   let testing = $state(false);
+  let toggling = $state(false);
   let testResult = $state<ChannelTestResult | null>(null);
   let feedbackTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   const TYPE_BADGE: Record<string, { label: string; extraClass: string }> = {
     desktop: { label: "Desktop", extraClass: "border-info text-info" },
     webhook: { label: "Webhook", extraClass: "border-accent text-accent-foreground" },
-    sse: { label: "SSE", extraClass: "border-info text-info-foreground" },
   };
 
   const badgeConfig = $derived(
@@ -32,6 +40,38 @@
       extraClass: "",
     },
   );
+
+  const displayName = $derived(
+    channel.label && channel.label.trim() ? channel.label : channel.channel_id,
+  );
+
+  async function handleToggle(next: boolean) {
+    if (toggling) return;
+    toggling = true;
+    const previous = channel.enabled;
+    // Optimistic local flip — gives < 50 ms feedback even on slow round-trip.
+    channel.enabled = next;
+    try {
+      const request: UpdateChannelRequest = { enabled: next };
+      await invoke<NotificationChannelView>("update_notification_channel", {
+        id: channel.channel_id,
+        channel: request,
+      });
+      addToast(
+        $t(next ? "notifications.toggle_enabled_toast" : "notifications.toggle_disabled_toast", {
+          values: { label: displayName },
+        }),
+        "success",
+      );
+      ontoggled?.(channel.channel_id, next);
+    } catch (err: unknown) {
+      channel.enabled = previous;
+      const message = err instanceof Error ? err.message : String(err);
+      addToast($t("notifications.toggle_error_toast", { values: { message } }), "error");
+    } finally {
+      toggling = false;
+    }
+  }
 
   async function handleTest() {
     testing = true;
@@ -75,19 +115,27 @@
   <div class="pl-4 pr-3.5 pt-3 pb-2.5">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <h3 class="text-[13px] font-medium">{channel.channel_id}</h3>
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="min-w-0">
+          <h3 class="text-[13px] font-medium truncate">{displayName}</h3>
+          {#if channel.label && channel.label.trim()}
+            <p class="text-[10px] text-muted-foreground/70 font-mono truncate" title={channel.channel_id}>
+              {channel.channel_id}
+            </p>
+          {/if}
+        </div>
         <Badge variant="outline" class={badgeConfig.extraClass}>
           {badgeConfig.label}
         </Badge>
       </div>
-      <div class="flex items-center gap-1.5">
-        {#if channel.enabled}
-          <Badge variant="success">{$t('notifications.enabled')}</Badge>
-        {:else}
-          <Badge variant="secondary">{$t('notifications.disabled')}</Badge>
-        {/if}
-      </div>
+      <Toggle
+        checked={channel.enabled}
+        onchange={handleToggle}
+        loading={toggling}
+        size="sm"
+        aria-label={$t(channel.enabled ? "notifications.disabled" : "notifications.enabled")}
+        data-testid="channel-toggle-{channel.channel_id}"
+      />
     </div>
 
     <!-- Event filters -->

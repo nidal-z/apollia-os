@@ -1364,11 +1364,63 @@
     "global_events_saving": "Saving...",
     "global_events_saved": "Global events saved",
     "global_events_error": "Failed to save global events: {message}",
+    "field_label": "Name",
+    "field_label_placeholder": "Slack team alerts",
+    "field_label_help": "Display name shown in the UI, free-form (spaces, accents and emojis accepted)",
+    "field_label_too_long": "Name must be 80 characters or fewer",
+    "field_id_advanced": "Technical identifier (advanced)",
     "field_id": "Channel ID",
     "field_id_placeholder": "my-channel",
-    "field_id_help": "Unique identifier (lowercase, hyphens allowed)",
+    "field_id_help": "Unique identifier (lowercase, hyphens allowed). Generated automatically from the Name.",
     "field_id_required": "ID is required",
     "field_id_invalid": "ID must be lowercase alphanumeric with hyphens",
+    "test_success": "Channel test succeeded",
+    "toggle_enabled_toast": "Channel {label} enabled",
+    "toggle_disabled_toast": "Channel {label} disabled",
+    "toggle_error_toast": "Failed to update channel: {message}",
+    "events": {
+      "task": {
+        "completed": "Task completed successfully",
+        "failed": "Task failed",
+        "input_required": "Approval required"
+      },
+      "agent": {
+        "degraded": "Agent degraded"
+      },
+      "trigger": {
+        "error": "Trigger error"
+      },
+      "llm": {
+        "backend_down": "LLM provider unavailable"
+      }
+    },
+    "events_desc": {
+      "task": {
+        "completed": "An agent has just completed its mission.",
+        "failed": "An agent task aborted on failure.",
+        "input_required": "An agent is waiting for your decision (HITL)."
+      },
+      "agent": {
+        "degraded": "An optional tool is unavailable; the agent continues with reduced capability."
+      },
+      "trigger": {
+        "error": "A scheduled automation failed to trigger."
+      },
+      "llm": {
+        "backend_down": "The configured AI provider is no longer responding."
+      }
+    },
+    "field_throttle": "Throttle notifications",
+    "field_throttle_help": "At most one notification per window, per (channel, event type). Extra notifications are grouped into a summary.",
+    "field_throttle_too_large": "Interval too long (max 86400 s = 24 h)",
+    "throttle_options": {
+      "none": "No limit",
+      "minute": "1 per minute (60 s)",
+      "five_min": "1 every 5 min (300 s)",
+      "hour": "1 per hour (3600 s)",
+      "custom": "Custom…"
+    },
+    "throttle_custom_label": "Minimum interval (seconds)",
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",
