@@ -55,7 +55,7 @@
 </script>
 
 <div
-  class="flex items-start gap-3 rounded-md border border-border/60 bg-background/60 px-3 py-2.5"
+  class="flex items-center gap-3 rounded-md border border-border/60 bg-background/60 px-3 py-2.5"
   data-testid="activity-row"
   data-event={entry.event_name}
 >
