@@ -118,12 +118,61 @@ pub fn compute_signature(secret: &str, body: &[u8]) -> String {
     format!("sha256={}", hex::encode(result.into_bytes()))
 }
 
+/// Format de payload à envoyer au endpoint webhook.
+///
+/// Détecté automatiquement par hostname dans [`detect_webhook_kind`].
+/// Les utilisateurs de Discord ou Slack obtiennent un payload natif accepté
+/// par leur plateforme ; tout autre endpoint reçoit le format JSON Apollia
+/// historique.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WebhookKind {
+    /// Format JSON Apollia : champs `event`, `task_id`, `severity`, etc.
+    /// Utilisé pour les endpoints custom (services Apollia-aware).
+    Apollia,
+    /// Discord Incoming Webhook : payload `{ content, embeds, username }`.
+    /// Détection : hostname contient `discord.com` ou `discordapp.com`.
+    Discord,
+    /// Slack Incoming Webhook : payload `{ text, attachments }`.
+    /// Détection : hostname contient `hooks.slack.com`.
+    Slack,
+}
+
+/// Devine le format attendu à partir du hostname de l'URL.
+///
+/// Tolérant aux erreurs d'URL : retombe sur [`WebhookKind::Apollia`] si
+/// le parsing échoue. La validation SSRF/URL est faite séparément en amont.
+pub(crate) fn detect_webhook_kind(url: &str) -> WebhookKind {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return WebhookKind::Apollia;
+    };
+    match parsed.host_str() {
+        Some(host)
+            if host.eq_ignore_ascii_case("discord.com")
+                || host.eq_ignore_ascii_case("ptb.discord.com")
+                || host.eq_ignore_ascii_case("canary.discord.com")
+                || host.eq_ignore_ascii_case("discordapp.com") =>
+        {
+            WebhookKind::Discord
+        }
+        Some(host) if host.eq_ignore_ascii_case("hooks.slack.com") => WebhookKind::Slack,
+        _ => WebhookKind::Apollia,
+    }
+}
+
+/// Construit le payload selon le format détecté.
+///
+/// Délègue à [`build_apollia_payload`], [`build_discord_payload`] ou
+/// [`build_slack_payload`].
+pub(crate) fn build_payload(notif: &Notification) -> serde_json::Value {
+    build_apollia_payload(notif)
+}
+
 /// Construit le payload JSON Apollia à partir d'une [`Notification`].
 ///
 /// Le format est fixe et documenté :
 /// `event`, `timestamp`, `runtime`, `version`, `task_id`, `agent`, `message`,
 /// `metadata`, `severity`.
-pub(crate) fn build_payload(notif: &Notification) -> serde_json::Value {
+pub(crate) fn build_apollia_payload(notif: &Notification) -> serde_json::Value {
     serde_json::json!({
         "event":     notif.event,
         "timestamp": notif.timestamp.to_rfc3339(),
@@ -135,6 +184,111 @@ pub(crate) fn build_payload(notif: &Notification) -> serde_json::Value {
         "metadata":  notif.metadata,
         "severity":  notif.severity.as_str(),
     })
+}
+
+/// Construit un payload Discord avec un embed riche.
+///
+/// Discord accepte `content` (texte plat) et/ou `embeds` (array d'objets
+/// embed). On choisit l'embed pour conserver les métadonnées : couleur
+/// par sévérité, champs `événement` / `agent` / `tâche`, timestamp.
+pub(crate) fn build_discord_payload(notif: &Notification) -> serde_json::Value {
+    let mut fields: Vec<serde_json::Value> = Vec::new();
+    fields.push(serde_json::json!({
+        "name": "Événement",
+        "value": format!("`{}`", notif.event),
+        "inline": true,
+    }));
+    if let Some(ref agent) = notif.agent {
+        fields.push(serde_json::json!({
+            "name": "Agent",
+            "value": agent,
+            "inline": true,
+        }));
+    }
+    if let Some(ref task) = notif.task_id {
+        fields.push(serde_json::json!({
+            "name": "Tâche",
+            "value": format!("`{task}`"),
+            "inline": true,
+        }));
+    }
+
+    // Couleurs Discord (entier décimal). Voir https://discord.com/developers/docs/resources/channel#embed-object
+    let color: u32 = match notif.severity {
+        Severity::Critical => 0xB91C1C, // red-700
+        Severity::Error => 0xDC2626,    // red-600
+        Severity::Warning => 0xD97706,  // amber-600
+        Severity::Info => 0x2563EB,     // blue-600
+        Severity::Debug => 0x6B7280,    // gray-500
+    };
+
+    let embed = serde_json::json!({
+        "title": truncate(&notif.message, 256),
+        "color": color,
+        "fields": fields,
+        "timestamp": notif.timestamp.to_rfc3339(),
+        "footer": { "text": format!("Apollia OS · {}", notif.severity.as_str()) },
+    });
+
+    serde_json::json!({
+        "username": "Apollia OS",
+        "embeds": [embed],
+    })
+}
+
+/// Construit un payload Slack Incoming Webhook.
+///
+/// Slack accepte `text` (markdown léger) et `attachments` (legacy mais
+/// largement supporté). On utilise les attachments pour la couleur et
+/// les champs de contexte.
+pub(crate) fn build_slack_payload(notif: &Notification) -> serde_json::Value {
+    let color = match notif.severity {
+        Severity::Critical | Severity::Error => "danger",
+        Severity::Warning => "warning",
+        Severity::Info | Severity::Debug => "good",
+    };
+
+    let mut fields: Vec<serde_json::Value> = vec![serde_json::json!({
+        "title": "Événement",
+        "value": notif.event,
+        "short": true,
+    })];
+    if let Some(ref agent) = notif.agent {
+        fields.push(serde_json::json!({
+            "title": "Agent",
+            "value": agent,
+            "short": true,
+        }));
+    }
+    if let Some(ref task) = notif.task_id {
+        fields.push(serde_json::json!({
+            "title": "Tâche",
+            "value": task,
+            "short": true,
+        }));
+    }
+
+    serde_json::json!({
+        "text": notif.message,
+        "attachments": [{
+            "color": color,
+            "fields": fields,
+            "footer": "Apollia OS",
+            "ts": notif.timestamp.timestamp(),
+        }],
+    })
+}
+
+/// Tronque une chaîne à `max` octets en respectant les frontières char.
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        return s.to_owned();
+    }
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &s[..end.saturating_sub(1)])
 }
 
 #[async_trait]
@@ -184,7 +338,15 @@ impl NotificationChannel for WebhookChannel {
                 .map_err(|e| NotifError::Ssrf(e.to_string()))?;
         }
 
-        let payload = build_payload(notif);
+        // Auto-detect Discord / Slack from hostname so out-of-the-box usage
+        // works without operator config. Custom endpoints (anything else) keep
+        // receiving the Apollia native JSON schema.
+        let kind = detect_webhook_kind(&self.config.url);
+        let payload = match kind {
+            WebhookKind::Discord => build_discord_payload(notif),
+            WebhookKind::Slack => build_slack_payload(notif),
+            WebhookKind::Apollia => build_apollia_payload(notif),
+        };
         let body_bytes =
             serde_json::to_vec(&payload).map_err(|e| NotifError::WebhookFailed(e.to_string()))?;
 
@@ -207,7 +369,19 @@ impl NotificationChannel for WebhookChannel {
             .map_err(|e| NotifError::WebhookFailed(e.to_string()))?;
 
         if !resp.status().is_success() {
-            return Err(NotifError::WebhookFailed(format!("HTTP {}", resp.status())));
+            let status = resp.status();
+            // Best-effort body extract for diagnostics — many providers (Discord,
+            // Slack) return a JSON error body that explains the rejection.
+            let body_excerpt = match resp.text().await {
+                Ok(text) if !text.is_empty() => {
+                    let trimmed: String = text.chars().take(200).collect();
+                    format!(" — {trimmed}")
+                }
+                _ => String::new(),
+            };
+            return Err(NotifError::WebhookFailed(format!(
+                "HTTP {status}{body_excerpt}"
+            )));
         }
 
         Ok(())
@@ -434,6 +608,124 @@ mod tests {
         // THEN — task_id est null (JSON null), pas absent
         assert!(payload["task_id"].is_null());
         assert_eq!(payload["event"], "agent.degraded");
+    }
+
+    // ─── Détection du format par hostname (Discord / Slack / Apollia) ────
+
+    #[test]
+    fn test_detect_webhook_kind_discord() {
+        assert_eq!(
+            detect_webhook_kind("https://discord.com/api/webhooks/123/abc"),
+            WebhookKind::Discord
+        );
+        assert_eq!(
+            detect_webhook_kind("https://canary.discord.com/api/webhooks/123/abc"),
+            WebhookKind::Discord
+        );
+        assert_eq!(
+            detect_webhook_kind("https://discordapp.com/api/webhooks/123/abc"),
+            WebhookKind::Discord
+        );
+    }
+
+    #[test]
+    fn test_detect_webhook_kind_slack() {
+        assert_eq!(
+            detect_webhook_kind("https://hooks.slack.com/services/T000/B000/xxx"),
+            WebhookKind::Slack
+        );
+    }
+
+    #[test]
+    fn test_detect_webhook_kind_custom_falls_back_to_apollia() {
+        assert_eq!(
+            detect_webhook_kind("https://my-service.example.com/notify"),
+            WebhookKind::Apollia
+        );
+        assert_eq!(
+            detect_webhook_kind("https://example.com/hooks"),
+            WebhookKind::Apollia
+        );
+    }
+
+    #[test]
+    fn test_detect_webhook_kind_invalid_url_falls_back_to_apollia() {
+        assert_eq!(detect_webhook_kind("not a url"), WebhookKind::Apollia);
+    }
+
+    // ─── Discord payload format ──────────────────────────────────────────
+
+    #[test]
+    fn test_build_discord_payload_has_embed_and_username() {
+        // GIVEN une notification task.failed
+        let notif = make_notif("task.failed", Some("t-001"), Severity::Error);
+
+        // WHEN
+        let payload = build_discord_payload(&notif);
+
+        // THEN — username override + un embed avec titre, couleur, fields
+        assert_eq!(payload["username"], "Apollia OS");
+        let embeds = payload["embeds"].as_array().expect("embeds array");
+        assert_eq!(embeds.len(), 1);
+        let embed = &embeds[0];
+        assert!(embed["title"].as_str().is_some());
+        // Couleur error = 0xDC2626 = 14_427_686
+        assert_eq!(embed["color"], 14_427_686);
+        assert!(embed["fields"].as_array().expect("fields").len() >= 2);
+        assert!(embed["timestamp"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_build_discord_payload_severity_critical_uses_red() {
+        let notif = make_notif("llm.cost_alert", None, Severity::Critical);
+        let payload = build_discord_payload(&notif);
+        // 0xB91C1C = 12_131_356
+        assert_eq!(payload["embeds"][0]["color"], 12_131_356);
+    }
+
+    #[test]
+    fn test_build_discord_payload_no_optional_fields_when_absent() {
+        // GIVEN — pas de task_id ni agent
+        let notif = Notification {
+            event: "trigger.error".into(),
+            timestamp: Utc::now(),
+            task_id: None,
+            agent: None,
+            message: "Trigger fail".into(),
+            metadata: HashMap::new(),
+            severity: Severity::Warning,
+        };
+
+        // WHEN
+        let payload = build_discord_payload(&notif);
+
+        // THEN — un seul field (l'événement)
+        let fields = payload["embeds"][0]["fields"]
+            .as_array()
+            .expect("fields");
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0]["name"], "Événement");
+    }
+
+    // ─── Slack payload format ────────────────────────────────────────────
+
+    #[test]
+    fn test_build_slack_payload_has_text_and_attachment() {
+        let notif = make_notif("task.completed", Some("t-001"), Severity::Info);
+        let payload = build_slack_payload(&notif);
+
+        assert!(payload["text"].as_str().is_some());
+        let attachments = payload["attachments"].as_array().expect("attachments");
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0]["color"], "good");
+        assert!(attachments[0]["fields"].as_array().expect("fields").len() >= 2);
+    }
+
+    #[test]
+    fn test_build_slack_payload_severity_error_uses_danger() {
+        let notif = make_notif("task.failed", None, Severity::Error);
+        let payload = build_slack_payload(&notif);
+        assert_eq!(payload["attachments"][0]["color"], "danger");
     }
 
     // ─── timeout → NotifError::WebhookFailed ──────────────────────────
