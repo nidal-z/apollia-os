@@ -8,6 +8,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
 
   interface Props {
     open: boolean;
@@ -237,14 +238,23 @@
         <div>
           <p class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</p>
           <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+          <div class="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {#each globalEvents as event}
-              <label class="flex items-center gap-2 text-sm" data-testid="edit-channel-event-{event}">
+              <label class="flex items-start gap-2 text-sm" data-testid="edit-channel-event-{event}">
                 <Checkbox
+                  class="mt-0.5"
                   checked={selectedEvents.has(event)}
                   onchange={() => toggleEvent(event)}
                 />
-                <span class="font-mono text-xs">{event}</span>
+                <span class="flex flex-1 flex-col gap-0.5 min-w-0">
+                  <span class="font-medium leading-tight">{$t(eventLabelKey(event))}</span>
+                  <span class="text-[11px] leading-snug text-muted-foreground">
+                    {$t(eventDescriptionKey(event))}
+                  </span>
+                  <span class="text-[10px] font-mono text-muted-foreground/60 truncate">
+                    {event}
+                  </span>
+                </span>
               </label>
             {/each}
           </div>

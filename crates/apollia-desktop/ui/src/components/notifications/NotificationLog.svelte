@@ -3,6 +3,7 @@
   import type { NotificationChannel, NotificationLogEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Select } from "$lib/components/ui/select";
+  import { eventLabelKey } from "$lib/notifications/event-labels";
 
   interface Props {
     logs: NotificationLogEntry[];
@@ -23,6 +24,17 @@
 
   function channelDisplay(id: string): string {
     return channelLabels.get(id) ?? id;
+  }
+
+  /**
+   * Returns the humanized event label, falling back to the raw event name
+   * when the translation is missing (e.g. `pipeline.*` events not in the
+   * 6 globally-toggleable types).
+   */
+  function eventDisplay(event: string): string {
+    const key = eventLabelKey(event);
+    const translated = $t(key);
+    return translated === key ? event : translated;
   }
 
   let filterChannel = $state("all");
@@ -123,7 +135,10 @@
                   {/each}
                 </div>
               </td>
-              <td class="px-3 py-2 text-[11px] text-muted-foreground">{entry.event_name}</td>
+              <td class="px-3 py-2">
+                <span class="block text-[12px]">{eventDisplay(entry.event_name)}</span>
+                <span class="block text-[10px] font-mono text-muted-foreground/70">{entry.event_name}</span>
+              </td>
               <td class="px-3 py-2">
                 {#if status === "sent"}
                   <Badge variant="success">

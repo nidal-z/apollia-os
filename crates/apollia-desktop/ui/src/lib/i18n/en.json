@@ -1378,6 +1378,38 @@
     "toggle_enabled_toast": "Channel {label} enabled",
     "toggle_disabled_toast": "Channel {label} disabled",
     "toggle_error_toast": "Failed to update channel: {message}",
+    "events": {
+      "task": {
+        "completed": "Task completed successfully",
+        "failed": "Task failed",
+        "input_required": "Approval required"
+      },
+      "agent": {
+        "degraded": "Agent degraded"
+      },
+      "trigger": {
+        "error": "Trigger error"
+      },
+      "llm": {
+        "backend_down": "LLM provider unavailable"
+      }
+    },
+    "events_desc": {
+      "task": {
+        "completed": "An agent has just completed its mission.",
+        "failed": "An agent task aborted on failure.",
+        "input_required": "An agent is waiting for your decision (HITL)."
+      },
+      "agent": {
+        "degraded": "An optional tool is unavailable; the agent continues with reduced capability."
+      },
+      "trigger": {
+        "error": "A scheduled automation failed to trigger."
+      },
+      "llm": {
+        "backend_down": "The configured AI provider is no longer responding."
+      }
+    },
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",

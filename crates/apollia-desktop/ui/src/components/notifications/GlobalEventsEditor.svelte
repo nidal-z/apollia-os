@@ -4,21 +4,17 @@
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { addToast } from "$lib/components/ui/toast/store";
+  import {
+    NOTIFICATION_EVENT_TYPES,
+    eventLabelKey,
+    eventDescriptionKey,
+  } from "$lib/notifications/event-labels";
 
   interface Props {
     onsaved: () => void;
   }
 
   let { onsaved }: Props = $props();
-
-  const ALL_EVENT_TYPES = [
-    "task.completed",
-    "task.failed",
-    "task.input_required",
-    "agent.degraded",
-    "trigger.error",
-    "llm.backend_down",
-  ] as const;
 
   let checkedEvents = $state<Set<string>>(new Set());
   let loading = $state(true);
@@ -73,14 +69,23 @@
     <p class="text-xs text-muted-foreground">{$t("common.loading")}</p>
   {:else}
     <div class="glass-card glass-border rounded-lg p-4">
-      <div class="grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-        {#each ALL_EVENT_TYPES as event}
-          <label class="flex items-center gap-2 text-sm" data-testid="global-event-{event}">
+      <div class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+        {#each NOTIFICATION_EVENT_TYPES as event}
+          <label class="flex items-start gap-2 text-sm" data-testid="global-event-{event}">
             <Checkbox
+              class="mt-0.5"
               checked={checkedEvents.has(event)}
               onchange={() => toggleEvent(event)}
             />
-            <span class="font-mono text-xs">{event}</span>
+            <span class="flex flex-1 flex-col gap-0.5 min-w-0">
+              <span class="font-medium leading-tight">{$t(eventLabelKey(event))}</span>
+              <span class="text-[11px] leading-snug text-muted-foreground">
+                {$t(eventDescriptionKey(event))}
+              </span>
+              <span class="text-[10px] font-mono text-muted-foreground/60 truncate">
+                {event}
+              </span>
+            </span>
           </label>
         {/each}
       </div>

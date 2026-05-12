@@ -1378,6 +1378,38 @@
     "toggle_enabled_toast": "Canal {label} activé",
     "toggle_disabled_toast": "Canal {label} désactivé",
     "toggle_error_toast": "Impossible de mettre à jour le canal : {message}",
+    "events": {
+      "task": {
+        "completed": "Tâche terminée avec succès",
+        "failed": "Tâche échouée",
+        "input_required": "Approbation requise"
+      },
+      "agent": {
+        "degraded": "Agent en mode dégradé"
+      },
+      "trigger": {
+        "error": "Erreur de déclencheur"
+      },
+      "llm": {
+        "backend_down": "Fournisseur LLM indisponible"
+      }
+    },
+    "events_desc": {
+      "task": {
+        "completed": "Un agent vient d'achever sa mission.",
+        "failed": "Une tâche d'agent s'est interrompue sur un échec.",
+        "input_required": "Un agent attend votre décision (HITL)."
+      },
+      "agent": {
+        "degraded": "Un outil optionnel est indisponible ; l'agent continue avec des capacités réduites."
+      },
+      "trigger": {
+        "error": "Une automatisation programmée n'a pas pu se déclencher."
+      },
+      "llm": {
+        "backend_down": "Le fournisseur d'IA configuré ne répond plus."
+      }
+    },
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",
