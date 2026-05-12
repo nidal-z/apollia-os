@@ -8,7 +8,7 @@
    */
   import { t } from "svelte-i18n";
   import { AlertTriangle, XCircle, Zap, type Icon } from "lucide-svelte";
-  import { Button } from "$lib/components/ui/button";
+  import { BtnSecondary } from "$lib/components/operator";
   import { eventLabelKey } from "$lib/notifications/event-labels";
   import { formatRelativeTime } from "$lib/utils";
   import { navigateTo } from "$lib/stores/navigation";
@@ -82,12 +82,7 @@
     {/if}
   </div>
 
-  <Button
-    variant="ghost"
-    size="sm"
-    onclick={handleSeeLogs}
-    data-testid="activity-see-logs"
-  >
+  <BtnSecondary onclick={handleSeeLogs}>
     {$t("inbox.activity.see_logs")}
-  </Button>
+  </BtnSecondary>
 </div>
