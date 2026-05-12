@@ -68,8 +68,16 @@ export const sidebar: DefaultTheme.Sidebar = [
     text: 'Intégrations',
     collapsed: false,
     items: [
+      { text: "Vue d'ensemble", link: '/integrations/vue-d-ensemble-integrations' },
+      { text: 'Connecter Google Workspace', link: '/integrations/connecter-google-workspace' },
+      { text: 'Connecter Microsoft 365', link: '/integrations/connecter-microsoft-365' },
       { text: 'Connecter un serveur MCP', link: '/integrations/connecter-un-serveur-mcp' },
       { text: 'Tester une connexion MCP', link: '/integrations/tester-une-connexion-mcp' },
+      { text: 'Câbler votre propre serveur MCP', link: '/integrations/mcp-vous-avez-votre-propre-serveur' },
+      { text: 'Mode expert Google', link: '/integrations/mode-expert-google-restricted-scopes' },
+      { text: 'Personnaliser le catalogue MCP', link: '/integrations/personnaliser-le-catalogue-mcp' },
+      { text: 'Gérer les tokens OAuth', link: '/integrations/gerer-les-tokens-oauth' },
+      { text: 'Permissions MCP', link: '/integrations/comprendre-les-permissions-mcp' },
     ],
   },
   {
@@ -94,8 +102,7 @@ export const sidebar: DefaultTheme.Sidebar = [
     text: 'Transversal',
     collapsed: true,
     items: [
-      { text: 'Utiliser l\'inbox', link: '/transversal/utiliser-l-inbox' },
-      { text: 'Activer la compagnonne IA', link: '/transversal/activer-la-compagnonne-ia' },
+      { text: 'Utiliser la boîte de réception', link: '/transversal/utiliser-l-inbox' },
       { text: 'Naviguer au clavier', link: '/transversal/naviguer-au-clavier-command-palette' },
     ],
   },

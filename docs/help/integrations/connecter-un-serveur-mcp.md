@@ -2,6 +2,10 @@
 
 > Pour les operators qui veulent brancher un outil métier (Notion, GitHub, Slack, base de données…) sur leurs agents, sans écrire de code.
 
+> **Voir aussi :** [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md) · [Câbler votre propre serveur MCP](mcp-vous-avez-votre-propre-serveur.md) · [Personnaliser le catalogue](personnaliser-le-catalogue-mcp.md)
+>
+> Le catalogue v0.1.0 contient 18 entrées curées (Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Filesystem, Memory, Puppeteer, Brave Search). Pour Google Workspace et Microsoft 365, utilisez plutôt les **connecteurs natifs** (page [Intégrations](connecter-google-workspace.md)) plutôt qu'un MCP — Apollia a un connecteur natif OAuth pour ces deux providers.
+
 ## Prérequis
 
 - Vous savez quel outil métier vous voulez brancher.
