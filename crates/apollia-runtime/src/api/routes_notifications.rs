@@ -24,7 +24,7 @@ use apollia_notifications::{
     build_channels,
     config::{ChannelKind, NotificationConfig},
     engine::Notification,
-    NotificationChannelRow, NotificationConfigError, Severity,
+    NotificationChannelRow, NotificationConfigError, NotificationLogRow, Severity,
 };
 
 use crate::api::server::AppState;
@@ -498,6 +498,11 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
 
     let test_notif = make_test_notification();
 
+    // Per-channel send results — kept alongside the typed `results` so we can
+    // persist a `notification_logs` row mirroring what the engine writes when
+    // it dispatches real events.
+    let mut channel_results: HashMap<String, Option<String>> = HashMap::new();
+
     for channel in &channels {
         let start = Instant::now();
         let outcome = channel.send(&test_notif).await;
@@ -508,6 +513,7 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
             Ok(()) => ("ok".to_string(), None),
             Err(e) => ("error".to_string(), Some(e.to_string())),
         };
+        channel_results.insert(channel.id().to_string(), error.clone());
 
         results.push(ChannelTestResult {
             channel_id: channel.id().to_string(),
@@ -518,10 +524,66 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
         });
     }
 
+    // Persist a log row so the "Notifications envoyées" tab shows test fires
+    // (the engine's own logging path is bypassed by direct channel sends).
+    if !channel_results.is_empty() {
+        write_test_log(&state, &test_notif, &channel_results);
+    }
+
     (
         StatusCode::OK,
         Json(serde_json::json!({ "results": results })),
     )
+}
+
+/// Persists a `notification_logs` row for a test-channel dispatch.
+///
+/// Mirrors the shape that the engine writes when it processes a real
+/// `RuntimeEvent`. Silently no-ops if `notification_repo` is unset
+/// (e.g. in unit tests) or if the write fails — the test endpoint must
+/// not error out on best-effort logging.
+fn write_test_log<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    notif: &Notification,
+    channel_results: &HashMap<String, Option<String>>,
+) {
+    let Some(repo) = state.notification_repo.as_ref() else {
+        return;
+    };
+
+    let channels_json: serde_json::Map<String, serde_json::Value> = channel_results
+        .iter()
+        .map(|(id, err)| {
+            let status = match err {
+                None => serde_json::Value::String("ok".into()),
+                Some(msg) => serde_json::Value::String(msg.clone()),
+            };
+            (id.clone(), status)
+        })
+        .collect();
+    let channels_str = serde_json::to_string(&channels_json).unwrap_or_else(|_| "{}".into());
+
+    let global_error: Option<String> = channel_results
+        .values()
+        .find_map(|e| e.as_deref().map(str::to_string));
+
+    let row = NotificationLogRow {
+        id: uuid::Uuid::new_v4().to_string(),
+        event_name: notif.event.clone(),
+        task_id: notif.task_id.clone(),
+        agent_id: notif.agent.clone(),
+        sent_at: notif.timestamp.to_rfc3339(),
+        channels: channels_str,
+        error: global_error,
+    };
+
+    let guard = match repo.lock() {
+        Ok(g) => g,
+        Err(e) => e.into_inner(),
+    };
+    if let Err(e) = guard.write_log(&row) {
+        tracing::warn!(error = %e, "notification_logs : impossible d'écrire le log de test");
+    }
 }
 
 /// Resolves the *live* notification config.

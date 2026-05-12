@@ -7,6 +7,7 @@
     Brain,
     Activity,
     Sparkles,
+    HelpCircle,
   } from "lucide-svelte";
   import Chip from "./Chip.svelte";
   import BtnPrimary from "./BtnPrimary.svelte";
@@ -14,6 +15,7 @@
 
   export type InboxType =
     | "approval"
+    | "question"
     | "error"
     | "deliverable"
     | "trigger"
@@ -50,6 +52,7 @@
 
   const CFG: Record<InboxType, Cfg> = {
     approval: { label: "approbation", tone: "warning", iconCmp: Shield },
+    question: { label: "question", tone: "info", iconCmp: HelpCircle },
     error: { label: "erreur", tone: "danger", iconCmp: X },
     deliverable: { label: "livrable", tone: "info", iconCmp: File },
     trigger: { label: "trigger", tone: "success", iconCmp: Zap },
@@ -81,7 +84,7 @@
   {/if}
   <div
     class="w-7 h-7 rounded-lg shrink-0 inline-flex items-center justify-center"
-    style="background: hsl(var(--{type === 'approval' || type === 'cost' ? 'warning' : type === 'error' ? 'destructive' : type === 'deliverable' ? 'info' : type === 'trigger' ? 'success' : 'secondary'}) / 0.10); color: hsl(var(--{type === 'approval' || type === 'cost' ? 'warning' : type === 'error' ? 'destructive' : type === 'deliverable' ? 'info' : type === 'trigger' ? 'success' : 'secondary'}));"
+    style="background: hsl(var(--{type === 'approval' || type === 'cost' ? 'warning' : type === 'error' ? 'destructive' : type === 'deliverable' || type === 'question' ? 'info' : type === 'trigger' ? 'success' : 'secondary'}) / 0.10); color: hsl(var(--{type === 'approval' || type === 'cost' ? 'warning' : type === 'error' ? 'destructive' : type === 'deliverable' || type === 'question' ? 'info' : type === 'trigger' ? 'success' : 'secondary'}));"
   >
     <IconCmp size={12} />
   </div>
@@ -104,6 +107,8 @@
   </div>
   {#if type === "approval"}
     <BtnPrimary onclick={onAction}>Autoriser</BtnPrimary>
+  {:else if type === "question"}
+    <BtnSecondary onclick={onAction}>Répondre</BtnSecondary>
   {:else if type === "error"}
     <BtnSecondary onclick={onAction}>Résoudre</BtnSecondary>
   {/if}

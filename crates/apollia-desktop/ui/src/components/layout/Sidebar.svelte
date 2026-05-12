@@ -5,7 +5,12 @@
   import { currentRoute, navigateTo, type Route } from "$lib/stores/navigation";
   import { sidebarState, drawerOpen, layoutActions } from "$lib/stores/layout";
   import { pendingCount } from "$lib/stores/hitl";
-  import { activeChatCount, pendingChatApprovalCount, openNewChatRequested } from "$lib/stores/chat";
+  import {
+    activeChatCount,
+    pendingChatApprovalCount,
+    pendingUserInputCount,
+    openNewChatRequested,
+  } from "$lib/stores/chat";
   import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
   import { uiMode } from "$lib/stores/mode";
   import {
@@ -43,7 +48,9 @@
 
   const isDrawer = $derived($sidebarState === "drawer");
 
-  const approvalsCount = $derived($pendingCount + $pendingChatApprovalCount);
+  const approvalsCount = $derived(
+    $pendingCount + $pendingChatApprovalCount + $pendingUserInputCount,
+  );
   const runningCount = $derived($runningTasks.length);
   const inFlightCount = $derived($tasksRunningCount);
 

@@ -20,11 +20,26 @@
     questions: AskUserQuestion[];
     context?: string;
     submitting?: boolean;
+    /** Chat session that originated the `ask_user` call — enables the
+     *  "Ouvrir la conversation" affordance when set. */
+    sessionId?: string;
     onsubmit: (answers: AskUserAnswer[]) => void;
     oncancel: (reason: string) => void;
+    /** Called when the operator wants to jump to the source conversation
+     *  instead of answering inline. Implementer is expected to navigate
+     *  to /chat and dispatch the relevant deep-link event. */
+    onOpenChat?: () => void;
   }
 
-  let { questions, context, submitting = false, onsubmit, oncancel }: Props = $props();
+  let {
+    questions,
+    context,
+    submitting = false,
+    sessionId,
+    onsubmit,
+    oncancel,
+    onOpenChat,
+  }: Props = $props();
 
   // Per-question state, keyed by question.id.
   let openValues = $state<Record<string, string>>({});
@@ -109,24 +124,39 @@
     {/each}
   </div>
 
-  <div class="flex items-center justify-end gap-2 pt-2">
-    <Button
-      variant="ghost"
-      class="text-destructive hover:text-destructive"
-      onclick={() => (rejectOpen = true)}
-      disabled={submitting}
-      data-testid="ask-user-refuse"
-    >
-      {$t("inbox.ask_user.refuse")}
-    </Button>
-    <Button
-      variant="default"
-      onclick={handleSubmit}
-      disabled={submitting}
-      data-testid="ask-user-submit"
-    >
-      {submitting ? $t("inbox.ask_user.submitting") : $t("inbox.ask_user.submit")}
-    </Button>
+  <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+    {#if sessionId && onOpenChat}
+      <Button
+        variant="ghost"
+        onclick={onOpenChat}
+        disabled={submitting}
+        data-testid="ask-user-open-chat"
+      >
+        {$t("inbox.ask_user.open_chat")}
+      </Button>
+    {:else}
+      <span></span>
+    {/if}
+
+    <div class="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        class="text-destructive hover:text-destructive"
+        onclick={() => (rejectOpen = true)}
+        disabled={submitting}
+        data-testid="ask-user-refuse"
+      >
+        {$t("inbox.ask_user.refuse")}
+      </Button>
+      <Button
+        variant="default"
+        onclick={handleSubmit}
+        disabled={submitting}
+        data-testid="ask-user-submit"
+      >
+        {submitting ? $t("inbox.ask_user.submitting") : $t("inbox.ask_user.submit")}
+      </Button>
+    </div>
   </div>
 </div>
 

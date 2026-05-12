@@ -812,8 +812,9 @@
       "session": "Session"
     },
     "activity": {
-      "empty": "Aucune activité récente.",
-      "empty_desc": "Les échecs et dégradations sur les 14 derniers jours apparaîtront ici.",
+      "empty": "Tout va bien — aucun incident récent.",
+      "empty_desc": "Cet onglet liste uniquement les échecs, dégradations et incidents LLM des 14 derniers jours. Pour l'activité globale (tâches lancées, triggers exécutés avec succès), voir Observabilité → Chronologie.",
+      "empty_cta": "Ouvrir Observabilité",
       "see_logs": "Voir les logs",
       "filter": {
         "all": "Toutes",
@@ -830,7 +831,8 @@
       "submit": "Répondre",
       "submitting": "Envoi…",
       "refuse": "Refuser de répondre",
-      "refuse_title": "Refuser de répondre"
+      "refuse_title": "Refuser de répondre",
+      "open_chat": "Ouvrir la conversation"
     },
     "empty_title": "Tout est traité",
     "empty_subtitle": "Aucune action en attente. Les nouvelles demandes apparaîtront ici.",

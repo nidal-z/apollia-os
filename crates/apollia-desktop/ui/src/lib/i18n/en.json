@@ -812,8 +812,9 @@
       "session": "Session"
     },
     "activity": {
-      "empty": "No recent activity.",
-      "empty_desc": "Failures and degradations from the last 14 days will appear here.",
+      "empty": "All clear — no recent incidents.",
+      "empty_desc": "This tab lists only failures, degradations and LLM incidents from the last 14 days. For overall activity (tasks launched, triggers fired successfully), open Observability → Timeline.",
+      "empty_cta": "Open Observability",
       "see_logs": "View logs",
       "filter": {
         "all": "All",
@@ -830,7 +831,8 @@
       "submit": "Reply",
       "submitting": "Sending…",
       "refuse": "Decline to answer",
-      "refuse_title": "Decline to answer"
+      "refuse_title": "Decline to answer",
+      "open_chat": "Open conversation"
     },
     "empty_title": "Nothing waiting",
     "empty_subtitle": "All caught up. New requests will show up here.",

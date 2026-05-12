@@ -23,6 +23,7 @@
   import NotificationLog from "../components/notifications/NotificationLog.svelte";
   import { TabBar } from "$lib/components/ui/tabs";
   import { Select } from "$lib/components/ui/select";
+  import { navigateTo } from "$lib/stores/navigation";
 
   import {
     PageHeader,
@@ -236,10 +237,7 @@
   );
 
   function rowType(item: InboxItem): InboxType {
-    // The V3 InboxRow uses a richer taxonomy; everything we currently surface
-    // is still an "approval" from the operator's standpoint.
-    void item;
-    return "approval";
+    return item.kind === "ask_user" ? "question" : "approval";
   }
 
   function rowFilterKey(item: InboxItem): FilterKey {
@@ -543,6 +541,16 @@
     }
   }
 
+  /** Jump to the source chat session for an ask_user item. Reuses the
+   *  existing `apollia:chat:open-session` deep-link channel — the chat
+   *  route listens for it and focuses the right session. */
+  function openAskUserChat(sessionId: string): void {
+    navigateTo("chat");
+    window.dispatchEvent(
+      new CustomEvent("apollia:chat:open-session", { detail: { id: sessionId } }),
+    );
+  }
+
   async function rejectAskUser(item: InboxItem, reason: string): Promise<void> {
     if (item.kind !== "ask_user") return;
     submitting = true;
@@ -699,9 +707,13 @@
                           <AskUserForm
                             questions={questionsForForm(item.questions)}
                             context={contextForForm(item)}
+                            sessionId={item.sessionId}
                             {submitting}
                             onsubmit={(answers) => respondAskUser(item, answers)}
                             oncancel={(reason) => rejectAskUser(item, reason)}
+                            onOpenChat={item.sessionId
+                              ? () => openAskUserChat(item.sessionId!)
+                              : undefined}
                           />
                         {:else}
                           <HITLCard
@@ -810,9 +822,19 @@
           <EmptyState
             title={$t("inbox.activity.empty")}
             desc={$t("inbox.activity.empty_desc")}
-            tone="neutral"
+            tone="success"
           >
             {#snippet icon()}<ActivityIcon size={22} />{/snippet}
+            {#snippet action()}
+              <button
+                type="button"
+                class="text-[12px] text-primary underline-offset-2 hover:underline"
+                onclick={() => navigateTo("observability")}
+                data-testid="inbox-activity-empty-cta"
+              >
+                {$t("inbox.activity.empty_cta")}
+              </button>
+            {/snippet}
           </EmptyState>
         </div>
       {:else}
