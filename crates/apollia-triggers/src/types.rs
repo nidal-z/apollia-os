@@ -91,12 +91,21 @@ pub enum TriggerSourceConfig {
         /// Horodatage du déclenchement unique.
         fire_at: DateTime<Utc>,
     },
-    /// Surveillance d'un chemin de fichier pour des événements système de fichiers.
+    /// Surveillance d'un chemin (fichier ou dossier) pour des événements système de fichiers.
     FileWatch {
-        /// Chemin surveillé.
+        /// Chemin surveillé (fichier précis ou dossier).
         path: PathBuf,
         /// Types d'événements déclencheurs.
         events: Vec<FileEventKind>,
+        /// Surveillance récursive des sous-dossiers (défaut : `false`).
+        ///
+        /// Pertinent uniquement lorsque `path` pointe sur un dossier :
+        /// - `false` : seul le contenu direct du dossier est surveillé.
+        /// - `true` : tous les sous-dossiers (à tout niveau) sont également surveillés.
+        ///
+        /// Ignoré si `path` pointe sur un fichier précis.
+        #[serde(default)]
+        recursive: bool,
         /// Suivre les liens symboliques (défaut : `false`).
         ///
         /// Lorsque `false`, les événements dont le chemin est un lien symbolique

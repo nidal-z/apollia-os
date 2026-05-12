@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import { TabBar } from "$lib/components/ui/tabs";
   import { uiMode } from "$lib/stores/mode";
+  import { PageHeader } from "$lib/components/operator";
   import TimelineGlobal from "../components/observability/TimelineGlobal.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
   import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
@@ -56,43 +57,43 @@
   });
 </script>
 
-<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="observability-page">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">{$t('observability.title')}</h1>
-      <p class="text-xs text-muted-foreground" data-testid="observability-subtitle">{$t('observability.subtitle')}</p>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <TabBar
-    items={tabItems}
-    activeTab={activeTab}
-    ontabchange={handleTabChange}
-    testidPrefix="observability"
+<div class="mx-auto w-full max-w-6xl" data-testid="observability-page">
+  <PageHeader
+    kicker={$t('observability.kicker')}
+    title={$t('observability.title')}
+    subtitle={$t('observability.subtitle')}
   />
 
-  <!-- Tab content (lazy-loaded on first display) -->
-  {#if activeTab === "timeline"}
-    {#if timelineLoaded}
-      <TimelineGlobal />
+  <div class="px-8 pt-5">
+    <TabBar
+      items={tabItems}
+      activeTab={activeTab}
+      ontabchange={handleTabChange}
+      testidPrefix="observability"
+    />
+  </div>
+
+  <div class="px-8 pt-5 pb-8">
+    {#if activeTab === "timeline"}
+      {#if timelineLoaded}
+        <TimelineGlobal />
+      {/if}
+    {:else if activeTab === "llm-costs"}
+      {#if costsLoaded}
+        <LlmCostChart />
+      {/if}
+    {:else if activeTab === "audit-trail"}
+      {#if auditLoaded}
+        <AuditTrailTable />
+      {/if}
+    {:else if activeTab === "delegation"}
+      {#if delegationLoaded}
+        <DelegationTree />
+      {/if}
+    {:else if activeTab === "plan-cache"}
+      {#if planCacheLoaded}
+        <PlanCacheStats />
+      {/if}
     {/if}
-  {:else if activeTab === "llm-costs"}
-    {#if costsLoaded}
-      <LlmCostChart />
-    {/if}
-  {:else if activeTab === "audit-trail"}
-    {#if auditLoaded}
-      <AuditTrailTable />
-    {/if}
-  {:else if activeTab === "delegation"}
-    {#if delegationLoaded}
-      <DelegationTree />
-    {/if}
-  {:else if activeTab === "plan-cache"}
-    {#if planCacheLoaded}
-      <PlanCacheStats />
-    {/if}
-  {/if}
+  </div>
 </div>

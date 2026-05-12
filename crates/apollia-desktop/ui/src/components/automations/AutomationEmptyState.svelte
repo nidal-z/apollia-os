@@ -2,8 +2,7 @@
   /**
    * Empty state for `/automations`.
    *
-   * Primary CTA wires the creation wizard.
-   * Secondary CTA browses the template gallery.
+   * Single CTA wires the creation wizard.
    */
   import { t } from "svelte-i18n";
   import { Sparkles } from "lucide-svelte";
@@ -11,10 +10,9 @@
 
   interface Props {
     onCreate: () => void;
-    onBrowseTemplates: () => void;
   }
 
-  let { onCreate, onBrowseTemplates }: Props = $props();
+  let { onCreate }: Props = $props();
 </script>
 
 <EmptyState
@@ -23,7 +21,5 @@
   description={$t("automations.empty.description")}
   primaryLabel={$t("automations.empty.primary")}
   primaryAction={onCreate}
-  secondaryLabel={$t("automations.empty.secondary")}
-  secondaryAction={onBrowseTemplates}
   page="automations"
 />

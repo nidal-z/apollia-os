@@ -49,9 +49,11 @@ impl FileWatchTrigger {
     /// Retourne un `JoinHandle<()>` pour abort lors du hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
-            // Guard : extraire path depuis la source
-            let raw_path = match &def.source {
-                TriggerSourceConfig::FileWatch { path, .. } => path.clone(),
+            // Guard : extraire path et recursive depuis la source
+            let (raw_path, recursive) = match &def.source {
+                TriggerSourceConfig::FileWatch { path, recursive, .. } => {
+                    (path.clone(), *recursive)
+                }
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
@@ -62,6 +64,16 @@ impl FileWatchTrigger {
             };
 
             let path = expand_tilde(&raw_path);
+
+            // Mode récursif uniquement pertinent pour les dossiers. Pour un chemin
+            // de fichier, `notify` ignore silencieusement le mode mais on garde
+            // NonRecursive par défaut pour rester explicite.
+            let path_is_dir = std::fs::metadata(&path).map(|m| m.is_dir()).unwrap_or(false);
+            let mode = if recursive && path_is_dir {
+                RecursiveMode::Recursive
+            } else {
+                RecursiveMode::NonRecursive
+            };
 
             // Canal sync notify → thread bloquant
             let (notify_tx, notify_rx) = std::sync::mpsc::channel();
@@ -78,7 +90,7 @@ impl FileWatchTrigger {
                 }
             };
 
-            if let Err(e) = watcher.watch(&path, RecursiveMode::NonRecursive) {
+            if let Err(e) = watcher.watch(&path, mode) {
                 tracing::error!(
                     trigger = %def.id,
                     error = %e,
@@ -300,7 +312,8 @@ mod tests {
             source: TriggerSourceConfig::FileWatch {
                 path: dir.to_path_buf(),
                 events,
-                follow_symlinks: false,
+                recursive: false,
+            follow_symlinks: false,
                 exclude_patterns: vec![],
             },
             input_template: InputTemplate("{{filename}}".into()),
@@ -397,6 +410,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Create],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -430,6 +444,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Create],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -458,6 +473,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -529,6 +545,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/project".into(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: crate::config::default_exclude_patterns(),
         };
@@ -553,6 +570,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/app".into(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec!["*.log".into(), "tmp".into()],
         };
@@ -596,6 +614,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/project".into(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -634,6 +653,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: dir.path().to_path_buf(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -671,6 +691,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: watch_dir.path().to_path_buf(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: false,
             exclude_patterns: vec![],
         };
@@ -707,6 +728,7 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: dir.path().to_path_buf(),
             events: vec![FileEventKind::Any],
+            recursive: false,
             follow_symlinks: true,
             exclude_patterns: vec![],
         };
@@ -736,7 +758,8 @@ mod tests {
             source: TriggerSourceConfig::FileWatch {
                 path: dir.path().to_path_buf(),
                 events: vec![FileEventKind::Any],
-                follow_symlinks: false,
+                recursive: false,
+            follow_symlinks: false,
                 exclude_patterns: vec![],
             },
             input_template: InputTemplate("{{filename}}".into()),

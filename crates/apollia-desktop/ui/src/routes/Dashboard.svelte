@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
   import { fly } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
@@ -10,7 +9,6 @@
   import { pendingChatApprovals, pendingChatApprovalCount } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { navigateTo } from "$lib/stores/navigation";
-  import { dailyDigest, type DigestFacts } from "$lib/stores/dailyDigest";
   import { projects } from "$lib/stores/projects";
   import { formatRelativeTime } from "$lib/utils";
   import {
@@ -62,42 +60,6 @@
   function openLogs(agentId: string) { logsAgentId = agentId; logsOpen = true; }
   function openLogsFromDetail(agentId: string) { closeDetail(); openLogs(agentId); }
   function closeLogs() { logsOpen = false; }
-
-  // ── Facts (A.8.2 — header shift from "today" to rolling week) ──────────────
-
-  const last24hIso = $derived.by(() => {
-    const d = new Date(Date.now() - 24 * 3600 * 1000);
-    return d.toISOString();
-  });
-
-  const tasksCompleted24h = $derived(
-    $tasks.filter((x) => x.status === "completed" && x.created_at >= last24hIso).length,
-  );
-  const tasksFailed24h = $derived(
-    $tasks.filter((x) => x.status === "failed" && x.created_at >= last24hIso).length,
-  );
-  const topAssistant = $derived.by<string | null>(() => {
-    const counts = new Map<string, number>();
-    for (const tk of $tasks) {
-      if (tk.status !== "completed" || tk.created_at < last24hIso) continue;
-      counts.set(tk.agent_name, (counts.get(tk.agent_name) ?? 0) + 1);
-    }
-    let top: [string, number] | null = null;
-    for (const entry of counts) {
-      if (!top || entry[1] > top[1]) top = entry;
-    }
-    return top ? top[0] : null;
-  });
-
-  const facts = $derived<DigestFacts>({
-    tasksCompleted: tasksCompleted24h,
-    tasksFailed: tasksFailed24h,
-    approvalsPending: $pendingCount + $pendingChatApprovalCount,
-    insightsCreated: 0, // will plumb through the real count.
-    automationsFailed: 0,
-    firstFailureLabel: null,
-    topAssistant,
-  });
 
   // ── Inbox items adapter (light — just enough for the compact preview) ──────
 
@@ -156,6 +118,9 @@
     d.setHours(0, 0, 0, 0);
     return d.toISOString();
   });
+  const last24hIso = $derived.by(() =>
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  );
   const completedToday = $derived(
     $tasks.filter((tk) => tk.status === "completed" && tk.created_at >= todayStartIso),
   );
@@ -226,22 +191,6 @@
     return "approval";
   }
 
-  // ── Digest lifecycle ───────────────────────────────────────────────────────
-  // Load on mount + reload when facts actually change (cache-honored).
-
-  onMount(() => {
-    dailyDigest.load(untrack(() => facts));
-  });
-
-  let lastFactsKey = "";
-  $effect(() => {
-    const key = JSON.stringify(facts);
-    if (key !== lastFactsKey) {
-      lastFactsKey = key;
-      dailyDigest.load(facts);
-    }
-  });
-
   function navigateToAgents() { navigateTo("agents"); }
   function navigateToInbox() { navigateTo("inbox"); }
   function navigateToTasks() { navigateTo("tasks"); }
@@ -287,7 +236,7 @@
           icon={LayoutDashboard}
           title={$t('dashboard.cold_start_title')}
           subtitle={$t('dashboard.cold_start_subtitle')}
-          ctaLabel={$t('dashboard.browse_templates')}
+          ctaLabel={$t('dashboard.browse_agents')}
           ctaAction={navigateToAgents}
           page="dashboard"
         />

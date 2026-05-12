@@ -183,9 +183,9 @@ export function humanizeSchedule(
       };
     }
     case "file_watch": {
-      const path = config.trim() || (loc === "fr" ? "un dossier" : "a folder");
+      const path = config.trim() || (loc === "fr" ? "un chemin" : "a path");
       return {
-        label: loc === "fr" ? `Quand un fichier change dans ${path}` : `When a file changes in ${path}`,
+        label: loc === "fr" ? `Quand ${path} change` : `When ${path} changes`,
         isCustom: false,
       };
     }

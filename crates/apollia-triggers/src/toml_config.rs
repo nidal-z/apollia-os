@@ -71,6 +71,10 @@ struct RawTriggerSource {
     path: Option<String>,
     events: Option<Vec<String>>,
     secret: Option<String>,
+    /// Surveillance récursive des sous-dossiers pour les sources `file_watch`
+    /// pointant sur un dossier (défaut : false).
+    #[serde(default)]
+    recursive: bool,
     /// Suivre les symlinks pour les sources `file_watch` (défaut : false).
     #[serde(default)]
     follow_symlinks: bool,
@@ -194,6 +198,7 @@ fn validate_trigger_source(
             Ok(TriggerSourceConfig::FileWatch {
                 path,
                 events,
+                recursive: raw.recursive,
                 follow_symlinks: raw.follow_symlinks,
                 exclude_patterns,
             })
@@ -285,6 +290,7 @@ fn parse_trigger_source_unchecked(raw: &RawTriggerSource) -> TriggerSourceConfig
             TriggerSourceConfig::FileWatch {
                 path,
                 events,
+                recursive: raw.recursive,
                 follow_symlinks: raw.follow_symlinks,
                 exclude_patterns,
             }

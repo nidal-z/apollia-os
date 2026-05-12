@@ -25,10 +25,12 @@
     InboxRow,
     HITLCard,
     EmptyState,
-    Kbd,
   } from "$lib/components/operator";
   import type { InboxType } from "$lib/components/operator";
   import type { RiskLevel } from "$lib/components/operator";
+  import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
+  import type { ResolvedChatApproval } from "$lib/types";
+  import { CheckCircle2, XCircle, ShieldCheck } from "lucide-svelte";
 
   import type { InboxItem, InboxRisk } from "../components/inbox/types";
   import type {
@@ -43,6 +45,8 @@
   let submitting = $state(false);
   let expandedId = $state<string | null>(null);
   let rejectTarget = $state<InboxItem | null>(null);
+  let history = $state<ResolvedChatApproval[]>([]);
+  let historyError = $state<string | null>(null);
 
   type FilterKey =
     | "all"
@@ -271,6 +275,20 @@
     } finally {
       loading = false;
     }
+    await loadHistory();
+  }
+
+  async function loadHistory(): Promise<void> {
+    historyError = null;
+    try {
+      history = await invoke<ResolvedChatApproval[]>("list_chat_approval_history", {
+        limit: 50,
+        days: 14,
+      });
+    } catch (err: unknown) {
+      historyError = err instanceof Error ? err.message : String(err);
+      history = [];
+    }
   }
 
   // ── Resolve handlers (preserved invoke calls) ────────────────────────────
@@ -298,12 +316,46 @@
         });
       }
     } else {
+      // Chat tool approval — forward the operator-provided reason so the
+      // builtin agent can surface it to the LLM on the next iteration.
       await invoke("authorize_chat_tool", {
         sessionId: item.source.sessionId,
         messageId: item.source.messageId,
         toolName: item.source.toolName,
         decision: approved ? "accept" : "refuse",
+        reason: reason ?? null,
       });
+    }
+  }
+
+  /** "Toujours autoriser" path for chat tool approvals (not applicable to
+   *  task-level pauses or ask_user). */
+  async function resolveAlwaysAccept(item: InboxItem, scope: AlwaysScope): Promise<void> {
+    if (item.kind === "task" || item.kind === "ask_user") return;
+    await invoke("authorize_chat_tool", {
+      sessionId: item.source.sessionId,
+      messageId: item.source.messageId,
+      toolName: item.source.toolName,
+      decision: "always_accept",
+      scope,
+    });
+  }
+
+  function isChatToolItem(item: InboxItem): boolean {
+    return item.kind === "tool" || item.kind === "filesystem" || item.kind === "bash";
+  }
+
+  async function handleAlwaysAccept(item: InboxItem, scope: AlwaysScope): Promise<void> {
+    submitting = true;
+    try {
+      await resolveAlwaysAccept(item, scope);
+      addToast($t("inbox.toast.always_accepted"), "success");
+      if (expandedId === item.id) expandedId = null;
+      await loadHistory();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      submitting = false;
     }
   }
 
@@ -313,6 +365,7 @@
       await resolveItem(item, true);
       addToast($t("inbox.toast.accepted"), "success");
       if (expandedId === item.id) expandedId = null;
+      await loadHistory();
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -332,6 +385,7 @@
       addToast($t("inbox.toast.rejected"), "success");
       if (expandedId === rejectTarget.id) expandedId = null;
       rejectTarget = null;
+      await loadHistory();
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -380,9 +434,6 @@
         {f.label} · {counts[f.key]}
       </button>
     {/each}
-    <span class="ml-auto inline-flex items-center gap-1.5 text-[10.5px] text-muted-foreground/70">
-      <Kbd>A</Kbd> approuver · <Kbd>R</Kbd> refuser
-    </span>
   </div>
 
   <!-- Body ------------------------------------------------------------ -->
@@ -438,6 +489,10 @@
                         expires={expiresLabel(item)}
                         onApprove={() => handleApprove(item)}
                         onReject={() => openReject(item)}
+                        onAlwaysAccept={isChatToolItem(item)
+                          ? (s) => handleAlwaysAccept(item, s)
+                          : undefined}
+                        hasProject={false}
                       />
                     </div>
                   {/if}
@@ -447,6 +502,56 @@
           </div>
         {/if}
       {/each}
+    {/if}
+
+    <!-- Historique des décisions résolues (lecture seule) ----------------- -->
+    {#if !loading && (history.length > 0 || historyError)}
+      <SectionTitle count={history.length}>{$t("inbox.history_title")}</SectionTitle>
+      <div class="px-8 pb-10">
+        {#if historyError}
+          <p class="text-xs text-destructive">{historyError}</p>
+        {:else}
+          <ul class="rounded-xl border border-border bg-card divide-y divide-border/60">
+            {#each history as h (h.message_id + "::" + h.tool_name + "::" + h.resolved_at)}
+              {@const isAccept = h.decision === "accept"}
+              {@const isAlways = h.decision === "always_accept"}
+              {@const isRefuse = h.decision === "refuse"}
+              <li class="flex items-start gap-3 px-4 py-2.5 text-[12px]">
+                <span class="shrink-0 mt-0.5">
+                  {#if isAccept}
+                    <CheckCircle2 size={14} class="text-success" />
+                  {:else if isAlways}
+                    <ShieldCheck size={14} class="text-primary" />
+                  {:else if isRefuse}
+                    <XCircle size={14} class="text-destructive" />
+                  {/if}
+                </span>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-baseline justify-between gap-2">
+                    <div class="min-w-0 flex items-baseline gap-2">
+                      <code class="font-mono text-[11.5px] text-foreground truncate">{h.tool_name}</code>
+                      <span class="text-[10.5px] text-muted-foreground">
+                        {#if isAccept}Autorisé{:else if isAlways}Toujours autorisé{:else}Refusé{/if}
+                      </span>
+                    </div>
+                    <span class="text-[10.5px] text-muted-foreground/70 font-mono shrink-0" title={h.resolved_at}>
+                      {relTime(h.resolved_at)}
+                    </span>
+                  </div>
+                  {#if isRefuse && h.reason}
+                    <p class="mt-0.5 text-[11px] text-destructive/80 line-clamp-2" title={h.reason}>
+                      <span class="font-medium">Raison :</span> {h.reason}
+                    </p>
+                  {/if}
+                  <p class="mt-0.5 text-[10.5px] text-muted-foreground/60">
+                    Session <code class="font-mono">{h.session_id.slice(0, 8)}</code>
+                  </p>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
     {/if}
   </div>
 

@@ -25,7 +25,6 @@ import {
   Settings,
   Mic,
   FolderKanban,
-  LayoutGrid,
   Shield,
   Paintbrush,
 } from "lucide-svelte";
@@ -49,7 +48,6 @@ export const routeMeta: Record<Route, RouteMeta> = {
   integrations: { labelKey: "nav.connections", parent: null, icon: Plug },
   llm: { labelKey: "nav.llm", parent: null, icon: Brain },
   automations: { labelKey: "nav.automations", parent: null, icon: Repeat },
-  templates: { labelKey: "nav.templates", parent: null, icon: LayoutGrid },
   memory: { labelKey: "nav.memory", parent: null, icon: Database },
   transcriptions: { labelKey: "nav.transcriptions", parent: null, icon: Mic },
   notifications: { labelKey: "nav.notifications", parent: null, icon: Bell },

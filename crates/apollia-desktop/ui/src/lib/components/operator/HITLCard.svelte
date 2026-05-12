@@ -1,11 +1,17 @@
 <script lang="ts">
-  import { Shield, Check, Zap } from "lucide-svelte";
+  import { Shield, Check, Zap, ChevronDown } from "lucide-svelte";
+  import { slide } from "svelte/transition";
   import StatusDot from "./StatusDot.svelte";
   import Chip from "./Chip.svelte";
   import BtnPrimary from "./BtnPrimary.svelte";
   import BtnSecondary from "./BtnSecondary.svelte";
 
   export type RiskLevel = "low" | "medium" | "high" | "paid";
+  export type AlwaysScope =
+    | "this_session"
+    | "this_agent"
+    | "this_project"
+    | "global";
 
   interface Props {
     /** Agent name initiating the action. */
@@ -27,6 +33,10 @@
     expires?: string;
     onApprove?: (e: MouseEvent) => void;
     onReject?: (e: MouseEvent) => void;
+    /** When set, surfaces the "Toujours autoriser" scope picker (chat tool flows). */
+    onAlwaysAccept?: (scope: AlwaysScope) => void;
+    /** Disables the "Toujours pour ce projet" option when the session has no project. */
+    hasProject?: boolean;
   }
 
   let {
@@ -41,7 +51,11 @@
     expires,
     onApprove,
     onReject,
+    onAlwaysAccept,
+    hasProject = false,
   }: Props = $props();
+
+  let scopeOpen = $state(false);
 
   const RISK_CONFIG: Record<
     RiskLevel,
@@ -138,7 +152,7 @@
     {/if}
   </div>
   <div
-    class="px-3.5 py-2.5 border-t border-border/60 flex items-center gap-2"
+    class="px-3.5 py-2.5 border-t border-border/60 flex flex-wrap items-center gap-2"
   >
     <BtnPrimary onclick={onApprove}>
       {#snippet icon()}<Check size={11} />{/snippet}
@@ -146,6 +160,21 @@
       Autoriser
     </BtnPrimary>
     <BtnSecondary onclick={onReject}>Refuser</BtnSecondary>
+    {#if onAlwaysAccept}
+      <button
+        type="button"
+        class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] text-primary hover:bg-primary/10 transition-colors"
+        onclick={() => (scopeOpen = !scopeOpen)}
+        aria-expanded={scopeOpen}
+        data-testid="hitl-always-toggle"
+      >
+        Toujours autoriser
+        <ChevronDown
+          size={11}
+          class="transition-transform {scopeOpen ? 'rotate-180' : ''}"
+        />
+      </button>
+    {/if}
     {#if expires}
       <span
         class="ml-auto text-[10.5px] text-muted-foreground/70 font-mono"
@@ -154,4 +183,60 @@
       </span>
     {/if}
   </div>
+  {#if onAlwaysAccept && scopeOpen}
+    <div
+      class="px-3.5 py-2 border-t border-border/60 grid grid-cols-1 gap-1.5 sm:grid-cols-2 bg-muted/20"
+      transition:slide={{ duration: 150 }}
+      data-testid="hitl-scope-menu"
+    >
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_session"); }}
+        data-testid="hitl-scope-session"
+      >
+        <div class="font-medium text-foreground">Pour cette session</div>
+        <div class="text-[10px] text-muted-foreground">
+          Jusqu'à la fermeture de ce chat.
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_agent"); }}
+        data-testid="hitl-scope-agent"
+      >
+        <div class="font-medium text-foreground">Toujours pour cet assistant</div>
+        <div class="text-[10px] text-muted-foreground">
+          L'assistant courant ne demandera plus.
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+        disabled={!hasProject}
+        onclick={() => { scopeOpen = false; onAlwaysAccept!("this_project"); }}
+        data-testid="hitl-scope-project"
+        title={!hasProject ? "Cette session n'est rattachée à aucun projet." : undefined}
+      >
+        <div class="font-medium text-foreground">Toujours pour ce projet</div>
+        <div class="text-[10px] text-muted-foreground">
+          {hasProject
+            ? "Tous les assistants utilisés dans ce projet."
+            : "Indisponible — la session n'est rattachée à aucun projet."}
+        </div>
+      </button>
+      <button
+        type="button"
+        class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-card transition-colors"
+        onclick={() => { scopeOpen = false; onAlwaysAccept!("global"); }}
+        data-testid="hitl-scope-global"
+      >
+        <div class="font-medium text-foreground">Toujours, partout</div>
+        <div class="text-[10px] text-warning-a11y">
+          Tous les assistants, tous les projets.
+        </div>
+      </button>
+    </div>
+  {/if}
 </div>

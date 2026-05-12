@@ -77,12 +77,16 @@ pub struct MessageRow {
 pub struct ChatApprovalLogRow {
     /// Session identifier.
     pub session_id: String,
+    /// Message identifier the approval was attached to.
+    pub message_id: String,
     /// Tool that required approval.
     pub tool_name: String,
     /// Decision taken (`accept`, `refuse`, `always_accept`).
     pub decision: String,
     /// ISO-8601 timestamp of the resolution.
     pub resolved_at: String,
+    /// Operator-provided refusal reason (only set for `refuse` decisions).
+    pub reason: Option<String>,
 }
 
 /// Parameters for appending a message to a chat session.
@@ -178,6 +182,10 @@ impl ChatSessionRepository {
                 ON chat_approval_log(resolved_at DESC);",
         )
         .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
+
+        // v11 migration (pre-v10 path): store the operator-provided refusal
+        // reason. NULL for accept / always_accept.
+        let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
 
         // v10 migration: add 'companion' to the mode CHECK constraint.
         // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we recreate the table.
@@ -278,6 +286,10 @@ impl ChatSessionRepository {
                 ON chat_approval_log(resolved_at DESC);",
         )
         .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
+
+        // v11 migration: store the operator-provided refusal reason so it can
+        // be displayed in the inbox history view. NULL for accept / always_accept.
+        let _ = conn.execute_batch("ALTER TABLE chat_approval_log ADD COLUMN reason TEXT");
 
         Ok(Self { conn })
     }
@@ -1002,6 +1014,10 @@ impl ChatSessionRepository {
     }
 
     /// Persist a resolved chat tool approval decision in the log.
+    ///
+    /// `reason` carries the operator-provided refusal explanation (or `None`
+    /// for accept / always_accept). Stored verbatim so the inbox history view
+    /// can surface it.
     pub fn log_tool_approval(
         &self,
         session_id: &str,
@@ -1009,12 +1025,14 @@ impl ChatSessionRepository {
         tool_name: &str,
         decision: &str,
         resolved_at: &str,
+        reason: Option<&str>,
     ) -> Result<(), ChatError> {
         self.conn
             .execute(
-                "INSERT INTO chat_approval_log (session_id, message_id, tool_name, decision, resolved_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![session_id, message_id, tool_name, decision, resolved_at],
+                "INSERT INTO chat_approval_log
+                    (session_id, message_id, tool_name, decision, resolved_at, reason)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![session_id, message_id, tool_name, decision, resolved_at, reason],
             )
             .map_err(|e| ChatError::InternalError(format!("log_tool_approval: {e}")))?;
         Ok(())
@@ -1030,7 +1048,7 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT session_id, message_id, tool_name, decision, resolved_at
+                "SELECT session_id, message_id, tool_name, decision, resolved_at, reason
                  FROM chat_approval_log
                  WHERE resolved_at >= datetime('now', ?1)
                  ORDER BY resolved_at DESC
@@ -1044,9 +1062,11 @@ impl ChatSessionRepository {
             .query_map(params![cutoff, limit], |row| {
                 Ok(ChatApprovalLogRow {
                     session_id: row.get(0)?,
+                    message_id: row.get(1)?,
                     tool_name: row.get(2)?,
                     decision: row.get(3)?,
                     resolved_at: row.get(4)?,
+                    reason: row.get(5)?,
                 })
             })
             .map_err(|e| {

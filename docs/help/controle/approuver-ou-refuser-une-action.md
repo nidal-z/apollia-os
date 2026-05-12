@@ -7,43 +7,78 @@
 - Un agent en cours d'exécution sur une tâche qui touche fichiers, commandes ou outils externes.
 - Vous comprenez ce que l'agent est censé faire (la mission est claire pour vous).
 
-## Étapes
+## Où la demande d'approbation apparaît
 
-1. Dès qu'un agent veut effectuer une action sensible, une **carte d'approbation** apparaît :
-   - en haut du chat si vous discutez avec l'agent,
-   - dans l'**Inbox** (sidebar → Inbox) si l'agent tourne en arrière-plan.
-   `[SCREENSHOT: ApprovalCard dans le chat, titre de l'action, aperçu du contenu, boutons Approuver et Refuser]`
+Une demande d'approbation peut surgir à deux endroits, selon le contexte :
 
-2. Lisez attentivement le **type d'action**, le **chemin** ou la **commande** concernée, et l'**aperçu**. Apollia affiche systématiquement ce qui sera fait avant de le faire.
+- **Dans le chat** (avec Apollia Chat ou un agent conversationnel) : une **carte d'approbation** s'insère dans le flux des messages, à la position chronologique de la demande. La carte porte une icône bouclier ⛨ et une bordure orange.
+  `[SCREENSHOT: carte d'approbation inline dans le chat, icône bouclier orange, aperçu de la commande à autoriser, trois boutons "Autoriser une fois" / "Refuser" / "Toujours autoriser"]`
 
-3. Deux choix principaux s'offrent à vous :
-   - **Approuver** — l'action s'exécute immédiatement, l'agent reprend.
-   - **Refuser** — l'action est bloquée, l'agent reçoit l'information et adapte (ou s'arrête).
+- **Dans la sidebar → Approbations** (qui ouvre la page **Boîte de réception**) : pour les agents qui tournent en arrière-plan ou qui ont mis leur tâche en pause pour vérification humaine. Chaque demande apparaît sous forme d'une ligne dans une liste groupée par date (Aujourd'hui / Hier / Plus tôt). Cliquer une ligne déplie la **carte HITL** avec les détails et les boutons d'action.
+  `[SCREENSHOT: page Boîte de réception — chips de filtres en haut, ligne au survol avec badge risque, carte HITL dépliée en dessous]`
 
-4. Si vous refusez, un dialog **Raison du refus** s'ouvre. Saisissez une explication courte (par exemple : *Pas le bon dossier* ou *Contenu incorrect*). Un minimum de 10 caractères est requis.
-   `[SCREENSHOT: dialog Refuser avec textarea et compteur de caractères minimum]`
+> **Note :** Les demandes apparaissent **en temps réel** sans rafraîchissement. Un compteur dans le sous-titre de la page indique le nombre total en attente.
 
-5. Pour des actions répétées, la carte propose de choisir un **périmètre d'autorisation permanente** :
-   - **Ce projet** (`project`) — règle persistée pour le projet courant uniquement.
-   - **Partout** (`global`) — cet outil est toujours autorisé, pour tous les agents et tous les projets.
+## Les trois décisions possibles
 
-   Dans le **chat libre**, la décision **"Toujours autoriser"** crée automatiquement une règle de portée *Chat* (`agent`), active pour toutes les sessions futures du chat. Ces règles sont visibles et révocables dans **Paramètres → Autorisations → Chat**.
+Quel que soit le point d'entrée (chat ou Boîte de réception pour un appel d'outil), les actions disponibles sont les mêmes :
 
-6. Cliquez sur **Approuver** ou **Refuser**. L'action se déclenche (ou non) sans délai supplémentaire.
+1. **Autoriser une fois** — l'action s'exécute immédiatement pour cette demande uniquement. L'agent reprend, la prochaine occurrence redemandera confirmation.
 
-7. Pour voir et gérer les règles d'autorisation existantes, allez dans **Paramètres → Autorisations**. Vous pouvez modifier ou supprimer une règle à tout moment (voyez la page *Gérer les autorisations d'outils*).
+2. **Refuser** — un dialog **Raison du refus** s'ouvre. Saisissez une explication de **5 à 500 caractères** (compteur en bas du textarea) puis confirmez. Le bouton n'est actif qu'à partir de 5 caractères.
+   `[SCREENSHOT: dialog Raison du refus avec textarea, compteur "12 / 500", boutons Annuler / Confirmer le refus en bas]`
 
-8. Pour consulter l'historique de toutes les approbations passées, ouvrez l'**Inbox**. Tri par date, par agent, par type d'action.
-   `[SCREENSHOT: page Inbox avec cartes d'approbation triées par date]`
+   La raison est **transmise à l'agent** : elle est injectée dans le message d'outil que voit le LLM à l'itération suivante, sous la forme *« Outil refusé par l'utilisateur. Raison : … »*. Cela permet à l'agent de corriger sa trajectoire plutôt que de retenter aveuglément. La raison est aussi **persistée** dans l'historique récent (voir plus bas) pour retrouver le contexte plus tard.
+
+3. **Toujours autoriser** — ouvre un menu avec **4 portées** au choix :
+
+   | Portée | Effet |
+   |---|---|
+   | **Pour cette session** | Auto-approuvé jusqu'à la fermeture du chat. Non persistée. |
+   | **Toujours pour cet assistant** | Règle persistée — l'assistant courant ne redemandera plus pour cet outil. |
+   | **Toujours pour ce projet** | Règle persistée pour tous les assistants utilisés dans le projet courant. *Désactivée si la session n'est rattachée à aucun projet.* |
+   | **Toujours, partout** | Règle persistée globalement — tous les assistants, tous les projets. Affichée en orange comme signal de la portée maximale. |
+
+   Les règles persistées sont consultables et révocables dans **Paramètres → Autorisations** (voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md)).
+
+> **Cas particulier des tâches en pause** (« approbation de tâche ») : un agent qui se suspend lui-même via un point de contrôle HITL n'expose qu'**Autoriser** / **Refuser** (pas de *Toujours autoriser*) puisqu'il ne s'agit pas d'un outil mémorisable. Le dialog de raison reste obligatoire au refus.
+
+## Étapes — résolution d'une demande
+
+1. Cliquez sur **Autoriser une fois** pour valider ponctuellement, ou ouvrez le menu **Toujours autoriser** pour installer une règle persistante.
+
+2. Pour refuser, cliquez sur **Refuser** : le dialog de raison s'ouvre. Tapez une explication courte mais utile à l'agent (ex. *« Mauvais dossier — utilise ./tmp à la place »* plutôt que *« Non »*), puis cliquez sur **Confirmer le refus**.
+
+3. La carte disparaît du chat (ou de la Boîte de réception), un toast confirme la décision (*« Action approuvée »* / *« Action refusée »* / *« Règle enregistrée — futurs appels auto-approuvés »*).
+
+4. Dans le chat, l'agent reçoit immédiatement le résultat (refus + raison, ou résultat de l'outil) et poursuit sa réflexion à la prochaine itération de raisonnement.
+
+## Consulter l'historique des décisions
+
+Au bas de la page **Boîte de réception**, sous la liste des actions en attente, une section **Historique récent (14 jours)** affiche les **50 dernières** décisions HITL résolues (chronologie inverse) :
+
+- Icône colorée : ✅ Autorisé (vert) · 🛡 Toujours autorisé (bleu primaire) · ❌ Refusé (rouge).
+- Nom de l'outil concerné.
+- Pour les refus : la **raison saisie** au moment du refus, en rouge.
+- Horodatage relatif (`5min ago`, `2h ago`…) avec date absolue en tooltip.
+- Préfixe court de la session d'origine.
+
+`[SCREENSHOT: section Historique récent — quatre lignes avec icônes différentes, un refus avec sa raison affichée en rouge]`
+
+L'historique est en **lecture seule** ; il ne se remplace pas par la page Paramètres → Autorisations → Audit récent, qui affiche en plus les décisions automatiques (déclenchées par règles persistées) sur 20 entrées.
 
 ## Vérification
 
-Une fois la décision prise, la carte disparaît du chat (ou de l'Inbox) et l'action est tracée dans l'historique. Si vous avez créé une règle, les actions équivalentes futures seront approuvées automatiquement.
+- La carte d'approbation disparaît du chat (ou la ligne de la Boîte de réception) immédiatement après votre décision.
+- Un toast confirme l'opération.
+- Si vous avez choisi **Toujours autoriser**, ouvrez **Paramètres → Autorisations** et vérifiez qu'une nouvelle règle apparaît dans la liste, avec le bon scope.
+- Pour un refus, l'agent doit prendre en compte la raison à sa prochaine itération (vous le verrez dans la suite de la conversation ou dans les logs de l'agent).
 
 ## Si ça ne marche pas
 
-- **Aucune carte n'apparaît alors que l'agent semble bloqué** : vérifiez l'**Inbox**. Les agents qui tournent en arrière-plan y déposent leurs demandes.
-- **L'agent réessaie sans cesse la même action refusée** : ouvrez ses logs depuis la page **Mes assistants**, votre raison de refus y est visible et peut éclairer le comportement.
-- **Une règle crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et supprimez ou affinez le périmètre de la règle.
+- **Aucune carte n'apparaît alors que l'agent semble bloqué** : ouvrez la **Boîte de réception** depuis la sidebar. Les agents en arrière-plan y déposent leurs demandes au lieu de les afficher dans le chat.
+- **L'agent réessaie sans cesse la même action refusée** : la raison n'était peut-être pas exploitable par l'agent. Ouvrez ses logs depuis **Mes assistants** ; la raison transmise s'y retrouve dans la sortie de l'outil refusé. Refusez à nouveau avec une raison plus actionnable (chemin alternatif, valeur attendue…).
+- **Une règle "Toujours" crée trop d'actions automatiques** : ouvrez **Paramètres → Autorisations** et révoquez ou affinez le périmètre de la règle. Voir [Gérer les autorisations d'outils](configurer-les-permissions-de-fichiers.md).
+- **L'option "Toujours pour ce projet" est grisée** : la session de chat courante n'est rattachée à aucun projet. Liez-la depuis l'en-tête du chat, ou utilisez la portée *Toujours pour cet assistant* à la place.
 
 > **Concept :** [book ch10 — HITL (Human-In-The-Loop)](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch10-00-hitl.md)

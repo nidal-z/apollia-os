@@ -35,87 +35,560 @@ pub struct TimelineParams {
     pub window_minutes: u32,
 }
 
-/// Récupère une timeline globale multi-tâches depuis les 5 sources.
+/// Récupère une timeline globale exhaustive en scannant les bases SQLite par
+/// fenêtre temporelle, **indépendamment du task_id** d'origine.
 ///
-/// Agrège les événements de toutes les tâches connues dans la fenêtre
-/// temporelle demandée. Délègue à l'API REST interne pour récupérer
-/// la liste des tâches, puis leurs timelines individuelles.
+/// Le scan task-centric précédent ratait toute opération non rattachée à une
+/// tâche persistée : chat, déclencheur, événements runtime hors task. Cette
+/// version interroge directement chaque source par horodatage, ce qui surface
+/// 100 % de l'activité visible dans la fenêtre.
+///
+/// Sources scannées :
+/// - `audit.db tool_invocations` → tool
+/// - `llm_calls.db llm_calls` → llm
+/// - `hitl.db tasks` (transitions_json) → task
+/// - `hitl.db task_approvals` → hitl
+/// - `chat.db chat_sessions` + `chat_approval_log` → task / hitl
+/// - `triggers.db trigger_history` → task (déclenchement)
+/// - `runtime_events.db runtime_events` (kinds : thought, agent_log, action_parse_error) → memory / task / error
 #[tauri::command]
 pub async fn get_global_timeline(
     state: State<'_, RuntimeHandle>,
     params: TimelineParams,
 ) -> Result<Vec<GlobalTimelineEvent>, String> {
     let cutoff = chrono::Utc::now() - chrono::Duration::minutes(i64::from(params.window_minutes));
+    // ISO 8601 (UTC, no fractional secs) — compatible with the canonical format
+    // stored across all our SQLite tables and lexicographically comparable.
     let cutoff_str = cutoff.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    // Fetch all tasks from the router to get their IDs.
-    let tasks = state
-        .router_handle
-        .all_tasks()
-        .await
-        .map_err(|e| e.to_string())?;
+    // Resolve data_dir the same way the desktop bootstrapper does (main.rs).
+    let data_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home).join(".apollia")
+    };
 
-    let mut all_events: Vec<GlobalTimelineEvent> = Vec::new();
-
-    for (task_id, agent_id, _status) in &tasks {
-        let path = format!("/api/v1/tasks/{task_id}/timeline");
-        let json = match http_get_json(state.api_port, &path).await {
-            Ok(j) => j,
-            Err(_) => continue,
-        };
-
-        // Resolve human-readable agent name once per task to avoid repeated
-        // registry lookups in the inner event loop.
-        let agent_label = state
-            .registry_handle
-            .get_agent(agent_id.as_str())
-            .await
-            .ok()
-            .flatten()
-            .map(|e| e.manifest.name.clone())
-            .unwrap_or_else(|| agent_id.to_string());
-
-        let events = json
-            .get("events")
-            .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default();
-
-        for event in events {
-            let timestamp = event
-                .get("timestamp")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            if timestamp < cutoff_str {
-                continue;
-            }
-
-            let event_type_raw = event
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            let event_type = classify_event_type(event_type_raw);
-            let summary = build_event_summary(event_type_raw, &event, &agent_label);
-
-            all_events.push(GlobalTimelineEvent {
-                event_type,
-                timestamp,
-                summary,
-                detail: event,
-            });
+    // Build agent_id/name → human-readable label map once. Used to humanise the
+    // [prefix] of each event summary (e.g. `[veille-ia-agent]` instead of UUID).
+    // We map both UUID id → name AND name → name so source rows storing either
+    // form resolve identically.
+    let mut agent_labels: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    if let Ok(agents) = state.registry_handle.list_agents().await {
+        for entry in agents {
+            let name = entry.manifest.name.clone();
+            agent_labels.insert(entry.id.to_string(), name.clone());
+            agent_labels.insert(name.clone(), name);
         }
     }
 
-    // Sort by timestamp DESC (most recent first).
-    all_events.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    // SQLite is sync — push the entire scan onto a blocking thread.
+    let result = tokio::task::spawn_blocking(move || {
+        let mut events = Vec::<GlobalTimelineEvent>::new();
+        scan_audit_db(&data_dir, &cutoff_str, &agent_labels, &mut events);
+        scan_llm_calls_db(&data_dir, &cutoff_str, &agent_labels, &mut events);
+        scan_hitl_tasks(&data_dir, &cutoff_str, &mut events);
+        scan_hitl_approvals(&data_dir, &cutoff_str, &mut events);
+        scan_chat_sessions(&data_dir, &cutoff_str, &mut events);
+        scan_chat_approvals(&data_dir, &cutoff_str, &mut events);
+        scan_trigger_history(&data_dir, &cutoff_str, &mut events);
+        scan_runtime_events(&data_dir, &cutoff_str, &agent_labels, &mut events);
+        events
+    })
+    .await
+    .map_err(|e| format!("join error: {e}"))?;
 
-    Ok(all_events)
+    // Sort DESC by timestamp (most recent first).
+    let mut sorted = result;
+    sorted.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    Ok(sorted)
 }
 
-/// Classifie un type d'événement brut en catégorie pour le filtrage UI.
+/// Récupère un libellé lisible pour un identifiant brut (agent_id, name, …).
+fn label_for(agent_key: &str, labels: &std::collections::HashMap<String, String>) -> String {
+    labels.get(agent_key).cloned().unwrap_or_else(|| agent_key.to_string())
+}
+
+/// Tronque proprement une chaîne pour les résumés (max `max` chars + "…").
+fn trim_for_summary(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    let mut out: String = text.chars().take(max).collect();
+    out.push('…');
+    out
+}
+
+fn scan_audit_db(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    labels: &std::collections::HashMap<String, String>,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("audit.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT id, agent_id, task_id, tool_name, started_at, duration_ms, exit_code, success, error_code
+         FROM tool_invocations
+         WHERE started_at >= ?1
+         ORDER BY started_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+            row.get::<_, Option<i64>>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, Option<String>>(8)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (id, agent_id, task_id, tool_name, ts, dur, exit_code, success, error_code) = r;
+        let agent_label = label_for(&agent_id, labels);
+        let dur_label = dur.map(|ms| format!(" ({ms}ms)")).unwrap_or_default();
+        let success_marker = if success == 0 { " ⚠" } else { "" };
+        let summary = format!("[{agent_label}] Tool: {tool_name}{dur_label}{success_marker}");
+        let event_type = if success == 0 { "error" } else { "tool" };
+        events.push(GlobalTimelineEvent {
+            event_type: event_type.to_string(),
+            timestamp: ts,
+            summary,
+            detail: serde_json::json!({
+                "source": "audit.db",
+                "id": id,
+                "task_id": task_id,
+                "agent_id": agent_id,
+                "tool_name": tool_name,
+                "duration_ms": dur,
+                "exit_code": exit_code,
+                "success": success != 0,
+                "error_code": error_code,
+            }),
+        });
+    }
+}
+
+fn scan_llm_calls_db(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    labels: &std::collections::HashMap<String, String>,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("llm_calls.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT id, task_id, backend, model, prompt_tokens, completion_tokens, cost_usd, latency_ms, created_at
+         FROM llm_calls
+         WHERE created_at >= ?1
+         ORDER BY created_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<i64>>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+            row.get::<_, Option<f64>>(6)?,
+            row.get::<_, Option<i64>>(7)?,
+            row.get::<_, String>(8)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (id, task_id, backend, model, prompt_tokens, completion_tokens, cost_usd, latency_ms, ts) = r;
+        let cost_label = cost_usd
+            .map(|c| if c >= 0.01 { format!(" · ${c:.2}") } else { format!(" · ${c:.4}") })
+            .unwrap_or_default();
+        let label = task_id
+            .as_deref()
+            .and_then(|tid| labels.get(tid).cloned())
+            .unwrap_or_else(|| backend.clone());
+        let summary = format!("[{label}] LLM: {model}{cost_label}");
+        events.push(GlobalTimelineEvent {
+            event_type: "llm".to_string(),
+            timestamp: ts,
+            summary,
+            detail: serde_json::json!({
+                "source": "llm_calls.db",
+                "id": id,
+                "task_id": task_id,
+                "backend": backend,
+                "model": model,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "cost_usd": cost_usd,
+                "latency_ms": latency_ms,
+            }),
+        });
+    }
+}
+
+fn scan_hitl_tasks(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("hitl.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT task_id, agent_name, transitions_json, created_at, updated_at, duration_ms
+         FROM tasks
+         WHERE updated_at >= ?1 OR created_at >= ?1
+         ORDER BY created_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, Option<i64>>(5)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (task_id, agent_name, transitions, _created, _updated, duration_ms) = r;
+        let label = agent_name.clone();
+
+        // Parse transitions_json — each entry { status, ts } emits one task event.
+        if let Some(json) = transitions {
+            if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&json) {
+                for tr in arr {
+                    let status = tr.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let ts = tr.get("ts").and_then(|v| v.as_str()).unwrap_or("");
+                    if ts < cutoff_str { continue; }
+                    let dur = if status == "completed" {
+                        duration_ms.map(|ms| format!(" · {ms}ms")).unwrap_or_default()
+                    } else { String::new() };
+                    events.push(GlobalTimelineEvent {
+                        event_type: "task".to_string(),
+                        timestamp: ts.to_string(),
+                        summary: format!("[{label}] Tâche → {status}{dur}"),
+                        detail: serde_json::json!({
+                            "source": "hitl.db/tasks",
+                            "task_id": task_id,
+                            "agent_name": agent_name,
+                            "status": status,
+                            "duration_ms": duration_ms,
+                        }),
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn scan_hitl_approvals(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("hitl.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    // The schema typically includes suspended_at + resolved_at.
+    let mut stmt = match conn.prepare(
+        "SELECT task_id, prompt, suspended_at, resolved_at, decision, reason
+         FROM task_approvals
+         WHERE suspended_at >= ?1 OR resolved_at >= ?1
+         ORDER BY suspended_at DESC",
+    ) {
+        Ok(s) => s,
+        // Table may not exist on older installs — silently skip.
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, Option<String>>(5)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (task_id, prompt, suspended_at, resolved_at, decision, reason) = r;
+        if suspended_at >= cutoff_str.to_string() {
+            let preview = trim_for_summary(prompt.as_deref().unwrap_or(""), 80);
+            events.push(GlobalTimelineEvent {
+                event_type: "hitl".to_string(),
+                timestamp: suspended_at.clone(),
+                summary: format!("HITL en attente: {preview}"),
+                detail: serde_json::json!({
+                    "source": "hitl.db/task_approvals",
+                    "task_id": task_id,
+                    "prompt": prompt,
+                }),
+            });
+        }
+        if let Some(ts) = resolved_at {
+            if ts >= cutoff_str.to_string() {
+                let verdict = decision.as_deref().unwrap_or("résolu");
+                events.push(GlobalTimelineEvent {
+                    event_type: "hitl".to_string(),
+                    timestamp: ts,
+                    summary: format!("HITL → {verdict}"),
+                    detail: serde_json::json!({
+                        "source": "hitl.db/task_approvals",
+                        "task_id": task_id,
+                        "decision": decision,
+                        "reason": reason,
+                    }),
+                });
+            }
+        }
+    }
+}
+
+fn scan_chat_sessions(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("chat.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT id, mode, agent_name, status, created_at, closed_at, title
+         FROM chat_sessions
+         WHERE created_at >= ?1 OR closed_at >= ?1
+         ORDER BY created_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, Option<String>>(5)?,
+            row.get::<_, Option<String>>(6)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (id, mode, agent_name, status, created_at, closed_at, title) = r;
+        let label = agent_name.clone().unwrap_or_else(|| format!("chat-{mode}"));
+        let title_label = title
+            .as_deref()
+            .map(|t| trim_for_summary(t, 60))
+            .unwrap_or_else(|| "(sans titre)".to_string());
+        if created_at >= cutoff_str.to_string() {
+            events.push(GlobalTimelineEvent {
+                event_type: "task".to_string(),
+                timestamp: created_at.clone(),
+                summary: format!("[{label}] Chat ouvert · {title_label}"),
+                detail: serde_json::json!({
+                    "source": "chat.db/chat_sessions",
+                    "session_id": id,
+                    "mode": mode,
+                    "agent_name": agent_name,
+                    "status": status,
+                    "title": title,
+                }),
+            });
+        }
+        if let Some(ts) = closed_at {
+            if ts >= cutoff_str.to_string() {
+                events.push(GlobalTimelineEvent {
+                    event_type: "task".to_string(),
+                    timestamp: ts,
+                    summary: format!("[{label}] Chat clos · {title_label}"),
+                    detail: serde_json::json!({
+                        "source": "chat.db/chat_sessions",
+                        "session_id": id,
+                        "mode": mode,
+                        "agent_name": agent_name,
+                        "status": status,
+                    }),
+                });
+            }
+        }
+    }
+}
+
+fn scan_chat_approvals(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("chat.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT session_id, message_id, tool_name, decision, resolved_at, reason
+         FROM chat_approval_log
+         WHERE resolved_at >= ?1
+         ORDER BY resolved_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, Option<String>>(5)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (session_id, message_id, tool_name, decision, ts, reason) = r;
+        events.push(GlobalTimelineEvent {
+            event_type: "hitl".to_string(),
+            timestamp: ts,
+            summary: format!("Chat HITL · {tool_name} → {decision}"),
+            detail: serde_json::json!({
+                "source": "chat.db/chat_approval_log",
+                "session_id": session_id,
+                "message_id": message_id,
+                "tool_name": tool_name,
+                "decision": decision,
+                "reason": reason,
+            }),
+        });
+    }
+}
+
+fn scan_trigger_history(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("triggers.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let mut stmt = match conn.prepare(
+        "SELECT id, trigger_id, agent_name, fired_at, task_id, status, reason
+         FROM trigger_history
+         WHERE fired_at >= ?1
+         ORDER BY fired_at DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, Option<String>>(6)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (id, trigger_id, agent_name, ts, task_id, status, reason) = r;
+        let event_type = if status == "error" { "error" } else { "task" };
+        let suffix = match status.as_str() {
+            "fired" => "déclenché",
+            "skipped" => "ignoré",
+            "error" => "en erreur",
+            other => other,
+        };
+        events.push(GlobalTimelineEvent {
+            event_type: event_type.to_string(),
+            timestamp: ts,
+            summary: format!("[{agent_name}] Trigger {suffix}"),
+            detail: serde_json::json!({
+                "source": "triggers.db/trigger_history",
+                "id": id,
+                "trigger_id": trigger_id,
+                "agent_name": agent_name,
+                "task_id": task_id,
+                "status": status,
+                "reason": reason,
+            }),
+        });
+    }
+}
+
+fn scan_runtime_events(
+    data_dir: &std::path::Path,
+    cutoff_str: &str,
+    labels: &std::collections::HashMap<String, String>,
+    events: &mut Vec<GlobalTimelineEvent>,
+) {
+    let path = data_dir.join("runtime_events.db");
+    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    // Only surface kinds that aren't already covered by audit/llm/hitl scans
+    // (else we'd double-count tool/LLM events).
+    let mut stmt = match conn.prepare(
+        "SELECT event_id, task_id, agent_id, kind, payload_json, ts
+         FROM runtime_events
+         WHERE ts >= ?1
+           AND kind IN ('thought', 'agent_log', 'action_parse_error', 'tool_call_denied', 'memory_write', 'memory_read', 'a2a_delegate', 'a2a_response')
+         ORDER BY ts DESC",
+    ) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let rows = stmt.query_map([cutoff_str], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, String>(5)?,
+        ))
+    });
+    let Ok(iter) = rows else { return };
+    for r in iter.flatten() {
+        let (event_id, task_id, agent_id, kind, payload_json, ts) = r;
+        let agent_label = label_for(&agent_id, labels);
+        let (event_type, summary) = match kind.as_str() {
+            "thought" => ("task", format!("[{agent_label}] Raisonnement")),
+            "agent_log" => ("task", format!("[{agent_label}] Log")),
+            "action_parse_error" => ("error", format!("[{agent_label}] Erreur de parsing")),
+            "tool_call_denied" => ("hitl", format!("[{agent_label}] Outil refusé")),
+            "memory_write" => ("memory", format!("[{agent_label}] Mémoire écrite")),
+            "memory_read" => ("memory", format!("[{agent_label}] Mémoire lue")),
+            "a2a_delegate" => ("a2a", format!("[{agent_label}] Délégation A2A")),
+            "a2a_response" => ("a2a", format!("[{agent_label}] Réponse A2A")),
+            other => ("task", format!("[{agent_label}] {other}")),
+        };
+        let payload: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or(serde_json::json!({}));
+        events.push(GlobalTimelineEvent {
+            event_type: event_type.to_string(),
+            timestamp: ts,
+            summary,
+            detail: serde_json::json!({
+                "source": "runtime_events.db",
+                "event_id": event_id,
+                "task_id": task_id,
+                "agent_id": agent_id,
+                "kind": kind,
+                "payload": payload,
+            }),
+        });
+    }
+}
+
+/// (Conservé pour rétro-compatibilité éventuelle — n'est plus utilisé.)
+#[allow(dead_code)]
 fn classify_event_type(raw: &str) -> String {
     match raw {
         "task_transition" | "task_completed" => "task".to_string(),
@@ -128,6 +601,7 @@ fn classify_event_type(raw: &str) -> String {
 }
 
 /// Construit un résumé lisible à partir d'un événement timeline brut.
+#[allow(dead_code)]
 fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &str) -> String {
     match event_type {
         "task_transition" => {

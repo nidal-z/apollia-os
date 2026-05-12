@@ -8,7 +8,6 @@
    */
   import { t, locale } from "svelte-i18n";
   import { triggers } from "$lib/stores/triggers";
-  import { currentRoute } from "$lib/stores/navigation";
   import type { TriggerStatus } from "$lib/types";
   import AutomationRow from "../components/automations/AutomationRow.svelte";
   import AutomationEmptyState from "../components/automations/AutomationEmptyState.svelte";
@@ -82,15 +81,6 @@
 
   function handleCreate() {
     showWizard = true;
-  }
-
-  function handleBrowseTemplates() {
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.search = "?kind=automation";
-      window.history.replaceState({}, "", url.toString());
-    }
-    currentRoute.set("templates");
   }
 
   function handleSwitchAdvanced() {
@@ -185,7 +175,7 @@
 
   {#if $triggers.length === 0}
     <div class="px-8 pt-6">
-      <AutomationEmptyState onCreate={handleCreate} onBrowseTemplates={handleBrowseTemplates} />
+      <AutomationEmptyState onCreate={handleCreate} />
     </div>
   {:else}
     <!-- Status filter chip row -->

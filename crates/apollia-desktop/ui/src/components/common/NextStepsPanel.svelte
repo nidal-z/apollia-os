@@ -65,8 +65,6 @@
     "/observability": { route: "observability" },
     "/notifications": { route: "notifications" },
     "/settings": { route: "settings" },
-    "/templates": { route: "templates" },
-    "/templates?filter=agents": { route: "templates" },
   };
 
   const COMMAND_WHITELIST = new Set([

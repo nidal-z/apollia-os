@@ -80,6 +80,7 @@
   let fileWatchCreate = $state(true);
   let fileWatchModify = $state(true);
   let fileWatchDelete = $state(false);
+  let fileWatchRecursive = $state(false);
   let webhookSecret = $state("");
 
   let submitting = $state(false);
@@ -144,7 +145,12 @@
         if (fileWatchCreate) events.push("create");
         if (fileWatchModify) events.push("modify");
         if (fileWatchDelete) events.push("delete");
-        return { type: "file_watch", path: fileWatchPath.trim(), events };
+        return {
+          type: "file_watch",
+          path: fileWatchPath.trim(),
+          events,
+          recursive: fileWatchRecursive,
+        };
       }
       case "webhook":
         return { type: "webhook", secret: webhookSecret.trim() };
@@ -203,6 +209,7 @@
     fileWatchCreate = true;
     fileWatchModify = true;
     fileWatchDelete = false;
+    fileWatchRecursive = false;
     webhookSecret = "";
     submitting = false;
     submitError = null;
@@ -368,7 +375,7 @@
             bind:value={fileWatchPath}
             data-testid="trigger-input-filepath"
           />
-          <p class="mt-0.5 text-[11px] text-muted-foreground">The agent runs whenever a file event occurs in this folder.</p>
+          <p class="mt-0.5 text-[11px] text-muted-foreground">{$t("triggers.field_path_help")}</p>
         </div>
         <div>
           <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_events")}</p>
@@ -407,6 +414,15 @@
           {#if sourceError && sourceType === "file_watch" && !fileWatchCreate && !fileWatchModify && !fileWatchDelete}
             <p class="mt-1 text-xs text-destructive">{$t("triggers.field_events_required")}</p>
           {/if}
+        </div>
+        <div>
+          <label class="flex items-start gap-2 cursor-pointer">
+            <Toggle bind:checked={fileWatchRecursive} data-testid="trigger-recursive-toggle" />
+            <span class="flex-1">
+              <span class="block text-[12px] font-medium text-foreground">{$t("triggers.field_recursive_label")}</span>
+              <span class="mt-0.5 block text-[11px] text-muted-foreground">{$t("triggers.field_recursive_hint")}</span>
+            </span>
+          </label>
         </div>
       </div>
 

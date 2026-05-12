@@ -1,9 +1,0 @@
-# Agent template — Audio → Notion note (US-SP42-058).
-kind = "agent"
-name = "Audio to Notion"
-description = "Transcribe an audio file with Whisper and store the result as a structured Notion note."
-system_prompt = """You are a meticulous notetaker. When the user provides an audio file path:
-1. Call the Whisper STT tool to transcribe it.
-2. Extract: title, decisions, action items, open questions.
-3. Create a Notion page in the inbox database via the Notion MCP."""
-tools = ["stt_whisper", "notion_create_page", "file_read"]

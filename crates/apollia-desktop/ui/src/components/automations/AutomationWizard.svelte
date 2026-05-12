@@ -82,8 +82,17 @@
   });
 
   const canAdvanceFromDescribe = $derived(description.trim().length >= 4);
-  const unresolvedAmbiguities = $derived(parsed?.ambiguities ?? []);
-  const canAdvanceFromSchedule = $derived(!!parsed?.schedule && unresolvedAmbiguities.length === 0);
+  // The parser may surface several ambiguities. Agent-related ones must NOT
+  // block the schedule step because the wizard has a dedicated Agent step
+  // that already gates on selection. Treat them as informational only.
+  function isAgentAmbiguity(msg: string): boolean {
+    const m = msg.toLowerCase();
+    return m.includes("assistant cible") || m.includes("target assistant") || m.includes("agent");
+  }
+  const allAmbiguities = $derived(parsed?.ambiguities ?? []);
+  const scheduleAmbiguities = $derived(allAmbiguities.filter((m) => !isAgentAmbiguity(m)));
+  const agentAmbiguities = $derived(allAmbiguities.filter((m) => isAgentAmbiguity(m)));
+  const canAdvanceFromSchedule = $derived(!!parsed?.schedule && scheduleAmbiguities.length === 0);
   const canAdvanceFromAgent = $derived(!!selectedAgent);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -227,14 +236,6 @@
     }
   }
 
-  function handleBrowseTemplates() {
-    usedTemplate = true;
-    // The gallery lives in surface the hand-off via a window
-    // event so the parent route (Automations.svelte) can open it without
-    // coupling the wizard to route-level state.
-    window.dispatchEvent(new CustomEvent("automation_wizard_browse_templates"));
-  }
-
   function handleAdvanced() {
     onclose();
     onswitchadvanced?.();
@@ -257,6 +258,9 @@
         <label class="mb-1 block text-sm font-medium" for="automation-describe">
           {$t("automations.wizard.describe_prompt")}
         </label>
+        <p class="mb-2 text-[11.5px] text-muted-foreground">
+          {$t("automations.wizard.describe_hint")}
+        </p>
         <Textarea
           id="automation-describe"
           class="min-h-32"
@@ -264,16 +268,11 @@
           bind:value={description}
           data-testid="automation-wizard-describe"
         />
-        <div class="mt-2 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onclick={handleBrowseTemplates} data-testid="automation-wizard-templates">
-            {$t("automations.wizard.browse_templates")}
-          </Button>
-          {#if parseError}
-            <p class="text-xs text-destructive" data-testid="automation-wizard-parse-error">
-              {$t("automations.wizard.fallback_error")}
-            </p>
-          {/if}
-        </div>
+        {#if parseError}
+          <p class="mt-2 text-xs text-destructive" data-testid="automation-wizard-parse-error">
+            {$t("automations.wizard.fallback_error")}
+          </p>
+        {/if}
       </div>
     {:else if step === 1}
       <!-- Step 2 — Schedule ------------------------------------------------->
@@ -290,13 +289,13 @@
           </div>
         {/if}
 
-        {#if unresolvedAmbiguities.length > 0}
+        {#if scheduleAmbiguities.length > 0}
           <div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3" data-testid="automation-wizard-ambiguities">
             <p class="mb-1 text-xs font-medium text-amber-700 dark:text-amber-300">
               {$t("automations.wizard.needs_clarification")}
             </p>
             <ul class="list-disc space-y-0.5 pl-5 text-xs text-amber-900 dark:text-amber-100">
-              {#each unresolvedAmbiguities as ambiguity}
+              {#each scheduleAmbiguities as ambiguity}
                 <li>{ambiguity}</li>
               {/each}
             </ul>
@@ -324,6 +323,13 @@
       <!-- Step 3 — Agent ---------------------------------------------------->
       <div class="space-y-3">
         <p class="text-sm text-muted-foreground">{$t("automations.wizard.agent_intro")}</p>
+        {#if !parsed?.agent && agentAmbiguities.length > 0}
+          <div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3" data-testid="automation-wizard-agent-hint">
+            <p class="text-xs text-amber-900 dark:text-amber-100">
+              {$t("automations.wizard.agent_not_matched_hint")}
+            </p>
+          </div>
+        {/if}
         <Select bind:value={selectedAgent} aria-label={$t("automations.wizard.agent_select_aria")} data-testid="automation-wizard-agent-select">
           <option value="" disabled>— {$t("automations.wizard.agent_pick")} —</option>
           {#each agents as agent}

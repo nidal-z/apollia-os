@@ -12,7 +12,6 @@
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { uiMode, type UIMode } from "$lib/stores/mode";
   import { setLocale } from "$lib/i18n";
-  import { showCommunityTemplates } from "$lib/templates/preferences";
 
   const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
     { value: "light", labelKey: "settings.theme_light" },
@@ -106,20 +105,4 @@
     </div>
   </div>
 
-  <!-- Template gallery preferences -->
-  <div class="space-y-2" data-testid="templates-preferences">
-    <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('templates.title')}</h3>
-    <label class="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3">
-      <span class="flex-1">
-        <span class="block text-sm text-foreground">{$t('templates.settings.community_toggle_label')}</span>
-        <span class="mt-0.5 block text-xs text-muted-foreground">{$t('templates.settings.community_toggle_hint')}</span>
-      </span>
-      <input
-        type="checkbox"
-        class="mt-1 h-4 w-4 accent-primary"
-        bind:checked={$showCommunityTemplates}
-        data-testid="templates-community-toggle"
-      />
-    </label>
-  </div>
 </section>

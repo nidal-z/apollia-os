@@ -7,6 +7,7 @@
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
   import { currentSession } from "$lib/stores/chat";
+  import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
 
   interface Props {
     sessionId: string;
@@ -34,10 +35,9 @@
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
   let scopeOpen = $state(false);
+  let rejectDialogOpen = $state(false);
 
-  async function handleDecision(
-    decision: "accept" | "refuse",
-  ): Promise<void> {
+  async function handleAccept(): Promise<void> {
     isProcessing = true;
     error = null;
     try {
@@ -45,8 +45,26 @@
         sessionId,
         messageId,
         toolName: toolCall.tool_name,
-        decision,
+        decision: "accept",
       });
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
+      isProcessing = false;
+    }
+  }
+
+  async function handleRefuse(reason: string): Promise<void> {
+    isProcessing = true;
+    error = null;
+    try {
+      await invoke("authorize_chat_tool", {
+        sessionId,
+        messageId,
+        toolName: toolCall.tool_name,
+        decision: "refuse",
+        reason,
+      });
+      rejectDialogOpen = false;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
       isProcessing = false;
@@ -104,7 +122,7 @@
       size="sm"
       class="h-7 px-3 text-[11px]"
       disabled={isProcessing}
-      onclick={() => handleDecision("accept")}
+      onclick={handleAccept}
       data-testid="operator-approval-accept-{toolCall.tool_name}"
     >
       Autoriser une fois
@@ -114,7 +132,7 @@
       size="sm"
       class="h-7 px-3 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
       disabled={isProcessing}
-      onclick={() => handleDecision("refuse")}
+      onclick={() => (rejectDialogOpen = true)}
       data-testid="operator-approval-refuse-{toolCall.tool_name}"
     >
       Refuser
@@ -196,3 +214,10 @@
     </div>
   {/if}
 </div>
+
+<RejectReasonDialog
+  open={rejectDialogOpen}
+  submitting={isProcessing}
+  onclose={() => (rejectDialogOpen = false)}
+  onconfirm={handleRefuse}
+/>

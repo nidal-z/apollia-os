@@ -167,6 +167,10 @@ fn parse_source_config(
                 .get("events")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_else(|| vec![FileEventKind::Any]);
+            let recursive = source_config
+                .get("recursive")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let follow_symlinks = source_config
                 .get("follow_symlinks")
                 .and_then(|v| v.as_bool())
@@ -178,6 +182,7 @@ fn parse_source_config(
             Ok(TriggerSourceConfig::FileWatch {
                 path: std::path::PathBuf::from(path),
                 events,
+                recursive,
                 follow_symlinks,
                 exclude_patterns,
             })

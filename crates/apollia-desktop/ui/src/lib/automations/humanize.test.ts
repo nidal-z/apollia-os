@@ -94,10 +94,10 @@ describe("humanizeSchedule — interval", () => {
 describe("humanizeSchedule — file_watch & webhook & oneshot", () => {
   it("describes a file watcher", () => {
     expect(humanizeSchedule("file_watch", "~/Documents/specs", "en").label).toBe(
-      "When a file changes in ~/Documents/specs",
+      "When ~/Documents/specs changes",
     );
     expect(humanizeSchedule("file_watch", "~/Documents/specs", "fr").label).toBe(
-      "Quand un fichier change dans ~/Documents/specs",
+      "Quand ~/Documents/specs change",
     );
   });
 

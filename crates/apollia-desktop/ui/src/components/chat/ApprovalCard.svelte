@@ -5,6 +5,7 @@
   import { ShieldAlert, Zap, ChevronDown } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { currentSession } from "$lib/stores/chat";
+  import RejectReasonDialog from "../inbox/RejectReasonDialog.svelte";
 
   interface Props {
     sessionId: string;
@@ -30,15 +31,14 @@
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
   let scopeOpen = $state(false);
+  let rejectDialogOpen = $state(false);
 
   /** True when this is an A2A worker-agent delegation. */
   const isA2A = $derived(toolName.startsWith("a2a:"));
   /** Skill ID (e.g. "read-excel") extracted from "a2a:read-excel". */
   const a2aSkillId = $derived(isA2A ? toolName.slice(4) : null);
 
-  async function handleDecision(
-    decision: "accept" | "refuse",
-  ): Promise<void> {
+  async function handleAccept(): Promise<void> {
     isProcessing = true;
     error = null;
     try {
@@ -46,8 +46,28 @@
         sessionId,
         messageId,
         toolName,
-        decision,
+        decision: "accept",
       });
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
+      isProcessing = false;
+    }
+  }
+
+  /** Refusal goes through a mandatory reason dialog (5-500 chars).
+   *  The reason is forwarded to the agent loop so the LLM can correct course. */
+  async function handleRefuse(reason: string): Promise<void> {
+    isProcessing = true;
+    error = null;
+    try {
+      await invoke("authorize_chat_tool", {
+        sessionId,
+        messageId,
+        toolName,
+        decision: "refuse",
+        reason,
+      });
+      rejectDialogOpen = false;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
       isProcessing = false;
@@ -114,7 +134,7 @@
       size="sm"
       class="h-7 px-3 text-[11px]"
       disabled={isProcessing}
-      onclick={() => handleDecision("accept")}
+      onclick={handleAccept}
       data-testid="approval-accept-{toolName}"
     >
       Autoriser une fois
@@ -124,7 +144,7 @@
       size="sm"
       class="h-7 px-3 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
       disabled={isProcessing}
-      onclick={() => handleDecision("refuse")}
+      onclick={() => (rejectDialogOpen = true)}
       data-testid="approval-refuse-{toolName}"
     >
       Refuser
@@ -206,3 +226,10 @@
     </div>
   {/if}
 </div>
+
+<RejectReasonDialog
+  open={rejectDialogOpen}
+  submitting={isProcessing}
+  onclose={() => (rejectDialogOpen = false)}
+  onconfirm={handleRefuse}
+/>

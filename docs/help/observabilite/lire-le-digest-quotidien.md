@@ -1,36 +1,33 @@
-# Lire le digest quotidien
+# Lire le résumé du jour
 
-> Pour les operators qui veulent voir d'un coup d'œil ce que leurs agents ont fait dans les dernières 24 heures et ce qui demande leur attention.
+> Pour les operators qui veulent voir d'un coup d'œil ce que leurs agents ont fait et ce qui demande leur attention en ce moment.
 
 ## Prérequis
-- Au moins un agent ou trigger a tourné dans les 24 dernières heures.
-- Vous êtes connecté à un fournisseur d'IA (le bandeau de connexion est vert).
+
+- Au moins un agent ou trigger a tourné récemment.
 
 ## Étapes
 
-1. Ouvrez l'application. Vous arrivez par défaut sur le **Dashboard**.
+1. Ouvrez l'application. Vous arrivez par défaut sur le **Tableau de bord**.
 
-2. En haut de la page, regardez le bloc **Digest** : trois grands chiffres résument votre journée.
-   - **Terminées** : actions menées à bien par vos agents.
-   - **En attente** : décisions qui vous attendent (approbations).
-   - **Erreurs** : exécutions qui ont échoué et méritent un coup d'œil.
-   `[SCREENSHOT: bloc DigestHero en haut du Dashboard, trois nombres mis en valeur]`
+2. La page affiche trois cartes côte à côte, plus une bande d'activité récente en dessous.
 
-3. Cliquez sur l'un des trois chiffres pour ouvrir le détail correspondant. Par exemple, un clic sur **En attente** vous emmène dans l'**Inbox**, sur la liste des actions à valider.
+   - **Décisions en attente** *(la plus large, à gauche)* — actions HITL en attente de votre décision. Compteur en en-tête. Liste compacte des premiers items (extraits d'inbox) ; un lien *« Voir tout → »* mène à la **Boîte de réception**.
+   - **Livrables prêts** — tâches récemment complétées. Cliquez sur une ligne pour ouvrir l'onglet **Tâches**.
+   - **Au travail** — agents actuellement actifs. Cliquez sur un agent pour ouvrir son détail.
+   `[SCREENSHOT: tableau de bord en mode opérateur — 3 cartes en grille, "Décisions en attente" à gauche occupe deux colonnes, "Livrables prêts" et "Au travail" à droite]`
 
-4. Pour la vue complète, dans la sidebar cliquez sur **Observabilité**, puis sur l'onglet **Chronologie**. Vous voyez tous les événements de la journée, du plus récent au plus ancien.
+3. Sous les trois cartes, la section **Activité récente** liste les dernières tâches (toutes statuts confondus) sous forme de mini-cartes. Cliquez pour ouvrir la page **Tâches**.
 
-5. Filtrez la chronologie avec les listes déroulantes en haut : par agent, par type d'événement (tâche, outil, approbation), par statut.
-   `[SCREENSHOT: page Observabilité onglet Chronologie, barre de filtres en haut, événements listés en dessous]`
-
-   > **⚠️ Non disponible dans cette version :** l'export du digest n'est pas disponible depuis l'interface.
+4. Pour la vue détaillée par événement (tâche, outil, LLM, approbation, etc.), allez dans **Observabilité → Chronologie** depuis la sidebar.
 
 ## Vérification
-Le bloc Digest affiche des chiffres cohérents avec votre activité. La chronologie contient au moins une ligne par exécution récente.
+
+Les compteurs des trois cartes correspondent à votre activité actuelle. Si vous lancez une nouvelle tâche, *« Au travail »* s'incrémente sans rafraîchissement manuel — les données se mettent à jour automatiquement via les flux temps réel.
 
 ## Si ça ne marche pas
-- **Le digest est entièrement à zéro** : aucun agent n'a tourné depuis 24h. Démarrez un agent ou déclenchez un trigger manuellement pour générer de l'activité.
-- **Les chiffres ne se mettent pas à jour** : tirez la page vers le bas pour rafraîchir, ou cliquez sur le bouton de recharge en haut à droite du Dashboard.
-- **Une erreur affichée n'a pas de détail** : ouvrez la page **Agents**, cliquez sur l'agent concerné, onglet **Logs** pour voir le message complet.
+
+- **Tout est vide alors qu'un agent vient de tourner** : la mise à jour temps réel a peut-être perdu sa connexion ; quittez et rouvrez l'application.
+- **Une erreur récente n'est pas visible** : ouvrez **Mes assistants**, cliquez sur l'agent concerné, ouvrez ses **Logs** pour voir le message complet (cf. [Consulter les logs d'un agent](../agents/consulter-les-logs-d-un-agent.md)).
 
 > **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/nidal-z/apollia-os/wiki/Ops-Exploitation-et-Debug)

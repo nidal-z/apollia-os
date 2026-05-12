@@ -18,7 +18,6 @@
   import SettingsPermissionRules from "../../routes/SettingsPermissionRules.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Connections from "../../routes/Connections.svelte";
-  import Templates from "../../routes/Templates.svelte";
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
   import DesignMotion from "../../routes/DesignMotion.svelte";
@@ -79,8 +78,6 @@
           <Observability />
         {:else if $currentRoute === "integrations"}
           <Connections />
-        {:else if $currentRoute === "templates"}
-          <Templates />
         {:else if $currentRoute === "settings"}
           <Settings />
         {:else if $currentRoute === "settings-permission-rules"}

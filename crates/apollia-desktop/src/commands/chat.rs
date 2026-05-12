@@ -539,9 +539,11 @@ pub async fn list_chat_approval_history(
         .into_iter()
         .map(|r| ResolvedChatApproval {
             session_id: r.session_id,
+            message_id: r.message_id,
             tool_name: r.tool_name,
             decision: r.decision,
             resolved_at: r.resolved_at,
+            reason: r.reason,
         })
         .collect())
 }
@@ -551,12 +553,16 @@ pub async fn list_chat_approval_history(
 pub struct ResolvedChatApproval {
     /// Session identifier.
     pub session_id: String,
+    /// Message identifier the approval was attached to.
+    pub message_id: String,
     /// Tool that required approval.
     pub tool_name: String,
     /// Decision taken (`accept`, `refuse`, `always_accept`).
     pub decision: String,
     /// ISO-8601 timestamp of the resolution.
     pub resolved_at: String,
+    /// Operator-provided refusal reason (only set for `refuse` decisions).
+    pub reason: Option<String>,
 }
 
 /// Links or unlinks a chat session to/from a project.

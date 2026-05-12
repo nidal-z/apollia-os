@@ -1,9 +1,20 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
   import type { TriggerLogEntry } from "$lib/types";
+  import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import {
+    History,
+    RefreshCw,
+    CheckCircle,
+    XCircle,
+    Activity,
+    SkipForward,
+    ArrowDownWideNarrow,
+  } from "lucide-svelte";
 
   interface Props {
     triggerId: string;
@@ -13,152 +24,267 @@
 
   let { triggerId, open, onclose }: Props = $props();
 
+  const FETCH_LIMIT = 200;
+
+  type StatusKey = "all" | "fired" | "skipped" | "error";
+  type SortKey = "recent" | "oldest";
+
   let entries = $state<TriggerLogEntry[]>([]);
   let loading = $state(false);
   let error = $state<string | null>(null);
-  let loaded = $state(false);
+
+  let statusFilter = $state<StatusKey>("all");
+  let sortBy = $state<SortKey>("recent");
 
   const STATUS_CONFIG: Record<
     string,
     {
-      label: string;
+      labelKey: string;
       variant: "success" | "warning" | "destructive" | "secondary";
+      icon: typeof Activity;
+      iconColor: string;
     }
   > = {
-    fired: { label: "FIRED", variant: "success" },
-    skipped: { label: "SKIPPED", variant: "warning" },
-    error: { label: "ERROR", variant: "destructive" },
+    fired: {
+      labelKey: "triggers.status_fired",
+      variant: "success",
+      icon: CheckCircle,
+      iconColor: "text-success",
+    },
+    skipped: {
+      labelKey: "triggers.status_skipped",
+      variant: "warning",
+      icon: SkipForward,
+      iconColor: "text-warning",
+    },
+    error: {
+      labelKey: "triggers.status_error",
+      variant: "destructive",
+      icon: XCircle,
+      iconColor: "text-destructive",
+    },
   };
 
-  async function loadLogs() {
+  const STATUS_FILTERS: { key: StatusKey; i18n: string }[] = [
+    { key: "all", i18n: "triggers.filter_all" },
+    { key: "fired", i18n: "triggers.status_fired" },
+    { key: "skipped", i18n: "triggers.status_skipped" },
+    { key: "error", i18n: "triggers.status_error" },
+  ];
+
+  const SORT_OPTIONS: { key: SortKey; i18n: string }[] = [
+    { key: "recent", i18n: "triggers.sort_recent" },
+    { key: "oldest", i18n: "triggers.sort_oldest" },
+  ];
+
+  function shortId(id: string | null): string {
+    if (!id) return "—";
+    return id.slice(0, 8);
+  }
+
+  function formatRelativeTime(isoDate: string): string {
+    if (!isoDate) return "-";
+    const now = Date.now();
+    const then = new Date(isoDate).getTime();
+    const diffSecs = Math.floor((now - then) / 1000);
+    if (diffSecs < 60) return `${diffSecs}s ago`;
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}min ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return new Date(isoDate).toLocaleDateString();
+  }
+
+  function formatAbsoluteTime(isoDate: string): string {
+    if (!isoDate) return "";
+    return new Date(isoDate).toLocaleString();
+  }
+
+  async function fetchLogs() {
     loading = true;
     error = null;
     try {
       const result: TriggerLogEntry[] = await invoke("get_trigger_logs", {
         id: triggerId,
-        limit: 20,
+        limit: FETCH_LIMIT,
       });
       entries = result;
-      loaded = true;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
+      entries = [];
     } finally {
       loading = false;
     }
   }
 
-  function formatTimestamp(iso: string): string {
-    const date = new Date(iso);
-    return date.toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+  function resetFilters() {
+    statusFilter = "all";
+    sortBy = "recent";
   }
 
-  $effect(() => {
-    if (open && !loaded) {
-      void loadLogs();
+  const filteredEntries = $derived.by(() => {
+    let out = entries.filter((entry) => {
+      if (statusFilter !== "all" && entry.status !== statusFilter) return false;
+      return true;
+    });
+
+    out = [...out];
+    switch (sortBy) {
+      case "recent":
+        out.sort((a, b) => new Date(b.fired_at).getTime() - new Date(a.fired_at).getTime());
+        break;
+      case "oldest":
+        out.sort((a, b) => new Date(a.fired_at).getTime() - new Date(b.fired_at).getTime());
+        break;
     }
+    return out;
   });
 
-  function handleBackdropClick() {
-    onclose();
-  }
+  const hasActiveFilters = $derived(statusFilter !== "all" || sortBy !== "recent");
 
-  function handlePanelClick(event: MouseEvent) {
-    event.stopPropagation();
-  }
+  $effect(() => {
+    if (open && triggerId) {
+      void fetchLogs();
+    }
+  });
 </script>
 
-{#if open}
-  <!-- Backdrop -->
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div
-    class="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
-    onclick={handleBackdropClick}
-  >
-    <!-- Sheet panel -->
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div
-      class="h-full w-[90vw] sm:max-w-md overflow-auto border-l glass-panel glass-border p-6 shadow-lg"
-      onclick={handlePanelClick}
-    >
-      <!-- Header -->
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          {$t('triggers.logs_title')} — <code class="text-[11px] normal-case">{triggerId}</code>
-        </h2>
-        <Button size="sm" variant="ghost" onclick={onclose}>✕</Button>
-      </div>
+<Sheet {open} {onclose} class="w-full sm:max-w-[520px]">
+  <div class="flex h-full flex-col" data-testid="trigger-logs-sheet">
 
-      <!-- Content -->
-      {#if loading}
-        <p class="text-[11px] text-muted-foreground">{$t('common.loading')}</p>
-      {:else if error}
-        <div
-          class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-[11px] text-destructive"
-        >
-          {error}
+    <!-- Header card -->
+    <div class="mx-4 mt-6 rounded-xl glass-card glass-border overflow-hidden">
+      <div class="h-0.5 w-full bg-secondary"></div>
+      <div class="px-4 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/10 shrink-0">
+            <History size={15} class="text-secondary" />
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-sm font-medium truncate" title={triggerId}>{$t('triggers.logs_title')}</h2>
+            <p class="text-[11px] text-muted-foreground">
+              {#if hasActiveFilters}
+                {filteredEntries.length} / {entries.length} {$t('triggers.entries_label')}
+              {:else}
+                {entries.length} {$t('triggers.entries_label')}
+              {/if}
+            </p>
+          </div>
         </div>
-      {:else if entries.length === 0}
-        <p class="text-[11px] text-muted-foreground">
-          {$t('triggers.no_logs')}
-        </p>
-      {:else}
-        <div class="glass-card glass-border rounded-lg overflow-x-auto" data-testid="trigger-logs-table">
-          <table class="w-full min-w-[520px] text-[13px]">
-            <thead class="border-b border-border bg-muted/50">
-              <tr>
-                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.status')}</th>
-                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.agent_label')}</th>
-                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.task_label')}</th>
-                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.time')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each entries as entry (entry.id)}
-                {@const statusConfig = STATUS_CONFIG[entry.status] ?? STATUS_CONFIG["error"]}
-                <tr class="border-b border-border last:border-0 hover:bg-muted/50">
-                  <td class="px-3 py-2">
-                    <Badge variant={statusConfig.variant}>
-                      {statusConfig.label}
-                    </Badge>
-                  </td>
-                  <td class="px-3 py-2 text-[11px] text-muted-foreground">{entry.agent_name}</td>
-                  <td class="px-3 py-2 text-[11px] text-muted-foreground">
-                    {#if entry.task_id}
-                      <code>{entry.task_id.slice(0, 8)}</code>
-                    {:else}
-                      —
-                    {/if}
-                  </td>
-                  <td class="px-3 py-2 text-[11px] text-muted-foreground">{formatTimestamp(entry.fired_at)}</td>
-                </tr>
-                {#if entry.reason}
-                  <tr class="border-b border-border last:border-0">
-                    <td colspan="4" class="px-3 pb-2 text-[11px] text-destructive">{entry.reason}</td>
-                  </tr>
-                {/if}
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-
-      <!-- Refresh -->
-      <div class="mt-4">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={loadLogs}
-          disabled={loading}
-        >
-          {loading ? $t('common.loading') : $t('common.refresh')}
+        <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchLogs} disabled={loading} aria-label={$t('common.refresh')}>
+          <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
         </Button>
       </div>
     </div>
+
+    <!-- Filters -->
+    <div class="mx-4 mt-3 flex items-center justify-between gap-2">
+      <div class="flex flex-wrap gap-1">
+        {#each STATUS_FILTERS as filter (filter.key)}
+          <button
+            type="button"
+            onclick={() => (statusFilter = filter.key)}
+            class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
+              {statusFilter === filter.key
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'}"
+            data-testid="trigger-logs-filter-{filter.key}"
+          >
+            {$t(filter.i18n)}
+          </button>
+        {/each}
+      </div>
+
+      <div class="flex items-center gap-1 shrink-0">
+        <ArrowDownWideNarrow size={11} class="text-muted-foreground/60" />
+        <select
+          bind:value={sortBy}
+          class="text-[10px] bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label={$t('triggers.sort_label')}
+        >
+          {#each SORT_OPTIONS as option (option.key)}
+            <option value={option.key}>{$t(option.i18n)}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
+
+    <!-- Entry list -->
+    <div class="flex-1 overflow-auto px-4 pt-3 pb-6">
+      {#if loading && entries.length === 0}
+        <div class="flex items-center justify-center py-12">
+          <RefreshCw size={16} class="animate-spin text-muted-foreground" />
+        </div>
+      {:else if error}
+        <div class="glass-card glass-border rounded-lg px-4 py-3">
+          <p class="text-xs text-destructive">{error}</p>
+        </div>
+      {:else if entries.length === 0}
+        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+          <History size={24} class="mx-auto text-muted-foreground/30 mb-2" />
+          <p class="text-xs text-muted-foreground">{$t('triggers.no_logs')}</p>
+        </div>
+      {:else if filteredEntries.length === 0}
+        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+          <History size={24} class="mx-auto text-muted-foreground/30 mb-2" />
+          <p class="text-xs text-muted-foreground mb-2">{$t('triggers.no_matching_logs')}</p>
+          <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
+            {$t('triggers.clear_filters')}
+          </Button>
+        </div>
+      {:else}
+        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/40">
+          {#each filteredEntries as entry, i (entry.id)}
+            {@const cfg = STATUS_CONFIG[entry.status] ?? STATUS_CONFIG.error}
+            {@const IconComponent = cfg.icon}
+            {@const isError = entry.status === 'error'}
+            <div
+              class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-150 hover:bg-primary/5"
+              in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
+            >
+              <!-- Row 1: status badge + timing -->
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <IconComponent size={12} class="{cfg.iconColor} shrink-0" />
+                  <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">
+                    {$t(cfg.labelKey)}
+                  </Badge>
+                </div>
+                <span
+                  class="text-[10px] text-muted-foreground/40 shrink-0"
+                  title={formatAbsoluteTime(entry.fired_at)}
+                >
+                  {formatRelativeTime(entry.fired_at)}
+                </span>
+              </div>
+
+              <!-- Row 2: agent + task id -->
+              <div class="flex items-center justify-between gap-2 text-[11px] text-muted-foreground/75">
+                <span class="truncate" title={entry.agent_name}>
+                  <span class="text-muted-foreground/50">{$t('triggers.agent_label')}:</span>
+                  {entry.agent_name}
+                </span>
+                <code class="text-[10px] text-muted-foreground/50 font-mono shrink-0">
+                  {shortId(entry.task_id)}
+                </code>
+              </div>
+
+              <!-- Row 3: error reason (only for ERROR rows) -->
+              {#if isError && entry.reason}
+                <p
+                  class="text-[10px] leading-snug line-clamp-2 text-destructive/70"
+                  title={entry.reason}
+                >
+                  <span class="font-medium">{$t('triggers.reason_label')}:</span>
+                  {entry.reason}
+                </p>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
-{/if}
+</Sheet>

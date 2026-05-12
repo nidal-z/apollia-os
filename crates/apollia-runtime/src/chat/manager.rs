@@ -1715,6 +1715,10 @@ impl ChatSessionManager {
         }
 
         let decision_str = decision.as_str();
+        let reason: Option<&str> = match &decision {
+            ToolDecision::Refuse { reason: Some(r) } => Some(r.as_str()),
+            _ => None,
+        };
 
         let resolved_at = now_rfc3339();
 
@@ -1725,6 +1729,7 @@ impl ChatSessionManager {
             tool_name,
             decision_str,
             &resolved_at,
+            reason,
         ) {
             warn!(error = %e, "Failed to persist chat approval log");
         }

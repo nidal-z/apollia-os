@@ -44,7 +44,7 @@ export const sidebar: DefaultTheme.Sidebar = [
     text: 'Mémoire',
     collapsed: false,
     items: [
-      { text: 'Mon profil', link: '/memoire/mon-profil' },
+      { text: 'Gérer mon profil', link: '/memoire/gerer-mon-profil' },
       { text: 'Consulter et nettoyer la mémoire', link: '/memoire/consulter-et-nettoyer-la-memoire' },
     ],
   },

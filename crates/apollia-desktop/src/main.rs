@@ -789,10 +789,6 @@ fn main() {
             commands::cli::get_cli_status,
             commands::cli::install_cli,
             commands::cli::uninstall_cli,
-            // Templates gallery
-            commands::templates::templates_list,
-            commands::templates::templates_get,
-            commands::templates::templates_instantiate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

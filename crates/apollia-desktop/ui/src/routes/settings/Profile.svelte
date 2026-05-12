@@ -82,6 +82,13 @@
 
   // ── Persistence ───────────────────────────────────────────────────────────
   async function saveKey(key: string, value: string) {
+    // Skip no-op writes so a blur without modification preserves the original
+    // `written_by` provenance (onboarding / agent badges would otherwise be
+    // overwritten with "user" on every focus traversal).
+    const current = values[key] ?? "";
+    const next = value.trim();
+    if (next === current) return;
+
     saving = { ...saving, [key]: true };
     try {
       if (value.trim() === "") {
@@ -333,7 +340,10 @@
         </label>
 
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Secteur</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Secteur
+            {@render sourceBadge("domain.sector")}
+          </span>
           <Select
             value={val("domain.sector")}
             onchange={(e: Event) => saveKey("domain.sector", (e.target as HTMLSelectElement).value)}
@@ -346,7 +356,10 @@
         </label>
 
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Taille d'équipe</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Taille d'équipe
+            {@render sourceBadge("domain.team_size")}
+          </span>
           <Select
             value={val("domain.team_size")}
             onchange={(e: Event) => saveKey("domain.team_size", (e.target as HTMLSelectElement).value)}
@@ -360,7 +373,10 @@
       </div>
 
       <label class="space-y-1 block">
-        <span class="text-xs font-medium text-muted-foreground">Objectifs (max 2 phrases)</span>
+        <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          Objectifs (max 2 phrases)
+          {@render sourceBadge("goals")}
+        </span>
         <Textarea
           value={val("goals")}
           onblur={(e: Event) => saveKey("goals", (e.target as HTMLTextAreaElement).value)}
@@ -623,7 +639,10 @@
 
       <div class="grid gap-3 md:grid-cols-2">
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Langue des agents</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Langue des agents
+            {@render sourceBadge("preferences.language")}
+          </span>
           <Select
             value={val("preferences.language")}
             onchange={(e: Event) => saveKey("preferences.language", (e.target as HTMLSelectElement).value)}
@@ -636,7 +655,10 @@
         </label>
 
         <label class="space-y-1">
-          <span class="text-xs font-medium text-muted-foreground">Backend LLM préféré</span>
+          <span class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Backend LLM préféré
+            {@render sourceBadge("preferences.llm")}
+          </span>
           <Select
             value={val("preferences.llm")}
             onchange={(e: Event) => saveKey("preferences.llm", (e.target as HTMLSelectElement).value)}

@@ -6,7 +6,20 @@
   import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { ScrollText, RefreshCw, CheckCircle, XCircle, Activity, Clock, AlertTriangle, Ban } from "lucide-svelte";
+  import { Input } from "$lib/components/ui/input";
+  import {
+    ScrollText,
+    RefreshCw,
+    CheckCircle,
+    XCircle,
+    Activity,
+    Clock,
+    AlertTriangle,
+    Ban,
+    Search,
+    X,
+    ArrowDownWideNarrow,
+  } from "lucide-svelte";
 
   interface Props {
     agentId: string;
@@ -16,9 +29,18 @@
 
   let { agentId, open, onclose }: Props = $props();
 
+  const FETCH_LIMIT = 200;
+
+  type StatusKey = "all" | "completed" | "failed" | "working" | "submitted" | "input_required" | "canceled";
+  type SortKey = "recent" | "oldest" | "longest" | "shortest";
+
   let taskList = $state<TaskSummary[]>([]);
   let loading = $state(false);
   let error = $state<string | null>(null);
+
+  let searchQuery = $state("");
+  let statusFilter = $state<StatusKey>("all");
+  let sortBy = $state<SortKey>("recent");
 
   const STATUS_I18N: Record<string, string> = {
     working: "dashboard.status_working",
@@ -37,6 +59,23 @@
     input_required: { variant: "warning", icon: AlertTriangle },
     canceled: { variant: "secondary", icon: Ban },
   };
+
+  const STATUS_FILTERS: { key: StatusKey; i18n: string }[] = [
+    { key: "all", i18n: "agents.filter_all" },
+    { key: "completed", i18n: "dashboard.status_completed" },
+    { key: "failed", i18n: "dashboard.status_failed" },
+    { key: "working", i18n: "dashboard.status_working" },
+    { key: "input_required", i18n: "dashboard.status_approval" },
+    { key: "submitted", i18n: "dashboard.status_submitted" },
+    { key: "canceled", i18n: "dashboard.status_canceled" },
+  ];
+
+  const SORT_OPTIONS: { key: SortKey; i18n: string }[] = [
+    { key: "recent", i18n: "agents.sort_recent" },
+    { key: "oldest", i18n: "agents.sort_oldest" },
+    { key: "longest", i18n: "agents.sort_longest" },
+    { key: "shortest", i18n: "agents.sort_shortest" },
+  ];
 
   function shortId(id: string): string {
     return id.slice(0, 8);
@@ -73,7 +112,7 @@
     error = null;
     try {
       const result: TaskSummary[] = await invoke("list_tasks", { filter: { agent_id: agentId } });
-      taskList = result.slice(0, 30);
+      taskList = result.slice(0, FETCH_LIMIT);
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
       taskList = [];
@@ -82,6 +121,45 @@
     }
   }
 
+  function resetFilters() {
+    searchQuery = "";
+    statusFilter = "all";
+    sortBy = "recent";
+  }
+
+  const filteredTasks = $derived.by(() => {
+    const query = searchQuery.trim().toLowerCase();
+    let out = taskList.filter((task) => {
+      if (statusFilter !== "all" && task.status !== statusFilter) return false;
+      if (query) {
+        const haystack = `${task.input_preview ?? ""} ${task.output_text ?? ""}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+
+    out = [...out];
+    switch (sortBy) {
+      case "recent":
+        out.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        break;
+      case "oldest":
+        out.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        break;
+      case "longest":
+        out.sort((a, b) => (b.duration_ms ?? -1) - (a.duration_ms ?? -1));
+        break;
+      case "shortest":
+        out.sort((a, b) => (a.duration_ms ?? Number.MAX_SAFE_INTEGER) - (b.duration_ms ?? Number.MAX_SAFE_INTEGER));
+        break;
+    }
+    return out;
+  });
+
+  const hasActiveFilters = $derived(
+    searchQuery.trim() !== "" || statusFilter !== "all" || sortBy !== "recent",
+  );
+
   $effect(() => {
     if (open && agentId) {
       void fetchTasks();
@@ -89,7 +167,7 @@
   });
 </script>
 
-<Sheet {open} {onclose} class="w-full sm:max-w-[480px]">
+<Sheet {open} {onclose} class="w-full sm:max-w-[520px]">
   <div class="flex h-full flex-col" data-testid="agent-logs-sheet">
 
     <!-- Header card -->
@@ -102,12 +180,74 @@
           </div>
           <div>
             <h2 class="text-sm font-medium">{$t('agents.logs_title')}</h2>
-            <p class="text-[11px] text-muted-foreground">{taskList.length} {$t('agents.tasks_label')}</p>
+            <p class="text-[11px] text-muted-foreground">
+              {#if hasActiveFilters}
+                {filteredTasks.length} / {taskList.length} {$t('agents.tasks_label')}
+              {:else}
+                {taskList.length} {$t('agents.tasks_label')}
+              {/if}
+            </p>
           </div>
         </div>
         <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchTasks} disabled={loading} aria-label={$t('common.refresh')}>
           <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
         </Button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="mx-4 mt-3 space-y-2">
+      <!-- Search -->
+      <div class="relative">
+        <Input
+          type="text"
+          icon={Search}
+          placeholder={$t('agents.filter_search_placeholder')}
+          bind:value={searchQuery}
+          class="h-8 text-xs"
+          aria-label={$t('agents.filter_search_placeholder')}
+        />
+        {#if searchQuery}
+          <button
+            type="button"
+            class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            onclick={() => (searchQuery = "")}
+            aria-label={$t('common.clear')}
+          >
+            <X size={12} />
+          </button>
+        {/if}
+      </div>
+
+      <!-- Status chips + sort -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap gap-1">
+          {#each STATUS_FILTERS as filter (filter.key)}
+            <button
+              type="button"
+              onclick={() => (statusFilter = filter.key)}
+              class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
+                {statusFilter === filter.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'}"
+            >
+              {$t(filter.i18n)}
+            </button>
+          {/each}
+        </div>
+
+        <div class="flex items-center gap-1 shrink-0">
+          <ArrowDownWideNarrow size={11} class="text-muted-foreground/60" />
+          <select
+            bind:value={sortBy}
+            class="text-[10px] bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label={$t('agents.sort_label')}
+          >
+            {#each SORT_OPTIONS as option (option.key)}
+              <option value={option.key}>{$t(option.i18n)}</option>
+            {/each}
+          </select>
+        </div>
       </div>
     </div>
 
@@ -126,16 +266,24 @@
           <ScrollText size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground">{$t('agents.no_tasks')}</p>
         </div>
+      {:else if filteredTasks.length === 0}
+        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+          <Search size={24} class="mx-auto text-muted-foreground/30 mb-2" />
+          <p class="text-xs text-muted-foreground mb-2">{$t('agents.no_matching_tasks')}</p>
+          <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
+            {$t('agents.clear_filters')}
+          </Button>
+        </div>
       {:else}
         <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/40">
-          {#each taskList as task, i (task.id)}
+          {#each filteredTasks as task, i (task.id)}
             {@const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.submitted}
             {@const IconComponent = cfg.icon}
             {@const isFailed = task.status === 'failed'}
             {@const hasOutput = !!task.output_text}
             <div
               class="flex flex-col gap-1.5 px-3.5 py-3 transition-colors duration-150 hover:bg-primary/5"
-              in:fly={{ y: 4, duration: 150, delay: i * 20 }}
+              in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
             >
               <!-- Row 1: status + timing -->
               <div class="flex items-center justify-between gap-2">

@@ -1,6 +1,6 @@
 # Consulter les logs d'un agent
 
-> Pour tout operator qui veut comprendre ce qu'un agent a fait, ou pourquoi il a échoué : ouvrir son panneau d'activité et lire l'historique de ses tâches.
+> Pour comprendre ce qu'un agent a fait, ou pourquoi il a échoué : ouvrir son panneau Logs et parcourir l'historique de ses tâches.
 
 ## Prérequis
 
@@ -13,32 +13,45 @@
 
 2. Localisez la carte de l'agent dont vous voulez consulter l'activité.
 
-3. Cliquez sur **Logs** sur sa carte. Un panneau slide-over s'ouvre, listant l'**historique des tâches** par ordre chronologique.
-   `[SCREENSHOT: panneau Logs ouvert avec liste de tâches, colonnes statut et horodatage]`
+3. Cliquez sur **Logs** sur sa carte. Un panneau s'ouvre à droite, intitulé **Logs de l'agent**, avec un compteur de tâches en haut.
+   `[SCREENSHOT: panneau Logs ouvert avec compteur, barre de recherche, filtres de statut et tri]`
 
-   > **Note :** ce panneau affiche l'historique des tâches exécutées par l'agent (statuts : `working`, `completed`, `failed`, `input_required`, `canceled`). Il ne s'agit pas d'un journal de logs textuels avec niveaux de sévérité Info/Warning/Error.
+   > **Note :** ce panneau affiche l'historique des tâches exécutées par l'agent. Il ne s'agit pas d'un journal textuel avec niveaux Info/Warning/Error.
 
-4. Repérez les tâches par leur **statut** :
-   - **Completed** — tâche terminée avec succès.
-   - **Failed** — tâche échouée, à examiner.
-   - **Working** — tâche en cours d'exécution.
-   - **Input required** — l'agent attend une décision humaine (Inbox).
-   - **Canceled** — tâche annulée.
+4. Chaque ligne de la liste contient déjà l'essentiel — pas besoin de cliquer pour ouvrir un détail :
+   - **Statut** (à gauche) — voir la liste ci-dessous.
+   - **Durée** d'exécution (ex. `850ms`, `2.4s`).
+   - **Horodatage relatif** (ex. `5min ago`) — survolez-le pour voir la date et l'heure exactes.
+   - **Entrée reçue** — la demande qui a déclenché la tâche.
+   - **Résultat** ou **Erreur** — la sortie produite, ou le message d'erreur si la tâche a échoué.
 
-5. Cliquez sur une tâche pour afficher son **détail** : entrée reçue, sortie produite, durée d'exécution.
+5. Repérez les tâches par leur **statut** :
+   - **Terminée** — tâche exécutée avec succès.
+   - **Échouée** — tâche en erreur, à examiner.
+   - **En cours** — tâche encore en cours d'exécution.
+   - **Approbation** — l'agent attend une décision humaine (à traiter depuis l'Inbox).
+   - **Soumise** — tâche enregistrée, pas encore prise en charge.
+   - **Annulée** — tâche interrompue avant la fin.
 
-6. Pour les tâches échouées, ouvrez le détail et lisez le message d'erreur. C'est presque toujours là que se trouve la cause du problème.
+6. **Filtrer la liste** quand il y a beaucoup de tâches :
+   - Tapez dans la **barre de recherche** pour ne garder que les tâches dont l'entrée ou le résultat contient ce mot.
+   - Cliquez sur une **puce de statut** (Toutes / Terminée / Échouée / En cours / Approbation / Soumise / Annulée) pour ne voir que ce statut.
+   - Utilisez le **menu de tri** en haut à droite des filtres pour ordonner par : Plus récentes (défaut), Plus anciennes, Plus longues, Plus courtes.
+   - Le compteur en haut indique le nombre de tâches affichées vs total (ex. `4 / 27 tâches`).
+   - Si aucune tâche ne correspond, un bouton **Réinitialiser les filtres** apparaît.
 
-7. Fermez le panneau pour revenir à la liste des agents.
+7. **Rafraîchir** la liste sans fermer le panneau : cliquez sur l'icône `↻` en haut à droite du panneau.
+
+8. Fermez le panneau pour revenir à la liste des agents.
 
 ## Vérification
 
-Vous voyez la liste des tâches de l'agent avec leur horodatage et leur statut. Une tâche échouée récente est immédiatement identifiable.
+Vous voyez la liste des tâches de l'agent avec leur statut, leur durée et un aperçu de la demande et du résultat. Une tâche échouée récente est repérable d'un coup d'œil grâce à son statut rouge **Échouée** et son message d'erreur affiché juste en dessous.
 
 ## Si ça ne marche pas
 
 - **Aucune tâche affichée :** l'agent n'a jamais été démarré ou n'a reçu aucune mission. Lancez-le et envoyez-lui une instruction.
-- **Panneau vide après une exécution :** vérifiez que l'agent est bien démarré (statut ACTIF sur sa carte).
+- **Panneau vide après une exécution :** vérifiez que l'agent est bien démarré (statut ACTIF sur sa carte), puis cliquez sur `↻` pour rafraîchir.
 - **Erreur incompréhensible :** copiez le message et consultez [Un agent est bloqué](../troubleshooting/un-agent-est-bloque.md).
 
 > **Référence technique :** [Ops-Exploitation-et-Debug](https://github.com/nidal-z/apollia-os/wiki/Ops-Exploitation-et-Debug) — interprétation des statuts de tâche, dépannage agent bloqué ou en timeout.
