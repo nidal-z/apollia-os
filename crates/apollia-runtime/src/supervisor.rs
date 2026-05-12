@@ -773,6 +773,26 @@ impl Supervisor {
         let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
             .as_ref()
             .map(|_| Arc::new(PendingApprovals::new()));
+
+        // Phase 13 (early): UserMemoryRepository — promoted before notifications
+        // so we can consult the seed marker + profile name when bootstrapping
+        // the default desktop channel (Item 5 of Notifications v2).
+        let user_memory: Option<
+            std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
+        > = {
+            let db_path = self.config.data_dir.join("user_memory.db");
+            match apollia_memory::user_memory::UserMemoryRepository::new(&db_path) {
+                Ok(repo) => {
+                    info!("Supervisor: UserMemoryRepository ready");
+                    Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
+                }
+                Err(e) => {
+                    warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
+                    None
+                }
+            }
+        };
+
         // open NotificationConfigRepository from SQLite.
         let notif_db_path = self.config.data_dir.join("notifications.db");
         let notification_repo =
@@ -782,6 +802,11 @@ impl Supervisor {
                     reason: format!("failed to open notifications.db: {e}"),
                 }
             })?;
+
+        // Item 5: bootstrap a desktop-default channel on first launch.
+        // Idempotent — guarded by a marker in __user__ namespace.
+        seed_default_desktop_channel_if_needed(&notification_repo, user_memory.as_ref());
+
         // Read channels and global events from SQLite to build NotificationConfig.
         let notif_channel_rows =
             notification_repo
@@ -873,23 +898,9 @@ impl Supervisor {
         );
         info!("Supervisor: AgentMailbox ready");
 
-        // Phase 13: UserMemoryRepository — global user memory (preferences, habits, context).
-        // Created before ChatSessionManager so we can inject it for system prompt enrichment.
-        let user_memory: Option<
-            std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
-        > = {
-            let db_path = self.config.data_dir.join("user_memory.db");
-            match apollia_memory::user_memory::UserMemoryRepository::new(&db_path) {
-                Ok(repo) => {
-                    info!("Supervisor: UserMemoryRepository ready");
-                    Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
-                }
-                Err(e) => {
-                    warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
-                    None
-                }
-            }
-        };
+        // Phase 13: UserMemoryRepository was promoted above (before notifications) to
+        // support the Item 5 seed bootstrap of the default desktop channel. Variable
+        // `user_memory` is already bound by that earlier block.
 
         // Phase 13b: ProjectRepository — SQLite projects.db.
         let project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>> = {
@@ -1507,6 +1518,100 @@ async fn drain_until_all_ready(rx: &mut broadcast::Receiver<RuntimeEvent>, timeo
             _ = tokio::time::sleep_until(deadline) => return,
         }
     }
+}
+
+/// Marker key stored under `__user__.notifications_seeded_desktop` (with the
+/// `__` internal prefix added by `user_memory::set_internal`).
+///
+/// Once set, prevents a subsequent boot from re-seeding the default desktop
+/// channel — even if the operator deletes the seeded channel manually.
+const SEEDED_DESKTOP_CHANNEL_MARKER: &str = "notifications_seeded_desktop";
+
+/// On first boot with a usable [`UserMemoryRepository`] and an empty
+/// notifications database, insert a sensible default desktop channel so the
+/// operator does not start from a blank Notifications page.
+///
+/// The function is fully idempotent:
+/// - if the seed marker is already set in memory, return without touching anything;
+/// - if the notification repository already has at least one channel, set the
+///   marker anyway (so further deletions never trigger a re-seed) and return;
+/// - otherwise, insert the channel, then set the marker.
+///
+/// All failures are best-effort and logged at `warn!` — they must never block
+/// supervisor startup.
+fn seed_default_desktop_channel_if_needed(
+    notif_repo: &NotificationConfigRepository,
+    user_memory: Option<&std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+) {
+    let Some(um_arc) = user_memory else {
+        // No user memory available — can't track the marker safely. Skip.
+        return;
+    };
+    let um = um_arc.lock().unwrap_or_else(|e| e.into_inner());
+
+    // 1. Check marker.
+    match um.get_internal(SEEDED_DESKTOP_CHANNEL_MARKER) {
+        Ok(Some(_)) => return, // already seeded — leave the user's setup alone
+        Ok(None) => {}
+        Err(e) => {
+            warn!(error = %e, "seed default desktop channel: marker read failed — skipping");
+            return;
+        }
+    }
+
+    // 2. If the repository is not empty, just set the marker (legacy user with
+    //    existing channels — record that we've considered seeding once).
+    let channels = match notif_repo.list_channels() {
+        Ok(rows) => rows,
+        Err(e) => {
+            warn!(error = %e, "seed default desktop channel: list_channels failed — skipping");
+            return;
+        }
+    };
+    if !channels.is_empty() {
+        let _ = um.set_internal(SEEDED_DESKTOP_CHANNEL_MARKER, "true");
+        return;
+    }
+
+    // 3. Compose label from the user's profile name (if available).
+    let name: Option<String> = um.get("name").ok().flatten().and_then(|entry| {
+        let trimmed = entry.value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+    let label = match name {
+        Some(n) => format!("Bureau de {n}"),
+        None => "Bureau".to_string(),
+    };
+
+    // 4. Insert the channel.
+    let row = apollia_notifications::NotificationChannelRow {
+        id: "desktop-default".to_string(),
+        label: Some(label),
+        channel_type: "desktop".to_string(),
+        enabled: true,
+        config_json: serde_json::json!({}),
+        events_json: None,
+        min_interval_seconds: 0,
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+    if let Err(e) = notif_repo.insert_channel(&row) {
+        warn!(error = %e, "seed default desktop channel: insert failed — skipping marker");
+        return;
+    }
+
+    // 5. Set the marker so we never re-seed (even after manual deletion).
+    if let Err(e) = um.set_internal(SEEDED_DESKTOP_CHANNEL_MARKER, "true") {
+        warn!(
+            error = %e,
+            "seed default desktop channel: marker write failed — channel inserted but re-seed possible on next boot"
+        );
+    }
+    info!("Supervisor: seeded default desktop notification channel");
 }
 
 /// Create the default child specs for the runtime actors.
@@ -2333,12 +2438,15 @@ mod tests {
             .await
             .expect("boot with empty DBs should succeed");
 
-        // THEN AllReady est émis, 0 triggers, pas de notification engine
+        // THEN AllReady est émis, 0 triggers ; le NotificationEngine est
+        // démarré car le supervisor seed automatiquement un canal Desktop par
+        // défaut (Item 5, Notifications v2). Le marker dans `user_memory`
+        // empêche le re-seed sur les boots suivants.
         let trigger_list = handles.trigger_engine.list().await;
         assert!(trigger_list.is_empty(), "empty DB should yield 0 triggers");
         assert!(
-            handles.notification_engine.is_none(),
-            "empty DB should yield no NotificationEngine"
+            handles.notification_engine.is_some(),
+            "empty DB should yield a NotificationEngine seeded with the default desktop channel"
         );
 
         // Cleanup
@@ -2349,6 +2457,153 @@ mod tests {
         handles.registry_handle.shutdown();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // ── Item 5 — seed_default_desktop_channel_if_needed (unit) ──────────────
+
+    /// Helper : (notif_repo, user_memory) initialisés sur tempdirs vierges.
+    fn make_seed_inputs() -> (
+        NotificationConfigRepository,
+        std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
+        tempfile::TempDir,
+    ) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let notif = NotificationConfigRepository::open(&dir.path().join("notifications.db"))
+            .expect("notif repo");
+        let um = apollia_memory::user_memory::UserMemoryRepository::new(&dir.path().join("user_memory.db"))
+            .expect("user memory");
+        (
+            notif,
+            std::sync::Arc::new(std::sync::Mutex::new(um)),
+            dir,
+        )
+    }
+
+    #[test]
+    fn test_seed_inserts_channel_when_empty_and_no_marker() {
+        // GIVEN an empty notification repo and user memory with no marker
+        let (notif, um, _tmp) = make_seed_inputs();
+
+        // WHEN the seed runs
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+
+        // THEN a `desktop-default` channel exists
+        let chans = notif.list_channels().expect("list");
+        assert_eq!(chans.len(), 1);
+        let ch = &chans[0];
+        assert_eq!(ch.id, "desktop-default");
+        assert_eq!(ch.channel_type, "desktop");
+        assert!(ch.enabled);
+        // Label falls back to "Bureau" since no profile name was set.
+        assert_eq!(ch.label.as_deref(), Some("Bureau"));
+
+        // AND the marker was set in user memory
+        let marker = um
+            .lock()
+            .unwrap()
+            .get_internal(SEEDED_DESKTOP_CHANNEL_MARKER)
+            .expect("get_internal")
+            .expect("marker present");
+        assert_eq!(marker, "true");
+    }
+
+    #[test]
+    fn test_seed_uses_profile_name_when_present() {
+        // GIVEN a user memory with profile.name = "Nidal"
+        let (notif, um, _tmp) = make_seed_inputs();
+        um.lock()
+            .unwrap()
+            .set("name", "Nidal", apollia_memory::user_memory::WrittenBy::User)
+            .expect("set name");
+
+        // WHEN the seed runs
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+
+        // THEN the label uses the personalised form
+        let ch = notif
+            .get_channel("desktop-default")
+            .expect("get")
+            .expect("Some");
+        assert_eq!(ch.label.as_deref(), Some("Bureau de Nidal"));
+    }
+
+    #[test]
+    fn test_seed_skips_when_marker_present() {
+        // GIVEN the marker is already set
+        let (notif, um, _tmp) = make_seed_inputs();
+        um.lock()
+            .unwrap()
+            .set_internal(SEEDED_DESKTOP_CHANNEL_MARKER, "true")
+            .expect("set marker");
+
+        // WHEN the seed runs
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+
+        // THEN no channel is created (the user may have deleted the original)
+        let chans = notif.list_channels().expect("list");
+        assert!(chans.is_empty());
+    }
+
+    #[test]
+    fn test_seed_sets_marker_only_when_existing_channels() {
+        // GIVEN a non-empty notification repo but no marker
+        let (notif, um, _tmp) = make_seed_inputs();
+        let existing = apollia_notifications::NotificationChannelRow {
+            id: "my-webhook".into(),
+            label: None,
+            channel_type: "webhook".into(),
+            enabled: true,
+            config_json: serde_json::json!({"url": "https://hooks.example.com/x"}),
+            events_json: None,
+            min_interval_seconds: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        notif.insert_channel(&existing).expect("insert");
+
+        // WHEN seed runs
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+
+        // THEN no new channel is added (still just the user's pre-existing one)
+        let chans = notif.list_channels().expect("list");
+        assert_eq!(chans.len(), 1);
+        assert_eq!(chans[0].id, "my-webhook");
+
+        // AND the marker is now set, so future boots skip the seed entirely
+        let marker = um
+            .lock()
+            .unwrap()
+            .get_internal(SEEDED_DESKTOP_CHANNEL_MARKER)
+            .expect("get_internal")
+            .expect("marker present");
+        assert_eq!(marker, "true");
+    }
+
+    #[test]
+    fn test_seed_idempotent_across_multiple_calls() {
+        // GIVEN — call seed twice
+        let (notif, um, _tmp) = make_seed_inputs();
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+        seed_default_desktop_channel_if_needed(&notif, Some(&um));
+
+        // THEN — still only one channel, no duplicate insert
+        let chans = notif.list_channels().expect("list");
+        assert_eq!(chans.len(), 1);
+    }
+
+    #[test]
+    fn test_seed_no_op_when_user_memory_missing() {
+        // GIVEN no user memory available
+        let dir = tempfile::tempdir().expect("tempdir");
+        let notif = NotificationConfigRepository::open(&dir.path().join("notifications.db"))
+            .expect("notif repo");
+
+        // WHEN seed is invoked with None
+        seed_default_desktop_channel_if_needed(&notif, None);
+
+        // THEN nothing is inserted (we cannot track a marker safely)
+        let chans = notif.list_channels().expect("list");
+        assert!(chans.is_empty());
     }
 
     // AppState contient les 3 repositories après boot
