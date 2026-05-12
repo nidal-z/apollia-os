@@ -34,6 +34,7 @@
 //! pure I/O.
 
 pub mod error;
+pub mod google;
 pub mod http;
 pub mod manifest;
 pub mod operation;
@@ -41,6 +42,7 @@ pub mod registry;
 pub mod trait_def;
 
 pub use error::ConnectorError;
+pub use google::GoogleConnector;
 pub use http::HttpClient;
 pub use manifest::{ConnectorManifest, ConnectorSummary};
 pub use operation::{ApprovalPolicy, OperationSpec};
