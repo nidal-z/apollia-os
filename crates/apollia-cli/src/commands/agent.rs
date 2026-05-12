@@ -938,6 +938,7 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
         TriggerSourceConfig::FileWatch {
             path,
             events,
+            recursive,
             follow_symlinks,
             exclude_patterns,
         } => (
@@ -945,6 +946,7 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
             serde_json::json!({
                 "path": path.to_string_lossy(),
                 "events": events,
+                "recursive": recursive,
                 "follow_symlinks": follow_symlinks,
                 "exclude_patterns": exclude_patterns,
             }),
