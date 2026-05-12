@@ -538,6 +538,8 @@ export interface NotificationChannel {
   type: "desktop" | "webhook";
   enabled: boolean;
   events: string[];
+  /** Intervalle minimal de throttling, en secondes (`0` = aucun). */
+  min_interval_seconds?: number;
 }
 
 /** Définition complète d'un canal retournée par les opérations CRUD. */

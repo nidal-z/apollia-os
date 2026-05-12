@@ -22,6 +22,7 @@
     { route: "tasks"         as Route, Icon: ListChecks,      label: "Mon travail",     badge: "tasks"     },
     { route: "automations"   as Route, Icon: Repeat,          label: "Automatisations", badge: "none"      },
     { route: "inbox"         as Route, Icon: ShieldCheck,     label: "Approbations",    badge: "approvals" },
+    { route: "notifications" as Route, Icon: Bell,            label: "Notifications",   badge: "none"      },
     { route: "memory"        as Route, Icon: Database,        label: "Mémoire",         badge: "none"      },
     { route: "observability" as Route, Icon: Activity,        label: "Observabilité",   badge: "none"      },
   ];
@@ -30,7 +31,6 @@
   const BUILDER_NAV = [
     { route: "llm"            as Route, Icon: Brain, label: "Modèles LLM" },
     { route: "transcriptions" as Route, Icon: Mic,   label: "Transcriptions" },
-    { route: "notifications"  as Route, Icon: Bell,  label: "Notifications" },
   ];
 
   const SECONDARY_NAV = [

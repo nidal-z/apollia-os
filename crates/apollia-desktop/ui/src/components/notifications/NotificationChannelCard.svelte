@@ -11,6 +11,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { eventLabelKey } from "$lib/notifications/event-labels";
+  import { Monitor, Webhook, Pencil, Trash2, Send } from "lucide-svelte";
 
   interface Props {
     channel: NotificationChannel;
@@ -29,28 +31,71 @@
   let testResult = $state<ChannelTestResult | null>(null);
   let feedbackTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
-  const TYPE_BADGE: Record<string, { label: string; extraClass: string }> = {
-    desktop: { label: "Desktop", extraClass: "border-info text-info" },
-    webhook: { label: "Webhook", extraClass: "border-accent text-accent-foreground" },
+  /**
+   * Per-type presentation : icon + tint class for the icon container, and the
+   * canonical Badge variant. We use the design system's variants directly
+   * (info / primary) rather than overriding text/border via extraClass — that
+   * was the source of the contrast issues on the previous version.
+   */
+  type ChannelTypeStyle = {
+    Icon: typeof Monitor;
+    iconClass: string;
+    barClass: string;
+    badgeVariant: "info" | "primary";
+    labelKey: string;
   };
-
-  const badgeConfig = $derived(
-    TYPE_BADGE[channel.type] ?? {
-      label: channel.type.toUpperCase(),
-      extraClass: "",
+  const TYPE_STYLES: Record<string, ChannelTypeStyle> = {
+    desktop: {
+      Icon: Monitor,
+      iconClass: "bg-info/10 text-info",
+      barClass: "bg-info/60",
+      badgeVariant: "info",
+      labelKey: "notifications.field_type_desktop",
+    },
+    webhook: {
+      Icon: Webhook,
+      iconClass: "bg-primary/10 text-primary",
+      barClass: "bg-primary/60",
+      badgeVariant: "primary",
+      labelKey: "notifications.field_type_webhook",
+    },
+  };
+  const typeStyle = $derived(
+    TYPE_STYLES[channel.type] ?? {
+      Icon: Monitor,
+      iconClass: "bg-muted text-muted-foreground",
+      barClass: "bg-muted-foreground/40",
+      badgeVariant: "primary" as const,
+      labelKey: "",
     },
   );
 
   const displayName = $derived(
     channel.label && channel.label.trim() ? channel.label : channel.channel_id,
   );
+  const hasCustomLabel = $derived(!!(channel.label && channel.label.trim()));
+
+  /** Humanize an event id via i18n, falling back to the raw id when no key matches. */
+  function eventDisplay(event: string): string {
+    const key = eventLabelKey(event);
+    const translated = $t(key);
+    return translated === key ? event : translated;
+  }
+
+  /** Throttle presets get a short human label; custom values show the raw seconds. */
+  function throttleSummary(seconds: number | undefined): string | null {
+    if (!seconds || seconds <= 0) return null;
+    if (seconds === 60) return $t("notifications.throttle_options.minute");
+    if (seconds === 300) return $t("notifications.throttle_options.five_min");
+    if (seconds === 3600) return $t("notifications.throttle_options.hour");
+    return `${seconds} s`;
+  }
 
   async function handleToggle(next: boolean) {
     if (toggling) return;
     toggling = true;
     const previous = channel.enabled;
-    // Optimistic local flip — gives < 50 ms feedback even on slow round-trip.
-    channel.enabled = next;
+    channel.enabled = next; // optimistic flip
     try {
       const request: UpdateChannelRequest = { enabled: next };
       await invoke<NotificationChannelView>("update_notification_channel", {
@@ -108,25 +153,33 @@
   }
 </script>
 
-<div class="glass-card-hover glass-border rounded-lg relative overflow-hidden" data-testid="channel-card-{channel.channel_id}">
-  <!-- Accent bar left -->
-  <div class="absolute left-0 top-0 bottom-0 w-1 {channel.enabled ? 'bg-primary' : 'bg-muted-foreground/20'}" />
+<div
+  class="glass-card-hover glass-border relative overflow-hidden rounded-xl flex flex-col"
+  data-testid="channel-card-{channel.channel_id}"
+>
+  <!-- Top accent bar — matches AgentPackageCard pattern. Muted when disabled. -->
+  <div class="h-0.5 w-full {channel.enabled ? typeStyle.barClass : 'bg-muted-foreground/20'}"></div>
 
-  <div class="pl-4 pr-3.5 pt-3 pb-2.5">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="min-w-0">
-          <h3 class="text-[13px] font-medium truncate">{displayName}</h3>
-          {#if channel.label && channel.label.trim()}
-            <p class="text-[10px] text-muted-foreground/70 font-mono truncate" title={channel.channel_id}>
-              {channel.channel_id}
-            </p>
+  <div class="flex flex-1 flex-col px-3.5 pt-3 pb-2.5">
+    <!-- Row 1: icon + title + type badge + toggle -->
+    <div class="flex items-center gap-2.5">
+      <div class="size-8 rounded-lg {typeStyle.iconClass} flex items-center justify-center shrink-0">
+        <typeStyle.Icon size={16} />
+      </div>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <span class="truncate text-[13px] font-medium">{displayName}</span>
+          {#if typeStyle.labelKey}
+            <Badge variant={typeStyle.badgeVariant} size="sm" class="shrink-0">
+              {$t(typeStyle.labelKey)}
+            </Badge>
           {/if}
         </div>
-        <Badge variant="outline" class={badgeConfig.extraClass}>
-          {badgeConfig.label}
-        </Badge>
+        {#if hasCustomLabel}
+          <p class="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60" title={channel.channel_id}>
+            {channel.channel_id}
+          </p>
+        {/if}
       </div>
       <Toggle
         checked={channel.enabled}
@@ -138,61 +191,77 @@
       />
     </div>
 
-    <!-- Event filters -->
-    {#if channel.events.length > 0}
-      <div class="mt-2 flex flex-wrap gap-1">
+    <!-- Row 2: event pills + throttle summary -->
+    <div class="mt-2.5 flex flex-wrap items-center gap-1">
+      {#if channel.events.length > 0}
         {#each channel.events as event}
-          <Badge variant="outline" class="text-[11px]">
-            {event}
-          </Badge>
+          <span
+            class="rounded-full bg-primary/10 px-2 py-px text-[10px] text-primary/80"
+            title={event}
+          >
+            {eventDisplay(event)}
+          </span>
         {/each}
-      </div>
-    {:else}
-      <p class="mt-1 text-[11px] text-muted-foreground">{$t('notifications.all_events')}</p>
-    {/if}
-
-    <!-- Actions row -->
-    <div class="mt-3 flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        onclick={handleTest}
-        disabled={testing || !channel.enabled}
-        data-testid="channel-test-btn-{channel.channel_id}"
-      >
-        {testing ? $t('notifications.testing') : $t('notifications.test')}
-      </Button>
-
-      <Button
-        size="sm"
-        variant="outline"
-        onclick={onedit}
-        data-testid="channel-edit-btn-{channel.channel_id}"
-      >
-        {$t('notifications.edit')}
-      </Button>
-
-      <Button
-        size="sm"
-        variant="outline"
-        class="text-destructive hover:bg-destructive/10"
-        onclick={ondelete}
-        data-testid="channel-delete-btn-{channel.channel_id}"
-      >
-        {$t('notifications.delete')}
-      </Button>
-
-      {#if testResult}
-        {#if testResult.status === "ok"}
-          <Badge variant="success">
-            OK{testResult.latency_ms !== null ? ` (${testResult.latency_ms}ms)` : ""}
-          </Badge>
-        {:else}
-          <Badge variant="destructive">
-            {$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}
-          </Badge>
-        {/if}
+      {:else}
+        <span class="text-[11px] text-muted-foreground/70">
+          {$t('notifications.all_events')}
+        </span>
       {/if}
+      {#if throttleSummary(channel.min_interval_seconds)}
+        <span class="ml-auto text-[10px] text-muted-foreground/60">
+          ⏱ {throttleSummary(channel.min_interval_seconds)}
+        </span>
+      {/if}
+    </div>
+
+    <!-- Footer row -->
+    <div class="mt-3 flex items-center justify-between gap-2 border-t border-border/30 pt-2">
+      <div class="min-h-[20px]">
+        {#if testResult}
+          {#if testResult.status === "ok"}
+            <Badge variant="success" size="sm">
+              OK{testResult.latency_ms !== null ? ` · ${testResult.latency_ms} ms` : ""}
+            </Badge>
+          {:else}
+            <Badge variant="danger" size="sm" class="max-w-[220px]">
+              <span class="truncate">{$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}</span>
+            </Badge>
+          {/if}
+        {/if}
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <Button
+          size="icon"
+          variant="ghost"
+          class="size-7"
+          onclick={handleTest}
+          disabled={testing || !channel.enabled}
+          title={$t('notifications.test')}
+          data-testid="channel-test-btn-{channel.channel_id}"
+        >
+          <Send size={13} class={testing ? 'animate-pulse' : ''} />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          class="size-7"
+          onclick={onedit}
+          title={$t('notifications.edit')}
+          data-testid="channel-edit-btn-{channel.channel_id}"
+        >
+          <Pencil size={13} />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          class="size-7 text-destructive/60 hover:text-destructive"
+          onclick={ondelete}
+          title={$t('notifications.delete')}
+          data-testid="channel-delete-btn-{channel.channel_id}"
+        >
+          <Trash2 size={13} />
+        </Button>
+      </div>
     </div>
   </div>
 </div>
