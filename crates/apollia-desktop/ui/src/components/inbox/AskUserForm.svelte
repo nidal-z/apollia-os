@@ -42,9 +42,29 @@
   }: Props = $props();
 
   // Per-question state, keyed by question.id.
-  let openValues = $state<Record<string, string>>({});
-  let singleValues = $state<Record<string, string>>({});
-  let multiValues = $state<Record<string, Record<string, boolean>>>({});
+  //
+  // Pre-populated synchronously from the initial `questions` prop so
+  // `bind:value` never sees `undefined` on first render (Svelte 5 rejects
+  // binding to undefined when the target prop has a fallback value).
+  let openValues = $state<Record<string, string>>(
+    Object.fromEntries(questions.map((q) => [q.id, ""])),
+  );
+  let singleValues = $state<Record<string, string>>(
+    Object.fromEntries(questions.map((q) => [q.id, ""])),
+  );
+  let multiValues = $state<Record<string, Record<string, boolean>>>(
+    Object.fromEntries(questions.map((q) => [q.id, {} as Record<string, boolean>])),
+  );
+
+  // Keep maps in sync if `questions` changes after mount (rare — same item
+  // shouldn't mutate its question list, but defensive).
+  $effect(() => {
+    for (const q of questions) {
+      if (openValues[q.id] === undefined) openValues[q.id] = "";
+      if (singleValues[q.id] === undefined) singleValues[q.id] = "";
+      if (multiValues[q.id] === undefined) multiValues[q.id] = {};
+    }
+  });
 
   let rejectOpen = $state(false);
 
