@@ -48,6 +48,34 @@ pub struct ConnectorEnrichment {
     /// does not declare its own headers. Registry data takes precedence.
     #[serde(default)]
     pub remote_headers: Vec<EnrichmentRemoteHeader>,
+    /// Cost classification surfaced as a badge in the catalogue.
+    ///
+    /// `None` means "unspecified" (legacy entries); the UI defaults to
+    /// "free" for those. New entries should always set this.
+    #[serde(default)]
+    pub cost_model: Option<CostModel>,
+}
+
+/// User-facing cost classification for a connector.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CostModel {
+    /// Cost kind: `free`, `freemium`, or `paid`.
+    pub kind: CostKind,
+    /// Optional per-locale note (e.g. quota information).
+    #[serde(default)]
+    pub note_i18n: Option<HashMap<String, String>>,
+}
+
+/// Cost kind enum, displayed as a badge in the UI.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CostKind {
+    /// No charge expected — only the SaaS account itself is needed.
+    Free,
+    /// Free tier exists but heavy usage may incur charges.
+    Freemium,
+    /// Paid service end-to-end.
+    Paid,
 }
 
 /// An HTTP header required by a remote enrichment connector.
@@ -181,5 +209,67 @@ mod tests {
         assert!(ids.contains(&"@anthropic/mcp-server-filesystem"));
         assert!(ids.contains(&"@anthropic/mcp-server-memory"));
         assert!(ids.contains(&"@anthropic/mcp-server-puppeteer"));
+    }
+
+    #[test]
+    fn v1_catalog_has_18_entries_with_cost_model() {
+        // GIVEN the v0.1.0 catalog
+        let enrichments = load_builtin_enrichments();
+        // THEN there are exactly 18 curated entries
+        assert_eq!(
+            enrichments.len(),
+            18,
+            "expected 18 curated entries in the v0.1.0 catalog"
+        );
+        // AND every entry declares a cost model so the UI can show the badge
+        for e in &enrichments {
+            assert!(
+                e.cost_model.is_some(),
+                "entry {} is missing cost_model — required since ADR-091",
+                e.package_identifier
+            );
+        }
+    }
+
+    #[test]
+    fn v1_catalog_includes_expected_official_saas_connectors() {
+        let enrichments = load_builtin_enrichments();
+        let ids: Vec<&str> = enrichments
+            .iter()
+            .map(|e| e.package_identifier.as_str())
+            .collect();
+        // Anchor the catalog: a representative sample of the official SaaS
+        // entries added in v0.1.0. Full list rotates with the catalog file.
+        let expected = [
+            "io.github.github/github-mcp-server",
+            "com.slack/mcp",
+            "app.linear/mcp",
+            "com.atlassian/rovo-mcp",
+            "com.stripe/mcp",
+            "com.figma/mcp",
+            "io.sentry/mcp",
+            "com.cloudflare/mcp",
+        ];
+        for id in expected {
+            assert!(
+                ids.contains(&id),
+                "expected official SaaS entry {id} to be present"
+            );
+        }
+    }
+
+    #[test]
+    fn brave_search_is_marked_freemium() {
+        let enrichments = load_builtin_enrichments();
+        let brave = enrichments
+            .iter()
+            .find(|e| e.package_identifier == "@anthropic/mcp-server-brave-search")
+            .expect("brave");
+        let cost = brave.cost_model.as_ref().expect("cost_model");
+        assert_eq!(cost.kind, CostKind::Freemium);
+        // Note must surface the quota in both locales
+        let note = cost.note_i18n.as_ref().expect("note_i18n");
+        assert!(note.contains_key("en"));
+        assert!(note.contains_key("fr"));
     }
 }
