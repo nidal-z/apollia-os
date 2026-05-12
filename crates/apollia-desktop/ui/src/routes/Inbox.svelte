@@ -696,12 +696,6 @@
                       timestamp={relTime(item.suspendedAt)}
                       unread={true}
                       onclick={isApproval ? () => toggleExpand(item) : undefined}
-                      onAction={isApproval
-                        ? (e) => {
-                            e.stopPropagation?.();
-                            toggleExpand(item);
-                          }
-                        : undefined}
                       onSecondaryAction={item.kind === "ask_user" && item.sessionId
                         ? () => openAskUserChat(item.sessionId!)
                         : undefined}
