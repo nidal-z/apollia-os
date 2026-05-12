@@ -40,8 +40,9 @@
 ```
 crates/
 ├── apollia-aip/           ← Bridge PyO3 (Rust ↔ Python async, RuntimeContext exposé via stubs SDK)
-├── apollia-auth/          ← OAuth2 PKCE, token keyring, auto-refresh (ADR-064)
+├── apollia-auth/          ← OAuth2 PKCE, token keyring, auto-refresh (ADR-064 + ADR-089) — multi-account + singleflight refresh + Google/Microsoft providers
 ├── apollia-cli/           ← Binaire final (clap v4, 13+ sous-commandes, codes de sortie 0-5)
+├── apollia-connectors/    ← Native SaaS connectors (ADR-088, ADR-090) — Google Workspace (Gmail/Calendar/Drive Workspace), Microsoft 365 (Outlook/Calendar/OneDrive) — trait Connector + HttpClient avec retry/refresh
 ├── apollia-core/          ← Types partagés (AgentId, TaskId, StepBudget) — dépendance de tout le reste
 ├── apollia-desktop/       ← Application Desktop (Tauri v2 + Svelte 5, ~114 commandes IPC, 15 routes)
 ├── apollia-llm/           ← LLM Backend (llama.cpp, Anthropic, OpenAI, Ollama, Bedrock, Vertex, LlmRouter)
