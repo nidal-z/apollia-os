@@ -8,6 +8,7 @@
     Activity,
     Sparkles,
     HelpCircle,
+    MessageSquare,
   } from "lucide-svelte";
   import Chip from "./Chip.svelte";
   import BtnPrimary from "./BtnPrimary.svelte";
@@ -32,6 +33,12 @@
     unread?: boolean;
     onclick?: (e: MouseEvent) => void;
     onAction?: (e: MouseEvent) => void;
+    /** Optional second action shown as an icon-only button before the
+     *  primary CTA. Used for ask_user items to expose "Open the source
+     *  conversation" without needing to expand the row first. */
+    onSecondaryAction?: (e: MouseEvent) => void;
+    /** Accessible label for the secondary action (tooltip + aria-label). */
+    secondaryLabel?: string;
   }
 
   let {
@@ -42,6 +49,8 @@
     unread = false,
     onclick,
     onAction,
+    onSecondaryAction,
+    secondaryLabel,
   }: Props = $props();
 
   type Cfg = {
@@ -105,11 +114,28 @@
       {agent} · {timestamp}
     </div>
   </div>
-  {#if type === "approval"}
-    <BtnPrimary onclick={onAction}>Autoriser</BtnPrimary>
-  {:else if type === "question"}
-    <BtnSecondary onclick={onAction}>Répondre</BtnSecondary>
-  {:else if type === "error"}
-    <BtnSecondary onclick={onAction}>Résoudre</BtnSecondary>
-  {/if}
+  <div class="flex items-center gap-1.5 shrink-0">
+    {#if onSecondaryAction}
+      <button
+        type="button"
+        class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        onclick={(e) => {
+          e.stopPropagation();
+          onSecondaryAction?.(e);
+        }}
+        aria-label={secondaryLabel ?? "Open conversation"}
+        title={secondaryLabel ?? "Open conversation"}
+        data-testid="inbox-row-secondary"
+      >
+        <MessageSquare size={14} strokeWidth={1.75} />
+      </button>
+    {/if}
+    {#if type === "approval"}
+      <BtnPrimary onclick={onAction}>Autoriser</BtnPrimary>
+    {:else if type === "question"}
+      <BtnSecondary onclick={onAction}>Répondre</BtnSecondary>
+    {:else if type === "error"}
+      <BtnSecondary onclick={onAction}>Résoudre</BtnSecondary>
+    {/if}
+  </div>
 </div>

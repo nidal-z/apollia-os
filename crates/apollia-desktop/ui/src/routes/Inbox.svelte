@@ -700,6 +700,12 @@
                             toggleExpand(item);
                           }
                         : undefined}
+                      onSecondaryAction={item.kind === "ask_user" && item.sessionId
+                        ? () => openAskUserChat(item.sessionId!)
+                        : undefined}
+                      secondaryLabel={item.kind === "ask_user"
+                        ? $t("inbox.ask_user.open_chat")
+                        : undefined}
                     />
                     {#if isExpanded && isApproval}
                       <div class="px-4 py-3 border-b border-border bg-muted/20">
