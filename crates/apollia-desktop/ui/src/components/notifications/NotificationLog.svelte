@@ -1,14 +1,29 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import type { NotificationLogEntry } from "$lib/types";
+  import type { NotificationChannel, NotificationLogEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Select } from "$lib/components/ui/select";
 
   interface Props {
     logs: NotificationLogEntry[];
+    channels?: NotificationChannel[];
   }
 
-  let { logs }: Props = $props();
+  let { logs, channels = [] }: Props = $props();
+
+  // Build a quick lookup of channel_id → label (only entries with a label).
+  const channelLabels = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const ch of channels) {
+      const lbl = ch.label?.trim();
+      if (lbl) map.set(ch.channel_id, lbl);
+    }
+    return map;
+  });
+
+  function channelDisplay(id: string): string {
+    return channelLabels.get(id) ?? id;
+  }
 
   let filterChannel = $state("all");
 
@@ -62,7 +77,7 @@
       >
         <option value="all">{$t('notifications.all_channels')}</option>
         {#each channelIds as cid}
-          <option value={cid}>{cid}</option>
+          <option value={cid}>{channelDisplay(cid)}</option>
         {/each}
       </Select>
     </div>
@@ -104,7 +119,7 @@
               <td class="px-3 py-2">
                 <div class="flex flex-wrap gap-1">
                   {#each entryChannelIds(entry) as cid}
-                    <Badge variant="outline" class="text-[11px]">{cid}</Badge>
+                    <Badge variant="outline" class="text-[11px]" title={cid}>{channelDisplay(cid)}</Badge>
                   {/each}
                 </div>
               </td>

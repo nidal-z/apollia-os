@@ -37,6 +37,9 @@ use crate::coordinator::ExecutionBackend;
 pub struct CreateChannelRequest {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface, libre. `None` = retombe sur `id` côté UI.
+    #[serde(default)]
+    pub label: Option<String>,
     /// Type de canal : `"desktop"` ou `"webhook"`.
     pub channel_type: String,
     /// Indique si le canal est actif (défaut : `true`).
@@ -48,8 +51,16 @@ pub struct CreateChannelRequest {
 }
 
 /// Corps de requête pour `PUT /api/v1/notifications/channels/:id`.
+///
+/// Le champ `label` utilise un double-`Option` :
+/// - absent du JSON → `None` → conserver le label existant ;
+/// - `null` → `Some(None)` → effacer le label ;
+/// - `"texte"` → `Some(Some("texte"))` → remplacer.
 #[derive(Debug, Deserialize)]
 pub struct UpdateChannelRequest {
+    /// Nouveau label. Voir le doc du struct pour la sémantique du double-Option.
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub label: Option<Option<String>>,
     /// Type de canal (optionnel — conserve l'existant si absent).
     pub channel_type: Option<String>,
     /// Indique si le canal est actif.
@@ -58,6 +69,15 @@ pub struct UpdateChannelRequest {
     pub config: Option<serde_json::Value>,
     /// Liste d'événements spécifiques.
     pub events: Option<Vec<String>>,
+}
+
+/// Distingue `field: null` (`Some(None)`) de l'absence du champ (`None`).
+fn deserialize_optional_field<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(Option::<T>::deserialize(deserializer)?))
 }
 
 /// Corps de requête pour `PUT /api/v1/notifications/events`.
@@ -74,6 +94,8 @@ pub struct SetEventsRequest {
 pub struct ChannelResponse {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface, libre. `null` = retombe sur `id` côté UI.
+    pub label: Option<String>,
     /// Type de canal.
     pub channel_type: String,
     /// `true` si le canal est activé.
@@ -175,6 +197,7 @@ pub async fn create_channel<B: ExecutionBackend + Clone>(
 
     let row = NotificationChannelRow {
         id: body.id,
+        label: body.label,
         channel_type: body.channel_type,
         enabled: body.enabled.unwrap_or(true),
         config_json: body.config,
@@ -242,6 +265,11 @@ pub async fn update_channel<B: ExecutionBackend + Clone>(
 
         let merged = NotificationChannelRow {
             id: id.clone(),
+            // Double-Option : absent → conserver ; Some(None) → effacer ; Some(Some(s)) → remplacer.
+            label: match body.label {
+                Some(value) => value,
+                None => existing.label,
+            },
             channel_type: body.channel_type.unwrap_or(existing.channel_type),
             enabled: body.enabled.unwrap_or(existing.enabled),
             config_json: body.config.unwrap_or(existing.config_json),
@@ -544,6 +572,7 @@ pub async fn notification_logs<B: ExecutionBackend + Clone>(
 fn row_to_response(row: &NotificationChannelRow) -> ChannelResponse {
     ChannelResponse {
         id: row.id.clone(),
+        label: row.label.clone(),
         channel_type: row.channel_type.clone(),
         enabled: row.enabled,
         config: row.config_json.clone(),

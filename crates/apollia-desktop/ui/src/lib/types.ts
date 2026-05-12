@@ -451,6 +451,19 @@ export interface TriggerFireResult {
   task_id: string;
 }
 
+/** Entrée historique d'une approbation HITL de chat. */
+export interface ResolvedChatApproval {
+  session_id: string;
+  message_id: string;
+  tool_name: string;
+  /** "accept" | "refuse" | "always_accept" */
+  decision: string;
+  /** ISO-8601 timestamp. */
+  resolved_at: string;
+  /** Raison fournie par l'opérateur (refus uniquement). */
+  reason: string | null;
+}
+
 /** Résultat du rechargement de la config triggers. */
 export interface TriggerReloadResult {
   reloaded: number;
@@ -474,7 +487,7 @@ export type TriggerSourceInput =
   | { type: "cron"; schedule: string }
   | { type: "interval"; every: string }
   | { type: "oneshot"; fire_at: string }
-  | { type: "file_watch"; path: string; events: string[] }
+  | { type: "file_watch"; path: string; events: string[]; recursive?: boolean }
   | { type: "webhook"; secret: string };
 
 /** Corps de requête pour la création d'un trigger. */
@@ -520,7 +533,9 @@ export interface MemorySearchResult {
 /** Canal de notification configuré. */
 export interface NotificationChannel {
   channel_id: string;
-  type: "desktop" | "webhook" | "sse";
+  /** Nom affiché libre. `null` ou absent = retombe sur `channel_id`. */
+  label?: string | null;
+  type: "desktop" | "webhook";
   enabled: boolean;
   events: string[];
 }
@@ -528,6 +543,8 @@ export interface NotificationChannel {
 /** Définition complète d'un canal retournée par les opérations CRUD. */
 export interface NotificationChannelView {
   id: string;
+  /** Nom affiché libre. `null` = aucun label. */
+  label: string | null;
   channel_type: "desktop" | "webhook";
   enabled: boolean;
   config: Record<string, unknown>;
@@ -539,14 +556,24 @@ export interface NotificationChannelView {
 /** Corps de requête pour la création d'un canal de notification. */
 export interface CreateChannelRequest {
   id: string;
+  /** Nom affiché (libre, max 80 chars). Omettre si pas de label. */
+  label?: string;
   channel_type: "desktop" | "webhook";
   enabled: boolean;
   config: Record<string, unknown>;
   events?: string[];
 }
 
-/** Corps de requête pour la mise à jour d'un canal de notification. */
+/**
+ * Corps de requête pour la mise à jour d'un canal de notification.
+ *
+ * Sémantique du champ `label` :
+ * - clé absente → conserver le label existant ;
+ * - `label: null` → effacer le label ;
+ * - `label: "texte"` → remplacer.
+ */
 export interface UpdateChannelRequest {
+  label?: string | null;
   channel_type?: "desktop" | "webhook";
   enabled?: boolean;
   config?: Record<string, unknown>;

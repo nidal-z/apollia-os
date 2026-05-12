@@ -16,7 +16,9 @@ use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 pub struct NotificationChannel {
     /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
     pub channel_id: String,
-    /// Type de canal : `"desktop"`, `"webhook"`, ou `"sse"`.
+    /// Nom affiché dans l'interface. `None` = la UI retombera sur `channel_id`.
+    pub label: Option<String>,
+    /// Type de canal : `"desktop"` ou `"webhook"`.
     #[serde(rename = "type")]
     pub kind: String,
     /// `true` si le canal est activé dans la configuration.
@@ -87,8 +89,13 @@ pub async fn list_notification_channels(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            let label = ch
+                .get("label")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             NotificationChannel {
                 channel_id: id,
+                label,
                 kind,
                 enabled: ch.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
                 events: ch
@@ -206,6 +213,8 @@ pub async fn get_notification_logs(
 pub struct NotificationChannelView {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface. `null` = retombe sur `id` côté UI.
+    pub label: Option<String>,
     /// Type de canal : `"desktop"` ou `"webhook"`.
     pub channel_type: String,
     /// `true` si le canal est activé.
@@ -225,6 +234,9 @@ pub struct NotificationChannelView {
 pub struct CreateChannelRequest {
     /// Identifiant unique du canal.
     pub id: String,
+    /// Nom affiché dans l'interface (libre, max 80 chars). `null` = aucun label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// Type de canal : `"desktop"` ou `"webhook"`.
     pub channel_type: String,
     /// Indique si le canal est actif (défaut : `true`).
@@ -237,8 +249,16 @@ pub struct CreateChannelRequest {
 
 /// Corps de requête pour la mise à jour d'un canal via
 /// `update_notification_channel`.
+///
+/// `label` utilise une `Option<Option<String>>` :
+/// - absent du JSON → conserver ;
+/// - `null` → effacer ;
+/// - `"texte"` → remplacer.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateChannelRequest {
+    /// Nouveau label. Voir doc du struct pour la sémantique.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<Option<String>>,
     /// Type de canal (optionnel — conserve l'existant si absent).
     pub channel_type: Option<String>,
     /// Indique si le canal est actif.
@@ -257,6 +277,7 @@ fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
+        label: json.get("label").and_then(|v| v.as_str()).map(String::from),
         channel_type: json
             .get("channel_type")
             .and_then(|v| v.as_str())
@@ -377,6 +398,7 @@ mod tests {
         // GIVEN a NotificationChannel
         let channel = NotificationChannel {
             channel_id: "desktop".to_string(),
+            label: Some("Bureau".to_string()),
             kind: "desktop".to_string(),
             enabled: true,
             events: vec!["task.completed".to_string(), "pipeline.failed".to_string()],
@@ -387,6 +409,7 @@ mod tests {
 
         // THEN all fields are present with correct values
         assert_eq!(json["channel_id"], "desktop");
+        assert_eq!(json["label"], "Bureau");
         assert_eq!(json["type"], "desktop");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["events"][0], "task.completed");
@@ -395,9 +418,10 @@ mod tests {
 
     #[test]
     fn test_notification_channel_serializes_empty_events() {
-        // GIVEN a NotificationChannel with no event filters
+        // GIVEN a NotificationChannel with no event filters and no label
         let channel = NotificationChannel {
             channel_id: "slack".to_string(),
+            label: None,
             kind: "webhook".to_string(),
             enabled: false,
             events: vec![],
@@ -493,9 +517,10 @@ mod tests {
 
     #[test]
     fn test_notification_channel_view_serializes() {
-        // GIVEN a NotificationChannelView with specific events
+        // GIVEN a NotificationChannelView with specific events and a label
         let view = NotificationChannelView {
             id: "slack-ops".to_string(),
+            label: Some("Slack — Équipe Ops".to_string()),
             channel_type: "webhook".to_string(),
             enabled: true,
             config: serde_json::json!({"url": "https://hooks.slack.com/xxx"}),
@@ -512,6 +537,7 @@ mod tests {
 
         // THEN all fields are present
         assert_eq!(json["id"], "slack-ops");
+        assert_eq!(json["label"], "Slack — Équipe Ops");
         assert_eq!(json["channel_type"], "webhook");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["config"]["url"], "https://hooks.slack.com/xxx");
@@ -521,9 +547,10 @@ mod tests {
 
     #[test]
     fn test_notification_channel_view_serializes_no_events() {
-        // GIVEN a NotificationChannelView using global events
+        // GIVEN a NotificationChannelView using global events and no label
         let view = NotificationChannelView {
             id: "desktop".to_string(),
+            label: None,
             channel_type: "desktop".to_string(),
             enabled: true,
             config: serde_json::json!({}),
@@ -564,9 +591,10 @@ mod tests {
 
     #[test]
     fn test_create_channel_request_serializes() {
-        // GIVEN a CreateChannelRequest
+        // GIVEN a CreateChannelRequest with a free-form label
         let req = CreateChannelRequest {
             id: "new-channel".to_string(),
+            label: Some("Alertes Slack équipe".to_string()),
             channel_type: "webhook".to_string(),
             enabled: Some(true),
             config: serde_json::json!({"url": "https://example.com/hook"}),
@@ -576,9 +604,70 @@ mod tests {
         // WHEN serialized to JSON
         let json = serde_json::to_value(&req).expect("serialize");
 
-        // THEN required fields are present
+        // THEN required fields are present, including label
         assert_eq!(json["id"], "new-channel");
+        assert_eq!(json["label"], "Alertes Slack équipe");
         assert_eq!(json["channel_type"], "webhook");
         assert_eq!(json["config"]["url"], "https://example.com/hook");
+    }
+
+    #[test]
+    fn test_create_channel_request_omits_label_when_none() {
+        // GIVEN no label
+        let req = CreateChannelRequest {
+            id: "ch".to_string(),
+            label: None,
+            channel_type: "desktop".to_string(),
+            enabled: None,
+            config: serde_json::json!({}),
+            events: None,
+        };
+
+        // WHEN serialized
+        let json = serde_json::to_value(&req).expect("serialize");
+
+        // THEN the label key is absent from the wire format (clean payload)
+        assert!(json.get("label").is_none());
+    }
+
+    #[test]
+    fn test_parse_channel_view_reads_label() {
+        // GIVEN an API response containing a label
+        let api_json = serde_json::json!({
+            "id": "ch-test",
+            "label": "Mon canal",
+            "channel_type": "desktop",
+            "enabled": true,
+            "config": {},
+            "events": null,
+            "created_at": "2026-05-12T10:00:00Z",
+            "updated_at": "2026-05-12T10:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_channel_view(&api_json);
+
+        // THEN the label is preserved
+        assert_eq!(view.label.as_deref(), Some("Mon canal"));
+    }
+
+    #[test]
+    fn test_parse_channel_view_label_absent() {
+        // GIVEN an API response without a label field
+        let api_json = serde_json::json!({
+            "id": "legacy",
+            "channel_type": "desktop",
+            "enabled": true,
+            "config": {},
+            "events": null,
+            "created_at": "2026-05-12T10:00:00Z",
+            "updated_at": "2026-05-12T10:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_channel_view(&api_json);
+
+        // THEN label is None (no crash, just absent)
+        assert_eq!(view.label, None);
     }
 }

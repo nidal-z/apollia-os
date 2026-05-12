@@ -18,6 +18,10 @@ use crate::validation::{validate_channel, validate_events, NotificationConfigErr
 pub struct NotificationChannelRow {
     /// Identifiant unique du canal (ex: `"slack-ops"`, `"desktop"`).
     pub id: String,
+    /// Nom affiché dans l'interface, libre (espaces, accents, emojis acceptés).
+    /// `None` = retomber sur `id` côté UI. Max 80 caractères Unicode.
+    #[serde(default)]
+    pub label: Option<String>,
     /// Type de canal : `"desktop"` ou `"webhook"`.
     pub channel_type: String,
     /// Si `false`, le canal est ignoré lors du dispatch.
@@ -64,11 +68,13 @@ pub struct NotificationConfigRepository {
 impl NotificationConfigRepository {
     /// Ouvre (ou crée) la base `notifications.db` au chemin donné.
     ///
-    /// Active WAL, crée les 3 tables et l'index si absents.
+    /// Active WAL, crée les 3 tables et l'index si absents, puis applique
+    /// les migrations incrémentales (ajout de colonnes via [`ensure_columns`]).
     pub fn open(path: &Path) -> Result<Self, NotificationConfigError> {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.execute_batch(Self::MIGRATION_SQL)?;
+        ensure_columns(&conn)?;
         Ok(Self { conn })
     }
 
@@ -126,9 +132,9 @@ impl NotificationConfigRepository {
         let config_str = serde_json::to_string(&ch.config_json).unwrap_or_else(|_| "{}".into());
 
         self.conn.execute(
-            "INSERT INTO notification_channels (id, channel_type, enabled, config_json, events_json)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![ch.id, ch.channel_type, ch.enabled, config_str, events_str],
+            "INSERT INTO notification_channels (id, label, channel_type, enabled, config_json, events_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![ch.id, ch.label, ch.channel_type, ch.enabled, config_str, events_str],
         )?;
 
         Ok(())
@@ -157,10 +163,10 @@ impl NotificationConfigRepository {
 
         self.conn.execute(
             "UPDATE notification_channels
-             SET channel_type = ?1, enabled = ?2, config_json = ?3, events_json = ?4,
+             SET label = ?1, channel_type = ?2, enabled = ?3, config_json = ?4, events_json = ?5,
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-             WHERE id = ?5",
-            params![ch.channel_type, ch.enabled, config_str, events_str, id],
+             WHERE id = ?6",
+            params![ch.label, ch.channel_type, ch.enabled, config_str, events_str, id],
         )?;
 
         Ok(())
@@ -188,7 +194,7 @@ impl NotificationConfigRepository {
         id: &str,
     ) -> Result<Option<NotificationChannelRow>, NotificationConfigError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, channel_type, enabled, config_json, events_json, created_at, updated_at
+            "SELECT id, label, channel_type, enabled, config_json, events_json, created_at, updated_at
              FROM notification_channels WHERE id = ?1",
         )?;
 
@@ -202,7 +208,7 @@ impl NotificationConfigRepository {
     /// Liste tous les canaux enregistrés.
     pub fn list_channels(&self) -> Result<Vec<NotificationChannelRow>, NotificationConfigError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, channel_type, enabled, config_json, events_json, created_at, updated_at
+            "SELECT id, label, channel_type, enabled, config_json, events_json, created_at, updated_at
              FROM notification_channels ORDER BY id",
         )?;
 
@@ -338,9 +344,11 @@ impl NotificationChannelRow {
 }
 
 /// Convertit une ligne SQLite en [`NotificationChannelRow`].
+///
+/// Ordre attendu : `id, label, channel_type, enabled, config_json, events_json, created_at, updated_at`.
 fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChannelRow> {
-    let config_str: String = row.get(3)?;
-    let events_str: Option<String> = row.get(4)?;
+    let config_str: String = row.get(4)?;
+    let events_str: Option<String> = row.get(5)?;
 
     let config_json: serde_json::Value =
         serde_json::from_str(&config_str).unwrap_or(serde_json::Value::Object(Default::default()));
@@ -349,13 +357,35 @@ fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChann
 
     Ok(NotificationChannelRow {
         id: row.get(0)?,
-        channel_type: row.get(1)?,
-        enabled: row.get(2)?,
+        label: row.get(1)?,
+        channel_type: row.get(2)?,
+        enabled: row.get(3)?,
         config_json,
         events_json,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
     })
+}
+
+/// Applique les migrations incrémentales (ajout de colonnes).
+///
+/// SQLite ne supporte pas `ALTER TABLE ADD COLUMN IF NOT EXISTS` ; on lit
+/// `PRAGMA table_info` pour ne tenter l'`ALTER` que si la colonne manque.
+/// Idempotent : peut être appelé à chaque ouverture sans risque.
+fn ensure_columns(conn: &Connection) -> Result<(), NotificationConfigError> {
+    let mut stmt = conn.prepare("PRAGMA table_info(notification_channels)")?;
+    let existing: Vec<String> = stmt
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<Result<_, _>>()?;
+    drop(stmt);
+
+    if !existing.iter().any(|c| c == "label") {
+        conn.execute(
+            "ALTER TABLE notification_channels ADD COLUMN label TEXT",
+            [],
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -376,6 +406,7 @@ mod tests {
     fn make_channel(id: &str, channel_type: &str) -> NotificationChannelRow {
         NotificationChannelRow {
             id: id.into(),
+            label: None,
             channel_type: channel_type.into(),
             enabled: true,
             config_json: if channel_type == "webhook" {
@@ -542,6 +573,7 @@ mod tests {
         let (_path, repo) = temp_db();
         let ch = NotificationChannelRow {
             id: "bad-webhook".into(),
+            label: None,
             channel_type: "webhook".into(),
             enabled: true,
             config_json: serde_json::json!({}),
@@ -611,5 +643,93 @@ mod tests {
 
         // THEN
         assert!(channels.is_empty());
+    }
+
+    // Roundtrip d'un canal avec label humain (Item 1)
+    #[test]
+    fn test_insert_and_get_channel_with_label() {
+        // GIVEN un canal avec un label libre (espaces, accents)
+        let (_path, repo) = temp_db();
+        let mut ch = make_channel("alertes-slack-equipe", "webhook");
+        ch.label = Some("Alertes Slack équipe".into());
+
+        // WHEN insertion puis lecture
+        repo.insert_channel(&ch).expect("insert");
+        let found = repo
+            .get_channel("alertes-slack-equipe")
+            .expect("get")
+            .expect("Some");
+
+        // THEN le label est préservé tel quel
+        assert_eq!(found.label.as_deref(), Some("Alertes Slack équipe"));
+        assert_eq!(found.id, "alertes-slack-equipe");
+    }
+
+    // Update du label seul, sans toucher au reste
+    #[test]
+    fn test_update_channel_label() {
+        // GIVEN un canal sans label
+        let (_path, repo) = temp_db();
+        let ch = make_channel("desktop", "desktop");
+        repo.insert_channel(&ch).expect("insert");
+
+        // WHEN on lui ajoute un label
+        let mut updated = ch.clone();
+        updated.label = Some("Bureau de Nidal".into());
+        repo.update_channel("desktop", &updated).expect("update");
+
+        // THEN le label est persisté
+        let result = repo.get_channel("desktop").expect("get").expect("Some");
+        assert_eq!(result.label.as_deref(), Some("Bureau de Nidal"));
+    }
+
+    // Migration idempotente : open() sur une base v1 ajoute la colonne label
+    // sans casser les canaux existants.
+    #[test]
+    fn test_migration_adds_label_column_idempotent() {
+        // GIVEN une base "v1" sans la colonne label, contenant un canal
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("notifications.db");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open");
+            conn.execute_batch(
+                "CREATE TABLE notification_channels (
+                    id              TEXT PRIMARY KEY,
+                    channel_type    TEXT NOT NULL,
+                    enabled         BOOLEAN NOT NULL DEFAULT 1,
+                    config_json     TEXT NOT NULL DEFAULT '{}',
+                    events_json     TEXT,
+                    created_at      TEXT NOT NULL DEFAULT '2024-01-01T00:00:00Z',
+                    updated_at      TEXT NOT NULL DEFAULT '2024-01-01T00:00:00Z',
+                    CHECK (channel_type IN ('desktop', 'webhook'))
+                );
+                INSERT INTO notification_channels (id, channel_type, enabled, config_json)
+                VALUES ('legacy', 'desktop', 1, '{}');
+                CREATE TABLE notification_global_events (event_name TEXT PRIMARY KEY);
+                CREATE TABLE notification_logs (
+                    id TEXT PRIMARY KEY,
+                    event_name TEXT NOT NULL,
+                    task_id TEXT,
+                    agent_id TEXT,
+                    sent_at TEXT NOT NULL DEFAULT '2024-01-01T00:00:00Z',
+                    channels TEXT NOT NULL DEFAULT '{}',
+                    error TEXT
+                );",
+            )
+            .expect("seed v1");
+        }
+        std::mem::forget(dir);
+
+        // WHEN on ouvre via NotificationConfigRepository (qui appelle ensure_columns)
+        let repo = NotificationConfigRepository::open(&path).expect("open v2");
+
+        // THEN le canal existant est toujours là, avec label = None
+        let legacy = repo.get_channel("legacy").expect("get").expect("Some");
+        assert_eq!(legacy.label, None);
+        assert_eq!(legacy.channel_type, "desktop");
+
+        // ET réouvrir une seconde fois ne plante pas (idempotent)
+        drop(repo);
+        let _repo2 = NotificationConfigRepository::open(&path).expect("open again");
     }
 }

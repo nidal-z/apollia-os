@@ -21,6 +21,9 @@
 
   type ChannelType = "desktop" | "webhook";
 
+  const LABEL_MAX_LEN = 80;
+
+  let label = $state("");
   let channelType = $state<ChannelType>("desktop");
   let enabled = $state(true);
   let webhookUrl = $state("");
@@ -30,6 +33,12 @@
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
   let touched = $state(false);
+
+  const labelError = $derived.by(() => {
+    if (!touched) return null;
+    if (label.length > LABEL_MAX_LEN) return $t("notifications.field_label_too_long");
+    return null;
+  });
 
   const urlError = $derived.by(() => {
     if (!touched) return null;
@@ -51,6 +60,7 @@
   });
 
   const isValid = $derived(
+    label.length <= LABEL_MAX_LEN &&
     (channelType !== "webhook" || !!webhookUrl.trim()) &&
     !headersError
   );
@@ -81,11 +91,17 @@
         }
       }
 
+      const trimmedLabel = label.trim();
+      const originalLabel = channel.label ?? "";
       const request: UpdateChannelRequest = {
         channel_type: channelType,
         enabled,
         config,
       };
+      // Only include `label` when changed — distinguishes "keep" from "clear".
+      if (trimmedLabel !== originalLabel.trim()) {
+        request.label = trimmedLabel || null;
+      }
       if (selectedEvents.size > 0) {
         request.events = [...selectedEvents];
       }
@@ -105,6 +121,7 @@
 
   function populateForm() {
     if (!channel) return;
+    label = channel.label ?? "";
     channelType = channel.channel_type as ChannelType;
     enabled = channel.enabled;
     if (channelType === "webhook") {
@@ -137,12 +154,29 @@
     data-testid="edit-channel-dialog"
   >
     <div class="space-y-4">
-      <!-- ID (readonly) -->
+      <!-- Label (free-form display name) -->
+      <div>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-label">{$t("notifications.field_label")}</label>
+        <Input
+          id="edit-channel-label"
+          class={labelError ? 'border-destructive' : ''}
+          placeholder={$t("notifications.field_label_placeholder")}
+          bind:value={label}
+          maxlength={LABEL_MAX_LEN}
+          data-testid="edit-channel-label-input"
+        />
+        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_label_help")}</p>
+        {#if labelError}
+          <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-label-error">{labelError}</p>
+        {/if}
+      </div>
+
+      <!-- ID (readonly, slug fixed at creation time) -->
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-id">{$t("notifications.field_id")}</label>
         <Input
           id="edit-channel-id"
-          class="bg-muted"
+          class="bg-muted font-mono"
           value={channel.id}
           readonly
           data-testid="edit-channel-id-input"

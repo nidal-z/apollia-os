@@ -75,8 +75,17 @@
   <div class="pl-4 pr-3.5 pt-3 pb-2.5">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <h3 class="text-[13px] font-medium">{channel.channel_id}</h3>
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="min-w-0">
+          <h3 class="text-[13px] font-medium truncate">
+            {channel.label && channel.label.trim() ? channel.label : channel.channel_id}
+          </h3>
+          {#if channel.label && channel.label.trim()}
+            <p class="text-[10px] text-muted-foreground/70 font-mono truncate" title={channel.channel_id}>
+              {channel.channel_id}
+            </p>
+          {/if}
+        </div>
         <Badge variant="outline" class={badgeConfig.extraClass}>
           {badgeConfig.label}
         </Badge>

@@ -8,6 +8,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { slugify } from "$lib/utils/slugify";
 
   interface Props {
     open: boolean;
@@ -21,8 +22,11 @@
   type ChannelType = "desktop" | "webhook";
 
   const CHANNEL_ID_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
+  const LABEL_MAX_LEN = 80;
 
+  let label = $state("");
   let channelId = $state("");
+  let slugManuallyEdited = $state(false);
   let channelType = $state<ChannelType>("desktop");
   let enabled = $state(true);
   let webhookUrl = $state("");
@@ -32,6 +36,18 @@
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
   let touched = $state(false);
+
+  // Auto-sync slug from label until the user manually edits the slug.
+  $effect(() => {
+    if (slugManuallyEdited) return;
+    channelId = slugify(label);
+  });
+
+  const labelError = $derived.by(() => {
+    if (!touched) return null;
+    if (label.length > LABEL_MAX_LEN) return $t("notifications.field_label_too_long");
+    return null;
+  });
 
   const idError = $derived.by(() => {
     if (!touched) return null;
@@ -62,6 +78,7 @@
   const isValid = $derived(
     !!channelId.trim() &&
     CHANNEL_ID_PATTERN.test(channelId) &&
+    label.length <= LABEL_MAX_LEN &&
     (channelType !== "webhook" || !!webhookUrl.trim()) &&
     !headersError
   );
@@ -74,6 +91,11 @@
       next.add(event);
     }
     selectedEvents = next;
+  }
+
+  function onSlugInput(e: Event) {
+    slugManuallyEdited = true;
+    channelId = (e.target as HTMLInputElement).value;
   }
 
   async function handleSubmit(): Promise<void> {
@@ -97,6 +119,10 @@
         enabled,
         config,
       };
+      const trimmedLabel = label.trim();
+      if (trimmedLabel) {
+        request.label = trimmedLabel;
+      }
       if (selectedEvents.size > 0) {
         request.events = [...selectedEvents];
       }
@@ -114,7 +140,9 @@
   }
 
   function resetForm() {
+    label = "";
     channelId = "";
+    slugManuallyEdited = false;
     channelType = "desktop";
     enabled = true;
     webhookUrl = "";
@@ -140,21 +168,44 @@
   data-testid="create-channel-dialog"
 >
   <div class="space-y-4">
-    <!-- ID -->
+    <!-- Label (free-form display name) — primary field -->
     <div>
-      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-id">{$t("notifications.field_id")}</label>
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-label">{$t("notifications.field_label")}</label>
       <Input
-        id="channel-id"
-        class={idError ? 'border-destructive' : ''}
-        placeholder={$t("notifications.field_id_placeholder")}
-        bind:value={channelId}
-        data-testid="channel-id-input"
+        id="channel-label"
+        class={labelError ? 'border-destructive' : ''}
+        placeholder={$t("notifications.field_label_placeholder")}
+        bind:value={label}
+        maxlength={LABEL_MAX_LEN}
+        autofocus
+        data-testid="channel-label-input"
       />
-      <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_id_help")}</p>
-      {#if idError}
-        <p class="mt-0.5 text-xs text-destructive" data-testid="channel-id-error">{idError}</p>
+      <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_label_help")}</p>
+      {#if labelError}
+        <p class="mt-0.5 text-xs text-destructive" data-testid="channel-label-error">{labelError}</p>
       {/if}
     </div>
+
+    <!-- Technical identifier (advanced, collapsed) -->
+    <details class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
+      <summary class="cursor-pointer text-[11px] text-muted-foreground select-none">
+        {$t("notifications.field_id_advanced")}
+      </summary>
+      <div class="mt-2">
+        <Input
+          id="channel-id"
+          class="font-mono {idError ? 'border-destructive' : ''}"
+          placeholder={$t("notifications.field_id_placeholder")}
+          value={channelId}
+          oninput={onSlugInput}
+          data-testid="channel-id-input"
+        />
+        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_id_help")}</p>
+        {#if idError}
+          <p class="mt-0.5 text-xs text-destructive" data-testid="channel-id-error">{idError}</p>
+        {/if}
+      </div>
+    </details>
 
     <!-- Type -->
     <div>
