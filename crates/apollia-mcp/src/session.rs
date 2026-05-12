@@ -243,11 +243,7 @@ impl McpSession {
             transport,
             pending,
             next_id: AtomicU64::new(1),
-            capabilities: ServerCapabilities {
-                tools: None,
-                resources: None,
-                prompts: None,
-            },
+            capabilities: ServerCapabilities::default(),
             server_info: ServerInfo {
                 name: String::new(),
                 version: None,
@@ -269,9 +265,19 @@ impl McpSession {
     /// stores the server's capabilities and identity, then sends the
     /// `notifications/initialized` notification to complete the handshake.
     async fn initialize(&mut self) -> Result<(), McpSessionError> {
+        use crate::protocol::{
+            ElicitationCapability, RootsCapability, SamplingCapability,
+            APOLLIA_MCP_PROTOCOL_VERSION,
+        };
         let params = InitializeParams {
-            protocol_version: "2024-11-05".to_string(),
-            capabilities: ClientCapabilities {},
+            protocol_version: APOLLIA_MCP_PROTOCOL_VERSION.to_string(),
+            capabilities: ClientCapabilities {
+                roots: Some(RootsCapability {
+                    list_changed: Some(true),
+                }),
+                sampling: Some(SamplingCapability::default()),
+                elicitation: Some(ElicitationCapability::default()),
+            },
             client_info: ClientInfo {
                 name: "apollia-runtime".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_string(),
@@ -521,6 +527,108 @@ impl McpSession {
             tool: tool_name.to_string(),
             cause: e.to_string(),
         })
+    }
+
+    /// List the resources exposed by the server (`resources/list`).
+    ///
+    /// Returns an empty result when the server does not advertise the
+    /// `resources` capability — callers should branch on
+    /// [`McpSession::capabilities`] to avoid the round-trip in that case.
+    pub async fn list_resources(
+        &self,
+    ) -> Result<crate::protocol::ResourcesListResult, McpSessionError> {
+        let response = self
+            .send_request("resources/list", None, self.config.call_timeout_secs)
+            .await?;
+        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
+            server: self.config.name.clone(),
+            tool: "resources/list".into(),
+            cause: e.to_string(),
+        })
+    }
+
+    /// Read a resource's content (`resources/read`).
+    pub async fn read_resource(
+        &self,
+        uri: &str,
+    ) -> Result<crate::protocol::ResourcesReadResult, McpSessionError> {
+        let params = crate::protocol::ResourcesReadParams {
+            uri: uri.to_owned(),
+        };
+        let params_value = serde_json::to_value(&params)
+            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
+        let response = self
+            .send_request("resources/read", Some(params_value), self.config.call_timeout_secs)
+            .await?;
+        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
+            server: self.config.name.clone(),
+            tool: "resources/read".into(),
+            cause: e.to_string(),
+        })
+    }
+
+    /// Subscribe to updates for a specific resource (`resources/subscribe`).
+    ///
+    /// The server will subsequently send `notifications/resources/updated` for
+    /// the matching URI. Apollia's dispatch loop currently drops notifications
+    /// (cf. dispatch_task) — wiring them through is part of the next step.
+    pub async fn subscribe_resource(&self, uri: &str) -> Result<(), McpSessionError> {
+        let params = serde_json::json!({ "uri": uri });
+        self.send_request(
+            "resources/subscribe",
+            Some(params),
+            self.config.call_timeout_secs,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// List the prompts exposed by the server (`prompts/list`).
+    pub async fn list_prompts(
+        &self,
+    ) -> Result<crate::protocol::PromptsListResult, McpSessionError> {
+        let response = self
+            .send_request("prompts/list", None, self.config.call_timeout_secs)
+            .await?;
+        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
+            server: self.config.name.clone(),
+            tool: "prompts/list".into(),
+            cause: e.to_string(),
+        })
+    }
+
+    /// Retrieve a server-side prompt template (`prompts/get`).
+    pub async fn get_prompt(
+        &self,
+        name: &str,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<crate::protocol::PromptsGetResult, McpSessionError> {
+        let params = crate::protocol::PromptsGetParams {
+            name: name.to_owned(),
+            arguments,
+        };
+        let params_value = serde_json::to_value(&params)
+            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
+        let response = self
+            .send_request("prompts/get", Some(params_value), self.config.call_timeout_secs)
+            .await?;
+        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
+            server: self.config.name.clone(),
+            tool: "prompts/get".into(),
+            cause: e.to_string(),
+        })
+    }
+
+    /// Set the server's log level (`logging/setLevel`).
+    pub async fn set_log_level(&self, level: &str) -> Result<(), McpSessionError> {
+        let params = serde_json::json!({ "level": level });
+        self.send_request(
+            "logging/setLevel",
+            Some(params),
+            self.config.call_timeout_secs,
+        )
+        .await
+        .map(|_| ())
     }
 
     /// Gracefully shut down the session.
