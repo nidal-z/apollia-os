@@ -42,6 +42,9 @@ apollia-permissions  = { path = "../apollia-permissions" }
 apollia-aip      = { workspace = true }
 apollia-triggers = { workspace = true }
 apollia-oria     = { workspace = true }
+apollia-auth        = { workspace = true }
+apollia-connectors  = { workspace = true }
+dashmap             = "6"
 async-trait      = { workspace = true }
 futures          = { workspace = true }
 pyo3             = { workspace = true }

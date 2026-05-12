@@ -15,6 +15,7 @@ pub mod chat_libre;
 pub mod cli;
 pub mod config;
 pub mod hitl;
+pub mod integrations;
 pub mod link_preview;
 pub mod llm;
 pub mod mcp;

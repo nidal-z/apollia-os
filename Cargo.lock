@@ -315,6 +315,8 @@ name = "apollia-desktop"
 version = "0.1.0"
 dependencies = [
  "apollia-aip",
+ "apollia-auth",
+ "apollia-connectors",
  "apollia-core",
  "apollia-llm",
  "apollia-mcp",
@@ -329,6 +331,7 @@ dependencies = [
  "arboard",
  "async-trait",
  "chrono",
+ "dashmap",
  "dirs 5.0.1",
  "enigo",
  "futures",
