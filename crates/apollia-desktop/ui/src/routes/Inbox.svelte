@@ -24,6 +24,7 @@
   import { TabBar } from "$lib/components/ui/tabs";
   import { Select } from "$lib/components/ui/select";
   import { navigateTo } from "$lib/stores/navigation";
+  import { pendingChatSessionId } from "$lib/stores/chat";
 
   import {
     PageHeader,
@@ -541,14 +542,15 @@
     }
   }
 
-  /** Jump to the source chat session for an ask_user item. Reuses the
-   *  existing `apollia:chat:open-session` deep-link channel — the chat
-   *  route listens for it and focuses the right session. */
+  /** Jump to the source chat session for an ask_user item.
+   *
+   *  Sets the `pendingChatSessionId` store BEFORE navigation so Chat.svelte's
+   *  `onMount` subscription picks the right session as soon as the route
+   *  mounts. The previous CustomEvent-based path was a no-op — nothing
+   *  in the codebase actually listened for `apollia:chat:open-session`. */
   function openAskUserChat(sessionId: string): void {
+    pendingChatSessionId.set(sessionId);
     navigateTo("chat");
-    window.dispatchEvent(
-      new CustomEvent("apollia:chat:open-session", { detail: { id: sessionId } }),
-    );
   }
 
   async function rejectAskUser(item: InboxItem, reason: string): Promise<void> {

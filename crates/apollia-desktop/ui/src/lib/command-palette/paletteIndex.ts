@@ -22,6 +22,7 @@ import { uiMode, type UIMode } from "$lib/stores/mode";
 import { recentActionIds, touchRecentAction } from "$lib/stores/recentActionsStore";
 import { recentSessions, touchRecentSession } from "$lib/stores/recentSessionsStore";
 import { navigateTo } from "$lib/stores/navigation";
+import { pendingChatSessionId } from "$lib/stores/chat";
 import {
   SETTINGS_SUB_ROUTES,
   goToSettingsSubRoute,
@@ -124,10 +125,10 @@ export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
         keywords: [s.agent_name ?? "", s.id].filter(Boolean),
         action: () => {
           touchRecentSession(s.id);
+          // Set the deep-link store BEFORE navigation so Chat.svelte's
+          // onMount subscription picks the right session immediately.
+          pendingChatSessionId.set(s.id);
           navigateTo("chat");
-          window.dispatchEvent(
-            new CustomEvent("apollia:chat:open-session", { detail: { id: s.id } }),
-          );
         },
       }));
       groups.push({ label: tr("commandPalette.groups.sessions"), items: sessionItems });
