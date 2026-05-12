@@ -21,3 +21,9 @@ open         = { workspace = true }
 base64       = { workspace = true }
 keyring      = { workspace = true }
 urlencoding  = { workspace = true }
+dirs         = "5"
+dashmap      = "6"
+futures      = "0.3"
+
+[dev-dependencies]
+tempfile = "3"

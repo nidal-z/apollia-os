@@ -17,14 +17,23 @@
 //! 7. KeyringStorage::store(name, &token)      → persisted
 //! ```
 
+pub mod auth_manager;
 pub mod callback;
+pub mod connector_providers;
 pub mod error;
+pub mod multi_account;
 pub mod pkce;
 pub mod providers;
 pub mod storage;
 pub mod token;
 
+pub use auth_manager::AuthManager;
+pub use connector_providers::{
+    build_google_provider, build_microsoft_provider, build_microsoft_provider_for_tenant,
+    ConnectorProvider, GoogleScope, MicrosoftScope,
+};
 pub use error::AuthError;
+pub use multi_account::{AccountId, MultiAccountStorage};
 pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
 pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
 pub use storage::KeyringStorage;
