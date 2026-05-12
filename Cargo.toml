@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/apollia-auth",
+    "crates/apollia-connectors",
     "crates/apollia-core",
     "crates/apollia-runtime",
     "crates/apollia-oria",
@@ -22,6 +23,7 @@ members = [
 # apollia-desktop excluded from default builds (heavy tauri dep — use `cargo build -p apollia-desktop`)
 default-members = [
     "crates/apollia-auth",
+    "crates/apollia-connectors",
     "crates/apollia-core",
     "crates/apollia-runtime",
     "crates/apollia-oria",
@@ -169,6 +171,7 @@ apollia-mcp           = { path = "crates/apollia-mcp" }
 apollia-workspace     = { path = "crates/apollia-workspace" }
 apollia-permissions   = { path = "crates/apollia-permissions" }
 apollia-auth          = { path = "crates/apollia-auth" }
+apollia-connectors    = { path = "crates/apollia-connectors" }
 
 [profile.release]
 opt-level = 3
