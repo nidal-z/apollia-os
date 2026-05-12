@@ -31,11 +31,11 @@
     /** Display timestamp (e.g. "il y a 2 min"). */
     timestamp: string;
     unread?: boolean;
-    onclick?: (e: MouseEvent) => void;
+    /** Primary CTA — "Autoriser" / "Répondre" / "Résoudre" depending on type. */
     onAction?: (e: MouseEvent) => void;
     /** Optional second action shown as an icon-only button before the
      *  primary CTA. Used for ask_user items to expose "Open the source
-     *  conversation" without needing to expand the row first. */
+     *  conversation" without expanding the row first. */
     onSecondaryAction?: (e: MouseEvent) => void;
     /** Accessible label for the secondary action (tooltip + aria-label). */
     secondaryLabel?: string;
@@ -47,7 +47,6 @@
     agent,
     timestamp,
     unread = false,
-    onclick,
     onAction,
     onSecondaryAction,
     secondaryLabel,
@@ -74,15 +73,7 @@
 </script>
 
 <div
-  role={onclick ? "button" : undefined}
-  tabindex={onclick ? 0 : undefined}
-  onclick={onclick}
-  onkeydown={onclick
-    ? (e) => {
-        if (e.key === "Enter") onclick(e as unknown as MouseEvent);
-      }
-    : undefined}
-  class="flex gap-2.5 px-4 py-3 cursor-pointer border-b border-border/60 transition-colors {unread
+  class="flex gap-2.5 px-4 py-3 border-b border-border/60 transition-colors {unread
     ? 'bg-primary/5'
     : 'bg-transparent hover:bg-muted/40'}"
 >

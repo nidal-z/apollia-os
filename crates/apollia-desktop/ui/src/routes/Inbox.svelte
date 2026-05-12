@@ -695,7 +695,7 @@
                       agent={item.agentName}
                       timestamp={relTime(item.suspendedAt)}
                       unread={true}
-                      onclick={isApproval ? () => toggleExpand(item) : undefined}
+                      onAction={isApproval ? () => toggleExpand(item) : undefined}
                       onSecondaryAction={item.kind === "ask_user" && item.sessionId
                         ? () => openAskUserChat(item.sessionId!)
                         : undefined}
