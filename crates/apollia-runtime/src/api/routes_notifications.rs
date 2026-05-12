@@ -458,11 +458,18 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
 /// - Instancie le canal via [`build_channels`]
 /// - Envoie une [`Notification`] de test avec l'événement `"test.ping"`
 /// - Mesure la latence et collecte le statut (`"ok"`, `"error"`, `"disabled"`)
+///
+/// **Source de vérité** : on lit la liste des canaux depuis le repository SQLite,
+/// pas depuis le snapshot `state.notification_config` (qui est figé au boot et
+/// ne reflète pas les CRUD opérés via l'API). Fallback sur le snapshot si le
+/// repo n'est pas disponible — préserve le comportement legacy pour la config
+/// `apollia.toml` only.
 pub async fn test_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let Some(config) = state.notification_config.clone() else {
-        return (StatusCode::OK, Json(serde_json::json!({ "results": [] })));
+    let config = match resolve_live_config(&state) {
+        Some(cfg) => cfg,
+        None => return (StatusCode::OK, Json(serde_json::json!({ "results": [] }))),
     };
 
     let mut results: Vec<ChannelTestResult> = Vec::new();
@@ -515,6 +522,38 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
         StatusCode::OK,
         Json(serde_json::json!({ "results": results })),
     )
+}
+
+/// Resolves the *live* notification config.
+///
+/// Reads from the SQLite repository when available (so CRUD-created channels
+/// are visible without an engine reload-and-snapshot cycle), and falls back
+/// to the boot-time `state.notification_config` otherwise. Returns `None`
+/// when neither source has anything (e.g. tests with both fields unset).
+fn resolve_live_config<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> Option<NotificationConfig> {
+    if let Some(repo) = &state.notification_repo {
+        let guard = repo.lock().unwrap_or_else(|e| e.into_inner());
+        let rows = guard.list_channels().unwrap_or_default();
+        let events = guard.get_global_events().unwrap_or_default();
+        if rows.is_empty() && events.is_empty() {
+            // Empty repo — fall back so tests that only set `notification_config`
+            // (no repo) keep working.
+            return state.notification_config.clone();
+        }
+        let inactivity = state
+            .notification_config
+            .as_ref()
+            .map(|c| c.inactivity_timeout_secs)
+            .unwrap_or(30);
+        return Some(NotificationConfig {
+            events,
+            channels: rows.iter().map(|row| row.to_channel_config()).collect(),
+            inactivity_timeout_secs: inactivity,
+        });
+    }
+    state.notification_config.clone()
 }
 
 /// `GET /api/v1/notifications/logs?last=N` — historique des notifications.
@@ -1146,6 +1185,73 @@ mod tests {
             error.contains("bad.event"),
             "expected error about bad.event, got: {error}"
         );
+    }
+
+    // ── resolve_live_config (bug fix : test endpoint stale snapshot) ────────
+
+    #[tokio::test]
+    async fn test_resolve_live_config_reads_repo_first() {
+        // GIVEN un repo contenant un canal créé après-coup, et un snapshot vide
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let repo =
+            NotificationConfigRepository::open(&dir.path().join("notifications.db")).expect("open");
+        repo.insert_channel(&apollia_notifications::NotificationChannelRow {
+            id: "test-discord".into(),
+            label: Some("Discord test".into()),
+            channel_type: "webhook".into(),
+            enabled: true,
+            config_json: serde_json::json!({"url": "https://discord.com/api/webhooks/x/y"}),
+            events_json: None,
+            min_interval_seconds: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        })
+        .expect("insert");
+
+        let mut state = make_state_with_repo(&dir.path().join("notifications.db"));
+        // Override le repo avec celui qu'on vient de seeder
+        state.notification_repo = Some(Arc::new(std::sync::Mutex::new(
+            NotificationConfigRepository::open(&dir.path().join("notifications.db")).expect("open"),
+        )));
+        // notification_config (snapshot) volontairement absent — c'est le cas
+        // que reproduit le bug : le canal n'est connu que du repo.
+        state.notification_config = None;
+
+        // WHEN
+        let resolved = resolve_live_config(&state).expect("config resolved");
+
+        // THEN le canal du repo est bien présent
+        assert_eq!(resolved.channels.len(), 1);
+        assert_eq!(resolved.channels[0].id, "test-discord");
+        assert!(matches!(resolved.channels[0].kind, ChannelKind::Webhook));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_live_config_falls_back_to_snapshot_when_repo_empty() {
+        // GIVEN un repo vide mais un snapshot legacy non-vide
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let mut state = make_state_with_repo(&dir.path().join("notifications.db"));
+        state.notification_config = Some(NotificationConfig {
+            events: vec![],
+            channels: vec![ChannelConfig {
+                id: "legacy".into(),
+                kind: ChannelKind::Desktop,
+                enabled: true,
+                events: None,
+                url: None,
+                signing_secret: None,
+                min_severity: None,
+                min_interval_seconds: 0,
+            }],
+            inactivity_timeout_secs: 30,
+        });
+
+        // WHEN
+        let resolved = resolve_live_config(&state).expect("config resolved");
+
+        // THEN on retombe sur le snapshot
+        assert_eq!(resolved.channels.len(), 1);
+        assert_eq!(resolved.channels[0].id, "legacy");
     }
 
     // ── Tests de types ──────────────────────────────────────────────────────
