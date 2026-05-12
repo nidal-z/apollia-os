@@ -66,6 +66,7 @@
       enabled: ch.enabled,
       config: {},
       events: ch.events.length > 0 ? ch.events : null,
+      min_interval_seconds: ch.min_interval_seconds ?? 0,
       created_at: "",
       updated_at: "",
     };

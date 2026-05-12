@@ -549,6 +549,8 @@ export interface NotificationChannelView {
   enabled: boolean;
   config: Record<string, unknown>;
   events: string[] | null;
+  /** Intervalle minimal de throttling, en secondes (`0` = aucun). */
+  min_interval_seconds: number;
   created_at: string;
   updated_at: string;
 }
@@ -562,6 +564,8 @@ export interface CreateChannelRequest {
   enabled: boolean;
   config: Record<string, unknown>;
   events?: string[];
+  /** Intervalle minimal de throttling, en secondes. Omettre = `0` (aucun). */
+  min_interval_seconds?: number;
 }
 
 /**
@@ -578,6 +582,8 @@ export interface UpdateChannelRequest {
   enabled?: boolean;
   config?: Record<string, unknown>;
   events?: string[];
+  /** Nouvel intervalle de throttling. Omettre = conserver l'existant. */
+  min_interval_seconds?: number;
 }
 
 /** Résultat du test d'un canal de notification. */

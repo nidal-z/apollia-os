@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use tokio::sync::mpsc;
+use tokio::time::interval;
 
 use apollia_core::{EventBusSender, RuntimeEvent};
 
@@ -78,6 +80,33 @@ pub trait NotificationChannel: Send + Sync {
     /// En cas d'erreur, retourner un [`NotifError`] — le [`NotificationEngine`]
     /// logge l'erreur et continue avec les autres canaux sans panic.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError>;
+}
+
+/// État de throttling pour un couple `(canal, événement)`.
+///
+/// Posé par [`apply_throttle`] avant chaque dispatch et flushé par
+/// [`flush_recaps`] en fin de fenêtre. Tout est local au [`run_engine_loop`] :
+/// la map n'est jamais partagée entre tâches, ce qui élimine les Arc<Mutex>.
+#[derive(Debug, Default)]
+struct ThrottleState {
+    /// Dernière émission effective (utilisée pour calculer la fin de fenêtre).
+    /// `None` = aucune émission encore — la première arrive systématiquement.
+    last_sent_at: Option<Instant>,
+    /// Nombre de notifications dropées depuis la dernière émission.
+    dropped_count: u32,
+    /// Échantillon de la dernière notification dropée — utilisé pour le récap
+    /// (on conserve le timestamp et les métadonnées du plus récent drop).
+    recap_sample: Option<Notification>,
+}
+
+/// Résultat d'un check de throttle pour un canal donné.
+enum ThrottleDecision {
+    /// Pas de throttling configuré pour ce canal — envoyer.
+    NoThrottle,
+    /// Fenêtre écoulée ou première émission — envoyer et réarmer.
+    Send,
+    /// Encore dans la fenêtre — droper en silence, accumuler pour le récap.
+    Drop,
 }
 
 /// Commande interne envoyée au [`NotificationEngine`] via son handle.
@@ -344,6 +373,16 @@ async fn run_engine_loop(
     let mut rx = event_bus.subscribe();
     drop(event_bus);
 
+    // Per-(channel_id, event_name) throttle state — local to this task,
+    // never shared. Reset on engine restart by design (UX anti-spam, not
+    // a security rate-limit).
+    let mut throttle: HashMap<(String, String), ThrottleState> = HashMap::new();
+
+    // Tick every second to flush pending recaps. 1s is a fine resolution
+    // given throttle windows are in the 60s-3600s range.
+    let mut recap_tick = interval(Duration::from_secs(1));
+    recap_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     loop {
         tokio::select! {
             biased;
@@ -353,10 +392,22 @@ async fn run_engine_loop(
                         let count = new_channels.len();
                         config = new_config;
                         channels = new_channels;
+                        // Reload drops obsolete throttle entries for channels that
+                        // no longer exist; remaining entries keep their counters.
+                        throttle.retain(|(channel_id, _), _| {
+                            config.channels.iter().any(|c| &c.id == channel_id)
+                        });
                         tracing::info!(channels = count, "NotificationEngine : configuration rechargée");
                     }
                     Some(NotifEngineCommand::Publish { notification }) => {
-                        let channel_results = dispatch_notif(&config, &channels, &notification).await;
+                        let channel_results = dispatch_with_throttle(
+                            &config,
+                            &channels,
+                            &notification,
+                            &mut throttle,
+                            Instant::now(),
+                        )
+                        .await;
                         if let Some(ref db_path) = log_db_path {
                             let db_path = db_path.clone();
                             let notif_clone = notification.clone();
@@ -375,8 +426,14 @@ async fn run_engine_loop(
                 match result {
                     Ok(event) => {
                         if let Some(notif) = map_event_with(&config, &channels, &api_base_url, &event) {
-                            let channel_results =
-                                dispatch_notif(&config, &channels, &notif).await;
+                            let channel_results = dispatch_with_throttle(
+                                &config,
+                                &channels,
+                                &notif,
+                                &mut throttle,
+                                Instant::now(),
+                            )
+                            .await;
                             if let Some(ref db_path) = log_db_path {
                                 let db_path = db_path.clone();
                                 let notif_clone = notif.clone();
@@ -411,7 +468,204 @@ async fn run_engine_loop(
                     }
                 }
             }
+            _ = recap_tick.tick() => {
+                flush_recaps(&config, &channels, &mut throttle, log_db_path.as_deref(), Instant::now()).await;
+            }
         }
+    }
+}
+
+/// Décide ce qu'il faut faire pour le couple `(canal, événement)` donné.
+///
+/// Met à jour l'entrée de throttle correspondante :
+/// - `NoThrottle` : `min_interval_seconds == 0` → l'entrée n'est pas créée.
+/// - `Send` : on enregistre `last_sent_at = now` et on remet le compteur à zéro.
+/// - `Drop` : on incrémente `dropped_count` et on conserve un échantillon
+///   de la notification pour le récap.
+fn apply_throttle(
+    throttle: &mut HashMap<(String, String), ThrottleState>,
+    channel_id: &str,
+    notif: &Notification,
+    min_interval_seconds: u32,
+    now: Instant,
+) -> ThrottleDecision {
+    if min_interval_seconds == 0 {
+        return ThrottleDecision::NoThrottle;
+    }
+    let key = (channel_id.to_string(), notif.event.clone());
+    let entry = throttle.entry(key).or_default();
+    let window = Duration::from_secs(min_interval_seconds as u64);
+    let due = entry
+        .last_sent_at
+        .map(|t| now.saturating_duration_since(t) >= window)
+        .unwrap_or(true);
+    if due {
+        entry.last_sent_at = Some(now);
+        entry.dropped_count = 0;
+        entry.recap_sample = None;
+        ThrottleDecision::Send
+    } else {
+        entry.dropped_count = entry.dropped_count.saturating_add(1);
+        entry.recap_sample = Some(notif.clone());
+        ThrottleDecision::Drop
+    }
+}
+
+/// Dispatch une notification en appliquant le throttle par (canal, événement).
+///
+/// Wrapper autour de [`send_to_channel`] qui consulte la table de throttle
+/// avant chaque envoi. Pour les canaux sans throttling, le comportement est
+/// identique à l'ancien `dispatch_notif`.
+async fn dispatch_with_throttle(
+    config: &NotificationConfig,
+    channels: &[Box<dyn NotificationChannel>],
+    notif: &Notification,
+    throttle: &mut HashMap<(String, String), ThrottleState>,
+    now: Instant,
+) -> HashMap<String, Option<String>> {
+    let mut results = HashMap::new();
+    for channel in channels {
+        if !channel.accepts(&notif.event, config) {
+            continue;
+        }
+        let min_interval = config
+            .channels
+            .iter()
+            .find(|c| c.id == channel.id())
+            .map(|c| c.min_interval_seconds)
+            .unwrap_or(0);
+        match apply_throttle(throttle, channel.id(), notif, min_interval, now) {
+            ThrottleDecision::NoThrottle | ThrottleDecision::Send => {
+                send_to_channel(channel.as_ref(), notif, &mut results).await;
+            }
+            ThrottleDecision::Drop => {
+                tracing::debug!(
+                    channel_id = channel.id(),
+                    event = %notif.event,
+                    "Notification throttled — sera incluse dans le prochain récap"
+                );
+            }
+        }
+    }
+    results
+}
+
+/// Envoie `notif` à `channel` et enregistre le résultat dans `results`.
+///
+/// Extrait de l'ancien `dispatch_notif` pour être partagé entre dispatch
+/// throttled et flush de récap.
+async fn send_to_channel(
+    channel: &dyn NotificationChannel,
+    notif: &Notification,
+    results: &mut HashMap<String, Option<String>>,
+) {
+    match channel.send(notif).await {
+        Ok(()) => {
+            results.insert(channel.id().to_string(), None);
+        }
+        Err(err) => {
+            tracing::warn!(
+                channel_id = channel.id(),
+                error = %err,
+                event = %notif.event,
+                "Canal de notification en erreur — dispatch continue"
+            );
+            results.insert(channel.id().to_string(), Some(err.to_string()));
+        }
+    }
+}
+
+/// Émet les récaps des fenêtres de throttle écoulées.
+///
+/// Pour chaque entrée `(channel_id, event_name)` avec `dropped_count > 0`
+/// dont la fenêtre est échue, construit une notification de synthèse et
+/// la dispatche **uniquement** vers le canal concerné. Cette même émission
+/// réarme l'entrée (`dropped_count = 0`, `last_sent_at = now`).
+async fn flush_recaps(
+    config: &NotificationConfig,
+    channels: &[Box<dyn NotificationChannel>],
+    throttle: &mut HashMap<(String, String), ThrottleState>,
+    log_db_path: Option<&std::path::Path>,
+    now: Instant,
+) {
+    // Collect keys due to flush — borrow-checker dance to avoid holding a mut
+    // borrow on `throttle` across the async send.
+    let due_keys: Vec<(String, String, u32, u32, Notification)> = throttle
+        .iter()
+        .filter_map(|((channel_id, event_name), state)| {
+            if state.dropped_count == 0 {
+                return None;
+            }
+            let min_interval = config
+                .channels
+                .iter()
+                .find(|c| &c.id == channel_id)
+                .map(|c| c.min_interval_seconds)?;
+            if min_interval == 0 {
+                return None;
+            }
+            let last = state.last_sent_at?;
+            if now.saturating_duration_since(last) < Duration::from_secs(min_interval as u64) {
+                return None;
+            }
+            let sample = state.recap_sample.clone()?;
+            Some((
+                channel_id.clone(),
+                event_name.clone(),
+                state.dropped_count,
+                min_interval,
+                sample,
+            ))
+        })
+        .collect();
+
+    for (channel_id, event_name, dropped_count, min_interval, sample) in due_keys {
+        let Some(channel) = channels.iter().find(|c| c.id() == channel_id) else {
+            // Channel disappeared after reload — clear the entry and move on.
+            throttle.remove(&(channel_id, event_name));
+            continue;
+        };
+
+        let recap = build_recap_notification(&sample, dropped_count, min_interval);
+        let mut results = HashMap::new();
+        send_to_channel(channel.as_ref(), &recap, &mut results).await;
+
+        if let Some(state) = throttle.get_mut(&(channel_id.clone(), event_name.clone())) {
+            state.dropped_count = 0;
+            state.last_sent_at = Some(now);
+            state.recap_sample = None;
+        }
+
+        if let Some(db_path) = log_db_path {
+            let db_path = db_path.to_path_buf();
+            let recap_clone = recap.clone();
+            tokio::task::spawn_blocking(move || {
+                write_notification_log(&db_path, &recap_clone, &results);
+            });
+        }
+    }
+}
+
+/// Construit la notification de synthèse pour une fenêtre de throttle écoulée.
+///
+/// Réutilise les `task_id` / `agent` / `severity` du dernier échantillon —
+/// ils seront représentatifs sur un agrégat homogène en pratique. Le
+/// `message` est traduit côté backend (FR uniquement à ce stade ; l'UI
+/// dispose des libellés humains par event_name si elle souhaite re-localiser).
+fn build_recap_notification(sample: &Notification, dropped_count: u32, window_seconds: u32) -> Notification {
+    let total = dropped_count.saturating_add(1); // inclut le drop initial + ceux pendant la fenêtre
+    let message = format!(
+        "{} événements « {} » au cours des {} dernières secondes",
+        total, sample.event, window_seconds,
+    );
+    Notification {
+        event: sample.event.clone(),
+        timestamp: chrono::Utc::now(),
+        task_id: sample.task_id.clone(),
+        agent: sample.agent.clone(),
+        message,
+        metadata: sample.metadata.clone(),
+        severity: sample.severity,
     }
 }
 
@@ -852,5 +1106,214 @@ mod tests {
 
         // THEN flag is reset
         assert!(!engine.cost_threshold_already_notified);
+    }
+
+    // ── Throttle (Item 4) ───────────────────────────────────────────────────
+
+    fn throttle_config(channel_id: &str, event: &str, min_interval: u32) -> NotificationConfig {
+        NotificationConfig {
+            events: vec![event.into()],
+            channels: vec![ChannelConfig {
+                id: channel_id.into(),
+                kind: ChannelKind::Desktop,
+                enabled: true,
+                events: None,
+                url: None,
+                signing_secret: None,
+                min_severity: None,
+                min_interval_seconds: min_interval,
+            }],
+            inactivity_timeout_secs: 30,
+        }
+    }
+
+    fn make_notif(event: &str) -> Notification {
+        Notification {
+            event: event.into(),
+            timestamp: chrono::Utc::now(),
+            task_id: Some("t-001".into()),
+            agent: None,
+            message: format!("test {event}"),
+            metadata: HashMap::new(),
+            severity: Severity::Info,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_throttle_blocks_within_window() {
+        // GIVEN a channel with 60s throttle on task.completed
+        let config = throttle_config("desktop", "task.completed", 60);
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        // WHEN we dispatch 3 events in rapid succession
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(5)).await;
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(30)).await;
+
+        // THEN only the first one reached the channel; the other 2 were dropped
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+
+        // AND the throttle entry tracks the 2 drops
+        let state = throttle
+            .get(&("desktop".into(), "task.completed".into()))
+            .expect("throttle entry");
+        assert_eq!(state.dropped_count, 2);
+        assert!(state.recap_sample.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_throttle_releases_after_window() {
+        // GIVEN a channel with 60s throttle that already sent once
+        let config = throttle_config("desktop", "task.completed", 60);
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        // WHEN one notif passes, then we wait past the window
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(61)).await;
+
+        // THEN both reached the channel — the second one re-armed the window
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+        let state = throttle
+            .get(&("desktop".into(), "task.completed".into()))
+            .expect("throttle entry");
+        assert_eq!(state.dropped_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_throttle_is_per_event_not_global() {
+        // GIVEN a channel with 60s throttle (applies to *every* event independently)
+        let mut config = throttle_config("desktop", "task.completed", 60);
+        // Add another event to the global list so the channel accepts it too
+        config.events.push("task.input_required".into());
+
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        // WHEN we send task.completed (consumed) then task.input_required immediately
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        dispatch_with_throttle(&config, &channels, &make_notif("task.input_required"), &mut throttle, t0 + Duration::from_millis(10)).await;
+
+        // THEN both pass — throttle is per (channel, event) not per channel
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_throttle_zero_disables() {
+        // GIVEN a channel with min_interval = 0 (no throttling)
+        let config = throttle_config("desktop", "task.completed", 0);
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        // WHEN we send 5 events back-to-back
+        for i in 0..5 {
+            dispatch_with_throttle(
+                &config,
+                &channels,
+                &make_notif("task.completed"),
+                &mut throttle,
+                t0 + Duration::from_millis(i),
+            )
+            .await;
+        }
+
+        // THEN all 5 reached the channel and no throttle entry was created
+        assert_eq!(count.load(Ordering::SeqCst), 5);
+        assert!(throttle.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_flush_recaps_emits_summary() {
+        // GIVEN a 60s throttle with 3 drops accumulated, window now elapsed
+        let config = throttle_config("desktop", "task.completed", 60);
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        // 1 initial send + 3 drops
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        for i in 1..=3 {
+            dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(i * 5)).await;
+        }
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+
+        // WHEN we flush after the window elapsed
+        flush_recaps(&config, &channels, &mut throttle, None, t0 + Duration::from_secs(61)).await;
+
+        // THEN the recap was emitted (+1 send)
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+
+        // AND the throttle state is rearmed
+        let state = throttle
+            .get(&("desktop".into(), "task.completed".into()))
+            .expect("entry persists");
+        assert_eq!(state.dropped_count, 0);
+        assert!(state.recap_sample.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_flush_recaps_skips_within_window() {
+        // GIVEN drops accumulated but window not yet elapsed
+        let config = throttle_config("desktop", "task.completed", 60);
+        let count = Arc::new(AtomicU32::new(0));
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: count.clone(),
+        })];
+        let mut throttle = HashMap::new();
+        let t0 = Instant::now();
+
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(10)).await;
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+
+        // WHEN we flush only 30s after — still within window
+        flush_recaps(&config, &channels, &mut throttle, None, t0 + Duration::from_secs(30)).await;
+
+        // THEN no recap was emitted (still 1 total send)
+        assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 }

@@ -48,6 +48,9 @@ pub struct CreateChannelRequest {
     pub config: serde_json::Value,
     /// Liste d'événements spécifiques. `null` = utilise les événements globaux.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes. Défaut : `0` (aucun).
+    #[serde(default)]
+    pub min_interval_seconds: u32,
 }
 
 /// Corps de requête pour `PUT /api/v1/notifications/channels/:id`.
@@ -69,6 +72,8 @@ pub struct UpdateChannelRequest {
     pub config: Option<serde_json::Value>,
     /// Liste d'événements spécifiques.
     pub events: Option<Vec<String>>,
+    /// Nouvel intervalle minimal de throttling (s). Absent = conserver.
+    pub min_interval_seconds: Option<u32>,
 }
 
 /// Distingue `field: null` (`Some(None)`) de l'absence du champ (`None`).
@@ -104,6 +109,8 @@ pub struct ChannelResponse {
     pub config: serde_json::Value,
     /// Événements spécifiques au canal.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes.
+    pub min_interval_seconds: u32,
     /// Horodatage de création (ISO 8601).
     pub created_at: String,
     /// Horodatage de dernière modification (ISO 8601).
@@ -122,6 +129,8 @@ pub struct EventsResponse {
 pub struct ChannelInfo {
     /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
     pub channel_id: String,
+    /// Nom affiché dans l'interface (`None` = retombe sur `channel_id` côté UI).
+    pub label: Option<String>,
     /// Type de canal : `"desktop"`, `"webhook"`, ou `"terminal"`.
     #[serde(rename = "type")]
     pub kind: String,
@@ -129,6 +138,8 @@ pub struct ChannelInfo {
     pub enabled: bool,
     /// Liste des événements que ce canal accepte.
     pub events: Vec<String>,
+    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    pub min_interval_seconds: u32,
 }
 
 /// Résultat du test d'un canal individuel retourné par `POST /test`.
@@ -202,6 +213,7 @@ pub async fn create_channel<B: ExecutionBackend + Clone>(
         enabled: body.enabled.unwrap_or(true),
         config_json: body.config,
         events_json: body.events,
+        min_interval_seconds: body.min_interval_seconds,
         created_at: String::new(),
         updated_at: String::new(),
     };
@@ -274,6 +286,9 @@ pub async fn update_channel<B: ExecutionBackend + Clone>(
             enabled: body.enabled.unwrap_or(existing.enabled),
             config_json: body.config.unwrap_or(existing.config_json),
             events_json: body.events.or(existing.events_json),
+            min_interval_seconds: body
+                .min_interval_seconds
+                .unwrap_or(existing.min_interval_seconds),
             created_at: existing.created_at,
             updated_at: existing.updated_at,
         };
@@ -426,9 +441,11 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
         .iter()
         .map(|ch| ChannelInfo {
             channel_id: ch.id.clone(),
+            label: None,
             kind: channel_kind_str(&ch.kind),
             enabled: ch.enabled,
             events: ch.events.clone().unwrap_or_else(|| config.events.clone()),
+            min_interval_seconds: ch.min_interval_seconds,
         })
         .collect();
 
@@ -577,6 +594,7 @@ fn row_to_response(row: &NotificationChannelRow) -> ChannelResponse {
         enabled: row.enabled,
         config: row.config_json.clone(),
         events: row.events_json.clone(),
+        min_interval_seconds: row.min_interval_seconds,
         created_at: row.created_at.clone(),
         updated_at: row.updated_at.clone(),
     }
@@ -1173,6 +1191,7 @@ mod tests {
                 url: None,
                 signing_secret: None,
                 min_severity: None,
+                min_interval_seconds: 0,
             }],
             inactivity_timeout_secs: 30,
         };

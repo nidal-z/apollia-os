@@ -10,6 +10,10 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { slugify } from "$lib/utils/slugify";
   import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
+  import {
+    THROTTLE_PRESETS,
+    MAX_MIN_INTERVAL_SECONDS,
+  } from "$lib/notifications/throttle-options";
 
   interface Props {
     open: boolean;
@@ -33,6 +37,8 @@
   let webhookUrl = $state("");
   let headersText = $state("");
   let selectedEvents = $state<Set<string>>(new Set());
+  let throttlePreset = $state<string>("0"); // selected option value (as string for Select)
+  let throttleCustom = $state("0"); // string for Input binding; parsed in `throttleValue`
 
   let submitting = $state(false);
   let submitError = $state<string | null>(null);
@@ -76,12 +82,29 @@
     }
   });
 
+  /**
+   * Resolved throttle value in seconds.
+   * "custom" → use `throttleCustom`; otherwise parse the preset.
+   */
+  const throttleValue = $derived(
+    throttlePreset === "custom"
+      ? Math.max(0, Math.floor(Number.parseFloat(throttleCustom) || 0))
+      : parseInt(throttlePreset, 10) || 0,
+  );
+
+  const throttleError = $derived.by(() => {
+    if (!touched) return null;
+    if (throttleValue > MAX_MIN_INTERVAL_SECONDS) return $t("notifications.field_throttle_too_large");
+    return null;
+  });
+
   const isValid = $derived(
     !!channelId.trim() &&
     CHANNEL_ID_PATTERN.test(channelId) &&
     label.length <= LABEL_MAX_LEN &&
     (channelType !== "webhook" || !!webhookUrl.trim()) &&
-    !headersError
+    !headersError &&
+    !throttleError
   );
 
   function toggleEvent(event: string) {
@@ -127,6 +150,9 @@
       if (selectedEvents.size > 0) {
         request.events = [...selectedEvents];
       }
+      if (throttleValue > 0) {
+        request.min_interval_seconds = throttleValue;
+      }
 
       await invoke<NotificationChannelView>("create_notification_channel", {
         channel: request,
@@ -149,6 +175,8 @@
     webhookUrl = "";
     headersText = "";
     selectedEvents = new Set();
+    throttlePreset = "0";
+    throttleCustom = "0";
     submitting = false;
     submitError = null;
     touched = false;
@@ -286,6 +314,40 @@
         </div>
       </div>
     {/if}
+
+    <!-- Throttle (per (channel, event) min interval) -->
+    <div>
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-throttle">{$t("notifications.field_throttle")}</label>
+      <Select
+        id="channel-throttle"
+        bind:value={throttlePreset}
+        data-testid="channel-throttle-select"
+      >
+        {#each THROTTLE_PRESETS as preset}
+          <option value={String(preset.value)}>{$t(preset.key)}</option>
+        {/each}
+        <option value="custom">{$t("notifications.throttle_options.custom")}</option>
+      </Select>
+      {#if throttlePreset === "custom"}
+        <div class="mt-2">
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-throttle-custom">
+            {$t("notifications.throttle_custom_label")}
+          </label>
+          <Input
+            id="channel-throttle-custom"
+            type="number"
+            min={1}
+            max={MAX_MIN_INTERVAL_SECONDS}
+            bind:value={throttleCustom}
+            data-testid="channel-throttle-custom-input"
+          />
+        </div>
+      {/if}
+      <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_throttle_help")}</p>
+      {#if throttleError}
+        <p class="mt-0.5 text-xs text-destructive" data-testid="channel-throttle-error">{throttleError}</p>
+      {/if}
+    </div>
 
     <!-- Enabled toggle -->
     <label class="flex items-center gap-2 text-sm">

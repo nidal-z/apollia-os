@@ -46,11 +46,18 @@ pub enum NotificationConfigError {
 /// Longueur maximale du `label` d'un canal, en caractères Unicode (`char`).
 pub const MAX_LABEL_LEN: usize = 80;
 
+/// Borne supérieure du throttle d'un canal — 24 heures.
+///
+/// Au-delà, on bascule en territoire de digest planifié, qui sort du périmètre
+/// de cette feature.
+pub const MAX_MIN_INTERVAL_SECONDS: u32 = 86_400;
+
 /// Valide un canal de notification avant insertion ou mise à jour.
 ///
 /// Règles :
 /// - Un canal de type `"webhook"` doit avoir une clé `"url"` non vide dans `config_json`.
 /// - Si `label` est `Some`, il doit être non vide après trim et ≤ [`MAX_LABEL_LEN`] caractères.
+/// - `min_interval_seconds` ≤ [`MAX_MIN_INTERVAL_SECONDS`].
 pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationConfigError> {
     if ch.channel_type == "webhook" {
         let has_url = ch
@@ -65,6 +72,20 @@ pub fn validate_channel(ch: &NotificationChannelRow) -> Result<(), NotificationC
         }
     }
     validate_label(ch.label.as_deref())?;
+    validate_min_interval(ch.min_interval_seconds)?;
+    Ok(())
+}
+
+/// Valide une valeur de `min_interval_seconds`.
+///
+/// `0` est accepté (pas de throttling). Au-delà de [`MAX_MIN_INTERVAL_SECONDS`],
+/// la valeur est refusée pour éviter des fenêtres absurdes côté UI.
+pub fn validate_min_interval(seconds: u32) -> Result<(), NotificationConfigError> {
+    if seconds > MAX_MIN_INTERVAL_SECONDS {
+        return Err(NotificationConfigError::ValidationError(format!(
+            "min_interval_seconds too large: {seconds} (max {MAX_MIN_INTERVAL_SECONDS})"
+        )));
+    }
     Ok(())
 }
 
@@ -117,6 +138,7 @@ mod tests {
             enabled: true,
             config_json: config,
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -153,10 +175,29 @@ mod tests {
             enabled: true,
             config_json: serde_json::json!({}),
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         };
         assert!(validate_channel(&ch).is_ok());
+    }
+
+    #[test]
+    fn test_validate_min_interval_zero_ok() {
+        assert!(validate_min_interval(0).is_ok());
+    }
+
+    #[test]
+    fn test_validate_min_interval_reasonable_ok() {
+        for v in [1u32, 60, 300, 3600, 7200, MAX_MIN_INTERVAL_SECONDS] {
+            assert!(validate_min_interval(v).is_ok(), "expected {v} to be ok");
+        }
+    }
+
+    #[test]
+    fn test_validate_min_interval_over_cap_rejects() {
+        let err = validate_min_interval(MAX_MIN_INTERVAL_SECONDS + 1).unwrap_err();
+        assert!(matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too large")));
     }
 
     #[test]

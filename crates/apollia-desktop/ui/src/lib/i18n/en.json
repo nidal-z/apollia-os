@@ -1410,6 +1410,17 @@
         "backend_down": "The configured AI provider is no longer responding."
       }
     },
+    "field_throttle": "Throttle notifications",
+    "field_throttle_help": "At most one notification per window, per (channel, event type). Extra notifications are grouped into a summary.",
+    "field_throttle_too_large": "Interval too long (max 86400 s = 24 h)",
+    "throttle_options": {
+      "none": "No limit",
+      "minute": "1 per minute (60 s)",
+      "five_min": "1 every 5 min (300 s)",
+      "hour": "1 per hour (3600 s)",
+      "custom": "Custom…"
+    },
+    "throttle_custom_label": "Minimum interval (seconds)",
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",

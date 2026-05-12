@@ -25,6 +25,8 @@ pub struct NotificationChannel {
     pub enabled: bool,
     /// Liste des événements que ce canal accepte.
     pub events: Vec<String>,
+    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    pub min_interval_seconds: u32,
 }
 
 /// Résultat du test d'un canal individuel.
@@ -93,6 +95,11 @@ pub async fn list_notification_channels(
                 .get("label")
                 .and_then(|v| v.as_str())
                 .map(String::from);
+            let min_interval_seconds = ch
+                .get("min_interval_seconds")
+                .and_then(|v| v.as_u64())
+                .and_then(|n| u32::try_from(n).ok())
+                .unwrap_or(0);
             NotificationChannel {
                 channel_id: id,
                 label,
@@ -107,6 +114,7 @@ pub async fn list_notification_channels(
                             .collect()
                     })
                     .unwrap_or_default(),
+                min_interval_seconds,
             }
         })
         .collect();
@@ -223,6 +231,8 @@ pub struct NotificationChannelView {
     pub config: serde_json::Value,
     /// Événements spécifiques au canal. `null` = utilise les événements globaux.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes (`0` = aucun).
+    pub min_interval_seconds: u32,
     /// Horodatage de création (ISO 8601).
     pub created_at: String,
     /// Horodatage de dernière modification (ISO 8601).
@@ -245,6 +255,13 @@ pub struct CreateChannelRequest {
     pub config: serde_json::Value,
     /// Liste d'événements spécifiques. `null` = utilise les événements globaux.
     pub events: Option<Vec<String>>,
+    /// Intervalle minimal de throttling, en secondes. Défaut : `0` (aucun).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub min_interval_seconds: u32,
+}
+
+fn is_zero(v: &u32) -> bool {
+    *v == 0
 }
 
 /// Corps de requête pour la mise à jour d'un canal via
@@ -267,6 +284,9 @@ pub struct UpdateChannelRequest {
     pub config: Option<serde_json::Value>,
     /// Liste d'événements spécifiques.
     pub events: Option<Vec<String>>,
+    /// Nouvel intervalle minimal de throttling (s). Absent = conserver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_interval_seconds: Option<u32>,
 }
 
 /// Parse un JSON de réponse API en `NotificationChannelView`.
@@ -298,6 +318,11 @@ fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
                     .collect()
             })
         }),
+        min_interval_seconds: json
+            .get("min_interval_seconds")
+            .and_then(|v| v.as_u64())
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(0),
         created_at: json
             .get("created_at")
             .and_then(|v| v.as_str())
@@ -402,6 +427,7 @@ mod tests {
             kind: "desktop".to_string(),
             enabled: true,
             events: vec!["task.completed".to_string(), "pipeline.failed".to_string()],
+            min_interval_seconds: 0,
         };
 
         // WHEN serialized to JSON
@@ -425,6 +451,7 @@ mod tests {
             kind: "webhook".to_string(),
             enabled: false,
             events: vec![],
+            min_interval_seconds: 0,
         };
 
         // WHEN serialized to JSON
@@ -528,6 +555,7 @@ mod tests {
                 "task.completed".to_string(),
                 "pipeline.failed".to_string(),
             ]),
+            min_interval_seconds: 0,
             created_at: "2026-03-20T10:00:00Z".to_string(),
             updated_at: "2026-03-20T10:00:00Z".to_string(),
         };
@@ -555,6 +583,7 @@ mod tests {
             enabled: true,
             config: serde_json::json!({}),
             events: None,
+            min_interval_seconds: 0,
             created_at: "2026-03-20T10:00:00Z".to_string(),
             updated_at: "2026-03-20T10:00:00Z".to_string(),
         };
@@ -599,6 +628,7 @@ mod tests {
             enabled: Some(true),
             config: serde_json::json!({"url": "https://example.com/hook"}),
             events: None,
+            min_interval_seconds: 0,
         };
 
         // WHEN serialized to JSON
@@ -621,6 +651,7 @@ mod tests {
             enabled: None,
             config: serde_json::json!({}),
             events: None,
+            min_interval_seconds: 0,
         };
 
         // WHEN serialized

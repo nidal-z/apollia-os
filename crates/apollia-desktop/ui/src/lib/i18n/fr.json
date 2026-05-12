@@ -1410,6 +1410,17 @@
         "backend_down": "Le fournisseur d'IA configuré ne répond plus."
       }
     },
+    "field_throttle": "Limiter les notifications",
+    "field_throttle_help": "Une notification au maximum par fenêtre, pour ce canal et ce type d'événement. Les notifications dépassant la limite sont regroupées dans un récapitulatif.",
+    "field_throttle_too_large": "Intervalle trop long (max 86400 s = 24 h)",
+    "throttle_options": {
+      "none": "Aucune limite",
+      "minute": "1 par minute (60 s)",
+      "five_min": "1 toutes les 5 min (300 s)",
+      "hour": "1 par heure (3600 s)",
+      "custom": "Personnalisé…"
+    },
+    "throttle_custom_label": "Intervalle minimal (secondes)",
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",

@@ -30,6 +30,11 @@ pub struct NotificationChannelRow {
     pub config_json: serde_json::Value,
     /// Liste d'événements spécifiques à ce canal. `None` = utilise les événements globaux.
     pub events_json: Option<Vec<String>>,
+    /// Intervalle minimal en secondes entre deux notifications pour le même
+    /// couple `(canal, événement)`. `0` = pas de throttling. Cap appliqué par
+    /// la validation à [`crate::validation::MAX_MIN_INTERVAL_SECONDS`].
+    #[serde(default)]
+    pub min_interval_seconds: u32,
     /// Date de création (ISO 8601).
     pub created_at: String,
     /// Date de dernière mise à jour (ISO 8601).
@@ -132,9 +137,9 @@ impl NotificationConfigRepository {
         let config_str = serde_json::to_string(&ch.config_json).unwrap_or_else(|_| "{}".into());
 
         self.conn.execute(
-            "INSERT INTO notification_channels (id, label, channel_type, enabled, config_json, events_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![ch.id, ch.label, ch.channel_type, ch.enabled, config_str, events_str],
+            "INSERT INTO notification_channels (id, label, channel_type, enabled, config_json, events_json, min_interval_seconds)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![ch.id, ch.label, ch.channel_type, ch.enabled, config_str, events_str, ch.min_interval_seconds],
         )?;
 
         Ok(())
@@ -164,9 +169,10 @@ impl NotificationConfigRepository {
         self.conn.execute(
             "UPDATE notification_channels
              SET label = ?1, channel_type = ?2, enabled = ?3, config_json = ?4, events_json = ?5,
+                 min_interval_seconds = ?6,
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-             WHERE id = ?6",
-            params![ch.label, ch.channel_type, ch.enabled, config_str, events_str, id],
+             WHERE id = ?7",
+            params![ch.label, ch.channel_type, ch.enabled, config_str, events_str, ch.min_interval_seconds, id],
         )?;
 
         Ok(())
@@ -194,7 +200,8 @@ impl NotificationConfigRepository {
         id: &str,
     ) -> Result<Option<NotificationChannelRow>, NotificationConfigError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, label, channel_type, enabled, config_json, events_json, created_at, updated_at
+            "SELECT id, label, channel_type, enabled, config_json, events_json,
+                    COALESCE(min_interval_seconds, 0), created_at, updated_at
              FROM notification_channels WHERE id = ?1",
         )?;
 
@@ -208,7 +215,8 @@ impl NotificationConfigRepository {
     /// Liste tous les canaux enregistrés.
     pub fn list_channels(&self) -> Result<Vec<NotificationChannelRow>, NotificationConfigError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, label, channel_type, enabled, config_json, events_json, created_at, updated_at
+            "SELECT id, label, channel_type, enabled, config_json, events_json,
+                    COALESCE(min_interval_seconds, 0), created_at, updated_at
              FROM notification_channels ORDER BY id",
         )?;
 
@@ -339,13 +347,15 @@ impl NotificationChannelRow {
             url,
             signing_secret,
             min_severity,
+            min_interval_seconds: self.min_interval_seconds,
         }
     }
 }
 
 /// Convertit une ligne SQLite en [`NotificationChannelRow`].
 ///
-/// Ordre attendu : `id, label, channel_type, enabled, config_json, events_json, created_at, updated_at`.
+/// Ordre attendu : `id, label, channel_type, enabled, config_json, events_json,
+/// min_interval_seconds, created_at, updated_at`.
 fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChannelRow> {
     let config_str: String = row.get(4)?;
     let events_str: Option<String> = row.get(5)?;
@@ -355,6 +365,8 @@ fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChann
 
     let events_json: Option<Vec<String>> = events_str.and_then(|s| serde_json::from_str(&s).ok());
 
+    let min_interval_seconds: u32 = row.get::<_, i64>(6)?.try_into().unwrap_or(0);
+
     Ok(NotificationChannelRow {
         id: row.get(0)?,
         label: row.get(1)?,
@@ -362,8 +374,9 @@ fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChann
         enabled: row.get(3)?,
         config_json,
         events_json,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        min_interval_seconds,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
     })
 }
 
@@ -382,6 +395,12 @@ fn ensure_columns(conn: &Connection) -> Result<(), NotificationConfigError> {
     if !existing.iter().any(|c| c == "label") {
         conn.execute(
             "ALTER TABLE notification_channels ADD COLUMN label TEXT",
+            [],
+        )?;
+    }
+    if !existing.iter().any(|c| c == "min_interval_seconds") {
+        conn.execute(
+            "ALTER TABLE notification_channels ADD COLUMN min_interval_seconds INTEGER NOT NULL DEFAULT 0",
             [],
         )?;
     }
@@ -415,6 +434,7 @@ mod tests {
                 serde_json::json!({})
             },
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -578,6 +598,7 @@ mod tests {
             enabled: true,
             config_json: serde_json::json!({}),
             events_json: None,
+            min_interval_seconds: 0,
             created_at: String::new(),
             updated_at: String::new(),
         };

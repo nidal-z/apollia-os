@@ -56,6 +56,14 @@ pub struct ChannelConfig {
     /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
     /// ignorées. Défaut : `Info` (toutes les notifications sont transmises).
     pub min_severity: Option<Severity>,
+    /// Intervalle minimal entre deux notifications pour le même couple
+    /// `(canal, événement)`, en secondes. `0` = pas de throttling.
+    ///
+    /// Appliqué par [`crate::engine::NotificationEngine`] avant le dispatch.
+    /// Les notifications dropées sont comptabilisées et synthétisées en un
+    /// récapitulatif émis à la fin de la fenêtre.
+    #[serde(default)]
+    pub min_interval_seconds: u32,
 }
 
 /// Type de canal de notification.
@@ -352,6 +360,7 @@ mod tests {
             url: None,
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN
@@ -375,6 +384,7 @@ mod tests {
             url: Some("https://hooks.slack.com/test".into()),
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN
@@ -397,6 +407,7 @@ mod tests {
             url: None,
             signing_secret: None,
             min_severity: None,
+            min_interval_seconds: 0,
         }];
 
         // WHEN
