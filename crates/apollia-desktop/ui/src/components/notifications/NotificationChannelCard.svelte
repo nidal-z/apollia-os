@@ -23,7 +23,6 @@
   const TYPE_BADGE: Record<string, { label: string; extraClass: string }> = {
     desktop: { label: "Desktop", extraClass: "border-info text-info" },
     webhook: { label: "Webhook", extraClass: "border-accent text-accent-foreground" },
-    sse: { label: "SSE", extraClass: "border-info text-info-foreground" },
   };
 
   const badgeConfig = $derived(

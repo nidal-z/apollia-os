@@ -313,7 +313,7 @@ impl NotificationChannelRow {
     pub fn to_channel_config(&self) -> crate::config::ChannelConfig {
         let kind = match self.channel_type.as_str() {
             "webhook" => crate::config::ChannelKind::Webhook,
-            "sse" => crate::config::ChannelKind::Sse,
+            "terminal" => crate::config::ChannelKind::Terminal,
             _ => crate::config::ChannelKind::Desktop,
         };
         let url = self

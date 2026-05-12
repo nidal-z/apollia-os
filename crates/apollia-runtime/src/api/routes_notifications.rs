@@ -122,7 +122,7 @@ pub struct EventsResponse {
 pub struct ChannelInfo {
     /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
     pub channel_id: String,
-    /// Type de canal : `"desktop"`, `"webhook"`, ou `"sse"`.
+    /// Type de canal : `"desktop"`, `"webhook"`, ou `"terminal"`.
     #[serde(rename = "type")]
     pub kind: String,
     /// `true` si le canal est activé dans la configuration.
@@ -658,7 +658,6 @@ fn channel_kind_str(kind: &ChannelKind) -> String {
     match kind {
         ChannelKind::Desktop => "desktop".to_string(),
         ChannelKind::Webhook => "webhook".to_string(),
-        ChannelKind::Sse => "sse".to_string(),
         ChannelKind::Terminal => "terminal".to_string(),
     }
 }
@@ -1159,7 +1158,7 @@ mod tests {
     fn test_channel_kind_str_all_variants() {
         assert_eq!(channel_kind_str(&ChannelKind::Desktop), "desktop");
         assert_eq!(channel_kind_str(&ChannelKind::Webhook), "webhook");
-        assert_eq!(channel_kind_str(&ChannelKind::Sse), "sse");
+        assert_eq!(channel_kind_str(&ChannelKind::Terminal), "terminal");
     }
 
     #[test]
