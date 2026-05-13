@@ -6,6 +6,7 @@
   import { GlossaryTerm } from "$lib/components/ui/tooltip";
   import { Trash2 } from "lucide-svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { DataTable, type Column } from "$lib/components/ui/data-table";
 
   interface Props {
     entries: MemoryEntry[];
@@ -26,7 +27,7 @@
 
   function truncate(text: string, max: number): string {
     if (text.length <= max) return text;
-    return text.slice(0, max) + "\u2026";
+    return text.slice(0, max) + "…";
   }
 
   function relativeTime(iso: string): string {
@@ -50,7 +51,7 @@
   }
 
   function ttlDisplay(expiresAt: string | null): string {
-    if (expiresAt === null) return "\u221E";
+    if (expiresAt === null) return "∞";
     const now = Date.now();
     const exp = new Date(expiresAt).getTime();
     const diffMs = exp - now;
@@ -82,7 +83,86 @@
   function handleCancelDelete() {
     deleteEntryId = null;
   }
+
+  const columns = $derived<Column<MemoryEntry>[]>([
+    {
+      key: "entry_type",
+      header: $t('memory.table.type'),
+      cell: typeCell,
+    },
+    {
+      key: "key",
+      header: $t('memory.table.key'),
+      cell: keyCell,
+    },
+    {
+      key: "value",
+      header: $t('memory.table.value'),
+      cell: valueCell,
+    },
+    ...(searching
+      ? [{ key: "score" as const, header: $t('memory.table.score'), cell: scoreCell } satisfies Column<MemoryEntry>]
+      : []),
+    {
+      key: "created_at",
+      header: $t('memory.table.date'),
+      cell: dateCell,
+    },
+    {
+      key: "expires_at",
+      header: $t('memory.table.ttl'),
+      cell: ttlCell,
+    },
+    {
+      key: "id",
+      header: $t('memory.table.actions'),
+      align: "right",
+      cell: actionsCell,
+    },
+  ]);
 </script>
+
+{#snippet typeCell(entry: MemoryEntry)}
+  <Badge variant={TYPE_VARIANT[entry.entry_type] ?? "secondary"}>
+    <GlossaryTerm term={entry.entry_type} label={$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })} />
+  </Badge>
+{/snippet}
+
+{#snippet keyCell(entry: MemoryEntry)}
+  <span class="block max-w-[160px] truncate font-mono text-xs" title={entry.key}>
+    {entry.key}
+  </span>
+{/snippet}
+
+{#snippet valueCell(entry: MemoryEntry)}
+  <span class="block max-w-[300px]" title={entry.value}>
+    {truncate(entry.value, 100)}
+  </span>
+{/snippet}
+
+{#snippet scoreCell(entry: MemoryEntry)}
+  <span class="font-mono text-xs">{entry.score !== null && entry.score !== undefined ? entry.score.toFixed(2) : "-"}</span>
+{/snippet}
+
+{#snippet dateCell(entry: MemoryEntry)}
+  <span class="whitespace-nowrap text-xs text-muted-foreground">{relativeTime(entry.created_at)}</span>
+{/snippet}
+
+{#snippet ttlCell(entry: MemoryEntry)}
+  <span class="text-xs text-muted-foreground">{ttlDisplay(entry.expires_at)}</span>
+{/snippet}
+
+{#snippet actionsCell(entry: MemoryEntry)}
+  <Button
+    size="sm"
+    variant="ghost"
+    onclick={() => requestDelete(entry.id)}
+    aria-label={$t('memory.delete_label')}
+    data-testid="memory-delete-btn-{entry.id}"
+  >
+    <Trash2 class="h-4 w-4" />
+  </Button>
+{/snippet}
 
 {#if entries.length === 0}
   <div
@@ -95,62 +175,13 @@
     </p>
   </div>
 {:else}
-  <div class="overflow-x-auto rounded-md glass-border glass-surface">
-    <table class="w-full min-w-[640px] text-sm" data-testid="memory-table">
-      <thead class="border-b border-border bg-muted/50">
-        <tr>
-          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
-          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
-          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.value')}</th>
-          {#if searching}
-            <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground"><GlossaryTerm term="bm25" label={$t('memory.table.score')} /></th>
-          {/if}
-          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.date')}</th>
-          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.ttl')}</th>
-          <th scope="col" class="px-4 py-2 text-right font-medium text-muted-foreground">{$t('memory.table.actions')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each entries as entry (entry.id)}
-          <tr class="border-b last:border-b-0 hover:bg-muted">
-            <td class="px-4 py-2">
-              <Badge variant={TYPE_VARIANT[entry.entry_type] ?? "secondary"}>
-                <GlossaryTerm term={entry.entry_type} label={$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })} />
-              </Badge>
-            </td>
-            <td class="max-w-[160px] truncate px-4 py-2 font-mono text-xs" title={entry.key}>
-              {entry.key}
-            </td>
-            <td class="max-w-[300px] px-4 py-2" title={entry.value}>
-              {truncate(entry.value, 100)}
-            </td>
-            {#if searching}
-              <td class="px-4 py-2 font-mono text-xs">
-                {entry.score !== null ? entry.score.toFixed(2) : "-"}
-              </td>
-            {/if}
-            <td class="whitespace-nowrap px-4 py-2 text-xs text-muted-foreground">
-              {relativeTime(entry.created_at)}
-            </td>
-            <td class="px-4 py-2 text-xs text-muted-foreground">
-              {ttlDisplay(entry.expires_at)}
-            </td>
-            <td class="px-4 py-2 text-right">
-              <Button
-                size="sm"
-                variant="ghost"
-                onclick={() => requestDelete(entry.id)}
-                aria-label={$t('memory.delete_label')}
-                data-testid="memory-delete-btn-{entry.id}"
-              >
-                <Trash2 class="h-4 w-4" />
-              </Button>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
+  <DataTable
+    data={entries}
+    {columns}
+    rowKey={(e) => e.id}
+    class="min-w-[640px]"
+    emptyLabel={$t('memory.empty_entries')}
+  />
 {/if}
 
 <!-- Delete confirmation dialog -->

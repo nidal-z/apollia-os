@@ -7,7 +7,7 @@
   import type { TaskSummary } from "$lib/types";
   import { tasks } from "$lib/stores/tasks";
   import { uiMode } from "$lib/stores/mode";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import {
@@ -19,6 +19,7 @@
   import ExecutionTrace from "../observability/ExecutionTrace.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
   import { BuilderOnly } from "$lib/components/shared";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     taskId: string;
@@ -155,10 +156,10 @@
       </div>
 
       <!-- ── Scrollable content ─────────────────────────────────────────── -->
-      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <SheetContent padding="flush" class="px-4 py-4 space-y-3">
 
         <!-- Input card -->
-        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="task-detail-input">
+        <Card class="rounded-lg px-4 py-3.5" data-testid="task-detail-input">
           <div class="flex items-center gap-2 mb-2">
             <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.input')}</span>
             {#if inputTruncated}
@@ -188,14 +189,11 @@
               </button>
             {/if}
           {/if}
-        </div>
+        </Card>
 
         <!-- Result / Error card -->
         {#if task.output_text}
-          <div
-            class="glass-card glass-border rounded-lg px-4 py-3.5 {task.status === 'failed' ? 'border-destructive/30' : ''}"
-            data-testid="task-detail-result"
-          >
+          <Card class="rounded-lg px-4 py-3.5 {task.status === 'failed' ? 'border-destructive/30' : ''}" data-testid="task-detail-result">
             <div class="flex items-center gap-2 mb-2">
               {#if task.status === 'failed'}
                 <XCircle size={11} class="text-destructive shrink-0" />
@@ -214,11 +212,11 @@
                 <SmartOutput output={task.output_text} />
               {/if}
             </div>
-          </div>
+          </Card>
         {/if}
 
         <!-- Timeline card (always visible) -->
-        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-detail-timeline">
+        <Card class="rounded-lg overflow-hidden" data-testid="task-detail-timeline">
           <div class="flex items-center gap-2 px-4 py-3 border-b border-border/40">
             <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.timeline')}</span>
             {#if isRunning}
@@ -235,11 +233,11 @@
               mode={isRunning ? "live" : "replay"}
             />
           </div>
-        </div>
+        </Card>
 
         <!-- Technical details (builder only) -->
         {#if mode === "builder"}
-          <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-detail-technical">
+          <Card class="rounded-lg overflow-hidden" data-testid="task-detail-technical">
             <button
               class="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-primary/5"
               onclick={() => technicalExpanded = !technicalExpanded}
@@ -260,10 +258,10 @@
                 </div>
               </div>
             {/if}
-          </div>
+          </Card>
         {/if}
 
-      </div>
+      </SheetContent>
     {/if}
   </div>
 </Sheet>

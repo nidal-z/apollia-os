@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { BtnPrimary, BtnSecondary } from "$lib/components/operator";
+  import { Button } from "$lib/components/ui/button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Input } from "$lib/components/ui/input";
 
   /**
    * Snapshot of the active OAuth client_id per connector provider plus the
@@ -152,7 +154,7 @@
   {#if loading && statuses.length === 0}
     <div class="space-y-2">
       {#each [0, 1] as i (i)}
-        <div class="h-28 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+        <Skeleton class="h-28 rounded-xl bg-surface-1 border border-border" />
       {/each}
     </div>
   {:else}
@@ -171,13 +173,13 @@
                 Source actuelle : {sourceLabel(status.source)}
               </div>
             </div>
-            <BtnSecondary
+            <Button variant="outline" size="sm"
               onclick={() => clearOverride(status.provider)}
               disabled={savingProvider !== null ||
                 (status.override_client_id ?? "").length === 0}
             >
               Effacer l'override
-            </BtnSecondary>
+            </Button>
           </div>
 
           {#if status.effective_client_id}
@@ -193,7 +195,7 @@
 
           <label class="block text-xs font-medium">
             Override OAuth client_id
-            <input
+            <Input
               type="text"
               class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
               placeholder={status.provider === "google"
@@ -204,16 +206,16 @@
               autocomplete="off"
               spellcheck={false}
               data-testid={`oauth-input-${status.provider}`}
-            />
+             />
           </label>
 
           <div class="flex justify-end">
-            <BtnPrimary
+            <Button variant="primary-solid" size="sm"
               onclick={() => save(status.provider)}
               disabled={savingProvider === status.provider}
             >
               {savingProvider === status.provider ? "Enregistrement…" : "Enregistrer"}
-            </BtnPrimary>
+            </Button>
           </div>
         </div>
       {/each}

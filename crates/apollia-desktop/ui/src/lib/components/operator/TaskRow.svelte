@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Shield, Sparkles } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
-  import Chip from "./Chip.svelte";
+  import { Badge } from "$lib/components/ui/badge";
 
   export type TaskStatus =
     | "queued"
@@ -117,7 +117,7 @@
     {/if}
   </div>
   <div class="w-[120px]">
-    <Chip size="sm" tone={cfg.tone}>
+    <Badge size="sm" variant={cfg.tone}>
       {#snippet icon()}
         {#if task.status === "running"}
           <StatusDot color="hsl(var(--primary))" glow />
@@ -128,7 +128,7 @@
         {/if}
       {/snippet}
       {cfg.label}
-    </Chip>
+    </Badge>
   </div>
   <div
     class="w-[90px] text-[10.5px] text-muted-foreground text-right font-mono"

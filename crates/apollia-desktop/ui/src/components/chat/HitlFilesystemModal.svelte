@@ -22,9 +22,10 @@
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
   import { addToast } from "$lib/components/ui/toast/store";
-  import ApprovalRiskBadge, { type ApprovalRiskLevel } from "./ApprovalRiskBadge.svelte";
-  import ApprovalTimer from "./ApprovalTimer.svelte";
+  import ApprovalRiskBadge, { type ApprovalRiskLevel } from "$lib/components/operator/approval/ApprovalRiskBadge.svelte";
+  import ApprovalTimer from "$lib/components/operator/approval/ApprovalTimer.svelte";
   import ApprovalScopeSelect, { type AlwaysAcceptScope } from "./ApprovalScopeSelect.svelte";
 
   interface Props {
@@ -323,38 +324,41 @@
     <!-- Critical: CONFIRM input (i18n-aware via `hitl.fs.critical_confirm_word`) -->
     {#if isCritical}
       <div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3">
-        <label class="mb-1.5 block text-[11px] font-medium text-destructive" for="hitl-fs-critical-input">
-          {$t("hitl.fs.critical_confirm_label", { values: { word: confirmWord } })}
-        </label>
-        <input
+        <FormField
           id="hitl-fs-critical-input"
-          type="text"
-          bind:value={criticalInput}
-          placeholder={confirmWord}
-          class="w-full rounded-md border border-destructive/30 bg-background px-3 py-1.5 font-mono text-sm outline-none focus:border-destructive/60"
-          data-testid="hitl-fs-critical-input"
-          autocomplete="off"
-          spellcheck={false}
-        />
+          label={$t("hitl.fs.critical_confirm_label", { values: { word: confirmWord } })}
+          labelClass="text-[11px] text-destructive"
+        >
+          <input
+            id="hitl-fs-critical-input"
+            type="text"
+            bind:value={criticalInput}
+            placeholder={confirmWord}
+            class="w-full rounded-md border border-destructive/30 bg-background px-3 py-1.5 font-mono text-sm outline-none focus:border-destructive/60"
+            data-testid="hitl-fs-critical-input"
+            autocomplete="off"
+            spellcheck={false}
+          />
+        </FormField>
       </div>
     {/if}
 
     <!-- Reject reason (critical only or operator-invoked) -->
     {#if showRejectReason}
       <div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-2">
-        <label
-          for="hitl-fs-reject-reason"
-          class="mb-1 block text-[11px] font-medium text-destructive"
-        >
-          {$t("hitl.fs.reject_reason_label")}
-        </label>
-        <Textarea
+        <FormField
           id="hitl-fs-reject-reason"
-          bind:value={rejectReason}
-          rows={2}
-          placeholder={$t("hitl.fs.reject_reason_placeholder")}
-          data-testid="hitl-fs-reject-reason"
-        />
+          label={$t("hitl.fs.reject_reason_label")}
+          labelClass="text-[11px] text-destructive"
+        >
+          <Textarea
+            id="hitl-fs-reject-reason"
+            bind:value={rejectReason}
+            rows={2}
+            placeholder={$t("hitl.fs.reject_reason_placeholder")}
+            data-testid="hitl-fs-reject-reason"
+          />
+        </FormField>
       </div>
     {/if}
 

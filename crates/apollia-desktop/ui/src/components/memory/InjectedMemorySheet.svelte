@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import Sheet from "$lib/components/ui/sheet/Sheet.svelte";
+  import { Sheet, SheetHeader, SheetContent } from "$lib/components/ui/sheet";
   import type { InjectedEntry } from "$lib/types";
   import { Brain, ExternalLink } from "lucide-svelte";
 
@@ -63,20 +63,23 @@
 </script>
 
 <Sheet {open} {onclose} width="md">
-  <header class="flex items-center gap-2 border-b border-border px-4 py-3">
-    <Brain size={14} class="text-primary" />
-    <h2 class="text-sm font-medium">Mémoire injectée</h2>
-    {#if entries.length > 0}
-      <span
-        class="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary tabular-nums"
-        data-testid="injected-memory-count"
-      >
-        {entries.length}
-      </span>
-    {/if}
-  </header>
+  <SheetHeader title="Mémoire injectée" class="px-4 py-3 items-center">
+    {#snippet leading()}
+      <Brain size={14} class="text-primary" />
+    {/snippet}
+    {#snippet actions()}
+      {#if entries.length > 0}
+        <span
+          class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary tabular-nums"
+          data-testid="injected-memory-count"
+        >
+          {entries.length}
+        </span>
+      {/if}
+    {/snippet}
+  </SheetHeader>
 
-  <div class="flex-1 overflow-y-auto px-4 py-3" data-testid="injected-memory-sheet">
+  <SheetContent padding="flush" class="px-4 py-3" data-testid="injected-memory-sheet">
     {#if !turnId}
       <p class="text-[11px] italic text-muted-foreground/60">
         Aucun tour actif.
@@ -138,5 +141,5 @@
         {/each}
       </ul>
     {/if}
-  </div>
+  </SheetContent>
 </Sheet>

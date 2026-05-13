@@ -15,9 +15,11 @@
     rejectedInsights,
     clearInsights,
   } from "$lib/stores/chat";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { addToast } from "$lib/components/ui/toast/store";
   import InsightEntryRow from "../memory/InsightEntryRow.svelte";
+  import { Card } from "$lib/components/ui/card";
+  import { TabBar } from "$lib/components/ui/tabs";
 
   interface Props {
     open: boolean;
@@ -83,8 +85,9 @@
 </script>
 
 <Sheet {open} onclose={onclose}>
-  <div
-    class="flex h-full flex-col gap-4 overflow-y-auto p-6 pt-10"
+  <SheetContent
+    padding="flush"
+    class="flex flex-col gap-4 p-6 pt-10"
     data-testid="insights-feedback-panel"
   >
     <!-- Header -->
@@ -93,26 +96,16 @@
     </p>
 
     <!-- Tabs -->
-    <div class="flex items-center gap-1 border-b border-border" role="tablist">
-      <button
-        class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 {tab === 'pending' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-        role="tab"
-        aria-selected={tab === "pending"}
-        onclick={() => (tab = "pending")}
-        data-testid="insights-tab-pending"
-      >
-        {$t("memory.insights.tab_pending")} ({$extractedInsights.length})
-      </button>
-      <button
-        class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 {tab === 'rejected' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}"
-        role="tab"
-        aria-selected={tab === "rejected"}
-        onclick={() => (tab = "rejected")}
-        data-testid="insights-tab-rejected"
-      >
-        {$t("memory.insights.tab_rejected")} ({$rejectedInsights.length})
-      </button>
-    </div>
+    <TabBar
+      variant="underline"
+      testidPrefix="insights"
+      activeTab={tab}
+      items={[
+        { key: "pending", label: $t("memory.insights.tab_pending"), count: $extractedInsights.length },
+        { key: "rejected", label: $t("memory.insights.tab_rejected"), count: $rejectedInsights.length },
+      ]}
+      ontabchange={(key) => (tab = key as "pending" | "rejected")}
+    />
 
     {#if tab === "pending"}
       {#if closing}
@@ -168,7 +161,7 @@
     {:else}
       <div class="space-y-2" data-testid="rejected-list">
         {#each $rejectedInsights as entry (entry.id)}
-          <div class="rounded-lg glass-card glass-border p-3 space-y-1.5">
+          <Card class="rounded-lg p-3 space-y-1.5">
             <p class="text-sm text-muted-foreground line-through decoration-red-500/60">
               {entry.text}
             </p>
@@ -186,9 +179,9 @@
             <p class="text-[10px] text-muted-foreground/60">
               {new Date(entry.rejected_at).toLocaleString()}
             </p>
-          </div>
+          </Card>
         {/each}
       </div>
     {/if}
-  </div>
+  </SheetContent>
 </Sheet>

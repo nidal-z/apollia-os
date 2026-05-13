@@ -95,13 +95,13 @@
     </p>
     <div class="max-w-sm space-y-1 rounded-xl glass-card glass-border p-2">
       {#each listItems as item (item.label)}
-        <button
+        <Button variant="ghost" size="sm"
           class="list-item-spring flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-primary/[0.06]"
         >
           <span class="h-2 w-2 rounded-full bg-primary/60"></span>
           <span class="flex-1">{item.label}</span>
           {#if item.hint}<span class="text-[10px] text-muted-foreground/60">{item.hint}</span>{/if}
-        </button>
+        </Button>
       {/each}
     </div>
   </section>

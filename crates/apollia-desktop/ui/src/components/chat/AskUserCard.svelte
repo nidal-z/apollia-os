@@ -22,8 +22,9 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import AskUserQuestion from "./AskUserQuestion.svelte";
   import AskUserSummary from "./AskUserSummary.svelte";
-  import ApprovalTimer from "./ApprovalTimer.svelte";
-  import RiskBadge, { type ImpactLevel } from "../hitl/RiskBadge.svelte";
+  import ApprovalTimer from "$lib/components/operator/approval/ApprovalTimer.svelte";
+  import RiskBadge, { type ImpactLevel } from "$lib/components/operator/badges/RiskBadge.svelte";
+  import { Badge } from "$lib/components/ui/badge";
 
   interface UserQuestion {
     id: string;
@@ -229,24 +230,14 @@
 {#if isSubmitted}
   <AskUserSummary {questions} answers={submittedAnswers} {requestId} />
 {:else}
-  <div
-    bind:this={rootEl}
-    role="alertdialog"
-    aria-modal="false"
-    aria-labelledby="ask-user-title-{requestId}"
-    tabindex="-1"
-    onkeydown={handleKeydown}
-    class="my-1.5 glass-card glass-border rounded-lg border-l-2 border-l-info px-3 py-2 text-xs"
-    data-testid="ask-user-card-{requestId}"
-    transition:slide={{ duration: 200 }}
-  >
+  <div class="glass-card glass-border my-1.5 rounded-lg border-l-2 border-l-info px-3 py-2 text-xs" bind:this={rootEl} role="alertdialog" aria-modal="false" aria-labelledby="ask-user-title-{requestId}" tabindex="-1" onkeydown={handleKeydown} data-testid="ask-user-card-{requestId}" transition:slide={{ duration: 200 }}>
     <!-- Header — compact (prompt 1 line, expandable) -->
     <div class="flex items-start gap-2">
       <div class="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md bg-info/10">
         <HelpCircle class="h-3 w-3 text-info" />
       </div>
 
-      <button
+      <Button variant="ghost" size="sm"
         id="ask-user-title-{requestId}"
         type="button"
         class="flex-1 text-left"
@@ -264,7 +255,7 @@
         >
           — {firstQuestionText}
         </span>
-      </button>
+      </Button>
     </div>
 
     <!-- Waiting timer -->
@@ -307,9 +298,9 @@
             {#if hitl.riskAnalysis.categories.length > 0}
               <div class="mt-1 flex flex-wrap gap-1" data-testid="ask-user-risk-categories">
                 {#each hitl.riskAnalysis.categories as cat}
-                  <span class="rounded border border-border/40 bg-background/60 px-1.5 py-0.5 font-mono text-[10px]">
+                  <Badge variant="outline" size="sm" class="font-mono">
                     {cat}
-                  </span>
+                  </Badge>
                 {/each}
               </div>
             {/if}

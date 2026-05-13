@@ -32,10 +32,12 @@
     RefreshCw,
     Cloud,
   } from "lucide-svelte";
-  import { Spinner } from "$lib/components/ui/progress";
+  import { Spinner, ProgressBar } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { llmBackends } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
+  import { Input } from "$lib/components/ui/input";
+  import { Checkbox } from "$lib/components/ui/checkbox";
 
   interface Props {
     onnext: () => void;
@@ -720,7 +722,7 @@
         <p class="empty-hint" data-testid="llm-empty-hint">
           Aucun modèle GGUF détecté. Choisis-en un ci-dessous, ou place un .gguf dans
           <code>~/.apollia/models/</code> ou <code>~/Downloads/</code>, puis
-          <button class="inline-link" onclick={loadData}>re-scanner</button>.
+          <Button variant="ghost" size="sm" class="inline-link" onclick={loadData}>re-scanner</Button>.
         </p>
 
         {#if llmDownloadId}
@@ -731,17 +733,15 @@
                   ? (llmDownloadingModel as CuratedLlmModel | HfFile).filename
                   : "…"}
               </span>
-              <button class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label="Annuler le téléchargement">
+              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label="Annuler le téléchargement">
                 <X size={12} strokeWidth={2} />
-              </button>
+              </Button>
             </div>
-            <div class="progress-track">
-              {#if llmDownloadProgress}
-                <div class="progress-fill" style="width:{dlPct(llmDownloadProgress)}%"></div>
-              {:else}
-                <div class="progress-fill indeterminate"></div>
-              {/if}
-            </div>
+            <ProgressBar
+              value={llmDownloadProgress ? dlPct(llmDownloadProgress) : undefined}
+              size="sm"
+              variant="primary"
+            />
             {#if llmDownloadProgress}
               <div class="dl-meta">
                 <span>{dlBytes(llmDownloadProgress)}</span>
@@ -751,19 +751,19 @@
           </div>
         {:else if showSearch}
           <div class="search-bar">
-            <button class="btn-back" onclick={() => { showSearch = false; searchResults = []; }} aria-label="Retour">
+            <Button variant="ghost" size="sm" class="btn-back" onclick={() => { showSearch = false; searchResults = []; }} aria-label="Retour">
               <ArrowLeft size={12} strokeWidth={2} />
-            </button>
-            <input
+            </Button>
+            <Input
               class="search-input"
               type="text"
               placeholder="Rechercher un modèle GGUF sur HuggingFace…"
               bind:value={searchQuery}
               onkeydown={(e) => e.key === "Enter" && searchHf()}
             />
-            <button class="btn-search" onclick={searchHf} disabled={searchLoading} aria-label="Rechercher">
+            <Button variant="ghost" size="sm" class="btn-search" onclick={searchHf} disabled={searchLoading} aria-label="Rechercher">
               {#if searchLoading}<Spinner size={12} />{:else}<Search size={12} strokeWidth={2} />{/if}
-            </button>
+            </Button>
           </div>
 
           {#if searchError}
@@ -776,7 +776,7 @@
                 {@const isExpanded = expandedModel === model.repo_id}
                 {@const detail = isExpanded ? expandedDetail : null}
                 <li class="search-result-item" class:is-expanded={isExpanded}>
-                  <button
+                  <Button variant="ghost" size="sm"
                     class="search-result-header"
                     onclick={() => expandSearchModel(model.repo_id)}
                     disabled={model.compatibility_issue === "embedding_model" || model.compatibility_issue === "no_gguf_files"}
@@ -792,7 +792,7 @@
                       size={12}
                       class="text-muted-foreground/50 transition-transform {isExpanded ? 'rotate-90' : ''}"
                     />
-                  </button>
+                  </Button>
 
                   {#if isExpanded}
                     <div class="search-result-files">
@@ -834,7 +834,7 @@
           <ul class="model-list" data-testid="curated-llm-list">
             {#each availableLlmModels as model (model.filename)}
               <li>
-                <button class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
+                <Button variant="ghost" size="sm" class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
                   <div class="model-icon"><Download size={12} strokeWidth={1.75} /></div>
                   <div class="model-info">
                     <span class="model-name">{model.name}</span>
@@ -844,19 +844,19 @@
                     <span class="badge-recommended">Recommandé</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
-                </button>
+                </Button>
               </li>
             {/each}
           </ul>
           <div class="alt-row">
-            <button class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
+            <Button variant="ghost" size="sm" class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
               <Search size={11} strokeWidth={2} />
               Rechercher sur HuggingFace
-            </button>
-            <button class="btn-search-hf btn-cloud" onclick={openCloudSettings} data-testid="onboarding-open-cloud">
+            </Button>
+            <Button variant="ghost" size="sm" class="btn-search-hf btn-cloud" onclick={openCloudSettings} data-testid="onboarding-open-cloud">
               <Cloud size={11} strokeWidth={2} />
               Utiliser un fournisseur cloud
-            </button>
+            </Button>
           </div>
         {/if}
 
@@ -911,17 +911,11 @@
       <div class="section-header">
         <Mic size={14} strokeWidth={2} class="text-secondary" />
         <span class="section-title">Reconnaissance vocale (optionnel)</span>
-        <button class="btn-rescan" onclick={rescanStt} aria-label="Re-scanner les modèles Whisper" title="Re-scanner">
+        <Button variant="ghost" size="sm" class="btn-rescan" onclick={rescanStt} aria-label="Re-scanner les modèles Whisper" title="Re-scanner">
           <RefreshCw size={11} strokeWidth={2} />
-        </button>
+        </Button>
         <label class="toggle-label">
-          <input
-            type="checkbox"
-            class="toggle-input"
-            bind:checked={sttEnabled}
-            disabled={whisperModels.length === 0}
-            data-testid="stt-toggle"
-          />
+          <Checkbox class="toggle-input" bind:checked={sttEnabled} disabled={whisperModels.length === 0} data-testid="stt-toggle" />
           <span class="toggle-track" class:on={sttEnabled}></span>
         </label>
       </div>
@@ -935,17 +929,15 @@
           <div class="download-block" data-testid="stt-download-progress">
             <div class="dl-header">
               <span class="dl-filename">{sttDownloadingModel?.filename ?? "…"}</span>
-              <button class="btn-cancel-dl" onclick={cancelSttDownload} aria-label="Annuler le téléchargement">
+              <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelSttDownload} aria-label="Annuler le téléchargement">
                 <X size={12} strokeWidth={2} />
-              </button>
+              </Button>
             </div>
-            <div class="progress-track">
-              {#if sttDownloadProgress}
-                <div class="progress-fill" style="width:{dlPct(sttDownloadProgress)}%"></div>
-              {:else}
-                <div class="progress-fill indeterminate"></div>
-              {/if}
-            </div>
+            <ProgressBar
+              value={sttDownloadProgress ? dlPct(sttDownloadProgress) : undefined}
+              size="sm"
+              variant="primary"
+            />
             {#if sttDownloadProgress}
               <div class="dl-meta">
                 <span>{dlBytes(sttDownloadProgress)}</span>
@@ -958,7 +950,7 @@
           <ul class="model-list" data-testid="curated-stt-list">
             {#each availableSttModels as model (model.filename)}
               <li>
-                <button class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
+                <Button variant="ghost" size="sm" class="model-row" onclick={() => downloadSttModel(model)} data-testid="curated-stt-row">
                   <div class="model-icon model-icon-stt"><Download size={12} strokeWidth={1.75} /></div>
                   <div class="model-info">
                     <span class="model-name">{model.name}</span>
@@ -971,7 +963,7 @@
                     <span class="badge-recommended badge-recommended-stt">Recommandé</span>
                   {/if}
                   <ChevronRight size={13} class="text-muted-foreground/50" />
-                </button>
+                </Button>
               </li>
             {/each}
           </ul>
@@ -1014,7 +1006,7 @@
         <div class="stt-hotkey-block" data-testid="stt-hotkey-block">
           <div class="hotkey-row">
             <span class="hotkey-label">{$t("onboarding_stt.hotkey_label")}</span>
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               class="hotkey-capture"
               onclick={startHotkeyCapture}
@@ -1027,8 +1019,8 @@
                   {$t("onboarding_stt.hotkey_capture_idle")}
                 </span>
               {/if}
-            </button>
-            <button
+            </Button>
+            <Button variant="ghost" size="sm"
               type="button"
               class="hotkey-save"
               onclick={saveSttHotkey}
@@ -1038,7 +1030,7 @@
               {sttHotkeySaving
                 ? $t("onboarding_stt.hotkey_saving")
                 : $t("onboarding_stt.hotkey_save")}
-            </button>
+            </Button>
           </div>
           <p class="hotkey-hint">{$t("onboarding_stt.hotkey_hint")}</p>
           {#if sttHotkeyError}
@@ -1047,7 +1039,7 @@
 
           <div class="stt-test-row">
             {#if !sttTestRecording}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="stt-test-btn stt-test-start"
                 onclick={startSttTest}
@@ -1055,16 +1047,16 @@
                 data-testid="stt-test-start"
               >
                 <Mic size={12} /> {$t("onboarding_stt.test_start")}
-              </button>
+              </Button>
             {:else}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="stt-test-btn stt-test-stop"
                 onclick={stopSttTest}
                 data-testid="stt-test-stop"
               >
                 <Mic size={12} /> {$t("onboarding_stt.test_stop")}
-              </button>
+              </Button>
             {/if}
             {#if sttTestTranscript !== null}
               <span class="stt-test-transcript" data-testid="stt-test-transcript">
@@ -1084,13 +1076,13 @@
   {/if}
 
   <footer class="setup-footer">
-    <button class="btn-secondary" onclick={onback} disabled={advancing} data-testid="ai-setup-back">
+    <Button variant="ghost" size="sm" class="btn-secondary" onclick={onback} disabled={advancing} data-testid="ai-setup-back">
       ← Retour
-    </button>
+    </Button>
     <div class="footer-right">
-      <button class="btn-tertiary" onclick={onskip} disabled={advancing} data-testid="ai-setup-skip">
+      <Button variant="ghost" size="sm" class="btn-tertiary" onclick={onskip} disabled={advancing} data-testid="ai-setup-skip">
         Configurer plus tard
-      </button>
+      </Button>
       <Button
         variant="primary-gradient"
         size="default"

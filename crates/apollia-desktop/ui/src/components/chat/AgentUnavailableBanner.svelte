@@ -9,7 +9,9 @@
    */
   import { t } from "svelte-i18n";
   import { AlertTriangle } from "lucide-svelte";
+  import { Banner } from "$lib/components/ui/banner";
   import { navigateTo } from "$lib/stores/navigation";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     /** Missing agent name — surfaced in the banner copy. */
@@ -19,27 +21,23 @@
   let { agentName }: Props = $props();
 </script>
 
-<div
-  class="flex items-center justify-between gap-3 border-b border-warning/30
-    bg-warning/10 px-4 py-2 text-[12px] text-warning-foreground"
-  role="status"
-  aria-live="polite"
+<Banner
+  variant="warning"
+  icon={AlertTriangle}
   data-testid="agent-unavailable-banner"
 >
-  <div class="flex items-center gap-2">
-    <AlertTriangle size={14} aria-hidden="true" />
-    <span>
-      {$t("chat.agent_unavailable.message", { values: { agent: agentName } })}
-    </span>
-  </div>
-  <button
-    type="button"
-    class="rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2
-      hover:underline focus-visible:outline-none focus-visible:ring-2
-      focus-visible:ring-primary/40"
-    onclick={() => navigateTo("agents")}
-    data-testid="agent-unavailable-install"
-  >
-    {$t("chat.agent_unavailable.manage")}
-  </button>
-</div>
+  {$t("chat.agent_unavailable.message", { values: { agent: agentName } })}
+
+  {#snippet trailing()}
+    <Button variant="ghost" size="sm"
+      type="button"
+      class="rounded px-2 py-0.5 text-[11px] font-medium underline-offset-2
+        hover:underline focus-visible:outline-none focus-visible:ring-2
+        focus-visible:ring-primary/40"
+      onclick={() => navigateTo("agents")}
+      data-testid="agent-unavailable-install"
+    >
+      {$t("chat.agent_unavailable.manage")}
+    </Button>
+  {/snippet}
+</Banner>

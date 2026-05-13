@@ -8,6 +8,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
   import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
   import {
     THROTTLE_PRESETS,
@@ -188,8 +189,13 @@
   >
     <div class="space-y-4">
       <!-- Label (free-form display name) -->
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-label">{$t("notifications.field_label")}</label>
+      <FormField
+        id="edit-channel-label"
+        label={$t("notifications.field_label")}
+        labelClass="text-[11px] font-normal mb-0"
+        error={labelError || undefined}
+        hint={$t("notifications.field_label_help")}
+      >
         <Input
           id="edit-channel-label"
           class={labelError ? 'border-destructive' : ''}
@@ -198,15 +204,14 @@
           maxlength={LABEL_MAX_LEN}
           data-testid="edit-channel-label-input"
         />
-        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_label_help")}</p>
-        {#if labelError}
-          <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-label-error">{labelError}</p>
-        {/if}
-      </div>
+      </FormField>
 
       <!-- ID (readonly, slug fixed at creation time) -->
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-id">{$t("notifications.field_id")}</label>
+      <FormField
+        id="edit-channel-id"
+        label={$t("notifications.field_id")}
+        labelClass="text-[11px] font-normal mb-0"
+      >
         <Input
           id="edit-channel-id"
           class="bg-muted font-mono"
@@ -214,11 +219,14 @@
           readonly
           data-testid="edit-channel-id-input"
         />
-      </div>
+      </FormField>
 
       <!-- Type -->
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-type">{$t("notifications.field_type")}</label>
+      <FormField
+        id="edit-channel-type"
+        label={$t("notifications.field_type")}
+        labelClass="text-[11px] font-normal mb-0"
+      >
         <Select
           id="edit-channel-type"
           bind:value={channelType}
@@ -227,12 +235,16 @@
           <option value="desktop">{$t("notifications.field_type_desktop")}</option>
           <option value="webhook">{$t("notifications.field_type_webhook")}</option>
         </Select>
-      </div>
+      </FormField>
 
       <!-- Dynamic webhook fields -->
       {#if channelType === "webhook"}
-        <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-url">{$t("notifications.field_url")}</label>
+        <FormField
+          id="edit-channel-url"
+          label={$t("notifications.field_url")}
+          labelClass="text-[11px] font-normal mb-0"
+          error={urlError || undefined}
+        >
           <Input
             id="edit-channel-url"
             type="url"
@@ -241,16 +253,15 @@
             bind:value={webhookUrl}
             data-testid="edit-channel-url-input"
           />
-          {#if urlError}
-            <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-url-error">{urlError}</p>
-          {/if}
-        </div>
+        </FormField>
 
-        <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-headers">
-            {$t("notifications.field_headers")}
-            <span class="font-normal text-muted-foreground">({$t("common.optional")})</span>
-          </label>
+        <FormField
+          id="edit-channel-headers"
+          label={$t("notifications.field_headers")}
+          labelClass="text-[11px] font-normal mb-0"
+          optional
+          error={headersError || undefined}
+        >
           <Textarea
             id="edit-channel-headers"
             class="font-mono text-sm {headersError ? 'border-destructive' : ''}"
@@ -259,10 +270,7 @@
             bind:value={headersText}
             data-testid="edit-channel-headers-textarea"
           />
-          {#if headersError}
-            <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-headers-error">{headersError}</p>
-          {/if}
-        </div>
+        </FormField>
       {/if}
 
       <!-- Events per-channel -->
@@ -294,8 +302,12 @@
       {/if}
 
       <!-- Throttle -->
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-throttle">{$t("notifications.field_throttle")}</label>
+      <FormField
+        id="edit-channel-throttle"
+        label={$t("notifications.field_throttle")}
+        labelClass="text-[11px] font-normal mb-0"
+        hint={$t("notifications.field_throttle_help")}
+      >
         <Select
           id="edit-channel-throttle"
           bind:value={throttlePreset}
@@ -307,10 +319,12 @@
           <option value="custom">{$t("notifications.throttle_options.custom")}</option>
         </Select>
         {#if throttlePreset === "custom"}
-          <div class="mt-2">
-            <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-throttle-custom">
-              {$t("notifications.throttle_custom_label")}
-            </label>
+          <FormField
+            id="edit-channel-throttle-custom"
+            label={$t("notifications.throttle_custom_label")}
+            labelClass="text-[11px] font-normal mb-0"
+            class="mt-2"
+          >
             <Input
               id="edit-channel-throttle-custom"
               type="number"
@@ -319,13 +333,12 @@
               bind:value={throttleCustom}
               data-testid="edit-channel-throttle-custom-input"
             />
-          </div>
+          </FormField>
         {/if}
-        <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_throttle_help")}</p>
         {#if throttleError}
           <p class="mt-0.5 text-xs text-destructive" data-testid="edit-channel-throttle-error">{throttleError}</p>
         {/if}
-      </div>
+      </FormField>
 
       <!-- Enabled toggle -->
       <label class="flex items-center gap-2 text-sm">

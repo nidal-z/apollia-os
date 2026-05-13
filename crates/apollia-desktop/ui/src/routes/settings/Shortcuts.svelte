@@ -1,4 +1,6 @@
 <script lang="ts" context="module">
+  import { Card } from "$lib/components/ui/card";
+  import { Input } from "$lib/components/ui/input";
   export const meta = {
     title: "settings.nav.shortcuts",
     icon: "keyboard",
@@ -67,14 +69,14 @@
       class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
       aria-hidden="true"
     />
-    <input
+    <Input
       type="search"
       bind:value={query}
       placeholder={$t("settings.shortcuts.search_placeholder")}
       aria-label={$t("settings.shortcuts.search_aria")}
       class="w-full rounded-md border border-border bg-muted/20 py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       data-testid="shortcuts-search"
-    />
+     />
   </div>
 
   {#if isEmpty}
@@ -94,11 +96,11 @@
           >
             {$t(CATEGORY_LABEL_KEYS[cat])}
           </h2>
-          <div class="glass-card glass-border rounded-lg divide-y divide-border/50">
+          <Card class="rounded-lg divide-y divide-border/50">
             {#each entries as entry (entry.id)}
               <ShortcutRow {entry} {mac} />
             {/each}
-          </div>
+          </Card>
         </div>
       {/if}
     {/each}

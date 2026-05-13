@@ -1,8 +1,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { X, Sparkles } from "lucide-svelte";
-  import BtnPrimary from "./BtnPrimary.svelte";
-  import BtnSecondary from "./BtnSecondary.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
+  import { Textarea } from "$lib/components/ui/textarea";
 
   export type ProjectTemplate = {
     id: string;
@@ -89,14 +90,14 @@
               {$t("projects.dialog.step1_title")}
             </h2>
           </div>
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={close}
             class="bg-transparent border-0 text-muted-foreground cursor-pointer hover:text-foreground"
             aria-label={$t("common.close")}
           >
             <X size={16} />
-          </button>
+          </Button>
         </div>
         <p class="m-0 mb-4 text-[12.5px] text-muted-foreground">
           {$t("projects.dialog.step1_subtitle")}
@@ -104,7 +105,7 @@
         <div class="grid grid-cols-2 gap-2.5">
           {#each templates as tpl}
             {@const isActive = (selectedId ?? templates[0]?.id) === tpl.id}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={() => (selectedId = tpl.id)}
               class="px-3.5 py-3 rounded-[10px] cursor-pointer text-left transition-all {isActive
@@ -136,13 +137,13 @@
                   {$t("projects.dialog.manual_config")}
                 </div>
               {/if}
-            </button>
+            </Button>
           {/each}
         </div>
         <div class="flex gap-2 mt-4">
-          <BtnSecondary onclick={close}>{$t("common.cancel")}</BtnSecondary>
+          <Button variant="outline" size="sm" onclick={close}>{$t("common.cancel")}</Button>
           <div class="flex-1"></div>
-          <BtnPrimary
+          <Button variant="primary-solid" size="sm"
             onclick={() => {
               const id = selectedId ?? templates[0]?.id;
               if (id) {
@@ -153,7 +154,7 @@
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
             {$t("common.continue")}
-          </BtnPrimary>
+          </Button>
         </div>
       </div>
     {:else}
@@ -176,29 +177,29 @@
 
         <div class="mb-3.5">
           <div class="text-[11px] text-muted-foreground mb-1 font-semibold">{$t("projects.field_name")}</div>
-          <input
+          <Input
             bind:value={name}
             class="w-full px-3 py-2 rounded-lg border-2 border-primary bg-card text-[13.5px] font-medium text-foreground outline-none"
             placeholder={$t("projects.dialog.name_placeholder")}
-          />
+           />
         </div>
 
         <div class="mb-3.5">
           <div class="text-[11px] text-muted-foreground mb-1 font-semibold">
             {$t("projects.field_description")}
           </div>
-          <textarea
+          <Textarea
             bind:value={description}
-            rows="3"
+            rows={3}
             class="w-full px-3 py-2 rounded-lg border border-border bg-surface-1 text-[12.5px] text-muted-foreground min-h-[54px] leading-[1.55] outline-none resize-y"
-          ></textarea>
+          ></Textarea>
         </div>
 
         <div class="mb-3.5">
           <div class="text-[11px] text-muted-foreground mb-1.5 font-semibold">{$t("projects.dialog.color_label")}</div>
           <div class="flex gap-2">
             {#each COLOR_SWATCHES as c}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => (color = c)}
                 aria-label={$t("projects.dialog.color_label")}
@@ -208,7 +209,7 @@
                   : 'transparent'}; box-shadow: {color === c
                   ? '0 0 0 2px hsl(var(--card)), 0 0 0 3px hsl(var(--foreground))'
                   : 'none'};"
-              ></button>
+              ></Button>
             {/each}
           </div>
         </div>
@@ -227,9 +228,9 @@
         </div>
 
         <div class="flex gap-2">
-          <BtnSecondary onclick={() => (step = 0)}>{$t("common.back")}</BtnSecondary>
+          <Button variant="outline" size="sm" onclick={() => (step = 0)}>{$t("common.back")}</Button>
           <div class="flex-1"></div>
-          <BtnPrimary
+          <Button variant="primary-solid" size="sm"
             onclick={() => {
               if (selected) {
                 onCreate?.({
@@ -243,7 +244,7 @@
           >
             {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘↵</span>{/snippet}
             {$t("projects.create_project")}
-          </BtnPrimary>
+          </Button>
         </div>
       </div>
     {/if}

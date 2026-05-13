@@ -5,13 +5,17 @@
   import {
     PageHeader,
     SectionTitle,
-    Chip,
-    BtnPrimary,
-    BtnSecondary,
+    
     EmptyState,
     ConnectionCard,
     type ConnectionStatus,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
+  import { Select } from "$lib/components/ui/select";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { Checkbox } from "$lib/components/ui/checkbox";
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
@@ -25,6 +29,7 @@
   import OperatorServerManage from "../components/integrations/OperatorServerManage.svelte";
   import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import { rankSuggestions } from "../components/connections/ConnectionSuggestions.svelte";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
     onNavigateTasks?: () => void;
@@ -604,10 +609,10 @@
     subtitle={$t("connections.hero.subtitle")}
   >
     {#snippet actions()}
-      <BtnPrimary onclick={handleAddCustomMcp}>
+      <Button variant="primary-solid" size="sm" onclick={handleAddCustomMcp}>
         {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("connections.add_connection")}
-      </BtnPrimary>
+      </Button>
     {/snippet}
   </PageHeader>
 
@@ -628,7 +633,7 @@
   >
     {$t("connections.native_section_title")}
     {#snippet action()}
-      <Chip tone="primary" size="sm">{$t("connections.native_section_tag")}</Chip>
+      <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
     {/snippet}
   </SectionTitle>
 
@@ -645,9 +650,9 @@
             <div class="font-medium text-sm">{connector.name}</div>
             <div class="text-xs text-muted-foreground">{connector.description}</div>
           </div>
-          <Chip tone={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
+          <Badge variant={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
             {accounts.length > 0 ? `${accounts.length} actif` : "Non connecté"}
-          </Chip>
+          </Badge>
         </div>
 
         {#if accounts.length > 0}
@@ -655,24 +660,24 @@
             {#each accounts as account (account.account_id)}
               <li class="flex items-center justify-between gap-2">
                 <span class="truncate">{account.account_id}</span>
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   class="text-destructive hover:underline text-[11px]"
                   onclick={() => disconnectNative(account)}
                   disabled={nativeLoading}
                 >
                   Déconnecter
-                </button>
+                </Button>
               </li>
             {/each}
           </ul>
         {/if}
 
         <div class="mt-1">
-          <BtnPrimary onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+          <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
             {#snippet icon()}<Plus size={12} />{/snippet}
             {accounts.length > 0 ? "Ajouter un compte" : "Connecter un compte"}
-          </BtnPrimary>
+          </Button>
         </div>
       </div>
     {/each}
@@ -682,70 +687,50 @@
   <SectionTitle count={`${activeCount} actif${activeCount > 1 ? "s" : ""} · ${servers.length} total`}>
     Serveurs MCP installés
     {#snippet action()}
-      <Chip tone="neutral" size="sm">protocole ouvert</Chip>
+      <Badge variant="neutral" size="sm">protocole ouvert</Badge>
     {/snippet}
   </SectionTitle>
 
   <div class="px-8 pb-2 flex items-center gap-2" data-testid="connections-status-filters">
-    <Chip
-      tone={statusFilter === "all" ? "primary" : "neutral"}
+    <Badge
+      variant={statusFilter === "all" ? "primary" : "neutral"}
       size="sm"
       outline={statusFilter !== "all"}
+      onclick={() => (statusFilter = "all")}
     >
-      <button
-        type="button"
-        class="bg-transparent border-0 p-0 cursor-pointer"
-        onclick={() => (statusFilter = "all")}
-      >
-        Tous · {servers.length}
-      </button>
-    </Chip>
-    <Chip
-      tone={statusFilter === "active" ? "success" : "neutral"}
+      Tous · {servers.length}
+    </Badge>
+    <Badge
+      variant={statusFilter === "active" ? "success" : "neutral"}
       size="sm"
       outline={statusFilter !== "active"}
+      onclick={() => (statusFilter = "active")}
     >
-      <button
-        type="button"
-        class="bg-transparent border-0 p-0 cursor-pointer"
-        onclick={() => (statusFilter = "active")}
-      >
-        Actifs · {activeCount}
-      </button>
-    </Chip>
-    <Chip
-      tone={statusFilter === "error" ? "danger" : "neutral"}
+      Actifs · {activeCount}
+    </Badge>
+    <Badge
+      variant={statusFilter === "error" ? "danger" : "neutral"}
       size="sm"
       outline={statusFilter !== "error"}
+      onclick={() => (statusFilter = "error")}
     >
-      <button
-        type="button"
-        class="bg-transparent border-0 p-0 cursor-pointer"
-        onclick={() => (statusFilter = "error")}
-      >
-        Erreur · {errorCount}
-      </button>
-    </Chip>
-    <Chip
-      tone={statusFilter === "idle" ? "neutral" : "neutral"}
+      Erreur · {errorCount}
+    </Badge>
+    <Badge
+      variant={statusFilter === "idle" ? "neutral" : "neutral"}
       size="sm"
       outline={statusFilter !== "idle"}
+      onclick={() => (statusFilter = "idle")}
     >
-      <button
-        type="button"
-        class="bg-transparent border-0 p-0 cursor-pointer"
-        onclick={() => (statusFilter = "idle")}
-      >
-        Inactif · {idleCount}
-      </button>
-    </Chip>
+      Inactif · {idleCount}
+    </Badge>
   </div>
 
   <div class="px-8 pt-3 pb-2">
     {#if loading}
       <div class="grid grid-cols-3 gap-3.5" data-testid="connections-loading">
         {#each Array(6) as _, i (i)}
-          <div class="h-24 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+          <Skeleton class="h-24 rounded-xl bg-surface-1 border border-border" />
         {/each}
       </div>
     {:else if servers.length === 0}
@@ -756,10 +741,10 @@
       >
         {#snippet icon()}<LinkIcon size={22} />{/snippet}
         {#snippet action()}
-          <BtnPrimary onclick={handleAddCustomMcp}>
+          <Button variant="primary-solid" size="sm" onclick={handleAddCustomMcp}>
             {#snippet icon()}<Plus size={12} />{/snippet}
             {$t("connections.add_connection")}
-          </BtnPrimary>
+          </Button>
         {/snippet}
       </EmptyState>
     {:else if filteredServers.length === 0}
@@ -769,9 +754,9 @@
         tone="neutral"
       >
         {#snippet action()}
-          <BtnSecondary onclick={() => (statusFilter = "all")}>
+          <Button variant="outline" size="sm" onclick={() => (statusFilter = "all")}>
             {$t("connections.filters.clear_all")}
-          </BtnSecondary>
+          </Button>
         {/snippet}
       </EmptyState>
     {:else}
@@ -803,63 +788,43 @@
     <SectionTitle count={`${mcpEntries.length} serveurs`}>
       Catalogue MCP
       {#snippet action()}
-        <Chip tone="neutral" size="sm">protocole ouvert · communauté</Chip>
+        <Badge variant="neutral" size="sm">protocole ouvert · communauté</Badge>
       {/snippet}
     </SectionTitle>
 
     <div class="px-8 pb-3 flex items-center gap-2" data-testid="connections-mcp-filters">
-      <Chip
-        tone={mcpFilter === "all" ? "primary" : "neutral"}
+      <Badge
+        variant={mcpFilter === "all" ? "primary" : "neutral"}
         size="sm"
         outline={mcpFilter !== "all"}
+        onclick={() => (mcpFilter = "all")}
       >
-        <button
-          type="button"
-          class="bg-transparent border-0 p-0 cursor-pointer"
-          onclick={() => (mcpFilter = "all")}
-        >
-          Tous{mcpEntries.length > 0 ? ` · ${mcpEntries.length}` : registryLoading ? " · …" : ""}
-        </button>
-      </Chip>
-      <Chip
-        tone={mcpFilter === "installed" ? "success" : "neutral"}
+        Tous{mcpEntries.length > 0 ? ` · ${mcpEntries.length}` : registryLoading ? " · …" : ""}
+      </Badge>
+      <Badge
+        variant={mcpFilter === "installed" ? "success" : "neutral"}
         size="sm"
         outline={mcpFilter !== "installed"}
+        onclick={() => (mcpFilter = "installed")}
       >
-        <button
-          type="button"
-          class="bg-transparent border-0 p-0 cursor-pointer"
-          onclick={() => (mcpFilter = "installed")}
-        >
-          Installés · {installedRegCount}
-        </button>
-      </Chip>
-      <Chip
-        tone={mcpFilter === "official" ? "primary" : "neutral"}
+        Installés · {installedRegCount}
+      </Badge>
+      <Badge
+        variant={mcpFilter === "official" ? "primary" : "neutral"}
         size="sm"
         outline={mcpFilter !== "official"}
+        onclick={() => (mcpFilter = "official")}
       >
-        <button
-          type="button"
-          class="bg-transparent border-0 p-0 cursor-pointer"
-          onclick={() => (mcpFilter = "official")}
-        >
-          Officiels{officialCount > 0 ? ` · ${officialCount}` : ""}
-        </button>
-      </Chip>
-      <Chip
-        tone={mcpFilter === "community" ? "info" : "neutral"}
+        Officiels{officialCount > 0 ? ` · ${officialCount}` : ""}
+      </Badge>
+      <Badge
+        variant={mcpFilter === "community" ? "info" : "neutral"}
         size="sm"
         outline={mcpFilter !== "community"}
+        onclick={() => (mcpFilter = "community")}
       >
-        <button
-          type="button"
-          class="bg-transparent border-0 p-0 cursor-pointer"
-          onclick={() => (mcpFilter = "community")}
-        >
-          Communauté{communityCount > 0 ? ` · ${communityCount}` : ""}
-        </button>
-      </Chip>
+        Communauté{communityCount > 0 ? ` · ${communityCount}` : ""}
+      </Badge>
     </div>
 
     <div class="px-8 pb-8">
@@ -871,7 +836,7 @@
           </div>
           <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-loading">
             {#each Array(12) as _, i (i)}
-              <div class="h-20 rounded-xl bg-surface-1 border border-border animate-pulse"></div>
+              <Skeleton class="h-20 rounded-xl bg-surface-1 border border-border" />
             {/each}
           </div>
         </div>
@@ -890,9 +855,9 @@
           tone="neutral"
         >
           {#snippet action()}
-            <BtnSecondary onclick={() => (mcpFilter = "all")}>
+            <Button variant="outline" size="sm" onclick={() => (mcpFilter = "all")}>
               {$t("connections.filters.clear_all")}
-            </BtnSecondary>
+            </Button>
           {/snippet}
         </EmptyState>
       {:else}
@@ -931,9 +896,9 @@
         </div>
         {#if hasMoreMcp}
           <div class="mt-4 flex items-center justify-center gap-3">
-            <BtnSecondary onclick={() => (catalogLimit += CATALOG_PAGE)}>
+            <Button variant="outline" size="sm" onclick={() => (catalogLimit += CATALOG_PAGE)}>
               Voir plus ({filteredMcp.length - catalogLimit} restants)
-            </BtnSecondary>
+            </Button>
             {#if registryLoading}
               <span class="text-xs text-muted-foreground">Chargement du catalogue…</span>
             {/if}
@@ -1010,9 +975,9 @@
             rel="noopener noreferrer">ouvrir l'URL manuellement</a
           >.
         </p>
-        <input
+        <Input
           type="text"
-          class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
+          class="font-mono"
           placeholder={$t("connections.custom_mcp.code_placeholder")}
           bind:value={oauthDialogPastedCode}
           disabled={oauthDialogBusy}
@@ -1023,14 +988,14 @@
       {/if}
 
       <div class="flex justify-end gap-2 pt-1">
-        <BtnSecondary onclick={() => (oauthDialogOpen = false)}>{$t("common.cancel")}</BtnSecondary>
+        <Button variant="outline" size="sm" onclick={() => (oauthDialogOpen = false)}>{$t("common.cancel")}</Button>
         {#if oauthDialogAuthUrl}
-          <BtnPrimary
+          <Button variant="primary-solid" size="sm"
             onclick={completeNativeFlow}
             disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
           >
             {oauthDialogBusy ? $t("common.finalizing") : $t("common.finalize")}
-          </BtnPrimary>
+          </Button>
         {/if}
       </div>
     </div>
@@ -1051,9 +1016,9 @@
       <div class="space-y-2">
         <label class="block text-xs font-medium">
           Nom (interne, unique)
-          <input
+          <Input
             type="text"
-            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+            class="mt-1"
             placeholder="ex. acme-internal"
             bind:value={customForm.name}
             disabled={customBusy}
@@ -1062,23 +1027,23 @@
 
         <label class="block text-xs font-medium">
           Transport
-          <select
-            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+          <Select
+            class="mt-1"
             bind:value={customForm.transport}
             disabled={customBusy}
           >
             <option value="stdio">stdio (subprocess local)</option>
             <option value="streamable-http">Streamable HTTP (MCP 2025-11-25)</option>
             <option value="sse">SSE (legacy 2024-11-05)</option>
-          </select>
+          </Select>
         </label>
 
         {#if customForm.transport === "stdio"}
           <label class="block text-xs font-medium">
             Commande
-            <input
+            <Input
               type="text"
-              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              class="mt-1 font-mono"
               placeholder="npx, uvx, /path/to/binary…"
               bind:value={customForm.command}
               disabled={customBusy}
@@ -1086,9 +1051,9 @@
           </label>
           <label class="block text-xs font-medium">
             Arguments (espace-séparé)
-            <input
+            <Input
               type="text"
-              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              class="mt-1 font-mono"
               placeholder="@modelcontextprotocol/server-filesystem /tmp"
               bind:value={customForm.args}
               disabled={customBusy}
@@ -1097,9 +1062,9 @@
         {:else}
           <label class="block text-xs font-medium">
             URL du serveur
-            <input
+            <Input
               type="url"
-              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              class="mt-1 font-mono"
               placeholder="https://mcp.example.com/v1"
               bind:value={customForm.url}
               disabled={customBusy}
@@ -1109,19 +1074,19 @@
 
         <label class="block text-xs font-medium">
           {customForm.transport === "stdio" ? "Variables d'environnement" : "Headers HTTP"} (une par ligne, format <code>NOM=valeur</code>)
-          <textarea
-            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
-            rows="3"
+          <Textarea
+            class="mt-1 font-mono"
+            rows={3}
             placeholder={customForm.transport === "stdio"
               ? "NOTION_TOKEN=ntn_xxxxx\nDEBUG=1"
               : "Authorization=Bearer xxx\nX-Custom-Header=value"}
             bind:value={customForm.headers}
             disabled={customBusy}
-          ></textarea>
+          />
         </label>
 
         <label class="block text-xs font-medium flex items-center gap-2 pt-1">
-          <input type="checkbox" bind:checked={customForm.requires_approval} disabled={customBusy} />
+          <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} />
           Demander une approbation HITL pour chaque appel d'outil
         </label>
       </div>
@@ -1138,19 +1103,19 @@
       {/if}
 
       <div class="flex justify-end gap-2 pt-1">
-        <BtnSecondary
+        <Button variant="outline" size="sm"
           onclick={() => {
             customDialogOpen = false;
             resetCustomForm();
           }}
-          disabled={customBusy}>Annuler</BtnSecondary
+          disabled={customBusy}>Annuler</Button
         >
-        <BtnSecondary onclick={testCustomServer} disabled={customBusy}>
+        <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy}>
           {customBusy ? "Test…" : "Tester"}
-        </BtnSecondary>
-        <BtnPrimary onclick={installCustomServer} disabled={customBusy}>
+        </Button>
+        <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy}>
           {customBusy ? "Installation…" : "Installer"}
-        </BtnPrimary>
+        </Button>
       </div>
     </div>
   </div>

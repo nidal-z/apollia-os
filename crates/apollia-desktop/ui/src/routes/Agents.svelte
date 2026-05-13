@@ -15,7 +15,6 @@
     Clock,
     Download,
     FolderOpen,
-    Loader2,
     Package,
     Play,
     Plus,
@@ -35,13 +34,13 @@
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import {
     PageHeader,
-    BtnPrimary,
-    BtnSecondary,
-    Chip,
+    
     StatusDot,
     Card,
     EmptyState,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
   import type {
     AgentPackageListItem,
     AgentPackageDetailView,
@@ -59,6 +58,9 @@
     packageRuntimeState,
   } from "$lib/stores/agentPackages";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Input } from "$lib/components/ui/input";
 
   // ── Existing state (preserved from previous implementation) ──────────
   let installingAgent = $state(false);
@@ -406,13 +408,13 @@
     subtitle="Vos compagnons IA — chacun avec ses outils, sa mémoire et ses déclencheurs."
   >
     {#snippet actions()}
-      <BtnSecondary onclick={() => (installPackageOpen = true)}>
+      <Button variant="outline" size="sm" onclick={() => (installPackageOpen = true)}>
         {#snippet icon()}
           <Package size={12} />
         {/snippet}
         Installer un package
-      </BtnSecondary>
-      <BtnPrimary
+      </Button>
+      <Button variant="primary-solid" size="sm"
         onclick={pickAndInstallAgent}
         disabled={installingAgent}
       >
@@ -422,7 +424,7 @@
         {installingAgent
           ? $t("agents.installing")
           : "Nouvel assistant"}
-      </BtnPrimary>
+      </Button>
     {/snippet}
   </PageHeader>
 
@@ -449,25 +451,25 @@
           class="flex items-center gap-[7px] rounded-md border border-border bg-surface-1 px-2.5 py-[7px]"
         >
           <Search size={11} class="text-muted-foreground" />
-          <input
+          <Input
             type="text"
             bind:value={query}
             placeholder="Filtrer"
             class="flex-1 border-none bg-transparent text-[11.5px] text-foreground placeholder:text-muted-foreground focus:outline-none"
             data-testid="agents-search"
-          />
+           />
         </div>
       </div>
 
       <div class="flex-1 overflow-y-auto px-2.5 pb-2">
         <!-- Section header: assistants -->
         <div
-          class="font-mono mb-1.5 mt-1 px-2 text-[10px] font-semibold uppercase tracking-[1.4px] text-muted-foreground/80"
+          class="section-meta mb-1.5 mt-1 px-2 text-[10px] tracking-[1.4px] /80"
         >
           Mes assistants · {filteredAssistants.length}
         </div>
         <!-- Pinned system agent: Apollia Chat -->
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onclick={() => {
             apolliaChatSelected = true;
@@ -497,8 +499,8 @@
               Agent système · chat libre
             </div>
           </div>
-          <Chip size="sm" tone="info">Système</Chip>
-        </button>
+          <Badge size="sm" variant="info">Système</Badge>
+        </Button>
 
         {#if $connectionStatus === "connecting" && allAssistants.length === 0}
           <div class="space-y-1">
@@ -506,10 +508,10 @@
               <div
                 class="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
               >
-                <div class="h-7 w-7 animate-pulse rounded-lg bg-surface-2"></div>
+                <Skeleton class="h-7 w-7 rounded-lg bg-surface-2" />
                 <div class="flex-1 space-y-1.5">
-                  <div class="h-3 w-3/5 animate-pulse rounded bg-surface-2"></div>
-                  <div class="h-2.5 w-2/5 animate-pulse rounded bg-surface-2"></div>
+                  <Skeleton class="h-3 w-3/5 rounded bg-surface-2" />
+                  <Skeleton class="h-2.5 w-2/5 rounded bg-surface-2" />
                 </div>
               </div>
             {/each}
@@ -530,12 +532,12 @@
               {/snippet}
               {#snippet action()}
                 {#if query.length === 0}
-                  <BtnPrimary onclick={pickAndInstallAgent}>
+                  <Button variant="primary-solid" size="sm" onclick={pickAndInstallAgent}>
                     {#snippet icon()}
                       <Plus size={12} />
                     {/snippet}
                     Nouvel assistant
-                  </BtnPrimary>
+                  </Button>
                 {/if}
               {/snippet}
             </EmptyState>
@@ -551,7 +553,7 @@
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
             >
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => {
                   selectedName = agent.name;
@@ -591,9 +593,9 @@
                     {agent.description ?? statusLabel(agent)}
                   </div>
                 </div>
-                <Chip size="sm" tone="neutral">{kindLabel(agent)}</Chip>
-              </button>
-              <button
+                <Badge size="sm" variant="neutral">{kindLabel(agent)}</Badge>
+              </Button>
+              <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => toggleAgentRuntime(agent)}
                 disabled={busy || (!running && !agent.install_path)}
@@ -604,20 +606,20 @@
                 data-agent-name={agent.name}
               >
                 {#if busy}
-                  <Loader2 size={13} class="animate-spin" />
+                  <Spinner size={13} />
                 {:else if running}
                   <Square size={12} fill="currentColor" />
                 {:else}
                   <Play size={13} fill="currentColor" />
                 {/if}
-              </button>
+              </Button>
             </div>
           {/each}
         {/if}
 
         <!-- Section header: packages -->
         <div
-          class="font-mono mb-1.5 mt-4 px-2 text-[10px] font-semibold uppercase tracking-[1.4px] text-muted-foreground/80"
+          class="section-meta mb-1.5 mt-4 px-2 text-[10px] tracking-[1.4px] /80"
         >
           Mes packages · {filteredPackages.length}
         </div>
@@ -638,7 +640,7 @@
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
             >
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => selectPackage(pkg)}
                 class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
@@ -678,11 +680,11 @@
                     {pkgState.runningAgents}/{pkgState.totalAgents} agents · {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
                   </div>
                 </div>
-                <Chip size="sm" tone={packageStatusTone(pkgState)}>
+                <Badge size="sm" variant={packageStatusTone(pkgState)}>
                   {packageStatusLabel(pkgState)}
-                </Chip>
-              </button>
-              <button
+                </Badge>
+              </Button>
+              <Button variant="ghost" size="sm"
                 type="button"
                 onclick={() => togglePackageRuntime(pkg)}
                 disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
@@ -693,13 +695,13 @@
                 data-package-name={pkg.name}
               >
                 {#if pkgBusy}
-                  <Loader2 size={13} class="animate-spin" />
+                  <Spinner size={13} />
                 {:else if pkgRunning}
                   <Square size={12} fill="currentColor" />
                 {:else}
                   <Play size={13} fill="currentColor" />
                 {/if}
-              </button>
+              </Button>
             </div>
           {/each}
         {/if}
@@ -731,7 +733,7 @@
               </p>
             </div>
             <div class="flex shrink-0 gap-1.5">
-              <Chip size="sm" tone="info">Système</Chip>
+              <Badge size="sm" variant="info">Système</Badge>
             </div>
           </div>
         </div>
@@ -773,31 +775,31 @@
             </div>
             <div class="flex shrink-0 gap-1.5">
               {#if confirmUninstallPkg === pkg.name}
-                <BtnSecondary onclick={() => (confirmUninstallPkg = null)}>
+                <Button variant="outline" size="sm" onclick={() => (confirmUninstallPkg = null)}>
                   Annuler
-                </BtnSecondary>
-                <BtnPrimary onclick={() => handleUninstallPkg(pkg.name)}>
+                </Button>
+                <Button variant="primary-solid" size="sm" onclick={() => handleUninstallPkg(pkg.name)}>
                   {#snippet icon()}
                     <Trash2 size={12} />
                   {/snippet}
                   Confirmer
-                </BtnPrimary>
+                </Button>
               {:else}
-                <BtnSecondary
+                <Button variant="outline" size="sm"
                   onclick={() => (confirmUninstallPkg = pkg.name)}
                 >
                   {#snippet icon()}
                     <Trash2 size={12} />
                   {/snippet}
                   Désinstaller
-                </BtnSecondary>
-                <BtnPrimary
+                </Button>
+                <Button variant="primary-solid" size="sm"
                   onclick={() => togglePackageRuntime(pkg)}
                   disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
                 >
                   {#snippet icon()}
                     {#if pkgBusy}
-                      <Loader2 size={12} class="animate-spin" />
+                      <Spinner size={12} />
                     {:else if pkgRunning}
                       <Square size={12} fill="currentColor" />
                     {:else}
@@ -805,12 +807,12 @@
                     {/if}
                   {/snippet}
                   {pkgRunning ? "Tout arrêter" : "Tout démarrer"}
-                </BtnPrimary>
+                </Button>
               {/if}
             </div>
           </div>
           <div class="mt-3.5 flex flex-wrap gap-2">
-            <Chip size="sm" tone={packageStatusTone(pkgState)}>
+            <Badge size="sm" variant={packageStatusTone(pkgState)}>
               {#snippet icon()}
                 <StatusDot
                   color={packageStatusColor(pkgState)}
@@ -819,21 +821,21 @@
                 />
               {/snippet}
               {packageStatusLabel(pkgState)}
-            </Chip>
-            <Chip size="sm" tone="neutral">v{pkg.version}</Chip>
-            <Chip size="sm" tone="neutral">
+            </Badge>
+            <Badge size="sm" variant="neutral">v{pkg.version}</Badge>
+            <Badge size="sm" variant="neutral">
               {pkgState.runningAgents}/{pkgState.totalAgents} agents
-            </Chip>
-            <Chip size="sm" tone="neutral">
+            </Badge>
+            <Badge size="sm" variant="neutral">
               {pkgState.enabledTriggers}/{pkgState.totalTriggers} triggers
-            </Chip>
+            </Badge>
             {#if pkg.root_missing}
-              <Chip size="sm" tone="warning">
+              <Badge size="sm" variant="warning">
                 {#snippet icon()}
                   <AlertTriangle size={10} />
                 {/snippet}
                 source manquante
-              </Chip>
+              </Badge>
             {/if}
           </div>
         </div>
@@ -889,7 +891,7 @@
                       : 'border-b border-border/40'}"
                   >
                     <div class="min-w-0 flex-1">
-                      <button
+                      <Button variant="ghost" size="sm"
                         type="button"
                         onclick={() => {
                           if (linked) {
@@ -901,14 +903,14 @@
                         class="block w-full truncate text-left text-[12.5px] font-medium text-foreground hover:underline disabled:no-underline disabled:opacity-60"
                       >
                         {pa.name}
-                      </button>
+                      </Button>
                       <div class="mt-0.5 truncate text-[10.5px] text-muted-foreground">
                         {pa.entry}
                       </div>
                     </div>
-                    <Chip size="sm" tone={pa.role === "director" ? "info" : "neutral"}>
+                    <Badge size="sm" variant={pa.role === "director" ? "info" : "neutral"}>
                       {pa.role}
-                    </Chip>
+                    </Badge>
                     {#if linked}
                       <StatusDot
                         color={statusColor(linked)}
@@ -958,9 +960,9 @@
                         {tr.source_config ? ` · ${tr.source_config}` : ""}
                       </div>
                     </div>
-                    <Chip size="sm" tone={tr.enabled ? "success" : "neutral"}>
+                    <Badge size="sm" variant={tr.enabled ? "success" : "neutral"}>
                       {tr.enabled ? "actif" : "inactif"}
-                    </Chip>
+                    </Badge>
                   </div>
                 {/each}
               {/if}
@@ -993,13 +995,13 @@
               </p>
             </div>
             <div class="flex shrink-0 gap-1.5">
-              <BtnSecondary onclick={() => openDetail(a)}>
+              <Button variant="outline" size="sm" onclick={() => openDetail(a)}>
                 {#snippet icon()}
                   <Settings size={12} />
                 {/snippet}
                 Configurer
-              </BtnSecondary>
-              <BtnPrimary
+              </Button>
+              <Button variant="primary-solid" size="sm"
                 onclick={() => startChatWithAgent(a.name)}
                 disabled={!isActive(a)}
               >
@@ -1007,11 +1009,11 @@
                   <MessageSquare size={12} />
                 {/snippet}
                 Nouveau chat
-              </BtnPrimary>
+              </Button>
             </div>
           </div>
           <div class="mt-3.5 flex flex-wrap gap-2">
-            <Chip size="sm" tone={statusTone(a)}>
+            <Badge size="sm" variant={statusTone(a)}>
               {#snippet icon()}
                 <StatusDot
                   color={statusColor(a)}
@@ -1020,19 +1022,19 @@
                 />
               {/snippet}
               {statusLabel(a)}
-            </Chip>
-            <Chip size="sm" tone="neutral">v{a.version}</Chip>
-            <Chip size="sm" tone="neutral">
+            </Badge>
+            <Badge size="sm" variant="neutral">v{a.version}</Badge>
+            <Badge size="sm" variant="neutral">
               {a.tools_required.length + a.tools_optional.length} outils
-            </Chip>
+            </Badge>
             {#if agentClassLabel(a)}
-              <Chip size="sm" tone="info">{agentClassLabel(a)}</Chip>
+              <Badge size="sm" variant="info">{agentClassLabel(a)}</Badge>
             {/if}
             {#if a.execution_mode}
-              <Chip size="sm" tone="neutral">{a.execution_mode}</Chip>
+              <Badge size="sm" variant="neutral">{a.execution_mode}</Badge>
             {/if}
             {#if a.supports_a2a}
-              <Chip size="sm" tone="info">A2A</Chip>
+              <Badge size="sm" variant="info">A2A</Badge>
             {/if}
           </div>
         </div>
@@ -1088,13 +1090,13 @@
                   <span class="text-[12.5px] font-semibold text-foreground"
                     >Outils disponibles</span
                   >
-                  <button
+                  <Button variant="ghost" size="sm"
                     type="button"
                     onclick={() => openDetail(a)}
                     class="cursor-pointer border-none bg-transparent text-[11px] text-primary hover:underline"
                   >
                     Gérer →
-                  </button>
+                  </Button>
                 </div>
 
                 {@const allTools = [
@@ -1139,10 +1141,10 @@
                           {tool.required ? "Requis" : "Optionnel"}
                         </div>
                       </div>
-                      <Chip size="sm" tone="neutral">{scope}</Chip>
+                      <Badge size="sm" variant="neutral">{scope}</Badge>
                       {#if sensitive}
-                        <Chip size="sm" tone="warning"
-                          >demander à chaque fois</Chip
+                        <Badge size="sm" variant="warning"
+                          >demander à chaque fois</Badge
                         >
                       {/if}
                     </div>
@@ -1175,7 +1177,7 @@
                   </span>
                 {:else}
                   {#each a.tags as tag (tag)}
-                    <Chip size="sm" tone="secondary">{tag}</Chip>
+                    <Badge size="sm" variant="secondary">{tag}</Badge>
                   {/each}
                 {/if}
               </div>
@@ -1227,9 +1229,9 @@
           <!-- Logs link -->
           {#if a.id}
             <div class="mt-4 flex justify-end">
-              <BtnSecondary onclick={() => openLogs(a.id!)}>
+              <Button variant="outline" size="sm" onclick={() => openLogs(a.id!)}>
                 {$t("agents.logs")}
-              </BtnSecondary>
+              </Button>
             </div>
           {/if}
         </div>
@@ -1250,12 +1252,12 @@
               <Bot size={22} />
             {/snippet}
             {#snippet action()}
-              <BtnPrimary onclick={pickAndInstallAgent}>
+              <Button variant="primary-solid" size="sm" onclick={pickAndInstallAgent}>
                 {#snippet icon()}
                   <Plus size={12} />
                 {/snippet}
                 Nouvel assistant
-              </BtnPrimary>
+              </Button>
             {/snippet}
           </EmptyState>
         </div>

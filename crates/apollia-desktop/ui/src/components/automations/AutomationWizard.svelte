@@ -21,6 +21,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Input } from "$lib/components/ui/input";
   import { Stepper } from "$lib/components/ui/stepper";
+  import { FormField } from "$lib/components/ui/form-field";
   import type { AgentListItem, CreateTriggerRequest, TriggerDefinitionView } from "$lib/types";
   import {
     parseAutomationDescription,
@@ -254,13 +255,13 @@
   <div class="mt-6 space-y-4">
     {#if step === 0}
       <!-- Step 1 — Describe ------------------------------------------------->
-      <div>
-        <label class="mb-1 block text-sm font-medium" for="automation-describe">
-          {$t("automations.wizard.describe_prompt")}
-        </label>
-        <p class="mb-2 text-[11.5px] text-muted-foreground">
-          {$t("automations.wizard.describe_hint")}
-        </p>
+      <FormField
+        id="automation-describe"
+        label={$t("automations.wizard.describe_prompt")}
+        labelClass="text-sm text-foreground mb-0"
+        hint={$t("automations.wizard.describe_hint")}
+        error={parseError ? $t("automations.wizard.fallback_error") : undefined}
+      >
         <Textarea
           id="automation-describe"
           class="min-h-32"
@@ -268,12 +269,7 @@
           bind:value={description}
           data-testid="automation-wizard-describe"
         />
-        {#if parseError}
-          <p class="mt-2 text-xs text-destructive" data-testid="automation-wizard-parse-error">
-            {$t("automations.wizard.fallback_error")}
-          </p>
-        {/if}
-      </div>
+      </FormField>
     {:else if step === 1}
       <!-- Step 2 — Schedule ------------------------------------------------->
       <div class="space-y-3">
@@ -302,10 +298,11 @@
           </div>
         {/if}
 
-        <div>
-          <label class="mb-1 block text-xs text-muted-foreground" for="automation-refine">
-            {$t("automations.wizard.refine_label")}
-          </label>
+        <FormField
+          id="automation-refine"
+          label={$t("automations.wizard.refine_label")}
+          labelClass="font-normal mb-0"
+        >
           <Input
             id="automation-refine"
             placeholder={$t("automations.wizard.refine_placeholder")}
@@ -317,7 +314,7 @@
             }}
             data-testid="automation-wizard-refine"
           />
-        </div>
+        </FormField>
       </div>
     {:else if step === 2}
       <!-- Step 3 — Agent ---------------------------------------------------->

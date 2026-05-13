@@ -10,9 +10,11 @@
   import { t } from "svelte-i18n";
   import { Play, History, Trash2, MoreHorizontal, Calendar, Clock, FolderSync, Webhook, Zap } from "lucide-svelte";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
-  import { Chip, StatusDot } from "$lib/components/operator";
+  import { StatusDot } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
   import { Avatar } from "$lib/components/ui/avatar";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { ActionMenu, type ActionMenuItem } from "$lib/components/ui/action-menu";
   import {
     estimateNextRun,
     formatNextRun,
@@ -38,7 +40,6 @@
   }: Props = $props();
 
   let firing = $state(false);
-  let isMenuOpen = $state(false);
 
   type Status = "active" | "paused" | "error";
   const status = $derived<Status>(
@@ -120,24 +121,24 @@
     }
   }
 
-  function handleHistory(e: MouseEvent) {
-    e.stopPropagation();
-    isMenuOpen = false;
-    onlogs(trigger.id);
-  }
-
-  function handleDelete(e: MouseEvent) {
-    e.stopPropagation();
-    isMenuOpen = false;
-    ondelete(trigger.id);
-  }
-
-  function handleClickOutside(): void {
-    isMenuOpen = false;
-  }
+  const menuItems = $derived<ActionMenuItem[]>([
+    {
+      id: "history",
+      label: $t("automations.view_history"),
+      icon: History,
+      onclick: () => onlogs(trigger.id),
+      testid: `automation-history-${trigger.id}`,
+    },
+    {
+      id: "delete",
+      label: $t("automations.delete"),
+      icon: Trash2,
+      variant: "destructive",
+      onclick: () => ondelete(trigger.id),
+      testid: `automation-delete-${trigger.id}`,
+    },
+  ]);
 </script>
-
-<svelte:window onclick={handleClickOutside} />
 
 <div
   class="group px-4 py-3 flex items-center gap-2.5 border-b border-border/60 text-[12px] hover:bg-muted/40 transition-colors"
@@ -170,12 +171,12 @@
 
   <!-- STATUT -->
   <div class="w-[110px]">
-    <Chip size="sm" tone={STATUS_TONE[status]}>
+    <Badge size="sm" variant={STATUS_TONE[status]}>
       {#snippet icon()}
         <StatusDot color={STATUS_DOT[status]} glow={status === "active"} />
       {/snippet}
       {statusLabel}
-    </Chip>
+    </Badge>
   </div>
 
   <!-- DERNIÈRE EXÉC -->
@@ -197,44 +198,24 @@
       <Play size={13} strokeWidth={2} class="fill-current" aria-hidden="true" />
     </button>
 
-    <div class="relative">
-      <button
-        type="button"
-        class="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-muted/70"
-        onclick={(e: MouseEvent) => { e.stopPropagation(); isMenuOpen = !isMenuOpen; }}
-        aria-label={$t("a11y.actions_menu")}
-        data-testid="automation-menu-{trigger.id}"
-      >
-        <MoreHorizontal size={14} />
-      </button>
-
-      {#if isMenuOpen}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-          class="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border border-border bg-card text-card-foreground shadow-elev-3 py-1"
-          onclick={(e: MouseEvent) => e.stopPropagation()}
+    <ActionMenu
+      items={menuItems}
+      align="end"
+      class="w-44"
+      triggerLabel={$t("a11y.actions_menu")}
+      data-testid="automation-menu-{trigger.id}"
+    >
+      {#snippet triggerSlot(props)}
+        <button
+          type="button"
+          {...props}
+          class="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-muted/70 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          aria-label={$t("a11y.actions_menu")}
+          data-testid="automation-menu-{trigger.id}"
         >
-          <button
-            type="button"
-            class="w-full text-left px-3 py-1.5 text-[11.5px] flex items-center gap-2 hover:bg-muted transition-colors"
-            onclick={handleHistory}
-            data-testid="automation-history-{trigger.id}"
-          >
-            <History size={12} strokeWidth={1.75} />
-            {$t("automations.view_history")}
-          </button>
-          <button
-            type="button"
-            class="w-full text-left px-3 py-1.5 text-[11.5px] flex items-center gap-2 text-danger-a11y hover:bg-muted transition-colors"
-            onclick={handleDelete}
-            data-testid="automation-delete-{trigger.id}"
-          >
-            <Trash2 size={12} strokeWidth={1.75} />
-            {$t("automations.delete")}
-          </button>
-        </div>
-      {/if}
-    </div>
+          <MoreHorizontal size={14} />
+        </button>
+      {/snippet}
+    </ActionMenu>
   </div>
 </div>

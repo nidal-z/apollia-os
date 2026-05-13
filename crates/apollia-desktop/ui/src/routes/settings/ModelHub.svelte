@@ -15,7 +15,6 @@
     AlertTriangle,
     CheckCircle,
     AlertCircle,
-    Loader2,
     Info,
     ExternalLink,
     Key,
@@ -26,6 +25,10 @@
     SlidersHorizontal,
   } from "lucide-svelte";
   import { addToast } from "$lib/components/ui/toast";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Input } from "$lib/components/ui/input";
+  import { Select } from "$lib/components/ui/select";
+  import { Button } from "$lib/components/ui/button";
 
   // ──────────────────────────────────────────────
   // Types
@@ -475,7 +478,7 @@
 
     {#if hardwareLoading}
       <div class="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 class="h-4 w-4 animate-spin" />
+        <Spinner class="h-4 w-4" />
         {$t("settings.model_hub.hardware.detecting")}
       </div>
     {:else if hardware}
@@ -523,13 +526,13 @@
             <div class="text-xs text-muted-foreground w-20 text-right">
               {formatProgress(dl)} · {formatSpeed(dl.speed_bps)}
             </div>
-            <button
+            <Button variant="ghost" size="sm"
               onclick={() => cancelDownload(dl.id)}
               class="rounded p-1 text-muted-foreground hover:text-destructive transition-colors"
               aria-label={$t("settings.model_hub.downloads.cancel_aria")}
             >
               <X class="h-3 w-3" />
-            </button>
+            </Button>
           </div>
         {/each}
       </div>
@@ -555,18 +558,18 @@
         </a>
       </p>
       <div class="flex gap-2">
-        <input
+        <Input
           type="password"
           bind:value={hfToken}
           placeholder="hf_••••••••••••••••"
           class="flex h-9 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        />
-        <button
+         />
+        <Button variant="ghost" size="sm"
           onclick={() => (showTokenForm = false)}
           class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           {$t("settings.model_hub.token.done")}
-        </button>
+        </Button>
       </div>
     </section>
   {/if}
@@ -576,7 +579,7 @@
     <div class="flex gap-2">
       <div class="relative flex-1">
         <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <Input
           type="text"
           bind:value={searchQuery}
           onkeydown={(e) => e.key === "Enter" && search()}
@@ -584,26 +587,26 @@
           class="flex h-9 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         />
       </div>
-      <button
+      <Button variant="ghost" size="sm"
         onclick={() => search()}
         disabled={searching}
         class="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
       >
         {#if searching}
-          <Loader2 class="h-4 w-4 animate-spin" />
+          <Spinner class="h-4 w-4" />
         {:else}
           <Search class="h-4 w-4" />
         {/if}
         {$t("settings.model_hub.search.button")}
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         onclick={() => (showTokenForm = !showTokenForm)}
         class="flex items-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         title={$t("settings.model_hub.token.title_button")}
       >
         <Key class="h-4 w-4" />
         {hfToken ? $t("settings.model_hub.token.set") : $t("settings.model_hub.token.btn")}
-      </button>
+      </Button>
     </div>
 
     {#if searchError}
@@ -618,7 +621,7 @@
       <SlidersHorizontal class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
       <!-- Sort (server-side) -->
-      <select
+      <Select
         bind:value={sortBy}
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
@@ -627,10 +630,10 @@
         <option value="likes">{$t("settings.model_hub.filters.sort_likes")}</option>
         <option value="trending">{$t("settings.model_hub.filters.sort_trending")}</option>
         <option value="createdAt">{$t("settings.model_hub.filters.sort_newest")}</option>
-      </select>
+      </Select>
 
       <!-- Language (server-side) -->
-      <select
+      <Select
         bind:value={langFilter}
         onchange={() => search()}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
@@ -646,20 +649,20 @@
         <option value="ar">{$t("settings.model_hub.filters.lang_ar")}</option>
         <option value="ru">{$t("settings.model_hub.filters.lang_ru")}</option>
         <option value="pt">{$t("settings.model_hub.filters.lang_pt")}</option>
-      </select>
+      </Select>
 
       <!-- License (client-side) -->
-      <select
+      <Select
         bind:value={licenseFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
         <option value="any">{$t("settings.model_hub.filters.license_any")}</option>
         <option value="open">{$t("settings.model_hub.filters.license_open")}</option>
         <option value="restricted">{$t("settings.model_hub.filters.license_restricted")}</option>
-      </select>
+      </Select>
 
       <!-- Model type (client-side) -->
-      <select
+      <Select
         bind:value={modelTypeFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
@@ -667,20 +670,20 @@
         <option value="instruct">{$t("settings.model_hub.filters.type_instruct")}</option>
         <option value="base">{$t("settings.model_hub.filters.type_base")}</option>
         <option value="reasoning">{$t("settings.model_hub.filters.type_reasoning")}</option>
-      </select>
+      </Select>
 
       <!-- Gated (client-side) -->
-      <select
+      <Select
         bind:value={gatedFilter}
         class="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring/40"
       >
         <option value="any">{$t("settings.model_hub.filters.gated_any")}</option>
         <option value="open">{$t("settings.model_hub.filters.gated_open_only")}</option>
         <option value="gated">{$t("settings.model_hub.filters.gated_only")}</option>
-      </select>
+      </Select>
 
       <!-- Show incompatible toggle (Option C: hidden by default) -->
-      <button
+      <Button variant="ghost" size="sm"
         onclick={() => (showIncompatible = !showIncompatible)}
         class="flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors
           {showIncompatible
@@ -694,7 +697,7 @@
           <EyeOff class="h-3 w-3" />
         {/if}
         {$t("settings.model_hub.filters.incompatible")}
-      </button>
+      </Button>
 
       <!-- Result count -->
       {#if searchResults.length > 0}
@@ -712,7 +715,7 @@
         {@const isExpanded = expandedModel === model.repo_id}
         <div class="rounded-lg border border-border bg-background overflow-hidden">
           <!-- Model header (always visible) -->
-          <button
+          <Button variant="ghost" size="sm"
             onclick={() => expandModel(model.repo_id)}
             class="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/40 transition-colors"
           >
@@ -755,14 +758,14 @@
                 <ChevronDown class="h-4 w-4" />
               {/if}
             </div>
-          </button>
+          </Button>
 
           <!-- Expanded detail -->
           {#if isExpanded}
             <div class="border-t border-border p-4">
               {#if modelDetailLoading}
                 <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 class="h-4 w-4 animate-spin" />
+                  <Spinner class="h-4 w-4" />
                   {$t("settings.model_hub.detail.loading_files")}
                 </div>
               {:else if modelDetail && modelDetail.repo_id === model.repo_id}
@@ -844,18 +847,18 @@
                               <Icon class="h-4 w-4" />
                             </span>
                           {/if}
-                          <button
+                          <Button variant="ghost" size="sm"
                             onclick={() => downloadGroup(group)}
                             disabled={isDownloading}
                             class="flex shrink-0 items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                           >
                             {#if isDownloading}
-                              <Loader2 class="h-3 w-3 animate-spin" />
+                              <Spinner class="h-3 w-3" />
                             {:else}
                               <Download class="h-3 w-3" />
                             {/if}
                             {group.isSplit ? $t("settings.model_hub.detail.files_count", { values: { count: group.files.length } }) : $t("settings.model_hub.detail.download")}
-                          </button>
+                          </Button>
                         </div>
                       {/each}
                     </div>
@@ -872,12 +875,12 @@
                         <div class="flex items-center gap-2 text-xs">
                           <span class="flex-1 truncate font-mono text-foreground">{f.filename.split("/").pop()}</span>
                           <span class="text-muted-foreground">{f.size_human || "—"}</span>
-                          <button
+                          <Button variant="ghost" size="sm"
                             onclick={() => startDownload(f)}
                             class="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
                           >
                             <Download class="h-3 w-3" /> {$t("settings.model_hub.detail.download")}
-                          </button>
+                          </Button>
                         </div>
                       {/each}
                     </div>
@@ -900,7 +903,7 @@
             class="flex items-center gap-2 rounded-md border border-border px-5 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors"
           >
             {#if searching}
-              <Loader2 class="h-4 w-4 animate-spin" />
+              <Spinner class="h-4 w-4" />
               {$t("settings.model_hub.results.loading")}
             {:else}
               {$t("settings.model_hub.results.load_more")}
@@ -912,8 +915,8 @@
   {:else if !searching && searchResults.length > 0}
     <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
       {$t("settings.model_hub.results.no_match")}
-      <button onclick={() => { licenseFilter = "any"; modelTypeFilter = "any"; gatedFilter = "any"; showIncompatible = true; }}
-        class="ml-2 text-primary hover:underline">{$t("settings.model_hub.results.clear_filters")}</button>
+      <Button variant="ghost" size="sm" onclick={() => { licenseFilter = "any"; modelTypeFilter = "any"; gatedFilter = "any"; showIncompatible = true; }}
+        class="ml-2 text-primary hover:underline">{$t("settings.model_hub.results.clear_filters")}</Button>
     </div>
   {:else if !searching && searchQuery}
     <div class="rounded-lg border border-border bg-muted/40 p-8 text-center text-sm text-muted-foreground">

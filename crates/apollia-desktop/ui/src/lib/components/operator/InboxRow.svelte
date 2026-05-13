@@ -10,9 +10,8 @@
     HelpCircle,
     MessageSquare,
   } from "lucide-svelte";
-  import Chip from "./Chip.svelte";
-  import BtnPrimary from "./BtnPrimary.svelte";
-  import BtnSecondary from "./BtnSecondary.svelte";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
 
   export type InboxType =
     | "approval"
@@ -90,7 +89,7 @@
   </div>
   <div class="flex-1 min-w-0">
     <div class="flex items-center gap-1.5">
-      <Chip size="sm" tone={cfg.tone}>{cfg.label}</Chip>
+      <Badge size="sm" variant={cfg.tone}>{cfg.label}</Badge>
       <span
         class="text-[12.5px] text-foreground truncate"
         style:font-weight={unread ? 600 : 500}
@@ -107,7 +106,7 @@
   </div>
   <div class="flex items-center gap-1.5 shrink-0">
     {#if onSecondaryAction}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         onclick={(e) => {
@@ -119,14 +118,14 @@
         data-testid="inbox-row-secondary"
       >
         <MessageSquare size={14} strokeWidth={1.75} />
-      </button>
+      </Button>
     {/if}
     {#if type === "approval"}
-      <BtnPrimary onclick={onAction}>Autoriser</BtnPrimary>
+      <Button variant="primary-solid" size="sm" onclick={onAction}>Autoriser</Button>
     {:else if type === "question"}
-      <BtnSecondary onclick={onAction}>Répondre</BtnSecondary>
+      <Button variant="outline" size="sm" onclick={onAction}>Répondre</Button>
     {:else if type === "error"}
-      <BtnSecondary onclick={onAction}>Résoudre</BtnSecondary>
+      <Button variant="outline" size="sm" onclick={onAction}>Résoudre</Button>
     {/if}
   </div>
 </div>

@@ -5,6 +5,7 @@
    */
   import { t } from "svelte-i18n";
   import { Bot } from "lucide-svelte";
+  import { StatusDot } from "$lib/components/operator";
   import type { AgentListItem } from "$lib/types";
   import type { AgentLiveStatus } from "$lib/stores/agentStatus";
 
@@ -17,11 +18,18 @@
 
   let { agent, status, disabled = false, onselect }: Props = $props();
 
-  const DOT_CLASS: Record<AgentLiveStatus, string> = {
-    online: "bg-emerald-500",
-    busy: "bg-amber-500 animate-pulse",
-    offline: "bg-muted-foreground/40",
-    error: "bg-red-500",
+  const DOT_COLOR: Record<AgentLiveStatus, string> = {
+    online: "hsl(var(--success))",
+    busy: "hsl(var(--warning))",
+    offline: "hsl(var(--muted-foreground) / 0.4)",
+    error: "hsl(var(--destructive))",
+  };
+
+  const DOT_GLOW: Record<AgentLiveStatus, boolean> = {
+    online: false,
+    busy: true,
+    offline: false,
+    error: true,
   };
 
   const skills = $derived(agent.skills ?? []);
@@ -47,10 +55,11 @@
     </div>
     <span class="flex-1 truncate text-[12px] font-medium text-foreground">{agent.name}</span>
     <span
-      class="relative inline-flex h-2 w-2 rounded-full {DOT_CLASS[status]}"
       title={$t(`chat.agent_status.${status}`)}
       aria-label={$t(`chat.agent_status.${status}`)}
-    ></span>
+    >
+      <StatusDot color={DOT_COLOR[status]} glow={DOT_GLOW[status]} size={8} />
+    </span>
   </div>
 
   {#if agent.description}

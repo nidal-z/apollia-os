@@ -1,4 +1,5 @@
 <script lang="ts" context="module">
+  import { Card } from "$lib/components/ui/card";
   export const meta = {
     title: "settings.nav.profile",
     icon: "user",
@@ -299,7 +300,7 @@
     </p>
 
     <!-- ─── Identité ──────────────────────────────────────────────────────── -->
-    <div class="glass-card glass-border space-y-4 rounded-lg p-4">
+    <Card class="space-y-4 rounded-lg p-4">
       <header class="flex items-center gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <User size={18} strokeWidth={1.75} />
@@ -386,10 +387,10 @@
           data-testid="profile-textarea-goals"
         />
       </label>
-    </div>
+    </Card>
 
     <!-- ─── Supervision Agents (sensible) ─────────────────────────────────── -->
-    <div class="glass-card glass-border space-y-4 rounded-lg border-warning/30 p-4">
+    <Card class="space-y-4 rounded-lg border-warning/30 p-4">
       <header class="flex items-start gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-warning/10 text-warning">
           <ShieldAlert size={18} strokeWidth={1.75} />
@@ -478,10 +479,10 @@
           {/each}
         </RadioGroup>
       </div>
-    </div>
+    </Card>
 
     <!-- ─── Outils & contexte métier ──────────────────────────────────────── -->
-    <div class="glass-card glass-border space-y-4 rounded-lg p-4">
+    <Card class="space-y-4 rounded-lg p-4">
       <header class="flex items-center gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Cpu size={18} strokeWidth={1.75} />
@@ -556,10 +557,10 @@
           {/each}
         </div>
       </div>
-    </div>
+    </Card>
 
     <!-- ─── Contraintes (sensible) ────────────────────────────────────────── -->
-    <div class="glass-card glass-border space-y-4 rounded-lg border-warning/30 p-4">
+    <Card class="space-y-4 rounded-lg border-warning/30 p-4">
       <header class="flex items-start gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-warning/10 text-warning">
           <Briefcase size={18} strokeWidth={1.75} />
@@ -623,10 +624,10 @@
           {/each}
         </div>
       </div>
-    </div>
+    </Card>
 
     <!-- ─── Préférences ───────────────────────────────────────────────────── -->
-    <div class="glass-card glass-border space-y-4 rounded-lg p-4">
+    <Card class="space-y-4 rounded-lg p-4">
       <header class="flex items-center gap-2">
         <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Settings2 size={18} strokeWidth={1.75} />
@@ -670,7 +671,7 @@
           </Select>
         </label>
       </div>
-    </div>
+    </Card>
 
     <!-- ─── Zone danger ───────────────────────────────────────────────────── -->
     <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">

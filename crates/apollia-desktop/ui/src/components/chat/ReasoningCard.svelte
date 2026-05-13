@@ -37,6 +37,8 @@
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
   import RetryTimeline from "./RetryTimeline.svelte";
+  import { Separator } from "$lib/components/ui/separator";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     item: ReasoningItem;
@@ -388,7 +390,7 @@
                   {/if}
                 </span>
               {/if}
-              <span class="h-px flex-1 bg-border/40"></span>
+              <Separator variant="inline" />
             </div>
             <ul class="space-y-1.5">
               {#each askUserPairs as pair (pair.id)}
@@ -431,7 +433,7 @@
           <div class="space-y-1">
             <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
               <span>{$t("chat.reasoning.input_label", { default: "Input" })}</span>
-              <span class="h-px flex-1 bg-border/40"></span>
+              <Separator variant="inline" />
             </div>
             {#if bashDisplay !== null}
               <pre
@@ -464,7 +466,7 @@
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide {isError ? 'text-destructive/70' : 'text-muted-foreground/60'}">
                 <span>{$t("chat.reasoning.output_label", { default: "Output" })}</span>
-                <span class="h-px flex-1 {isError ? 'bg-destructive/30' : 'bg-border/40'}"></span>
+                <Separator variant="inline" class={isError ? "bg-destructive/30" : undefined} />
               </div>
               <pre
                 class="rounded {isError
@@ -484,7 +486,7 @@
             <div class="space-y-1">
               <div class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
                 <span>{$t("chat.reasoning.command_label", { default: "Command" })}</span>
-                <span class="h-px flex-1 bg-border/40"></span>
+                <Separator variant="inline" />
               </div>
               <pre
                 class="rounded bg-muted/30 px-2 py-1 font-mono text-foreground overflow-x-auto"
@@ -739,11 +741,11 @@
   <ReasoningCardShell status={item.status} testid={testid}>
     {#snippet icon()}<Quote class="h-3 w-3 text-muted-foreground" />{/snippet}
     {#snippet title()}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="truncate text-left hover:underline"
         onclick={() => onCitation?.(item)}
-      >{item.source}</button>
+      >{item.source}</Button>
     {/snippet}
     {#snippet body()}
       <p class="text-[11px] text-muted-foreground line-clamp-3">{item.excerpt}</p>

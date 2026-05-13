@@ -8,6 +8,7 @@
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
   import { slugify } from "$lib/utils/slugify";
   import { eventLabelKey, eventDescriptionKey } from "$lib/notifications/event-labels";
   import {
@@ -198,8 +199,13 @@
 >
   <div class="space-y-4">
     <!-- Label (free-form display name) — primary field -->
-    <div>
-      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-label">{$t("notifications.field_label")}</label>
+    <FormField
+      id="channel-label"
+      label={$t("notifications.field_label")}
+      labelClass="text-[11px] font-normal mb-0"
+      error={labelError || undefined}
+      hint={$t("notifications.field_label_help")}
+    >
       <Input
         id="channel-label"
         class={labelError ? 'border-destructive' : ''}
@@ -209,11 +215,7 @@
         autofocus
         data-testid="channel-label-input"
       />
-      <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_label_help")}</p>
-      {#if labelError}
-        <p class="mt-0.5 text-xs text-destructive" data-testid="channel-label-error">{labelError}</p>
-      {/if}
-    </div>
+    </FormField>
 
     <!-- Technical identifier (advanced, collapsed) -->
     <details class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
@@ -237,8 +239,11 @@
     </details>
 
     <!-- Type -->
-    <div>
-      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-type">{$t("notifications.field_type")}</label>
+    <FormField
+      id="channel-type"
+      label={$t("notifications.field_type")}
+      labelClass="text-[11px] font-normal mb-0"
+    >
       <Select
         id="channel-type"
         bind:value={channelType}
@@ -247,12 +252,16 @@
         <option value="desktop">{$t("notifications.field_type_desktop")}</option>
         <option value="webhook">{$t("notifications.field_type_webhook")}</option>
       </Select>
-    </div>
+    </FormField>
 
     <!-- Dynamic webhook fields -->
     {#if channelType === "webhook"}
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-url">{$t("notifications.field_url")}</label>
+      <FormField
+        id="channel-url"
+        label={$t("notifications.field_url")}
+        labelClass="text-[11px] font-normal mb-0"
+        error={urlError || undefined}
+      >
         <Input
           id="channel-url"
           type="url"
@@ -261,16 +270,15 @@
           bind:value={webhookUrl}
           data-testid="channel-url-input"
         />
-        {#if urlError}
-          <p class="mt-0.5 text-xs text-destructive" data-testid="channel-url-error">{urlError}</p>
-        {/if}
-      </div>
+      </FormField>
 
-      <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-headers">
-          {$t("notifications.field_headers")}
-          <span class="font-normal text-muted-foreground">({$t("common.optional")})</span>
-        </label>
+      <FormField
+        id="channel-headers"
+        label={$t("notifications.field_headers")}
+        labelClass="text-[11px] font-normal mb-0"
+        optional
+        error={headersError || undefined}
+      >
         <Textarea
           id="channel-headers"
           class="font-mono text-sm {headersError ? 'border-destructive' : ''}"
@@ -279,10 +287,7 @@
           bind:value={headersText}
           data-testid="channel-headers-textarea"
         />
-        {#if headersError}
-          <p class="mt-0.5 text-xs text-destructive" data-testid="channel-headers-error">{headersError}</p>
-        {/if}
-      </div>
+      </FormField>
     {/if}
 
     <!-- Events per-channel -->
@@ -316,8 +321,13 @@
     {/if}
 
     <!-- Throttle (per (channel, event) min interval) -->
-    <div>
-      <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-throttle">{$t("notifications.field_throttle")}</label>
+    <FormField
+      id="channel-throttle"
+      label={$t("notifications.field_throttle")}
+      labelClass="text-[11px] font-normal mb-0"
+      error={throttleError || undefined}
+      hint={$t("notifications.field_throttle_help")}
+    >
       <Select
         id="channel-throttle"
         bind:value={throttlePreset}
@@ -329,10 +339,12 @@
         <option value="custom">{$t("notifications.throttle_options.custom")}</option>
       </Select>
       {#if throttlePreset === "custom"}
-        <div class="mt-2">
-          <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-throttle-custom">
-            {$t("notifications.throttle_custom_label")}
-          </label>
+        <FormField
+          id="channel-throttle-custom"
+          label={$t("notifications.throttle_custom_label")}
+          labelClass="text-[11px] font-normal mb-0"
+          class="mt-2"
+        >
           <Input
             id="channel-throttle-custom"
             type="number"
@@ -341,13 +353,9 @@
             bind:value={throttleCustom}
             data-testid="channel-throttle-custom-input"
           />
-        </div>
+        </FormField>
       {/if}
-      <p class="mt-0.5 text-xs text-muted-foreground">{$t("notifications.field_throttle_help")}</p>
-      {#if throttleError}
-        <p class="mt-0.5 text-xs text-destructive" data-testid="channel-throttle-error">{throttleError}</p>
-      {/if}
-    </div>
+    </FormField>
 
     <!-- Enabled toggle -->
     <label class="flex items-center gap-2 text-sm">

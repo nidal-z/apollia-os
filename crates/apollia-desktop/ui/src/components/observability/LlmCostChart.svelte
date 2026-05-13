@@ -241,21 +241,21 @@
       <!-- KPI strip -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" data-testid="llm-costs-kpis">
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
             {$t('observability.kpi_total')}
           </div>
           <div class="text-[20px] font-semibold tabular-nums leading-none">{formatCost(totalCost)}</div>
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
             {$t('observability.kpi_avg')}
           </div>
           <div class="text-[20px] font-semibold tabular-nums leading-none">{formatCost(avgPerDay)}</div>
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
             {$t('observability.kpi_peak')}
           </div>
           <div class="flex items-baseline gap-2">
@@ -269,7 +269,7 @@
         </article>
 
         <article class="glass-inset rounded-lg px-4 py-3">
-          <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+          <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
             {$t('observability.kpi_top_backend')}
           </div>
           {#if topBackend}

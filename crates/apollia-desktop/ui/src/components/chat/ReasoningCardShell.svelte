@@ -13,6 +13,7 @@
 
   import type { Snippet } from "svelte";
   import type { ReasoningStatus } from "$lib/chat/reasoning";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     status: ReasoningStatus;
@@ -92,7 +93,7 @@
 >
   <!-- Header -->
   {#if collapsible}
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       class="flex w-full items-center gap-1.5 text-left"
       aria-expanded={expanded}
@@ -112,7 +113,7 @@
           {@render meta()}
         </span>
       {/if}
-    </button>
+    </Button>
   {:else}
     <div class="flex items-center gap-1.5">
       <span

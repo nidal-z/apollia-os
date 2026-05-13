@@ -13,6 +13,11 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import { recordRejectedInsight } from "$lib/stores/chat";
   import { Check, Pencil, X, Info, ChevronDown, ChevronUp } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
+  import { Input } from "$lib/components/ui/input";
+  import { Select } from "$lib/components/ui/select";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
 
   interface Props {
     insight: InsightEntry;
@@ -105,26 +110,23 @@
   );
 </script>
 
-<div
-  class="rounded-lg glass-card glass-border p-3 transition-all duration-150"
-  data-testid="insight-entry"
->
+<Card class="rounded-lg p-3 transition-all duration-150" data-testid="insight-entry">
   {#if editing}
     <!-- Edit mode -->
     <div class="space-y-2">
-      <input
+      <Input
         type="text"
         class="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm ring-offset-background transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         bind:value={editText}
-      />
-      <select
+       />
+      <Select
         class="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
         bind:value={editCategory}
       >
         {#each CATEGORIES as cat}
           <option value={cat}>{$t(`memory.insights.category_${cat}`)}</option>
         {/each}
-      </select>
+      </Select>
       <div class="flex gap-2 justify-end">
         <button
           class="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -209,17 +211,20 @@
         {/if}
 
         {#if rejecting}
-          <div class="mt-2 space-y-2" data-testid="insight-reject-form">
-            <label class="block text-[10px] uppercase tracking-wider text-muted-foreground/60" for="reject-reason-{insight.id}">
-              {$t("memory.insights.reject_reason_label")}
-            </label>
-            <textarea
+          <FormField
+            id="reject-reason-{insight.id}"
+            label={$t("memory.insights.reject_reason_label")}
+            labelClass="text-[10px] font-normal uppercase tracking-wider text-muted-foreground/60"
+            class="mt-2 space-y-2"
+            data-testid="insight-reject-form"
+          >
+            <Textarea
               id="reject-reason-{insight.id}"
               class="w-full rounded-md border border-border bg-background px-2 py-1 text-xs resize-y min-h-[48px]"
               bind:value={rejectReason}
               placeholder={$t("memory.insights.reject_reason_placeholder")}
               data-testid="insight-reject-reason"
-            ></textarea>
+            ></Textarea>
             <div class="flex gap-2 justify-end">
               <button
                 class="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -236,7 +241,7 @@
                 {$t("memory.insights.reject")}
               </button>
             </div>
-          </div>
+          </FormField>
         {/if}
       </div>
 
@@ -274,4 +279,4 @@
       {/if}
     </div>
   {/if}
-</div>
+</Card>

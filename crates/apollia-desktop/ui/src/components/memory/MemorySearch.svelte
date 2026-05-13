@@ -2,6 +2,7 @@
   import { Search } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { Input } from "$lib/components/ui/input";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     value: string;
@@ -59,14 +60,14 @@
   >
     {#snippet trailing()}
       {#if internalValue.length > 0}
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           class="text-muted-foreground hover:text-foreground"
           onclick={handleClear}
           aria-label={$t("a11y.clear_search")}
         >
           &times;
-        </button>
+        </Button>
       {/if}
     {/snippet}
   </Input>

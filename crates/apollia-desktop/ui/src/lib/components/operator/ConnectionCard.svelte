@@ -1,8 +1,9 @@
 <script lang="ts">
   import { X, Sparkles, Plus, Check } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
-  import Chip from "./Chip.svelte";
+  import { Badge } from "$lib/components/ui/badge";
   import Card from "./Card.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   export type ConnectionVariant = "apollia" | "mcp";
   export type ConnectionStatus = "active" | "error" | "syncing" | "idle";
@@ -63,10 +64,10 @@
 {#if variant === "apollia"}
   <Card hover class="px-4 py-3.5 relative">
     <div class="absolute top-2.5 right-2.5">
-      <Chip tone="primary" size="sm">
+      <Badge variant="primary" size="sm">
         {#snippet icon()}<Sparkles size={9} />{/snippet}
         Apollia
-      </Chip>
+      </Badge>
     </div>
     <div class="flex items-start gap-3">
       <div
@@ -89,13 +90,13 @@
           >
             <X size={11} />
             {error}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               {onclick}
               class="ml-auto text-[11px] text-primary bg-transparent border-0 cursor-pointer font-medium hover:underline"
             >
               Reconnecter →
-            </button>
+            </Button>
           </div>
         {:else}
           <div
@@ -145,13 +146,13 @@
         <Check size={10} /> Installé
       </div>
     {:else}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         {onclick}
         class="text-[11px] text-primary bg-transparent border-0 p-0 cursor-pointer font-medium inline-flex items-center gap-1 hover:underline"
       >
         <Plus size={10} /> Connecter
-      </button>
+      </Button>
     {/if}
   </Card>
 {/if}

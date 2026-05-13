@@ -15,6 +15,7 @@
   import { Toggle } from "$lib/components/ui/toggle";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectProviderRow } from "$lib/types";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     provider: ProjectProviderRow;
@@ -123,7 +124,7 @@
       aria-label={$t("projects.context_enabled_label")}
       data-testid="provider-toggle-{provider.id}"
     />
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onclick={() => onedit(provider)}
       class="h-7 w-7 inline-flex items-center justify-center rounded-md bg-transparent border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -131,8 +132,8 @@
       data-testid="provider-edit-{provider.id}"
     >
       <Pencil size={12} />
-    </button>
-    <button
+    </Button>
+    <Button variant="ghost" size="sm"
       type="button"
       onclick={() => ondelete(provider)}
       class="h-7 w-7 inline-flex items-center justify-center rounded-md bg-transparent border border-border text-muted-foreground hover:bg-destructive/10 hover:text-danger-a11y transition-colors"
@@ -140,6 +141,6 @@
       data-testid="provider-delete-{provider.id}"
     >
       <Trash2 size={12} />
-    </button>
+    </Button>
   </div>
 </div>

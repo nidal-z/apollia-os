@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { Eye, EyeOff, Check, X, Loader2 } from "lucide-svelte";
+  import { Eye, EyeOff, Check, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Input } from "$lib/components/ui/input";
   import {
     setCredential,
     deleteCredential,
@@ -139,7 +141,7 @@
             data-testid="{dataTestId}-test"
           >
             {#if testing}
-              <Loader2 class="mr-1 h-3 w-3 animate-spin" aria-hidden="true" />
+              <Spinner class="mr-1 h-3 w-3" aria-hidden="true" />
             {/if}
             Tester
           </Button>
@@ -149,7 +151,7 @@
   {:else}
     <div class="flex items-center gap-2">
       <div class="relative flex-1">
-        <input
+        <Input
           id="{dataTestId}-input"
           type={visible ? "text" : "password"}
           bind:value={draft}
@@ -158,8 +160,8 @@
           class="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary"
           placeholder="Saisir la valeur"
           data-testid="{dataTestId}-input"
-        />
-        <button
+         />
+        <Button variant="ghost" size="sm"
           type="button"
           class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           aria-label={visible ? "Masquer" : "Afficher"}
@@ -170,7 +172,7 @@
           {:else}
             <Eye size={16} aria-hidden="true" />
           {/if}
-        </button>
+        </Button>
       </div>
       <Button
         variant="default"

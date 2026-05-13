@@ -2,9 +2,8 @@
   import { Shield, Check, Zap, ChevronDown } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import StatusDot from "./StatusDot.svelte";
-  import Chip from "./Chip.svelte";
-  import BtnPrimary from "./BtnPrimary.svelte";
-  import BtnSecondary from "./BtnSecondary.svelte";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
 
   export type RiskLevel = "low" | "medium" | "high" | "paid";
   export type AlwaysScope =
@@ -123,10 +122,10 @@
         {/if}
       </div>
     </div>
-    <Chip tone={r.tone} size="sm">
+    <Badge variant={r.tone} size="sm">
       {#snippet icon()}<StatusDot color={r.color} />{/snippet}
       risque {r.label}
-    </Chip>
+    </Badge>
   </div>
   <div class="px-3.5 py-2.5">
     {#if summary}
@@ -154,12 +153,12 @@
   <div
     class="px-3.5 py-2.5 border-t border-border/60 flex flex-wrap items-center gap-2"
   >
-    <BtnPrimary onclick={onApprove}>
+    <Button variant="primary-solid" size="sm" onclick={onApprove}>
       {#snippet icon()}<Check size={11} />{/snippet}
       {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">↵</span>{/snippet}
       Autoriser
-    </BtnPrimary>
-    <BtnSecondary onclick={onReject}>Refuser</BtnSecondary>
+    </Button>
+    <Button variant="outline" size="sm" onclick={onReject}>Refuser</Button>
     {#if onAlwaysAccept}
       <button
         type="button"

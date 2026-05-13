@@ -18,6 +18,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { Input } from "$lib/components/ui/input";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { Button } from "$lib/components/ui/button";
 
   type ProviderId = "google" | "microsoft";
 
@@ -234,13 +237,13 @@
             {#each connected as account}
               <li>
                 <span>{account.account_id}</span>
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onclick={() => disconnect(account)}
                   disabled={loading}
                 >
                   Déconnecter
-                </button>
+                </Button>
               </li>
             {/each}
           </ul>
@@ -252,10 +255,7 @@
             {#each provider.scopes as scope}
               <li>
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={selectedScopes.get(provider.id)?.has(scope.id)}
-                    onchange={() => toggleScope(provider.id, scope.id)}
+                  <Checkbox checked={selectedScopes.get(provider.id)?.has(scope.id)} onchange={() => toggleScope(provider.id, scope.id)}
                   />
                   {scope.label}
                 </label>
@@ -264,14 +264,15 @@
           </ul>
         </details>
 
-        <button
+        <Button
+          variant="primary-solid"
+          size="sm"
           type="button"
-          class="btn-primary"
           onclick={() => startConnect(provider.id)}
           disabled={loading || sovereignty === "local_only"}
         >
           Connecter un compte {provider.name}
-        </button>
+        </Button>
 
         {#if pendingState && pendingProvider === provider.id}
           <div class="pending">
@@ -279,18 +280,18 @@
               Une fenêtre navigateur a été ouverte. Une fois l'autorisation
               accordée, collez ici le code retourné :
             </p>
-            <input
+            <Input
               type="text"
               bind:value={pastedCode}
               placeholder="code OAuth"
-            />
-            <button
+             />
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={completeWithCode}
               disabled={loading || !pastedCode}
             >
               Finaliser la connexion
-            </button>
+            </Button>
           </div>
         {/if}
       </article>
@@ -376,20 +377,6 @@
   .pending {
     display: grid;
     gap: 0.5rem;
-  }
-
-  .btn-primary {
-    padding: 0.5rem 0.875rem;
-    border-radius: 0.5rem;
-    border: none;
-    background: var(--accent, hsl(218 86% 50%));
-    color: white;
-    cursor: pointer;
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   .footnote {

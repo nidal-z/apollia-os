@@ -1,10 +1,11 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
   import { Loader2 } from "lucide-svelte";
+  import type { HTMLAttributes } from "svelte/elements";
 
   type Variant = "inline" | "centered";
 
-  interface Props {
+  interface Props extends Omit<HTMLAttributes<HTMLSpanElement>, "class"> {
     size?: number;
     variant?: Variant;
     label?: string;
@@ -16,12 +17,14 @@
     variant = "inline",
     label,
     class: className = "",
+    ...rest
   }: Props = $props();
 </script>
 
 <span
   role="status"
   aria-label={label ?? "Loading"}
+  {...rest}
   class={cn(
     variant === "centered"
       ? "absolute inset-0 flex items-center justify-center"

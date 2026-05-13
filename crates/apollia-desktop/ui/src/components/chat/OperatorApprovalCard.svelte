@@ -160,7 +160,7 @@
       transition:slide={{ duration: 150 }}
       data-testid="operator-approval-scope-menu-{toolCall.tool_name}"
     >
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -171,8 +171,8 @@
         <div class="text-[10px] text-muted-foreground">
           Jusqu'à la fermeture de ce chat.
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -183,8 +183,8 @@
         <div class="text-[10px] text-muted-foreground">
           Apollia Chat (ou l'agent courant) ne demandera plus.
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={isProcessing || !hasProject}
@@ -198,8 +198,8 @@
             ? "Tous les assistants utilisés dans ce projet."
             : "Indisponible — la session n'est rattachée à aucun projet."}
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -210,7 +210,7 @@
         <div class="text-[10px] text-warning">
           Tous les assistants, tous les projets.
         </div>
-      </button>
+      </Button>
     </div>
   {/if}
 </div>

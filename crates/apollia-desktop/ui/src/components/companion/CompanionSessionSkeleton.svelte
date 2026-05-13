@@ -1,7 +1,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Bot, Loader2 } from "lucide-svelte";
+  import { Bot } from "lucide-svelte";
   import type { CompanionSessionStatus } from "$lib/stores/companion";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
     status: CompanionSessionStatus;
@@ -31,8 +33,8 @@
 >
   <!-- Skeleton header -->
   <div class="flex items-center gap-2 border-b border-border px-3 py-2">
-    <div class="h-6 w-6 animate-pulse rounded-full bg-muted"></div>
-    <div class="h-3 w-28 animate-pulse rounded bg-muted"></div>
+    <Skeleton class="h-6 w-6 rounded-full" />
+    <Skeleton class="h-3 w-28" />
   </div>
 
   <!-- Skeleton messages -->
@@ -40,17 +42,17 @@
     <div class="flex gap-2">
       <Bot size={18} class="mt-0.5 shrink-0 text-muted-foreground/60" />
       <div class="flex-1 space-y-2">
-        <div class="h-3 w-3/4 animate-pulse rounded bg-muted"></div>
-        <div class="h-3 w-1/2 animate-pulse rounded bg-muted"></div>
+        <Skeleton class="h-3 w-3/4" />
+        <Skeleton class="h-3 w-1/2" />
       </div>
     </div>
     <div class="flex justify-end">
-      <div class="h-8 w-2/3 animate-pulse rounded bg-muted/80"></div>
+      <Skeleton class="h-8 w-2/3" />
     </div>
     <div class="flex gap-2">
       <Bot size={18} class="mt-0.5 shrink-0 text-muted-foreground/60" />
       <div class="flex-1 space-y-2">
-        <div class="h-3 w-2/3 animate-pulse rounded bg-muted"></div>
+        <Skeleton class="h-3 w-2/3" />
       </div>
     </div>
   </div>
@@ -59,7 +61,7 @@
   <div
     class="flex items-center gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground"
   >
-    <Loader2 size={14} class="animate-spin" />
+    <Spinner size={14} />
     <span data-testid="companion-session-status">{label}</span>
   </div>
 

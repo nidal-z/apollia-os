@@ -291,6 +291,22 @@
    Anchored on shadow tokens — never hardcode a box-shadow here.
    ═══════════════════════════════════════════════════════════ */
 @layer components {
+  /* ═════════════════════════════════════════════════════════
+     Typography — `.section-meta` is the canonical small-caps
+     label used as section heading inside tables, KPI tiles,
+     timeline grouping, etc. Replaces the repeated inline
+     `font-mono text-[10px] tracking-[1.4px] uppercase font-
+     semibold text-muted-foreground/70` snippet (20+ sites).
+     ═════════════════════════════════════════════════════════ */
+  .section-meta {
+    font-family: theme("fontFamily.mono");
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground) / 0.7);
+    text-transform: uppercase;
+  }
+
   /* ── Panel layer — sidebar, sheets, overlays (heaviest blur) ── */
   .glass-panel {
     background:

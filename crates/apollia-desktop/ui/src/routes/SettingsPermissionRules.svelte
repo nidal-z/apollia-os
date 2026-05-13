@@ -9,6 +9,9 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { PageLayout } from "$lib/components/operator";
+  import { Input } from "$lib/components/ui/input";
+  import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import EmptyState from "../components/common/EmptyState.svelte";
   import { ShieldCheck, Trash2 } from "lucide-svelte";
   import {
@@ -81,12 +84,13 @@
   }
 </script>
 
-<div class="mx-auto w-full max-w-4xl space-y-4" data-testid="settings-permission-rules">
-  <header>
-    <h1 class="text-2xl font-semibold">{$t("permissions.rules.title")}</h1>
-    <p class="mt-1 text-xs text-muted-foreground">{$t("permissions.rules.subtitle")}</p>
-  </header>
-
+<PageLayout
+  title={$t("permissions.rules.title")}
+  subtitle={$t("permissions.rules.subtitle")}
+  maxWidth="max-w-4xl"
+  data-testid="settings-permission-rules"
+>
+  <div class="px-8 pt-6 pb-8 space-y-4">
   {#if loading}
     <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
   {:else if $alwaysAcceptRules.length === 0}
@@ -173,46 +177,41 @@
     </div>
   {/if}
 
-  {#if confirmingAll}
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
+  </div>
+</PageLayout>
+
+<Dialog
+  open={confirmingAll}
+  onclose={() => { confirmingAll = false; confirmText = ""; }}
+  size="sm"
+  title={$t("permissions.rules.revoke_all_confirm_title")}
+>
+  <p class="text-sm text-muted-foreground">
+    {$t("permissions.rules.revoke_all_confirm_body")}
+  </p>
+  <label class="mt-3 block text-xs text-muted-foreground" for="confirm-type-input">
+    {$t("permissions.rules.revoke_all_type_prompt")}
+  </label>
+  <Input
+    id="confirm-type-input"
+    bind:value={confirmText}
+    type="text"
+    class="mt-1"
+  />
+
+  <DialogFooter>
+    <Button
+      variant="ghost"
+      onclick={() => { confirmingAll = false; confirmText = ""; }}
     >
-      <div class="w-full max-w-md rounded-lg border border-destructive/40 bg-card p-4 shadow-xl">
-        <h3 class="text-base font-semibold text-destructive">
-          {$t("permissions.rules.revoke_all_confirm_title")}
-        </h3>
-        <p class="mt-2 text-sm text-muted-foreground">
-          {$t("permissions.rules.revoke_all_confirm_body")}
-        </p>
-        <label class="mt-3 block text-xs text-muted-foreground" for="confirm-type-input">
-          {$t("permissions.rules.revoke_all_type_prompt")}
-        </label>
-        <input
-          id="confirm-type-input"
-          bind:value={confirmText}
-          type="text"
-          class="mt-1 block w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-        />
-        <div class="mt-4 flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onclick={() => { confirmingAll = false; confirmText = ""; }}
-          >
-            {$t("common.cancel")}
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={confirmText.trim().length === 0}
-            onclick={handleRevokeAll}
-          >
-            {$t("permissions.rules.revoke_all")}
-          </Button>
-        </div>
-      </div>
-    </div>
-  {/if}
-</div>
+      {$t("common.cancel")}
+    </Button>
+    <Button
+      variant="destructive"
+      disabled={confirmText.trim().length === 0}
+      onclick={handleRevokeAll}
+    >
+      {$t("permissions.rules.revoke_all")}
+    </Button>
+  </DialogFooter>
+</Dialog>

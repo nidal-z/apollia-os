@@ -10,6 +10,7 @@
   import { Spinner } from "$lib/components/ui/progress";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { uiMode } from "$lib/stores/mode";
+  import { Button } from "$lib/components/ui/button";
 
   type Profile = "operator" | "builder";
 
@@ -117,7 +118,7 @@
   </div>
 
   <footer class="flex items-center justify-between pt-1">
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
       onclick={onback}
@@ -125,8 +126,8 @@
       data-testid="profile-back"
     >
       ← Retour
-    </button>
-    <button
+    </Button>
+    <Button variant="ghost" size="sm"
       type="button"
       class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
       onclick={() => handleSelect("builder")}
@@ -134,7 +135,7 @@
       data-testid="profile-both"
     >
       Je suis les deux → mode Builder
-    </button>
+    </Button>
   </footer>
 </div>
 

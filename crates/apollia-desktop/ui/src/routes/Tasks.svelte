@@ -9,15 +9,15 @@
   import { formatRelativeTime } from "$lib/utils";
   import {
     PageHeader,
-    Chip,
+    
     StatusDot,
-    BtnPrimary,
-    BtnSecondary,
     EmptyState,
     TaskRow,
     type Task as DSTask,
     type TaskStatus as DSTaskStatus,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
   import TaskDetail from "../components/tasks/TaskDetail.svelte";
   import TasksFab from "../components/tasks/TasksFab.svelte";
 
@@ -182,18 +182,18 @@
     subtitle={headlineSubtitle}
   >
     {#snippet actions()}
-      <BtnSecondary onclick={handleRefresh}>
+      <Button variant="outline" size="sm" onclick={handleRefresh}>
         {#snippet icon()}
           <RefreshCw size={12} />
         {/snippet}
         Actualiser
-      </BtnSecondary>
-      <BtnPrimary onclick={handleNewTask}>
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
         {#snippet icon()}
           <Plus size={12} />
         {/snippet}
         Assigner une tâche
-      </BtnPrimary>
+      </Button>
     {/snippet}
   </PageHeader>
 
@@ -206,7 +206,7 @@
   >
     {#each FILTERS as f (f.key)}
       {@const isActive = activeFilter === f.key}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         role="tab"
         aria-selected={isActive}
@@ -215,8 +215,8 @@
         data-testid="tasks-filter-{f.key}"
         data-active={isActive}
       >
-        <Chip
-          tone={isActive ? "primary" : "neutral"}
+        <Badge
+          variant={isActive ? "primary" : "neutral"}
           outline={!isActive}
           size="md"
         >
@@ -224,8 +224,8 @@
             <StatusDot color={f.color} glow={isActive && f.key === "running"} />
           {/snippet}
           {f.label} · {counts[f.key]}
-        </Chip>
-      </button>
+        </Badge>
+      </Button>
     {/each}
   </div>
 
@@ -249,16 +249,16 @@
           {/snippet}
           {#snippet action()}
             {#if activeFilter === "all"}
-              <BtnPrimary onclick={handleNewTask}>
+              <Button variant="primary-solid" size="sm" onclick={handleNewTask}>
                 {#snippet icon()}
                   <Plus size={12} />
                 {/snippet}
                 Assigner une tâche
-              </BtnPrimary>
+              </Button>
             {:else}
-              <BtnSecondary onclick={() => (activeFilter = "all")}>
+              <Button variant="outline" size="sm" onclick={() => (activeFilter = "all")}>
                 Voir toutes les tâches
-              </BtnSecondary>
+              </Button>
             {/if}
           {/snippet}
         </EmptyState>

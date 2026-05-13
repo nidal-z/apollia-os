@@ -1101,7 +1101,7 @@
                 inputPreview={pendingApproval.inputPreview}
               />
             </div>
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               class="text-[11px] text-primary hover:underline"
               onclick={() => {
@@ -1117,7 +1117,7 @@
               data-testid="chat-approval-open-inbox"
             >
               {$t("inbox.open_in_inbox")} →
-            </button>
+            </Button>
           </div>
         {/if}
 

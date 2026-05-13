@@ -4,6 +4,8 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Select } from "$lib/components/ui/select";
   import { eventLabelKey } from "$lib/notifications/event-labels";
+  import { FormField } from "$lib/components/ui/form-field";
+  import { DataTable, type Column } from "$lib/components/ui/data-table";
 
   interface Props {
     logs: NotificationLogEntry[];
@@ -73,15 +75,50 @@
   function entryChannelIds(entry: NotificationLogEntry): string[] {
     return Object.keys(entry.channels);
   }
+
+  const columns = $derived<Column<NotificationLogEntry>[]>([
+    { key: "sent_at", header: $t('notifications.table.timestamp'), cell: timestampCell },
+    { key: "id", header: $t('notifications.table.channel'), cell: channelCell },
+    { key: "event_name", header: $t('notifications.table.event'), cell: eventCell },
+    { key: "error", header: $t('notifications.table.status'), cell: statusCell },
+  ]);
 </script>
+
+{#snippet timestampCell(entry: NotificationLogEntry)}
+  <span class="whitespace-nowrap text-[11px] text-muted-foreground">{formatRelativeTime(entry.sent_at)}</span>
+{/snippet}
+
+{#snippet channelCell(entry: NotificationLogEntry)}
+  <div class="flex flex-wrap gap-1">
+    {#each entryChannelIds(entry) as cid}
+      <Badge variant="outline" class="text-[11px]" title={cid}>{channelDisplay(cid)}</Badge>
+    {/each}
+  </div>
+{/snippet}
+
+{#snippet eventCell(entry: NotificationLogEntry)}
+  <span class="block text-[12px]">{eventDisplay(entry.event_name)}</span>
+  <span class="block text-[10px] font-mono text-muted-foreground/70">{entry.event_name}</span>
+{/snippet}
+
+{#snippet statusCell(entry: NotificationLogEntry)}
+  {@const status = entryStatus(entry)}
+  {#if status === "sent"}
+    <Badge variant="success">{$t('notifications.status.sent')}</Badge>
+  {:else}
+    <Badge variant="destructive">{$t('notifications.status.failed')}</Badge>
+  {/if}
+{/snippet}
 
 <div class="space-y-3">
   <!-- Filter dropdown -->
   {#if channelIds.length > 0}
-    <div class="flex items-center gap-2">
-      <label for="channel-filter" class="text-[11px] text-muted-foreground">
-        {$t('notifications.filter_by_channel')}
-      </label>
+    <FormField
+      inline
+      id="channel-filter"
+      label={$t('notifications.filter_by_channel')}
+      labelClass="text-[11px] font-normal"
+    >
       <Select
         id="channel-filter"
         class="h-8 w-auto text-xs"
@@ -92,66 +129,15 @@
           <option value={cid}>{channelDisplay(cid)}</option>
         {/each}
       </Select>
-    </div>
+    </FormField>
   {/if}
 
   <!-- Table -->
-  {#if filteredLogs.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg glass-surface glass-border border-dashed py-12"
-    >
-      <p class="text-muted-foreground">{$t('notifications.empty_history')}</p>
-    </div>
-  {:else}
-    <div class="glass-card glass-border rounded-lg overflow-x-auto">
-      <table class="w-full min-w-[520px] text-[13px]">
-        <thead class="border-b border-border bg-muted/50">
-          <tr>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
-              {$t('notifications.table.timestamp')}
-            </th>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
-              {$t('notifications.table.channel')}
-            </th>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
-              {$t('notifications.table.event')}
-            </th>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
-              {$t('notifications.table.status')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each filteredLogs as entry (entry.id)}
-            {@const status = entryStatus(entry)}
-            <tr class="border-b border-border last:border-0 hover:bg-muted/50">
-              <td class="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground">
-                {formatRelativeTime(entry.sent_at)}
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex flex-wrap gap-1">
-                  {#each entryChannelIds(entry) as cid}
-                    <Badge variant="outline" class="text-[11px]" title={cid}>{channelDisplay(cid)}</Badge>
-                  {/each}
-                </div>
-              </td>
-              <td class="px-3 py-2">
-                <span class="block text-[12px]">{eventDisplay(entry.event_name)}</span>
-                <span class="block text-[10px] font-mono text-muted-foreground/70">{entry.event_name}</span>
-              </td>
-              <td class="px-3 py-2">
-                {#if status === "sent"}
-                  <Badge variant="success">
-                    {$t('notifications.status.sent')}
-                  </Badge>
-                {:else}
-                  <Badge variant="destructive">{$t('notifications.status.failed')}</Badge>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  {/if}
+  <DataTable
+    data={filteredLogs}
+    {columns}
+    rowKey={(e) => e.id}
+    class="min-w-[520px]"
+    emptyLabel={$t('notifications.empty_history')}
+  />
 </div>

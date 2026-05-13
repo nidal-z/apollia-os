@@ -4,6 +4,7 @@
   import { Mic, CheckCircle2, XCircle, Cpu } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { PageLayout } from "$lib/components/operator";
   import EmptyState from "../components/common/EmptyState.svelte";
   import TranscriptCard from "../components/stt/TranscriptCard.svelte";
   import TranscribeFileDialog from "../components/stt/TranscribeFileDialog.svelte";
@@ -17,6 +18,7 @@
     listenSttEvents,
   } from "$lib/stores/stt";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { Card } from "$lib/components/ui/card";
 
   let loading = $state(true);
 
@@ -41,29 +43,19 @@
   }
 </script>
 
-<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="transcriptions-page">
-  <!-- Header -->
-  <div class="flex items-start justify-between gap-4">
-    <div>
-      <h1
-        class="text-2xl font-semibold tracking-tight text-foreground"
-        data-testid="transcriptions-title"
-      >
-        {$t("transcriptions.title")}
-      </h1>
-      <p class="mt-1 text-sm text-muted-foreground/60">
-        {$t("transcriptions.subtitle")}
-      </p>
-    </div>
+<PageLayout
+  title={$t("transcriptions.title")}
+  subtitle={$t("transcriptions.subtitle")}
+  data-testid="transcriptions-page"
+>
+  {#snippet actions()}
     <TranscribeFileDialog />
-  </div>
+  {/snippet}
 
-  <!-- Status banner -->
-  {#if $sttStatus}
-    <div
-      class="glass-card glass-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm"
-      data-testid="stt-status-banner"
-    >
+  <div class="px-8 pt-6 pb-8 space-y-6">
+    <!-- Status banner -->
+    {#if $sttStatus}
+    <Card class="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm" data-testid="stt-status-banner">
       <div class="flex items-center gap-2">
         {#if $sttStatus.enabled && $sttStatus.model_loaded}
           <CheckCircle2 size={15} strokeWidth={1.75} class="text-success shrink-0" />
@@ -100,18 +92,18 @@
           {$t("transcriptions.recording")}
         </Badge>
       {/if}
-    </div>
+    </Card>
   {/if}
 
   <!-- Transcription list -->
   {#if loading}
     <div class="grid gap-3">
       {#each { length: 3 } as _}
-        <div class="glass-card glass-border rounded-xl p-4">
+        <Card class="p-4">
           <Skeleton class="h-3 w-24" />
           <Skeleton class="mt-3 h-4 w-full" />
           <Skeleton class="mt-2 h-4 w-3/4" />
-        </div>
+        </Card>
       {/each}
     </div>
   {:else if $transcriptions.length === 0}
@@ -127,5 +119,6 @@
         <TranscriptCard {transcript} ondelete={handleDelete} />
       {/each}
     </div>
-  {/if}
-</div>
+    {/if}
+  </div>
+</PageLayout>

@@ -1,4 +1,6 @@
 <script lang="ts" context="module">
+  import { Card } from "$lib/components/ui/card";
+  import { Spinner } from "$lib/components/ui/progress";
   export const meta = {
     title: "settings.nav.system",
     icon: "info",
@@ -11,7 +13,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
-  import { Copy, RefreshCw, Loader2, CheckCircle2, XCircle, Download } from "lucide-svelte";
+  import { Copy, RefreshCw, CheckCircle2, XCircle, Download } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import UpdateChecker from "./UpdateChecker.svelte";
@@ -116,7 +118,7 @@
         data-testid="system-info-refresh-btn"
       >
         {#if refreshing}
-          <Loader2 class="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          <Spinner class="h-3.5 w-3.5 mr-1.5" />
         {:else}
           <RefreshCw class="h-3.5 w-3.5 mr-1.5" />
         {/if}
@@ -126,7 +128,7 @@
 
     {#if $systemInfoStore.data}
       {@const systemInfo = $systemInfoStore.data}
-      <div class="glass-card glass-border rounded-lg p-4" data-testid="system-info-section">
+      <Card class="rounded-lg p-4" data-testid="system-info-section">
         <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           {$t("settings.system_info")}
         </h3>
@@ -142,7 +144,7 @@
           <div class="grid grid-cols-2 gap-2 sm:col-span-2">
             <span class="text-sm text-muted-foreground">{$t("settings.system_python")}</span>
             {#if systemInfo.python_path}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
                 onclick={() => copyPath(systemInfo.python_path)}
@@ -151,7 +153,7 @@
               >
                 <span class="truncate">{systemInfo.python_path}</span>
                 <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-              </button>
+              </Button>
             {:else}
               <span class="text-sm font-mono text-muted-foreground italic">{$t("settings.system_python_not_found")}</span>
             {/if}
@@ -159,7 +161,7 @@
           {#if $configStore.data?.config_path}
             <div class="grid grid-cols-2 gap-2 sm:col-span-2">
               <span class="text-sm text-muted-foreground">{$t("settings.config.path_label")}</span>
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
                 onclick={() => copyPath($configStore.data?.config_path)}
@@ -167,11 +169,11 @@
               >
                 <span class="truncate">{$configStore.data.config_path}</span>
                 <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-              </button>
+              </Button>
             </div>
           {/if}
         </div>
-      </div>
+      </Card>
     {:else if $systemInfoStore.error}
       <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
         {$systemInfoStore.error}
@@ -182,7 +184,7 @@
 
     {#if ($cliStatusStore.data as CliStatus | null)?.bundled}
       {@const cliStatus = $cliStatusStore.data as CliStatus}
-      <div class="glass-card glass-border rounded-lg p-4">
+      <Card class="rounded-lg p-4">
         <h3 class="mb-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           {$t("settings.cli_title")}
         </h3>
@@ -192,7 +194,7 @@
             <span class="text-sm text-muted-foreground">{$t("settings.cli_status")}</span>
             <span class="inline-flex items-center gap-1.5 text-sm">
               {#if cliActionLoading}
-                <Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                <Spinner class="h-3.5 w-3.5 text-muted-foreground" />
                 <span class="text-muted-foreground">{$t("settings.system.cli_working")}</span>
               {:else if cliStatus.installed}
                 <CheckCircle2 class="h-3.5 w-3.5 text-success" />
@@ -205,7 +207,7 @@
           </div>
           <div class="grid grid-cols-2 gap-2 items-center">
             <span class="text-sm text-muted-foreground">{$t("settings.cli_path")}</span>
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               class="group inline-flex items-center gap-1.5 text-left text-sm font-mono text-foreground hover:text-primary"
               onclick={() => copyPath(cliStatus.symlink_path)}
@@ -214,7 +216,7 @@
             >
               <span class="truncate">{cliStatus.symlink_path}</span>
               <Copy class="h-3 w-3 opacity-0 group-hover:opacity-100 shrink-0" />
-            </button>
+            </Button>
           </div>
         </div>
         {#if cliStatus.installed}
@@ -224,7 +226,7 @@
         {:else}
           <Button variant="default" size="sm" onclick={installCli} disabled={cliActionLoading}>
             {#if cliActionLoading}
-              <Loader2 class="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              <Spinner class="h-3.5 w-3.5 mr-1.5" />
             {:else}
               <Download class="h-3.5 w-3.5 mr-1.5" />
             {/if}
@@ -237,7 +239,7 @@
         {#if cliError}
           <p class="text-sm text-destructive mt-2">{cliError}</p>
         {/if}
-      </div>
+      </Card>
     {/if}
   </section>
 {/if}

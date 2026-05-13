@@ -4,7 +4,7 @@
   import bash from "highlight.js/lib/languages/bash";
   import type { BashPermission } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
-  import PermissionActionBar from "./PermissionActionBar.svelte";
+  import PermissionActionBar from "$lib/components/operator/permissions/PermissionActionBar.svelte";
 
   if (!hljs.getLanguage("bash")) {
     hljs.registerLanguage("bash", bash);

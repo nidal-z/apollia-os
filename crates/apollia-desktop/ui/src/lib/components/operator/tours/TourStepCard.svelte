@@ -117,6 +117,7 @@
     <span class="step-counter">{counterText}</span>
     {#if showSkip}
       <button
+        type="button"
         class="skip-btn"
         onclick={() => onskip?.()}
         aria-label={$t("onboarding_v2.tour.skip_label")}
@@ -133,6 +134,7 @@
   <div class="card-actions">
     {#if showPrev}
       <button
+        type="button"
         class="nav-btn nav-btn-prev"
         onclick={() => onprev?.()}
         disabled={stepIndex === 0}
@@ -147,6 +149,7 @@
 
     {#if showNext}
       <button
+        type="button"
         class="nav-btn nav-btn-next"
         onclick={() => onnext?.()}
         data-testid="tour-next"

@@ -1,5 +1,6 @@
 <script module lang="ts">
   import { sha256Hex } from "$lib/utils/hash";
+  import { Button } from "$lib/components/ui/button";
 
   /// The four checklist items shown in the interactive disclaimer.
   /// The version hash is derived from this exact ordered list — any change
@@ -143,7 +144,7 @@
     {/each}
   </ul>
 
-  <button
+  <Button variant="ghost" size="sm"
     type="button"
     onclick={openSecurityDocs}
     class="inline-flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
@@ -151,5 +152,5 @@
   >
     <ExternalLink size={12} aria-hidden="true" />
     {$t("integrations.disclaimer.learn_more")}
-  </button>
+  </Button>
 </div>

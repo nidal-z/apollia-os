@@ -30,9 +30,7 @@
   import {
     PageHeader,
     SectionTitle,
-    BtnPrimary,
-    BtnSecondary,
-    Chip,
+    
     StatusDot,
     EmptyState as OperatorEmptyState,
     ProjectCard,
@@ -43,6 +41,9 @@
     type TaskStatus as RowTaskStatus,
     type ProjectTemplate as DialogTemplate,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
+  import { TabBar } from "$lib/components/ui/tabs";
   import ContextProvidersTab from "../components/project/ContextProvidersTab.svelte";
 
   // ─── State ────────────────────────────────────────────────────────────────
@@ -562,11 +563,11 @@
       subtitle={$t("projects.subtitle")}
     >
       {#snippet actions()}
-        <BtnPrimary onclick={openCreateDialog}>
+        <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
           {#snippet icon()}<Plus size={12} />{/snippet}
           {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘N</span>{/snippet}
           {$t("projects.new_project")}
-        </BtnPrimary>
+        </Button>
       {/snippet}
     </PageHeader>
 
@@ -584,10 +585,10 @@
         >
           {#snippet icon()}<Folder size={22} />{/snippet}
           {#snippet action()}
-            <BtnPrimary onclick={openCreateDialog}>
+            <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
               {#snippet icon()}<Plus size={12} />{/snippet}
               {$t("projects.new_project")}
-            </BtnPrimary>
+            </Button>
           {/snippet}
         </OperatorEmptyState>
       {:else}
@@ -656,32 +657,32 @@
             >
               {$t("projects.title")} · {$projects.length}
             </div>
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={openCreateDialog}
               class="text-[11px] text-primary bg-transparent border-0 cursor-pointer inline-flex items-center gap-1 font-medium hover:underline"
             >
               <Plus size={11} />
               {$t("projects.new_project_short") || "Nouveau"}
-            </button>
+            </Button>
           </div>
           <div
             class="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border"
           >
             <Search size={11} class="text-muted-foreground" />
-            <input
+            <Input
               type="search"
               bind:value={listFilter}
               placeholder={$t("projects.search_placeholder")}
               class="flex-1 bg-transparent text-[11.5px] text-foreground placeholder:text-muted-foreground border-0 outline-none"
-            />
+             />
           </div>
         </div>
         <div class="flex-1 overflow-auto px-2.5 pb-3">
           {#each filteredListProjects as p (p.id)}
             {@const accent = accentFor(p.id)}
             {@const isActive = p.id === selectedProjectId}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={() => selectProject(p.id)}
               class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer mb-0.5 border-0 transition-colors {isActive
@@ -705,13 +706,13 @@
                   {fmtRelative(p.updated_at || p.created_at)}
                 </div>
               </div>
-            </button>
+            </Button>
           {/each}
         </div>
         <div class="px-3 py-2 border-t border-border">
-          <BtnSecondary onclick={backToGrid}>
+          <Button variant="outline" size="sm" onclick={backToGrid}>
             ← {$t("common.back") || "Retour"}
-          </BtnSecondary>
+          </Button>
         </div>
       </aside>
 
@@ -737,12 +738,12 @@
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
-                  <Chip tone="primary" size="sm">
+                  <Badge variant="primary" size="sm">
                     {#snippet icon()}
                       <StatusDot color="hsl(var(--primary))" glow />
                     {/snippet}
                     {$t("projects.status_active") || "actif"}
-                  </Chip>
+                  </Badge>
                   <span class="text-[10.5px] text-muted-foreground">
                     {fmtRelative(selectedProject.updated_at)}
                   </span>
@@ -788,16 +789,16 @@
                   {/if}
                 </div>
                 <div class="flex gap-1.5">
-                  <BtnSecondary
+                  <Button variant="outline" size="sm"
                     onclick={() => (activeTab = "settings")}
                   >
                     {#snippet icon()}<Settings size={12} />{/snippet}
                     {$t("projects.tab_settings") || "Paramètres"}
-                  </BtnSecondary>
-                  <BtnPrimary onclick={startNewChat}>
+                  </Button>
+                  <Button variant="primary-solid" size="sm" onclick={startNewChat}>
                     {#snippet icon()}<MessageCircle size={12} />{/snippet}
                     {$t("projects.new_chat") || "Nouveau chat"}
-                  </BtnPrimary>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -805,26 +806,19 @@
 
           <!-- Tabs -->
           <div class="px-8 pt-3.5">
-            <div class="flex gap-1 border-b border-border">
-              {#each [
-                { id: "conversations", label: $t("projects.tab_conversations") || "Conversations" },
-                { id: "tasks", label: $t("projects.tab_tasks") || "Tâches" },
-                { id: "memory", label: $t("projects.tab_memory") || "Mémoire" },
-                { id: "context", label: $t("projects.tab_context") || "Contexte" },
-                { id: "settings", label: $t("projects.tab_settings") || "Paramètres" },
-              ] as tab (tab.id)}
-                {@const active = activeTab === tab.id}
-                <button
-                  type="button"
-                  onclick={() => (activeTab = tab.id as Tab)}
-                  class="px-3 py-2 text-[12.5px] cursor-pointer bg-transparent border-0 -mb-px transition-colors {active
-                    ? 'text-foreground font-semibold border-b-2 border-primary'
-                    : 'text-muted-foreground font-medium border-b-2 border-transparent hover:text-foreground'}"
-                >
-                  {tab.label}
-                </button>
-              {/each}
-            </div>
+            <TabBar
+              variant="underline"
+              testidPrefix="project"
+              activeTab={activeTab}
+              items={[
+                { key: "conversations", label: $t("projects.tab_conversations") || "Conversations" },
+                { key: "tasks", label: $t("projects.tab_tasks") || "Tâches" },
+                { key: "memory", label: $t("projects.tab_memory") || "Mémoire" },
+                { key: "context", label: $t("projects.tab_context") || "Contexte" },
+                { key: "settings", label: $t("projects.tab_settings") || "Paramètres" },
+              ]}
+              ontabchange={(key) => (activeTab = key as Tab)}
+            />
           </div>
 
           <!-- Tab content -->
@@ -1033,30 +1027,30 @@
                       class="flex-1"
                       data-testid="settings-workspace-input"
                     />
-                    <BtnSecondary onclick={pickWorkspaceDir}>
+                    <Button variant="outline" size="sm" onclick={pickWorkspaceDir}>
                       {#snippet icon()}<FolderOpen size={12} />{/snippet}
                       {$t("projects.settings_field_workspace_pick")}
-                    </BtnSecondary>
+                    </Button>
                   </div>
                 </div>
 
                 <div class="flex items-center gap-2 pt-1">
-                  <BtnPrimary
+                  <Button variant="primary-solid" size="sm"
                     onclick={saveMetadata}
                     disabled={!settingsDirty || savingMetadata}
                   >
                     {savingMetadata ? $t("common.loading") : $t("common.save")}
-                  </BtnPrimary>
-                  <BtnSecondary
+                  </Button>
+                  <Button variant="outline" size="sm"
                     onclick={resetEditForm}
                     disabled={!settingsDirty || savingMetadata}
                   >
                     {$t("common.cancel")}
-                  </BtnSecondary>
+                  </Button>
                 </div>
 
                 <div class="pt-3 border-t border-border">
-                  <button
+                  <Button variant="ghost" size="sm"
                     type="button"
                     onclick={() =>
                       requestDelete(selectedProject!.id, selectedProject!.name)}
@@ -1065,7 +1059,7 @@
                   >
                     <Trash2 size={12} />
                     {$t("common.delete")}
-                  </button>
+                  </Button>
                 </div>
               </div>
             {/if}

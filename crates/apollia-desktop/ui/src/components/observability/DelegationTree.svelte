@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
+  import { Select } from "$lib/components/ui/select";
 
   interface DelegationNode {
     agent_id: string;
@@ -84,7 +85,7 @@
   <div class="flex items-center justify-between gap-3">
     <h2 class="text-lg font-semibold">{$t("observability.delegation_title")}</h2>
     {#if !loadingTasks && tasks.length > 0}
-      <select
+      <Select
         class="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
         value={selectedTaskId}
         onchange={onSelectChange}
@@ -95,7 +96,7 @@
             {task.agent_name || task.id.slice(0, 8)} — {task.status} ({task.id.slice(0, 8)})
           </option>
         {/each}
-      </select>
+      </Select>
     {/if}
   </div>
 

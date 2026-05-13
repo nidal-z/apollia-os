@@ -7,8 +7,8 @@
    */
   import { onMount, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import TourSpotlight from "../onboarding/TourSpotlight.svelte";
-  import TourStepCard from "../onboarding/TourStepCard.svelte";
+  import TourSpotlight from "$lib/components/operator/tours/TourSpotlight.svelte";
+  import TourStepCard from "$lib/components/operator/tours/TourStepCard.svelte";
   import {
     FIRST_CONNECTION_STEPS,
     markFirstConnectionTourDone,

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Assertion, Citation } from "$lib/chat/confidenceParser";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     /** The raw text span owned by this assertion. */
@@ -62,7 +63,7 @@
     {#if n !== undefined}
       {@const cite = citations.find((c) => c.id === cid)}
       <sup class="ml-[1px]">
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           class="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full border border-border/50 bg-card/70 px-[3px] text-[9px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 {hoveredId === cid ? 'bg-primary/15 text-primary ring-1 ring-primary/50' : ''}"
           onmouseenter={() => onCitationHover(cid)}
@@ -75,7 +76,7 @@
           data-testid="assertion-cite-{cid}"
         >
           {n}
-        </button>
+        </Button>
       </sup>
       {#if idx < assertion.citation_ids.length - 1}<span class="sr-only">,</span>{/if}
     {/if}

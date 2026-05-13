@@ -17,6 +17,7 @@
   import { ChevronDown, ChevronRight } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     message: Pick<ChatMessageView, "id" | "tool_calls" | "metadata">;
@@ -101,7 +102,7 @@
 
     <!-- Pagination: show +30 at a time, then collapse back to initial view. -->
     {#if overflow}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
         onclick={showMore}
@@ -112,9 +113,9 @@
           default: "Show {n} more steps",
           values: { n: Math.min(hiddenCount, PAGE_SIZE) },
         })}
-      </button>
+      </Button>
     {:else if visibleCount > COLLAPSE_ITEM_THRESHOLD && items.length > COLLAPSE_ITEM_THRESHOLD}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
         onclick={collapse}
@@ -124,7 +125,7 @@
         {$t("chat.reasoning.group_collapse", {
           default: "Hide steps",
         })}
-      </button>
+      </Button>
     {/if}
 
     <!-- Pending approvals keep the dedicated cards (kept for) -->

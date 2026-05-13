@@ -13,6 +13,7 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import { eventLabelKey } from "$lib/notifications/event-labels";
   import { Monitor, Webhook, Pencil, Trash2, Send } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     channel: NotificationChannel;
@@ -153,10 +154,7 @@
   }
 </script>
 
-<div
-  class="glass-card-hover glass-border relative overflow-hidden rounded-xl flex flex-col"
-  data-testid="channel-card-{channel.channel_id}"
->
+<Card interactive class="relative overflow-hidden flex flex-col" data-testid="channel-card-{channel.channel_id}">
   <!-- Top accent bar — matches AgentPackageCard pattern. Muted when disabled. -->
   <div class="h-0.5 w-full {channel.enabled ? typeStyle.barClass : 'bg-muted-foreground/20'}"></div>
 
@@ -264,4 +262,4 @@
       </div>
     </div>
   </div>
-</div>
+</Card>

@@ -2,6 +2,8 @@
   import { t } from "svelte-i18n";
   import { Eye, EyeOff, ExternalLink, Lock } from "lucide-svelte";
   import { Input } from "$lib/components/ui/input";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
   import type {
     ConnectorEnrichmentView,
     RegistryEnvVarView,
@@ -83,29 +85,27 @@
           {@const arg = entry.arg}
           {@const inputId = `arg-${entry.index}`}
           {@const label = arg.valueHint ?? `arg ${entry.index + 1}`}
-          <div class="space-y-1.5">
-            <label class="block text-sm font-medium text-foreground" for={inputId}>
-              {label}
-              {#if arg.isRequired}
-                <span class="ml-1 text-xs text-destructive">*</span>
-              {:else}
-                <span class="ml-1 text-xs text-muted-foreground">({$t("integrations.wizard.optional")})</span>
-              {/if}
-            </label>
-            {#if arg.description}
-              <p class="text-xs text-muted-foreground">{arg.description}</p>
-            {/if}
+          <FormField
+            id={inputId}
+            {label}
+            labelClass="text-sm text-foreground"
+            class="space-y-1.5"
+            required={arg.isRequired}
+            optional={!arg.isRequired}
+            optionalLabel={`(${$t("integrations.wizard.optional")})`}
+            hint={arg.description ?? undefined}
+          >
             {#if arg.isRepeatable}
-              <textarea
+              <Textarea
                 id={inputId}
-                rows="2"
+                rows={2}
                 class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
                 placeholder={arg.valueHint ?? ""}
                 value={argValues[entry.index] ?? ""}
                 oninput={(e) =>
                   onArgChange(entry.index, (e.currentTarget as HTMLTextAreaElement).value)}
                 data-testid={`arg-input-${entry.index}`}
-              ></textarea>
+              ></Textarea>
             {:else}
               <Input
                 id={inputId}
@@ -118,7 +118,7 @@
                 data-testid={`arg-input-${entry.index}`}
               />
             {/if}
-          </div>
+          </FormField>
         {/each}
       </div>
     {/if}
@@ -129,20 +129,16 @@
 
     <div class="space-y-3">
       {#each envVars as envVar (envVar.name)}
-        <div class="space-y-1.5">
-          <label class="block text-sm font-medium text-foreground" for={`env-${envVar.name}`}>
-            {envVar.name}
-            {#if envVar.is_required}
-              <span class="ml-1 text-xs text-destructive">*</span>
-            {:else}
-              <span class="ml-1 text-xs text-muted-foreground">({$t("integrations.wizard.optional")})</span>
-            {/if}
-          </label>
-
-          {#if envVar.description}
-            <p class="text-xs text-muted-foreground">{envVar.description}</p>
-          {/if}
-
+        <FormField
+          id={`env-${envVar.name}`}
+          label={envVar.name}
+          labelClass="text-sm text-foreground"
+          class="space-y-1.5"
+          required={envVar.is_required}
+          optional={!envVar.is_required}
+          optionalLabel={`(${$t("integrations.wizard.optional")})`}
+          hint={envVar.description ?? undefined}
+        >
           {#if envVar.is_secret}
             <p class="flex items-center gap-1 text-[11px] text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
               <Lock size={10} aria-hidden="true" />
@@ -189,7 +185,7 @@
               data-testid={`env-input-${envVar.name}`}
             />
           {/if}
-        </div>
+        </FormField>
       {/each}
     </div>
     {/if}

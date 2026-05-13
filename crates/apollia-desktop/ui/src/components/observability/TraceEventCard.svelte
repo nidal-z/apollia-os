@@ -19,7 +19,6 @@
     Cpu,
     Info,
     Lightbulb,
-    Loader2,
     MessageSquare,
     Network,
     RefreshCw,
@@ -29,6 +28,7 @@
   } from "lucide-svelte";
   import type { RuntimeEventDto } from "$lib/trace";
   import { describeToolCall } from "$lib/utils/bashDescriber";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
     event: RuntimeEventDto;
@@ -157,7 +157,7 @@
     >
       <div class="shrink-0 mt-0.5">
         {#if !isCompleted}
-          <Loader2 size={13} class="animate-spin text-primary" />
+          <Spinner size={13} class="text-primary" />
         {:else if isDenied}
           <ShieldOff size={13} class="text-destructive" />
         {:else if success}

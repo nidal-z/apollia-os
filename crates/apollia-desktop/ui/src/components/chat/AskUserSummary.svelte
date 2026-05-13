@@ -13,6 +13,7 @@
   import { slide } from "svelte/transition";
   import { Check, ChevronRight, ChevronDown } from "lucide-svelte";
   import { Separator } from "$lib/components/ui/separator";
+  import { Button } from "$lib/components/ui/button";
 
   interface UserAnswer {
     id: string;
@@ -60,7 +61,7 @@
   data-request-id={requestId}
   transition:slide={{ duration: 200 }}
 >
-  <button
+  <Button variant="ghost" size="sm"
     type="button"
     class="flex w-full items-center gap-2 px-3 py-2 text-left"
     aria-expanded={expanded}
@@ -77,7 +78,7 @@
     {:else}
       <ChevronRight class="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
     {/if}
-  </button>
+  </Button>
 
   {#if expanded}
     <div

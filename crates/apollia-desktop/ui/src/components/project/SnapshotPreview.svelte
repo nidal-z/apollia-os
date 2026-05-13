@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import { AlertTriangle } from "lucide-svelte";
   import type { WorkspaceSnapshotView } from "$lib/types";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
     snapshot: WorkspaceSnapshotView | null;
@@ -14,8 +15,8 @@
 <div class="space-y-3">
   {#if loading}
     <div class="space-y-2">
-      <div class="h-14 rounded-lg bg-surface-1 animate-pulse"></div>
-      <div class="h-14 rounded-lg bg-surface-1 animate-pulse"></div>
+      <Skeleton class="h-14 rounded-lg bg-surface-1" />
+      <Skeleton class="h-14 rounded-lg bg-surface-1" />
     </div>
   {:else if snapshot}
     {#if snapshot.error_count > 0}

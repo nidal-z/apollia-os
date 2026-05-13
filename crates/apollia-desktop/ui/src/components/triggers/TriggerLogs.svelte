@@ -3,7 +3,7 @@
   import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
   import type { TriggerLogEntry } from "$lib/types";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import {
@@ -15,6 +15,8 @@
     SkipForward,
     ArrowDownWideNarrow,
   } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
+  import { Select } from "$lib/components/ui/select";
 
   interface Props {
     triggerId: string;
@@ -155,7 +157,7 @@
   <div class="flex h-full flex-col" data-testid="trigger-logs-sheet">
 
     <!-- Header card -->
-    <div class="mx-4 mt-6 rounded-xl glass-card glass-border overflow-hidden">
+    <Card class="mx-4 mt-6 overflow-hidden">
       <div class="h-0.5 w-full bg-secondary"></div>
       <div class="px-4 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3 min-w-0">
@@ -177,13 +179,13 @@
           <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
         </Button>
       </div>
-    </div>
+    </Card>
 
     <!-- Filters -->
     <div class="mx-4 mt-3 flex items-center justify-between gap-2">
       <div class="flex flex-wrap gap-1">
         {#each STATUS_FILTERS as filter (filter.key)}
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={() => (statusFilter = filter.key)}
             class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
@@ -193,13 +195,13 @@
             data-testid="trigger-logs-filter-{filter.key}"
           >
             {$t(filter.i18n)}
-          </button>
+          </Button>
         {/each}
       </div>
 
       <div class="flex items-center gap-1 shrink-0">
         <ArrowDownWideNarrow size={11} class="text-muted-foreground/60" />
-        <select
+        <Select
           bind:value={sortBy}
           class="text-[10px] bg-transparent border border-border/60 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label={$t('triggers.sort_label')}
@@ -207,35 +209,35 @@
           {#each SORT_OPTIONS as option (option.key)}
             <option value={option.key}>{$t(option.i18n)}</option>
           {/each}
-        </select>
+        </Select>
       </div>
     </div>
 
     <!-- Entry list -->
-    <div class="flex-1 overflow-auto px-4 pt-3 pb-6">
+    <SheetContent padding="flush" class="px-4 pt-3 pb-6">
       {#if loading && entries.length === 0}
         <div class="flex items-center justify-center py-12">
           <RefreshCw size={16} class="animate-spin text-muted-foreground" />
         </div>
       {:else if error}
-        <div class="glass-card glass-border rounded-lg px-4 py-3">
+        <Card class="rounded-lg px-4 py-3">
           <p class="text-xs text-destructive">{error}</p>
-        </div>
+        </Card>
       {:else if entries.length === 0}
-        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+        <Card class="rounded-lg px-4 py-8 text-center">
           <History size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground">{$t('triggers.no_logs')}</p>
-        </div>
+        </Card>
       {:else if filteredEntries.length === 0}
-        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+        <Card class="rounded-lg px-4 py-8 text-center">
           <History size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground mb-2">{$t('triggers.no_matching_logs')}</p>
           <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
             {$t('triggers.clear_filters')}
           </Button>
-        </div>
+        </Card>
       {:else}
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/40">
+        <Card class="rounded-lg overflow-hidden divide-y divide-border/40">
           {#each filteredEntries as entry, i (entry.id)}
             {@const cfg = STATUS_CONFIG[entry.status] ?? STATUS_CONFIG.error}
             {@const IconComponent = cfg.icon}
@@ -283,8 +285,8 @@
               {/if}
             </div>
           {/each}
-        </div>
+        </Card>
       {/if}
-    </div>
+    </SheetContent>
   </div>
 </Sheet>

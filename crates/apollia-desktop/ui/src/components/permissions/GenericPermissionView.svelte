@@ -3,7 +3,7 @@
   import type { GenericPermission } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import JsonViewer from "../common/JsonViewer.svelte";
-  import PermissionActionBar from "./PermissionActionBar.svelte";
+  import PermissionActionBar from "$lib/components/operator/permissions/PermissionActionBar.svelte";
 
   interface Props {
     taskId: string;

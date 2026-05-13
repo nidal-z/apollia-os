@@ -16,6 +16,7 @@
     TrendingUp,
     Archive,
   } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
 
   let stats = $state<PlanCacheStats | null>(null);
   let loading = $state(true);
@@ -110,22 +111,16 @@
   {:else if stats}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <!-- Total Entries -->
-      <div
-        class="rounded-xl glass-card glass-border p-4"
-        data-testid="plan-cache-total"
-      >
+      <Card class="p-4" data-testid="plan-cache-total">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <Database class="h-4 w-4" />
           {$t("observability.plan_cache.total_entries")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.total_entries}</p>
-      </div>
+      </Card>
 
       <!-- Hit Rate -->
-      <div
-        class="rounded-xl glass-card glass-border p-4"
-        data-testid="plan-cache-hit-rate"
-      >
+      <Card class="p-4" data-testid="plan-cache-hit-rate">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <TrendingUp class="h-4 w-4" />
           {$t("observability.plan_cache.hit_rate")}
@@ -137,31 +132,25 @@
             {stats.hit_rate_pct.toFixed(1)}%
           {/if}
         </p>
-      </div>
+      </Card>
 
       <!-- Cache Hits -->
-      <div
-        class="rounded-xl glass-card glass-border p-4"
-        data-testid="plan-cache-hits"
-      >
+      <Card class="p-4" data-testid="plan-cache-hits">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <CheckCircle class="h-4 w-4" />
           {$t("observability.plan_cache.cache_hits")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.cache_hits}</p>
-      </div>
+      </Card>
 
       <!-- Cache Misses -->
-      <div
-        class="rounded-xl glass-card glass-border p-4"
-        data-testid="plan-cache-misses"
-      >
+      <Card class="p-4" data-testid="plan-cache-misses">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <XCircle class="h-4 w-4" />
           {$t("observability.plan_cache.cache_misses")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.cache_misses}</p>
-      </div>
+      </Card>
     </div>
   {/if}
 

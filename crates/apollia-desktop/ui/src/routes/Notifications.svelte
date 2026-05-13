@@ -6,6 +6,7 @@
   import { Separator } from "$lib/components/ui/separator";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Button } from "$lib/components/ui/button";
+  import { PageLayout } from "$lib/components/operator";
   import { EmptyState } from "$lib/components/layout";
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
@@ -112,75 +113,75 @@
   });
 </script>
 
-<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="notifications-page">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">{$t('notifications.title')}</h1>
-      <p class="text-xs text-muted-foreground" data-testid="notifications-subtitle">{$t('notifications.subtitle')}</p>
-    </div>
+<PageLayout
+  title={$t("notifications.title")}
+  subtitle={$t("notifications.subtitle")}
+  data-testid="notifications-page"
+>
+  {#snippet actions()}
     <Button size="sm" onclick={() => (createDialogOpen = true)} data-testid="create-channel-btn">
-      {$t('notifications.new_channel')}
+      {$t("notifications.new_channel")}
     </Button>
-  </div>
+  {/snippet}
 
-  <!-- Loading -->
-  {#if loading}
-    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-      <Skeleton variant="card" height="6rem" />
-      <Skeleton variant="card" height="6rem" />
-    </div>
-  {:else if error}
-    <div
-      class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
-    >
-      {error}
-    </div>
-  {:else}
-    <!-- Global events section -->
-    <GlobalEventsEditor onsaved={handleGlobalEventsSaved} />
-
-    <Separator />
-
-    <!-- Channels section -->
-    <section>
-      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
-      {#if channels.length === 0}
-        <EmptyState
-          icon={EMPTY_STATES.notifications.icon}
-          title={$t(EMPTY_STATES.notifications.titleKey)}
-          description={$t(EMPTY_STATES.notifications.descriptionKey)}
-          primaryLabel={$t(EMPTY_STATES.notifications.primaryCtaKey ?? '')}
-          primaryAction={() => (createDialogOpen = true)}
-          page="notifications"
-        />
-      {:else}
-        <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-          {#each channels as channel (channel.channel_id)}
-            <NotificationChannelCard
-              {channel}
-              onedit={() => handleEditChannel(channel)}
-              ondelete={() => handleDeleteChannel(channel.channel_id)}
-            />
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    <!-- History moved to the Inbox -->
-    <p class="text-xs text-muted-foreground" data-testid="notifications-history-moved">
-      {$t("notifications.history_moved")}
-      <button
-        type="button"
-        class="ml-1 text-primary underline-offset-2 hover:underline"
-        onclick={openInboxNotificationsTab}
-        data-testid="notifications-history-link"
+  <div class="px-8 pt-6 pb-8 space-y-6">
+    {#if loading}
+      <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+        <Skeleton variant="card" height="6rem" />
+        <Skeleton variant="card" height="6rem" />
+      </div>
+    {:else if error}
+      <div
+        class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
       >
-        {$t("notifications.history_open_inbox")}
-      </button>
-    </p>
-  {/if}
-</div>
+        {error}
+      </div>
+    {:else}
+      <!-- Global events section -->
+      <GlobalEventsEditor onsaved={handleGlobalEventsSaved} />
+
+      <Separator />
+
+      <!-- Channels section -->
+      <section>
+        <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
+        {#if channels.length === 0}
+          <EmptyState
+            icon={EMPTY_STATES.notifications.icon}
+            title={$t(EMPTY_STATES.notifications.titleKey)}
+            description={$t(EMPTY_STATES.notifications.descriptionKey)}
+            primaryLabel={$t(EMPTY_STATES.notifications.primaryCtaKey ?? '')}
+            primaryAction={() => (createDialogOpen = true)}
+            page="notifications"
+          />
+        {:else}
+          <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+            {#each channels as channel (channel.channel_id)}
+              <NotificationChannelCard
+                {channel}
+                onedit={() => handleEditChannel(channel)}
+                ondelete={() => handleDeleteChannel(channel.channel_id)}
+              />
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      <!-- History moved to the Inbox -->
+      <p class="text-xs text-muted-foreground" data-testid="notifications-history-moved">
+        {$t("notifications.history_moved")}
+        <Button variant="ghost" size="sm"
+          type="button"
+          class="ml-1 text-primary underline-offset-2 hover:underline"
+          onclick={openInboxNotificationsTab}
+          data-testid="notifications-history-link"
+        >
+          {$t("notifications.history_open_inbox")}
+        </Button>
+      </p>
+    {/if}
+  </div>
+</PageLayout>
 
 <!-- Dialogs -->
 <CreateChannelDialog

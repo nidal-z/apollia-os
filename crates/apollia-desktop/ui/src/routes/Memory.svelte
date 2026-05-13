@@ -12,6 +12,7 @@
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
   import { PageHeader } from "$lib/components/operator";
+  import { Button } from "$lib/components/ui/button";
 
   // ADR-087 — the per-user profile is edited from `Paramètres → Profil`.
   // This page is the namespace explorer only (sidebar with classified
@@ -248,7 +249,7 @@
                 {@const isActive = typeFilter === chip.key}
                 {@const count = entryCounts[chip.key]}
                 {@const Icon = chip.Icon}
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onclick={() => (typeFilter = chip.key)}
                   class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11.5px] font-medium tracking-tight transition-colors {isActive
@@ -261,7 +262,7 @@
                   <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
                     {count}
                   </span>
-                </button>
+                </Button>
               {/each}
             </div>
 
@@ -307,13 +308,13 @@
                     : $t("memory.empty_entries")}
               </p>
               {#if typeFilter !== "all"}
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   onclick={() => (typeFilter = "all")}
                   class="text-[11.5px] text-primary hover:underline"
                 >
                   Voir toutes les entrées
-                </button>
+                </Button>
               {/if}
             </div>
           {:else}

@@ -17,6 +17,7 @@
     AlertTriangle,
     type Icon,
   } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
 
   const WINDOW_OPTIONS: { key: string; minutes: number; labelKey: string }[] = [
     { key: "30min", minutes: 30, labelKey: "observability.timeline_window_30min" },
@@ -240,25 +241,25 @@
   {#if !loading}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="timeline-kpis">
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.timeline_kpi_events')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.total}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.timeline_kpi_tools')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.tools}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.timeline_kpi_llm')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.llm}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.timeline_kpi_errors')}
         </div>
         <div
@@ -272,12 +273,9 @@
   {/if}
 
   <!-- Controls strip — window selector + type chips + agent picker. -->
-  <div
-    class="glass-card glass-border rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3"
-    data-testid="timeline-controls"
-  >
+  <Card class="px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="timeline-controls">
     <div class="flex items-center gap-2">
-      <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold">
+      <span class="section-meta text-[10px] tracking-[1.4px]">
         {$t('observability.window')}
       </span>
       <div
@@ -303,7 +301,7 @@
     </div>
 
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold">
+      <span class="section-meta text-[10px] tracking-[1.4px]">
         {$t('observability.filter')}
       </span>
       {#each TYPE_FILTERS as tf (tf)}
@@ -322,7 +320,7 @@
     </div>
 
     <div class="flex items-center gap-2 ml-auto">
-      <label for="timeline-agent-filter" class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold">
+      <label for="timeline-agent-filter" class="section-meta text-[10px] tracking-[1.4px]">
         {$t('observability.agent')}
       </label>
       <Select
@@ -337,7 +335,7 @@
         {/each}
       </Select>
     </div>
-  </div>
+  </Card>
 
   <!-- Events list -->
   {#if loading}
@@ -349,15 +347,12 @@
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEvents.length === 0}
-    <div
-      class="glass-card glass-border rounded-xl flex flex-col items-center justify-center py-16"
-      data-testid="timeline-empty"
-    >
+    <Card class="flex flex-col items-center justify-center py-16" data-testid="timeline-empty">
       <div class="rounded-full glass-inset p-4 mb-4">
         <Clock class="h-8 w-8 text-muted-foreground/60" />
       </div>
       <p class="text-[13px] text-muted-foreground">{$t('observability.empty_timeline')}</p>
-    </div>
+    </Card>
   {:else}
     <div class="space-y-6">
       {#each groupedEvents as [day, dayEvents] (day)}
@@ -366,12 +361,12 @@
             <h4 class="m-0 text-[12.5px] font-semibold tracking-[-0.1px] text-foreground">
               {dayLabel(day)}
             </h4>
-            <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/60">
+            <span class="section-meta text-[10px] tracking-[1.4px] /60">
               {dayEvents.length}
             </span>
           </header>
 
-          <div class="glass-card glass-border rounded-xl divide-y divide-border/30 overflow-hidden">
+          <Card class="divide-y divide-border/30 overflow-hidden">
             {#each dayEvents as event, idx (eventKey(event, idx))}
               {@const key = eventKey(event, idx)}
               {@const isExpanded = expandedKeys.has(key)}
@@ -437,7 +432,7 @@
                 {/if}
               </div>
             {/each}
-          </div>
+          </Card>
         </section>
       {/each}
     </div>

@@ -40,6 +40,7 @@
   import EmptyAgentsState from "./EmptyAgentsState.svelte";
   import TemplateCard from "./TemplateCard.svelte";
   import { focusTrap } from "$lib/shortcuts/focusTrap";
+  import { Textarea } from "$lib/components/ui/textarea";
 
   interface Props {
     /** Initial project binding for the created session. */
@@ -58,7 +59,7 @@
 
   let prompt = $state("");
   let creating = $state(false);
-  // Stored as a string ("" == no project) to match the native <select>'s
+  // Stored as a string ("" == no project) to match the native <Select>'s
   // value model used by the DS Select component, which expects `bind:value`
   // on a string.
   let selectedProjectId = $state<string>(defaultProjectId ?? "");
@@ -205,16 +206,7 @@
   }
 </script>
 
-<div
-  class="glass-card glass-border animate-fade-in rounded-lg p-4"
-  role="dialog"
-  aria-modal="false"
-  aria-label={$t("chat.quickpicker.title")}
-  tabindex="-1"
-  onkeydown={handleRootKeydown}
-  use:focusTrap={{ initialFocus: "textarea" }}
-  data-testid="quickpicker"
->
+<div class="glass-card glass-border animate-fade-in rounded-lg p-4" role="dialog" aria-modal="false" aria-label={$t("chat.quickpicker.title")} tabindex="-1" onkeydown={handleRootKeydown} use:focusTrap={{ initialFocus: "textarea" }} data-testid="quickpicker">
   <!-- Header -->
   <div class="mb-3 flex items-center justify-between">
     <div class="flex items-center gap-2">
@@ -248,7 +240,7 @@
         <Select
           id="quickpicker-project-select"
           icon={FolderOpen}
-          class="h-8 text-xs"
+          size="sm"
           bind:value={selectedProjectId}
           data-testid="quickpicker-project"
           disabled={creating}
@@ -265,16 +257,16 @@
   <!-- Prompt textarea -->
   <label class="block">
     <span class="sr-only">{$t("chat.quickpicker.prompt_label")}</span>
-    <textarea
+    <Textarea
       bind:value={prompt}
       onkeydown={handleTextareaKeydown}
-      rows="3"
+      rows={3}
       placeholder={$t("chat.quickpicker.prompt_placeholder")}
       class="w-full resize-none rounded-md border border-border/60 bg-card/60 px-3 py-2 text-sm
         placeholder:text-muted-foreground/60
         focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
       data-testid="quickpicker-textarea"
-    ></textarea>
+    ></Textarea>
   </label>
 
   <div class="mt-2 flex items-center justify-between">

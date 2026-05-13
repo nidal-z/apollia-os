@@ -1,4 +1,6 @@
 <script lang="ts" context="module">
+  import { Card } from "$lib/components/ui/card";
+  import { Input } from "$lib/components/ui/input";
   export const meta = {
     title: "settings.nav.llm",
     icon: "cpu",
@@ -203,10 +205,7 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-3" data-testid="llm-backends-list">
         {#each ($llmBackendsStore.data ?? []) as backend (backend.name)}
           {@const status = statusOf(backend)}
-          <div
-            class="glass-card glass-border rounded-lg p-4 flex flex-col gap-3"
-            data-testid="llm-backend-card-{backend.name}"
-          >
+          <Card class="rounded-lg p-4 flex flex-col gap-3" data-testid="llm-backend-card-{backend.name}">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -223,7 +222,7 @@
                 </p>
               </div>
               <div class="flex items-center gap-1">
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                   title={$t("settings.llm.test")}
@@ -233,8 +232,8 @@
                   data-testid="test-backend-{backend.name}"
                 >
                   <Plug class="h-4 w-4 {testingMap[backend.name] ? 'animate-pulse' : ''}" />
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost" size="sm"
                   type="button"
                   class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   title={$t("settings.llm.edit")}
@@ -243,8 +242,8 @@
                   data-testid="edit-backend-{backend.name}"
                 >
                   <Pencil class="h-4 w-4" />
-                </button>
-                <button
+                </Button>
+                <Button variant="ghost" size="sm"
                   type="button"
                   class="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   title={$t("common.delete")}
@@ -253,7 +252,7 @@
                   data-testid="delete-backend-{backend.name}"
                 >
                   <Trash2 class="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -286,18 +285,18 @@
                   {/if}
                 {/if}
                 {#if !backend.is_default}
-                  <button
+                  <Button variant="ghost" size="sm"
                     type="button"
                     class="text-primary hover:underline"
                     onclick={() => handleSetDefault(backend)}
                     data-testid="set-default-{backend.name}"
                   >
                     {$t("settings.llm_set_default")}
-                  </button>
+                  </Button>
                 {/if}
               </div>
             </div>
-          </div>
+          </Card>
         {/each}
       </div>
     {/if}
@@ -331,14 +330,14 @@
         <label for="llm-delete-confirm" class="text-xs font-medium text-foreground">
           {$t("settings.llm.delete_type_prompt")}
         </label>
-        <input
+        <Input
           id="llm-delete-confirm"
           type="text"
           placeholder="DELETE"
           class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           bind:value={deleteConfirmText}
           data-testid="llm-delete-confirm-input"
-        />
+         />
       </div>
     {/if}
   {/if}

@@ -34,6 +34,7 @@
   import SlashCommandMenu from "./SlashCommandMenu.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
   import InputHints from "./InputHints.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     disabled: boolean;
@@ -505,7 +506,7 @@
       />
     {/if}
 
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onclick={handlePaperclip}
       disabled={disabled}
@@ -514,7 +515,7 @@
       data-testid="chat-attach-button"
     >
       <Paperclip size={14} />
-    </button>
+    </Button>
     <button
       type="button"
       onclick={toggleMic}
@@ -543,7 +544,7 @@
       class="hidden"
       onchange={handleFileInput}
       data-testid="chat-attach-input"
-    />
+     />
 
     <div class="relative flex-1">
       <textarea

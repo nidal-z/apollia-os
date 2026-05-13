@@ -223,7 +223,7 @@
           {/if}
         </button>
       </div>
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
         onclick={openSettingsPermissions}
@@ -231,7 +231,7 @@
       >
         <ExternalLink size={11} aria-hidden="true" />
         Gérer les autorisations dans Paramètres
-      </button>
+      </Button>
     </div>
   {/if}
 </div>

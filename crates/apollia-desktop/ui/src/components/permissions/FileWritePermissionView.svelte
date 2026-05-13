@@ -2,7 +2,7 @@
   import { t } from "svelte-i18n";
   import type { FileWritePermission } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
-  import PermissionActionBar from "./PermissionActionBar.svelte";
+  import PermissionActionBar from "$lib/components/operator/permissions/PermissionActionBar.svelte";
 
   const CONTENT_PREVIEW_LINES = 8;
 

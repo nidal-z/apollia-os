@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { X } from "lucide-svelte";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetHeader, SheetContent, SheetFooter } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { RadioGroup, RadioItem } from "$lib/components/ui/radio";
   import CredentialField from "./CredentialField.svelte";
+  import { Input } from "$lib/components/ui/input";
   import {
     getToolConfig,
     updateToolConfig,
@@ -196,8 +196,13 @@
 </script>
 
 <Sheet {open} {onclose} width="lg">
-  <div class="flex h-full flex-col">
-    <header class="flex items-center justify-between border-b border-border/40 px-5 py-4">
+  <SheetHeader
+    title={`Configurer ${tool?.name ?? ""}`}
+    {onclose}
+    closeLabel="Fermer"
+    class="px-5 py-4 items-center"
+  >
+    {#snippet titleSlot()}
       <div class="space-y-0.5">
         <h2 class="text-lg font-semibold">
           Configurer {tool?.name ?? ""}
@@ -208,17 +213,10 @@
           </p>
         {/if}
       </div>
-      <button
-        type="button"
-        aria-label="Fermer"
-        onclick={onclose}
-        class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <X size={16} aria-hidden="true" />
-      </button>
-    </header>
+    {/snippet}
+  </SheetHeader>
 
-    <div class="flex-1 overflow-y-auto px-5 py-5 space-y-6" data-testid="tool-config-drawer-body">
+  <SheetContent padding="flush" class="px-5 py-5 space-y-6" data-testid="tool-config-drawer-body">
       {#if loading}
         <p class="text-sm text-muted-foreground">Chargement…</p>
       {:else if !tool}
@@ -268,25 +266,25 @@
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Timeout (s)</span>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="120"
                 bind:value={webSearch.brave_timeout_secs}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="brave-timeout"
-              />
+               />
             </label>
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Résultats max (1–20)</span>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="20"
                 bind:value={webSearch.brave_max_results}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="brave-max-results"
-              />
+               />
             </label>
           </div>
         </section>
@@ -296,25 +294,25 @@
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Timeout (s)</span>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="120"
                 bind:value={webSearch.ddg_timeout_secs}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="ddg-timeout"
-              />
+               />
             </label>
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Taille max (Ko)</span>
-              <input
+              <Input
                 type="number"
                 min="16"
                 max="16384"
                 bind:value={webSearch.ddg_max_response_kb}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="ddg-max-response-kb"
-              />
+               />
             </label>
           </div>
         </section>
@@ -339,25 +337,25 @@
           <div class="grid grid-cols-2 gap-3">
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Timeout (s)</span>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="120"
                 bind:value={webRead.timeout_secs}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="web-read-timeout"
-              />
+               />
             </label>
             <label class="space-y-1 text-sm">
               <span class="text-muted-foreground">Taille max (Ko)</span>
-              <input
+              <Input
                 type="number"
                 min="64"
                 max="32768"
                 bind:value={webRead.max_response_kb}
                 class="flex h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 data-testid="web-read-max-response-kb"
-              />
+               />
             </label>
           </div>
           <label class="flex items-center gap-2 text-sm">
@@ -381,15 +379,14 @@
       {#if error}
         <p class="text-sm text-destructive" data-testid="tool-config-error">{error}</p>
       {/if}
-    </div>
+  </SheetContent>
 
-    <footer class="flex items-center justify-end gap-2 border-t border-border/40 px-5 py-3">
-      <Button variant="ghost" onclick={onclose}>Annuler</Button>
-      {#if hasConfigForm}
-        <Button onclick={save} loading={saving} disabled={saving} data-testid="tool-config-save">
-          Enregistrer
-        </Button>
-      {/if}
-    </footer>
-  </div>
+  <SheetFooter class="px-5 py-3">
+    <Button variant="ghost" size="sm" onclick={onclose}>Annuler</Button>
+    {#if hasConfigForm}
+      <Button onclick={save} loading={saving} disabled={saving} data-testid="tool-config-save">
+        Enregistrer
+      </Button>
+    {/if}
+  </SheetFooter>
 </Sheet>

@@ -19,12 +19,12 @@
   import { invoke } from "@tauri-apps/api/core";
   import {
     PageHeader,
-    Chip,
+    
     StatusDot,
-    BtnPrimary,
-    BtnSecondary,
     EmptyState,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
   import { Plus, RefreshCw, Sparkles } from "lucide-svelte";
 
   type Filter = "all" | "active" | "paused" | "error";
@@ -162,14 +162,14 @@
     subtitle={$t("automations.subtitle")}
   >
     {#snippet actions()}
-      <BtnSecondary onclick={handleRefresh} disabled={refreshing}>
+      <Button variant="outline" size="sm" onclick={handleRefresh} disabled={refreshing}>
         {#snippet icon()}<RefreshCw size={12} class={refreshing ? "animate-spin" : ""} />{/snippet}
         {$t("common.refresh")}
-      </BtnSecondary>
-      <BtnPrimary onclick={handleCreate}>
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={handleCreate}>
         {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("automations.new")}
-      </BtnPrimary>
+      </Button>
     {/snippet}
   </PageHeader>
 
@@ -187,7 +187,7 @@
     >
       {#each FILTERS as f (f.key)}
         {@const isActive = activeFilter === f.key}
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           role="tab"
           aria-selected={isActive}
@@ -196,8 +196,8 @@
           data-testid="automations-filter-{f.key}"
           data-active={isActive}
         >
-          <Chip
-            tone={isActive ? f.tone : "neutral"}
+          <Badge
+            variant={isActive ? f.tone : "neutral"}
             outline={!isActive}
             size="md"
           >
@@ -205,8 +205,8 @@
               <StatusDot color={f.color} glow={isActive && f.key === "active"} />
             {/snippet}
             {f.label} · {counts[f.key]}
-          </Chip>
-        </button>
+          </Badge>
+        </Button>
       {/each}
     </div>
 
@@ -228,9 +228,9 @@
             {#snippet icon()}<Sparkles size={22} />{/snippet}
             {#snippet action()}
               {#if activeFilter !== "all"}
-                <BtnSecondary onclick={() => (activeFilter = "all")}>
+                <Button variant="outline" size="sm" onclick={() => (activeFilter = "all")}>
                   {$t("automations.filter_show_all")}
-                </BtnSecondary>
+                </Button>
               {/if}
             {/snippet}
           </EmptyState>

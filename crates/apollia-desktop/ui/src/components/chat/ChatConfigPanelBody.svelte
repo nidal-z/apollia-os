@@ -10,6 +10,11 @@
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
+  import { Card } from "$lib/components/ui/card";
+  import { Input } from "$lib/components/ui/input";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { FormField } from "$lib/components/ui/form-field";
+  import { StatusDot } from "$lib/components/operator";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -161,7 +166,7 @@
 
   <div class="flex-1 {embedded ? '' : 'overflow-y-auto'} px-5 py-5 space-y-4">
     <!-- LLM Provider section -->
-    <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+    <Card class="p-3.5 space-y-2.5">
       <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
         {$t("chat.config_provider")}
       </p>
@@ -186,9 +191,9 @@
                 <p class="text-[10px] text-muted-foreground/60 truncate">{backend.model}</p>
               </div>
               {#if backend.enabled}
-                <span class="h-2 w-2 rounded-full bg-success"></span>
+                <StatusDot color="hsl(var(--success))" size={8} />
               {:else}
-                <span class="h-2 w-2 rounded-full bg-destructive"></span>
+                <StatusDot color="hsl(var(--destructive))" size={8} />
               {/if}
             </button>
           {/each}
@@ -196,7 +201,7 @@
       {:else}
         <p class="text-xs text-muted-foreground/60 italic">{$t("chat.config_no_providers")}</p>
       {/if}
-    </div>
+    </Card>
 
     <!-- LLM provider error — inline feedback for required validation. -->
     {#if llmBackendError}
@@ -207,71 +212,70 @@
     {/if}
 
     <!-- Instructions section -->
-    <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
-      <label class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" for="config-prompt">
-        {$t("chat.system_prompt")}
-      </label>
-      <textarea
+    <Card class="p-3.5">
+      <FormField
         id="config-prompt"
-        class="w-full rounded-lg glass-surface glass-border border px-3.5 py-2.5 text-xs text-foreground
-          bg-transparent resize-none outline-none transition-all
-          focus:ring-2 focus:ring-primary/30 focus:border-primary/40
-          placeholder:text-muted-foreground/50
-          disabled:opacity-50 disabled:cursor-not-allowed
-          aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
-        rows="4"
-        placeholder={$t("chat.system_prompt_placeholder")}
-        bind:value={systemPrompt}
-        aria-invalid={systemPromptError !== null}
-        disabled={isReadOnly}
-        data-testid="config-system-prompt"
-      ></textarea>
-      {#if systemPromptError}
-        <p class="text-[10px] text-destructive" data-testid="config-system-prompt-error">
-          {systemPromptError}
-        </p>
-      {/if}
-    </div>
+        label={$t("chat.system_prompt")}
+        labelClass="text-[10px] uppercase tracking-wider text-muted-foreground/50"
+        class="space-y-2.5"
+        error={systemPromptError ?? undefined}
+      >
+        <Textarea
+          id="config-prompt"
+          class="w-full rounded-lg glass-surface glass-border border px-3.5 py-2.5 text-xs text-foreground
+            bg-transparent resize-none outline-none transition-all
+            focus:ring-2 focus:ring-primary/30 focus:border-primary/40
+            placeholder:text-muted-foreground/50
+            disabled:opacity-50 disabled:cursor-not-allowed
+            aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
+          rows={4}
+          placeholder={$t("chat.system_prompt_placeholder")}
+          bind:value={systemPrompt}
+          aria-invalid={systemPromptError !== null}
+          disabled={isReadOnly}
+          data-testid="config-system-prompt"
+        ></Textarea>
+      </FormField>
+    </Card>
 
     <!-- Step budget — client-side persistence until runtime wiring lands. -->
-    <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
-      <label class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" for="config-step-budget">
-        {$t("chat.step_budget_label")}
-      </label>
-      <input
+    <Card class="p-3.5">
+      <FormField
         id="config-step-budget"
-        type="number"
-        min="1"
-        max="200"
-        step="1"
-        class="w-full rounded-lg glass-surface glass-border border px-3.5 py-2.5 text-xs text-foreground
-          bg-transparent outline-none transition-all
-          focus:ring-2 focus:ring-primary/30 focus:border-primary/40
-          placeholder:text-muted-foreground/50
-          disabled:opacity-50 disabled:cursor-not-allowed
-          aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
-        placeholder={$t("chat.step_budget_placeholder")}
-        value={stepBudget ?? ""}
-        oninput={(e) => {
-          const raw = (e.currentTarget as HTMLInputElement).value;
-          stepBudget = raw === "" ? null : Number.parseInt(raw, 10);
-        }}
-        aria-invalid={stepBudgetError !== null}
-        disabled={isReadOnly}
-        data-testid="config-step-budget"
-      />
-      {#if stepBudgetError}
-        <p class="text-[10px] text-destructive" data-testid="config-step-budget-error">
-          {stepBudgetError}
-        </p>
-      {:else}
-        <p class="text-[10px] text-muted-foreground/50">{$t("chat.step_budget_hint")}</p>
-      {/if}
-    </div>
+        label={$t("chat.step_budget_label")}
+        labelClass="text-[10px] uppercase tracking-wider text-muted-foreground/50"
+        class="space-y-2.5"
+        error={stepBudgetError ?? undefined}
+        hint={stepBudgetError ? undefined : $t("chat.step_budget_hint")}
+      >
+        <Input
+          id="config-step-budget"
+          type="number"
+          min="1"
+          max="200"
+          step="1"
+          class="w-full rounded-lg glass-surface glass-border border px-3.5 py-2.5 text-xs text-foreground
+            bg-transparent outline-none transition-all
+            focus:ring-2 focus:ring-primary/30 focus:border-primary/40
+            placeholder:text-muted-foreground/50
+            disabled:opacity-50 disabled:cursor-not-allowed
+            aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
+          placeholder={$t("chat.step_budget_placeholder")}
+          value={stepBudget ?? ""}
+          oninput={(e) => {
+            const raw = (e.currentTarget as HTMLInputElement).value;
+            stepBudget = raw === "" ? null : Number.parseInt(raw, 10);
+          }}
+          aria-invalid={stepBudgetError !== null}
+          disabled={isReadOnly}
+          data-testid="config-step-budget"
+        />
+      </FormField>
+    </Card>
 
     <!-- Tools section (libre mode only) -->
     {#if session?.mode === "libre"}
-      <div class="glass-card glass-border rounded-xl p-3.5 space-y-3">
+      <Card class="p-3.5 space-y-3">
         <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
           {isOperator ? $t("tools.select.title_operator") : $t("tools.select.title_builder")}
         </p>
@@ -284,7 +288,7 @@
           {@const enabledCount = groupTools.filter(t => enabledTools.has(t.id)).length}
           <div class="space-y-0.5">
             <div class="flex items-center justify-between px-1 py-1 rounded hover:bg-muted/20 transition-colors">
-              <button
+              <Button variant="ghost" size="sm"
                 class="flex items-center gap-1.5 flex-1 text-left"
                 onclick={() => {
                   const next = new Set(collapsedGroups);
@@ -305,7 +309,7 @@
                 <ChevronDown
                   class="h-3 w-3 text-muted-foreground/30 transition-transform duration-150 ml-auto {isCollapsed ? '' : 'rotate-180'}"
                 />
-              </button>
+              </Button>
               {#if !isCollapsed && !isReadOnly}
                 <button
                   class="text-[9px] text-muted-foreground/30 hover:text-primary transition-colors px-1.5 ml-1"
@@ -354,11 +358,11 @@
             {/if}
           </div>
         {/each}
-      </div>
+      </Card>
     {/if}
 
     <!-- User memory toggle -->
-    <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+    <Card class="p-3.5 space-y-2.5">
       <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
         {$t("chat.memory_section")}
       </p>
@@ -374,11 +378,11 @@
           data-testid="toggle-user-memory"
         />
       </div>
-    </div>
+    </Card>
 
     <!-- Context window usage -->
     {#if contextBarSegments}
-      <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+      <Card class="p-3.5 space-y-2.5">
         <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
           {$t("chat.context_window")}
         </p>
@@ -407,7 +411,7 @@
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>{$t("chat.legend_summary")}</span>
           <span class="flex items-center gap-1"><span class="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/30"></span>{$t("chat.legend_free")}</span>
         </div>
-      </div>
+      </Card>
     {/if}
 
     {#if saveError}

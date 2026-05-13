@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import type { TranscriptRow } from "$lib/types";
+  import { Card } from "$lib/components/ui/card";
 
   let {
     transcript,
@@ -63,10 +64,7 @@
   }
 </script>
 
-<div
-  class="glass-card glass-border rounded-xl p-4 transition-colors"
-  data-testid="transcript-card-{transcript.id}"
->
+<Card class="p-4 transition-colors" data-testid="transcript-card-{transcript.id}">
   <!-- Header -->
   <div class="flex items-center gap-2 text-xs text-muted-foreground/60">
     <svelte:component this={sourceIcon} size={14} strokeWidth={1.75} class="shrink-0" />
@@ -112,4 +110,4 @@
       {confirmingDelete ? $t("common.confirm") : $t("common.delete")}
     </Button>
   </div>
-</div>
+</Card>

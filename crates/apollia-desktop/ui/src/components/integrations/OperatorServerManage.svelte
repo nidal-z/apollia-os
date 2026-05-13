@@ -3,12 +3,13 @@
   import { invoke } from "@tauri-apps/api/core";
   import { Wrench } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetHeader, SheetContent } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { formatRelativeTime } from "$lib/utils";
   import type { McpServerDetailView, McpServerStatusView } from "$lib/types";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
-  import ApprovalLevelSelector from "./ApprovalLevelSelector.svelte";
+  import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
+  import { Card } from "$lib/components/ui/card";
 
   type ApprovalLevel = "auto" | "ask" | "readonly";
 
@@ -168,13 +169,13 @@
 </script>
 
 <Sheet {open} onclose={onclose}>
-  <div class="flex flex-col gap-5 px-6 pt-6 pb-6 overflow-y-auto h-full">
-    <!-- Header -->
-    <div class="pr-6">
-      <h2 class="text-base font-semibold text-foreground" data-testid="manage-sheet-title">
-        {$t("integrations.manage.title", { values: { name: serverName } })}
-      </h2>
-    </div>
+  <SheetHeader
+    title={$t("integrations.manage.title", { values: { name: serverName } })}
+    {onclose}
+    closeLabel={$t("a11y.close")}
+    titleId="manage-sheet-title"
+  />
+  <SheetContent padding="flush" class="flex flex-col gap-5 px-6 pt-6 pb-6">
 
     {#if loading}
       <div class="flex items-center gap-2 text-sm text-muted-foreground" data-testid="manage-loading">
@@ -192,7 +193,7 @@
         >
           {$t("integrations.manage.status_section")}
         </h3>
-        <div class="glass-card glass-border rounded-lg px-4 py-3 flex flex-col gap-2">
+        <Card class="rounded-lg px-4 py-3 flex flex-col gap-2">
           <ConnectionStatusIndicator
             connected={detail.status.connected}
             error={detail.status.error}
@@ -210,7 +211,7 @@
               {detail.status.error}
             </p>
           {/if}
-        </div>
+        </Card>
       </section>
 
       <!-- Recent activity -->
@@ -221,7 +222,7 @@
         >
           {$t("integrations.manage.activity_section")}
         </h3>
-        <div class="glass-card glass-border rounded-lg px-4 py-3">
+        <Card class="rounded-lg px-4 py-3">
           {#if lastActivity !== null}
             <p class="text-sm text-foreground" data-testid="manage-last-activity">
               {$t("integrations.manage.last_call", { values: { time: lastActivity } })}
@@ -231,7 +232,7 @@
               {$t("integrations.manage.no_activity")}
             </p>
           {/if}
-        </div>
+        </Card>
       </section>
 
       <!-- Tools exposed by the server -->
@@ -430,5 +431,5 @@
         {/if}
       </section>
     {/if}
-  </div>
+  </SheetContent>
 </Sheet>

@@ -93,12 +93,7 @@
   }
 </script>
 
-<div
-  class="my-1.5 glass-card glass-border rounded-lg border-l-2 px-3 py-2.5 text-xs
-    {isA2A ? 'border-l-secondary' : 'border-l-warning'}"
-  data-testid="approval-card-{toolName}"
-  transition:slide={{ duration: 200 }}
->
+<div class="glass-card glass-border my-1.5 rounded-lg border-l-2 px-3 py-2.5 text-xs {isA2A ? 'border-l-secondary' : 'border-l-warning'}" data-testid="approval-card-{toolName}" transition:slide={{ duration: 200 }}>
   <div class="flex items-center gap-2 font-medium text-foreground">
     <div
       class="flex h-6 w-6 items-center justify-center rounded-lg {isA2A
@@ -172,7 +167,7 @@
       transition:slide={{ duration: 150 }}
       data-testid="approval-scope-menu-{toolName}"
     >
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -183,8 +178,8 @@
         <div class="text-[10px] text-muted-foreground">
           Jusqu'à la fermeture de ce chat.
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -195,8 +190,8 @@
         <div class="text-[10px] text-muted-foreground">
           Apollia Chat (ou l'agent courant) ne demandera plus.
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
         disabled={isProcessing || !hasProject}
@@ -210,8 +205,8 @@
             ? "Tous les assistants utilisés dans ce projet."
             : "Indisponible — la session n'est rattachée à aucun projet."}
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="ghost" size="sm"
         type="button"
         class="rounded-md px-2.5 py-1.5 text-left text-[11px] hover:bg-surface-1 disabled:opacity-50"
         disabled={isProcessing}
@@ -222,7 +217,7 @@
         <div class="text-[10px] text-warning">
           Tous les assistants, tous les projets.
         </div>
-      </button>
+      </Button>
     </div>
   {/if}
 </div>

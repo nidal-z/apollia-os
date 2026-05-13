@@ -1,4 +1,7 @@
 <script lang="ts" context="module">
+  import { Input } from "$lib/components/ui/input";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { Select } from "$lib/components/ui/select";
   export const meta = {
     title: "settings.nav.stt",
     icon: "mic",
@@ -180,7 +183,7 @@
 
         <label class="flex cursor-pointer items-center justify-between" data-testid="stt-enable-toggle">
           <span class="text-sm text-foreground">{$t('settings.stt_enable_engine')}</span>
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             role="switch"
             aria-checked={sttConfig.enabled}
@@ -189,13 +192,13 @@
             class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.enabled ? 'bg-primary' : 'bg-muted'}"
           >
             <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.enabled ? 'translate-x-6' : 'translate-x-1'}"></span>
-          </button>
+          </Button>
         </label>
 
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-model-select">{$t('settings.stt_select_model')}</label>
           {#if ($sttModelsStore.data ?? []).length > 0}
-            <select
+            <Select
               id="stt-model-select"
               bind:value={sttConfig.model_path}
               class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -206,7 +209,7 @@
                   {model.name} ({model.size_mb.toFixed(0)} Mo{model.language ? ` · ${model.language}` : ''})
                 </option>
               {/each}
-            </select>
+            </Select>
           {:else}
             <p class="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
               {$t('settings.stt_no_models')}
@@ -216,26 +219,26 @@
 
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-language">{$t('settings.stt_language')}</label>
-          <input
+          <Input
             id="stt-language"
             type="text"
             placeholder={$t('settings.stt_language_auto')}
             bind:value={sttConfig.language}
             class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             data-testid="stt-language-input"
-          />
+           />
         </div>
 
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-trigger">{$t('settings.stt_trigger_mode')}</label>
-          <select
+          <Select
             id="stt-trigger"
             bind:value={sttConfig.trigger_mode}
             class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <option value="toggle">{$t('settings.stt_trigger_toggle')}</option>
             <option value="push-to-talk">{$t('settings.stt_trigger_push')}</option>
-          </select>
+          </Select>
         </div>
 
         {#snippet footer()}
@@ -280,7 +283,7 @@
       <div class="space-y-1.5">
         <label class="text-sm text-muted-foreground" for="stt-silence">{$t('settings.stt_silence_threshold')}</label>
         <div class="relative">
-          <input
+          <Input
             id="stt-silence"
             type="number"
             min="-80"
@@ -288,7 +291,7 @@
             step="1"
             bind:value={sttConfig.silence_threshold_db}
             class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          />
+           />
           <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">dB</span>
         </div>
       </div>
@@ -304,33 +307,33 @@
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-max-rec">{$t('settings.stt_max_recording')}</label>
           <div class="relative">
-            <input
+            <Input
               id="stt-max-rec"
               type="number"
               min="5"
               max="300"
               bind:value={sttConfig.max_recording_sec}
               class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            />
+             />
             <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">s</span>
           </div>
         </div>
         <div class="space-y-1.5">
           <label class="text-sm text-muted-foreground" for="stt-clipboard">{$t('settings.stt_clipboard_mode')}</label>
-          <select
+          <Select
             id="stt-clipboard"
             bind:value={sttConfig.clipboard_mode}
             class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <option value="paste">{$t('settings.stt_clipboard_paste')}</option>
             <option value="clipboard">{$t('settings.stt_clipboard_clipboard')}</option>
-          </select>
+          </Select>
         </div>
       </div>
 
       <label class="flex cursor-pointer items-center justify-between">
         <span class="text-sm text-muted-foreground">{$t('settings.stt_clipboard_restore')}</span>
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           role="switch"
           aria-checked={sttConfig.clipboard_restore}
@@ -339,7 +342,7 @@
           class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.clipboard_restore ? 'bg-primary' : 'bg-muted'}"
         >
           <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.clipboard_restore ? 'translate-x-6' : 'translate-x-1'}"></span>
-        </button>
+        </Button>
       </label>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-border/40 pt-3">
@@ -365,7 +368,7 @@
       {#snippet actions()}
         <div class="flex items-center gap-3">
           <label class="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <input type="checkbox" bind:checked={liveUpdates} data-testid="stt-status-live-toggle" />
+            <Checkbox bind:checked={liveUpdates} data-testid="stt-status-live-toggle" />
             {$t('settings.stt.status_live_updates')}
           </label>
           <Button

@@ -13,6 +13,7 @@
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
   import { OperatorBreadcrumb } from "$lib/components/layout";
+  import { StatusDot } from "$lib/components/operator";
   import UserMenu from "./UserMenu.svelte";
   import ModeChip from "./ModeChip.svelte";
 
@@ -74,7 +75,7 @@
         data-testid="topbar-agents-at-work"
         aria-label="{agentsAtWork} agents au travail"
       >
-        <span class="agents-dot relative inline-flex h-1.5 w-1.5 rounded-full" style="background: hsl(var(--success));"></span>
+        <StatusDot color="hsl(var(--success))" glow size={6} />
         {agentsAtWork} agents au travail
       </span>
     {/if}
@@ -108,13 +109,3 @@
   </div>
 </header>
 
-<style>
-  .agents-dot {
-    box-shadow: 0 0 0 0 hsl(var(--success) / 0.4);
-    animation: agents-soft-pulse 1.8s ease-in-out infinite;
-  }
-  @keyframes agents-soft-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0.45); opacity: 1; }
-    50%      { box-shadow: 0 0 0 4px hsl(var(--success) / 0); opacity: 0.75; }
-  }
-</style>

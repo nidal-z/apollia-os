@@ -46,6 +46,7 @@
   import { CheckCircle2, XCircle, ShieldCheck } from "lucide-svelte";
 
   import type { InboxItem, InboxRisk } from "../components/inbox/types";
+  import { Button } from "$lib/components/ui/button";
   import type {
     PendingApproval,
     PendingChatApproval,
@@ -828,14 +829,14 @@
           >
             {#snippet icon()}<ActivityIcon size={22} />{/snippet}
             {#snippet action()}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="text-[12px] text-primary underline-offset-2 hover:underline"
                 onclick={() => navigateTo("observability")}
                 data-testid="inbox-activity-empty-cta"
               >
                 {$t("inbox.activity.empty_cta")}
-              </button>
+              </Button>
             {/snippet}
           </EmptyState>
         </div>

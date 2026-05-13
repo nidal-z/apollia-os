@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Loader2, Download, CheckCircle2, XCircle, RefreshCw } from "lucide-svelte";
+  import { Download, CheckCircle2, XCircle, RefreshCw } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Card } from "$lib/components/ui/card";
+  import { Spinner } from "$lib/components/ui/progress";
 
   type State = "idle" | "checking" | "up_to_date" | "available" | "error";
 
@@ -45,7 +47,7 @@
   }
 </script>
 
-<div class="glass-card glass-border rounded-lg p-4" data-testid="update-checker">
+<Card class="rounded-lg p-4" data-testid="update-checker">
   <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
     {$t("settings.update.check")}
   </h3>
@@ -58,7 +60,7 @@
       </Button>
     {:else if phase === "checking"}
       <span class="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Loader2 class="h-3.5 w-3.5 animate-spin" />
+        <Spinner class="h-3.5 w-3.5" />
         {$t("settings.update.checking")}
       </span>
     {:else if phase === "up_to_date"}
@@ -82,7 +84,7 @@
         data-testid="update-install-btn"
       >
         {#if installing}
-          <Loader2 class="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          <Spinner class="h-3.5 w-3.5 mr-1.5" />
         {:else}
           <Download class="h-3.5 w-3.5 mr-1.5" />
         {/if}
@@ -103,4 +105,4 @@
   {#if phase === "error" && errorMsg}
     <p class="text-xs text-destructive mt-2 font-mono break-all">{errorMsg}</p>
   {/if}
-</div>
+</Card>

@@ -44,6 +44,7 @@
   import SettingSectionSkeleton from "../components/settings/SettingSectionSkeleton.svelte";
   import UnsavedChangesBadge from "../components/settings/UnsavedChangesBadge.svelte";
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   // ─── Lazy-loaded tab content (existing sub-routes own invoke()/stores) ──
   const LOADERS: Record<SettingsSubRoute, () => Promise<{ default: Component }>> = {
@@ -436,7 +437,7 @@
                   {@const SvelteIcon = entry.icon}
                   {@const isActive = $settingsSubRoute === entry.key}
                   <li>
-                    <button
+                    <Button variant="ghost" size="sm"
                       type="button"
                       onclick={() => onNavigate(entry.key)}
                       aria-current={isActive ? "page" : undefined}
@@ -449,7 +450,7 @@
                     >
                       <SvelteIcon size={14} strokeWidth={1.75} aria-hidden="true" />
                       <span>{$t(entry.labelKey)}</span>
-                    </button>
+                    </Button>
                   </li>
                 {/each}
               </ul>
@@ -478,7 +479,7 @@
                 {@const SvelteIcon = entry.icon}
                 {@const isActive = $settingsSubRoute === entry.key}
                 <li>
-                  <button
+                  <Button variant="ghost" size="sm"
                     type="button"
                     onclick={() => onNavigate(entry.key)}
                     aria-current={isActive ? "page" : undefined}
@@ -500,7 +501,7 @@
                           : "text-muted-foreground"}
                     />
                     <span>{$t(entry.labelKey)}</span>
-                  </button>
+                  </Button>
                 </li>
               {/each}
             </ul>

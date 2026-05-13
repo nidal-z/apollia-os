@@ -21,7 +21,7 @@
    */
   import { onDestroy, onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { AlertCircle, Loader2 } from "lucide-svelte";
+  import { AlertCircle } from "lucide-svelte";
   import type { RuntimeEventDto } from "$lib/trace";
   import {
     clearTrace,
@@ -32,6 +32,8 @@
   } from "$lib/stores/trace";
   import { uiMode, type UIMode } from "$lib/stores/mode";
   import TraceEventCard from "./TraceEventCard.svelte";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     taskId: string;
@@ -147,7 +149,7 @@
 
   {#if $traceState.events.length === 0 && $traceState.loading}
     <div class="flex items-center gap-2 px-2.5 py-3 text-[12px] text-muted-foreground">
-      <Loader2 size={13} class="animate-spin" />
+      <Spinner size={13} />
       <span>{$t("trace.loading")}</span>
     </div>
   {:else if $traceState.events.length === 0 && !$traceState.loading}
@@ -164,17 +166,17 @@
     {/each}
 
     {#if $traceState.nextCursor}
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         onclick={loadMore}
         disabled={$traceState.loading}
         class="self-center mt-1.5 px-3 py-1 text-[11px] text-primary hover:underline disabled:opacity-50"
       >
         {#if $traceState.loading}
-          <Loader2 size={11} class="inline animate-spin" />
+          <Spinner size={11} class="inline" />
         {/if}
         {$t("trace.load_more")}
-      </button>
+      </Button>
     {/if}
   {/if}
 </div>

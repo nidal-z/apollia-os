@@ -9,6 +9,7 @@
   import { t } from "svelte-i18n";
   import { X, FileText, Image } from "lucide-svelte";
   import type { PendingAttachment } from "$lib/chat/attachments";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     attachment: PendingAttachment;
@@ -44,7 +45,7 @@
   {/if}
   <span class="truncate" title={attachment.name}>{attachment.name}</span>
   <span class="shrink-0 text-muted-foreground/60">{sizeLabel}</span>
-  <button
+  <Button variant="ghost" size="sm"
     type="button"
     onclick={onremove}
     class="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:bg-muted/60 hover:text-foreground"
@@ -52,5 +53,5 @@
     data-testid="chat-attachment-remove"
   >
     <X size={10} />
-  </button>
+  </Button>
 </div>

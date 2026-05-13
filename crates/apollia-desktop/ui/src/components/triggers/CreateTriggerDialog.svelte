@@ -29,6 +29,7 @@
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
   import { DatePicker, TimePicker } from "$lib/components/ui/date-picker";
+  import { FormField } from "$lib/components/ui/form-field";
   import CronBuilder from "./CronBuilder.svelte";
   import IntervalPicker from "./IntervalPicker.svelte";
 
@@ -344,8 +345,12 @@
       </div>
 
     {:else if sourceType === "oneshot"}
-      <div>
-        <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="trigger-fire-at">{$t("triggers.field_fire_at")}</label>
+      <FormField
+        id="trigger-fire-at"
+        label={$t("triggers.field_fire_at")}
+        labelClass="text-[11px] mb-0.5"
+        error={sourceError && sourceType === "oneshot" ? sourceError : undefined}
+      >
         <div class="grid grid-cols-2 gap-2">
           <DatePicker
             id="trigger-fire-at"
@@ -359,15 +364,16 @@
             data-testid="trigger-fire-at-time-input"
           />
         </div>
-        {#if sourceError && sourceType === "oneshot"}
-          <p class="mt-0.5 text-xs text-destructive" data-testid="trigger-source-error">{sourceError}</p>
-        {/if}
-      </div>
+      </FormField>
 
     {:else if sourceType === "file_watch"}
       <div class="space-y-3">
-        <div>
-          <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="trigger-watch-path">{$t("triggers.field_path")}</label>
+        <FormField
+          id="trigger-watch-path"
+          label={$t("triggers.field_path")}
+          labelClass="text-[11px] mb-0.5"
+          hint={$t("triggers.field_path_help")}
+        >
           <Input
             id="trigger-watch-path"
             class={sourceError && sourceType === 'file_watch' && !fileWatchPath.trim() ? 'border-destructive' : ''}
@@ -375,8 +381,7 @@
             bind:value={fileWatchPath}
             data-testid="trigger-input-filepath"
           />
-          <p class="mt-0.5 text-[11px] text-muted-foreground">{$t("triggers.field_path_help")}</p>
-        </div>
+        </FormField>
         <div>
           <p class="mb-2 block text-[11px] font-medium text-muted-foreground">{$t("triggers.field_events")}</p>
           <div class="flex gap-2">
@@ -431,8 +436,12 @@
         <div class="rounded-md border border-border bg-muted/30 px-3.5 py-2.5 text-[12px] text-muted-foreground leading-relaxed">
           {$t("triggers.webhook_explain")}
         </div>
-        <div>
-          <label class="mb-1.5 block text-[11px] font-medium text-muted-foreground" for="trigger-secret">{$t("triggers.field_secret")}</label>
+        <FormField
+          id="trigger-secret"
+          label={$t("triggers.field_secret")}
+          labelClass="text-[11px] mb-0.5"
+          error={sourceError && sourceType === "webhook" ? sourceError : undefined}
+        >
           <div class="flex gap-2">
             <Input
               id="trigger-secret"
@@ -445,10 +454,7 @@
               {$t("triggers.field_secret_generate")}
             </Button>
           </div>
-          {#if sourceError && sourceType === "webhook"}
-            <p class="mt-0.5 text-xs text-destructive" data-testid="trigger-source-error">{sourceError}</p>
-          {/if}
-        </div>
+        </FormField>
       </div>
     {/if}
 
@@ -478,8 +484,13 @@
           transition:slide={{ duration: 180 }}
         >
           <!-- Trigger ID -->
-          <div>
-            <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-id">{$t("triggers.field_id")}</label>
+          <FormField
+            id="trigger-id"
+            label={$t("triggers.field_id")}
+            labelClass="text-[11px] font-normal mb-0"
+            error={idError || undefined}
+            hint={$t("triggers.field_id_help")}
+          >
             {#if !isBuilder}
               <p class="mb-1 text-[11px] text-muted-foreground/70">{$t("triggers.field_id_auto")}</p>
             {/if}
@@ -491,15 +502,14 @@
               oninput={() => { idCustomized = true; }}
               data-testid="trigger-input-name"
             />
-            <p class="mt-0.5 text-[11px] text-muted-foreground">{$t("triggers.field_id_help")}</p>
-            {#if idError}
-              <p class="mt-0.5 text-xs text-destructive" data-testid="trigger-id-error">{idError}</p>
-            {/if}
-          </div>
+          </FormField>
 
           <!-- On busy -->
-          <div>
-            <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-on-busy">{$t("triggers.field_on_busy")}</label>
+          <FormField
+            id="trigger-on-busy"
+            label={$t("triggers.field_on_busy")}
+            labelClass="text-[11px] font-normal mb-0"
+          >
             <Select
               id="trigger-on-busy"
               bind:value={onBusy}
@@ -508,14 +518,15 @@
               <option value="queue">{$t("triggers.field_on_busy_queue")}</option>
               <option value="drop">{$t("triggers.field_on_busy_drop")}</option>
             </Select>
-          </div>
+          </FormField>
 
           <!-- Input template -->
-          <div>
-            <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-input-template">
-              {$t("triggers.field_input_template")}
-              <span class="font-normal text-muted-foreground">({$t("common.optional")})</span>
-            </label>
+          <FormField
+            id="trigger-input-template"
+            label={$t("triggers.field_input_template")}
+            labelClass="text-[11px] font-normal mb-0"
+            optional
+          >
             <Textarea
               id="trigger-input-template"
               rows={2}
@@ -523,7 +534,7 @@
               bind:value={inputTemplate}
               data-testid="trigger-input-template-textarea"
             />
-          </div>
+          </FormField>
         </div>
       {/if}
     </div>

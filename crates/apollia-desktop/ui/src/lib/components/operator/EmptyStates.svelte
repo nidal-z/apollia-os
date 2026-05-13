@@ -8,7 +8,7 @@
     List,
     Check,
   } from "lucide-svelte";
-  import BtnPrimary from "./BtnPrimary.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   /**
    * Gallery component showing the 4+ empty-state archetypes.
@@ -94,7 +94,7 @@
       <p class="m-0 text-[11.5px] text-muted-foreground leading-[1.5]">{e.desc}</p>
       {#if e.action}
         <div class="mt-2.5 inline-flex">
-          <BtnPrimary>{e.action}</BtnPrimary>
+          <Button variant="primary-solid" size="sm">{e.action}</Button>
         </div>
       {/if}
       {#if e.ok}

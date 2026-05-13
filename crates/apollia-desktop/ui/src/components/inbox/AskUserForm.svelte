@@ -12,6 +12,7 @@
   import { RadioGroup, RadioItem } from "$lib/components/ui/radio";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Button } from "$lib/components/ui/button";
+  import { FormField } from "$lib/components/ui/form-field";
   import RejectReasonDialog from "./RejectReasonDialog.svelte";
   import { buildAskUserAnswers } from "./askUserForm";
   import type { AskUserAnswer, AskUserQuestion } from "$lib/types";
@@ -96,11 +97,12 @@
 
   <div class="flex flex-col gap-5">
     {#each questions as q (q.id)}
-      <div class="flex flex-col gap-2" data-testid="ask-user-question-{q.id}">
-        <label class="text-sm font-medium text-foreground" for="ask-user-{q.id}">
-          {q.question}
-        </label>
-
+      <FormField
+        id="ask-user-{q.id}"
+        label={q.question}
+        labelClass="text-sm text-foreground"
+        data-testid="ask-user-question-{q.id}"
+      >
         {#if q.type === "open"}
           <Input
             id="ask-user-{q.id}"
@@ -140,7 +142,7 @@
             {/each}
           </div>
         {/if}
-      </div>
+      </FormField>
     {/each}
   </div>
 

@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Package, AlertTriangle, Users, Info, Trash2 } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     pkg: AgentPackageListItem;
@@ -28,9 +29,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  class="glass-card-hover glass-border flex flex-col cursor-pointer rounded-xl overflow-hidden"
-  onclick={() => ondetail(pkg)}
+<Card interactive class="flex flex-col cursor-pointer overflow-hidden" onclick={() => ondetail(pkg)}
 >
   <!-- Accent bar -->
   <div class="h-0.5 w-full bg-primary/60"></div>
@@ -134,4 +133,4 @@
       </div>
     </div>
   </div>
-</div>
+</Card>

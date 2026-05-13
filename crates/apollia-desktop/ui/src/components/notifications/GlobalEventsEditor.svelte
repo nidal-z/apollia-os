@@ -9,6 +9,7 @@
     eventLabelKey,
     eventDescriptionKey,
   } from "$lib/notifications/event-labels";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     onsaved: () => void;
@@ -68,7 +69,7 @@
   {#if loading}
     <p class="text-xs text-muted-foreground">{$t("common.loading")}</p>
   {:else}
-    <div class="glass-card glass-border rounded-lg p-4">
+    <Card class="rounded-lg p-4">
       <div class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {#each NOTIFICATION_EVENT_TYPES as event}
           <label class="flex items-start gap-2 text-sm" data-testid="global-event-{event}">
@@ -100,6 +101,6 @@
           {saving ? $t("notifications.global_events_saving") : $t("notifications.global_events_save")}
         </Button>
       </div>
-    </div>
+    </Card>
   {/if}
 </section>

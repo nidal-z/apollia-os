@@ -3,7 +3,7 @@
   import { fly } from "svelte/transition";
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -22,6 +22,7 @@
     ArrowDownWideNarrow,
     Copy,
   } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     agentId: string;
@@ -200,7 +201,7 @@
   <div class="flex h-full flex-col" data-testid="agent-logs-sheet">
 
     <!-- Header card -->
-    <div class="mx-4 mt-6 rounded-xl glass-card glass-border overflow-hidden">
+    <Card class="mx-4 mt-6 overflow-hidden">
       <div class="h-0.5 w-full bg-secondary"></div>
       <div class="px-4 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -236,7 +237,7 @@
           </Button>
         </div>
       </div>
-    </div>
+    </Card>
 
     <!-- Filters -->
     <div class="mx-4 mt-3 space-y-2">
@@ -251,14 +252,14 @@
           aria-label={$t('agents.filter_search_placeholder')}
         />
         {#if searchQuery}
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             onclick={() => (searchQuery = "")}
             aria-label={$t('common.clear')}
           >
             <X size={12} />
-          </button>
+          </Button>
         {/if}
       </div>
 
@@ -266,7 +267,7 @@
       <div class="flex items-center justify-between gap-2">
         <div class="flex flex-wrap gap-1">
           {#each STATUS_FILTERS as filter (filter.key)}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={() => (statusFilter = filter.key)}
               class="text-[10px] px-2 py-0.5 rounded-full border transition-colors
@@ -275,7 +276,7 @@
                   : 'border-border/60 text-muted-foreground hover:border-border hover:text-foreground'}"
             >
               {$t(filter.i18n)}
-            </button>
+            </Button>
           {/each}
         </div>
 
@@ -295,30 +296,30 @@
     </div>
 
     <!-- Task list -->
-    <div class="flex-1 overflow-auto px-4 pt-3 pb-6">
+    <SheetContent padding="flush" class="px-4 pt-3 pb-6">
       {#if loading && taskList.length === 0}
         <div class="flex items-center justify-center py-12">
           <RefreshCw size={16} class="animate-spin text-muted-foreground" />
         </div>
       {:else if error}
-        <div class="glass-card glass-border rounded-lg px-4 py-3">
+        <Card class="rounded-lg px-4 py-3">
           <p class="text-xs text-destructive">{error}</p>
-        </div>
+        </Card>
       {:else if taskList.length === 0}
-        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+        <Card class="rounded-lg px-4 py-8 text-center">
           <ScrollText size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground">{$t('agents.no_tasks')}</p>
-        </div>
+        </Card>
       {:else if filteredTasks.length === 0}
-        <div class="glass-card glass-border rounded-lg px-4 py-8 text-center">
+        <Card class="rounded-lg px-4 py-8 text-center">
           <Search size={24} class="mx-auto text-muted-foreground/30 mb-2" />
           <p class="text-xs text-muted-foreground mb-2">{$t('agents.no_matching_tasks')}</p>
           <Button size="sm" variant="ghost" class="h-6 text-[10px]" onclick={resetFilters}>
             {$t('agents.clear_filters')}
           </Button>
-        </div>
+        </Card>
       {:else}
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/40">
+        <Card class="rounded-lg overflow-hidden divide-y divide-border/40">
           {#each filteredTasks as task, i (task.id)}
             {@const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.submitted}
             {@const IconComponent = cfg.icon}
@@ -379,8 +380,8 @@
               <code class="text-[9px] text-muted-foreground/25 font-mono">{shortId(task.id)}</code>
             </div>
           {/each}
-        </div>
+        </Card>
       {/if}
-    </div>
+    </SheetContent>
   </div>
 </Sheet>

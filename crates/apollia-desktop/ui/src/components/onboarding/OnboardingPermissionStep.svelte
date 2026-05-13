@@ -11,9 +11,10 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { ShieldCheck, ShieldX, Check, X, Loader2 } from "lucide-svelte";
+  import { ShieldCheck, ShieldX, Check, X } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface ProposedRuleView {
     index: number;
@@ -117,7 +118,7 @@
 
   {#if loading}
     <div class="empty">
-      <Loader2 class="anim-spin" size={16} /> {$t("onboarding_permissions.loading")}
+      <Spinner size={16} /> {$t("onboarding_permissions.loading")}
     </div>
   {:else if pending.length === 0}
     <div class="empty">{$t("onboarding_permissions.empty")}</div>
@@ -157,7 +158,7 @@
               data-testid={`onboarding-rule-dismiss-${rule.index}`}
             >
               {#if busy[rule.index] === "dismissing"}
-                <Loader2 size={14} class="anim-spin" />
+                <Spinner size={14} />
               {:else}
                 <X size={14} />
               {/if}
@@ -171,7 +172,7 @@
               data-testid={`onboarding-rule-approve-${rule.index}`}
             >
               {#if busy[rule.index] === "applying"}
-                <Loader2 size={14} class="anim-spin" />
+                <Spinner size={14} />
               {:else}
                 <Check size={14} />
               {/if}

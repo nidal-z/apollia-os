@@ -1,6 +1,9 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
   import type { HTMLAttributes } from "svelte/elements";
+  // Separator renders as a <div> by default; `variant="inline"` renders a
+  // <span> so it can be used inside an inline flex layout. Props are typed
+  // against HTMLDivElement which covers both surfaces in practice.
 
   type SeparatorColor = "border" | "muted" | "primary";
 
@@ -14,8 +17,10 @@
      * - `elevated` — 1px line + faint top highlight, sits on surface-1.
      * - `fade`     — gradient-fade on both ends for long scrollable regions
      *   where a hard divider feels abrupt (F.42, F.71).
+     * - `inline`   — flex-1 hairline used inside a row to fill remaining
+     *   horizontal space (e.g. between two labels or section headers).
      */
-    variant?: "solid" | "subtle" | "elevated" | "fade";
+    variant?: "solid" | "subtle" | "elevated" | "fade" | "inline";
     /** Applies `mx-6` (horizontal) or `my-6` (vertical). */
     inset?: boolean;
     /** Renders as a 1px dashed border instead of a filled bar. */
@@ -77,6 +82,17 @@
     )}
     {...restProps}
   ></div>
+{:else if variant === "inline"}
+  <span
+    role="separator"
+    aria-orientation={orientation}
+    class={cn(
+      "shrink-0 bg-border/40",
+      horizontal ? "h-px flex-1" : "w-px self-stretch",
+      insetCls,
+      className,
+    )}
+  ></span>
 {:else if variant === "subtle"}
   <div
     role="separator"

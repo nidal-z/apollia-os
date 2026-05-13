@@ -15,8 +15,8 @@
   import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import TourSpotlight from "./TourSpotlight.svelte";
-  import TourStepCard from "./TourStepCard.svelte";
+  import TourSpotlight from "$lib/components/operator/tours/TourSpotlight.svelte";
+  import TourStepCard from "$lib/components/operator/tours/TourStepCard.svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import type { OnboardingState, TourStep } from "$lib/types";
 

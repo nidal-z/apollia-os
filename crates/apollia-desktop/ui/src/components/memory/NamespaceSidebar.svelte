@@ -1,6 +1,9 @@
 <script lang="ts">
   import { Database, Search, Layers, Bot, FolderOpen, User, HelpCircle } from "lucide-svelte";
   import { t } from "svelte-i18n";
+  import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Input } from "$lib/components/ui/input";
+  import { Button } from "$lib/components/ui/button";
 
   /**
    * Catégorie sémantique d'un namespace mémoire.
@@ -128,13 +131,13 @@
         size={12}
         class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
       />
-      <input
+      <Input
         type="search"
         bind:value={filterQuery}
         placeholder={$t('memory.namespaces.filter_placeholder', { default: 'Filtrer…' })}
         class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[11.5px] text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-primary/40"
         data-testid="namespace-sidebar-filter"
-      />
+       />
     </div>
 
     <!-- Category filter — segmented control horizontal scroll -->
@@ -147,7 +150,7 @@
         {@const isActive = categoryFilter === chip.key}
         {@const count = counts[chip.key]}
         {@const Icon = chip.Icon}
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           role="tab"
           aria-selected={isActive}
@@ -164,7 +167,7 @@
           <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
             {count}
           </span>
-        </button>
+        </Button>
       {/each}
     </div>
   </header>
@@ -173,7 +176,7 @@
     {#if loading}
       <div class="px-2 py-3 space-y-1.5">
         {#each Array(4) as _}
-          <div class="h-8 rounded-md bg-muted/40 animate-pulse"></div>
+          <Skeleton class="h-8 rounded-md bg-muted/40" />
         {/each}
       </div>
     {:else if filteredNamespaces.length === 0}

@@ -33,6 +33,8 @@
     ProjectSummary,
   } from "$lib/types";
   import A2AWorkerBadge from "./A2AWorkerBadge.svelte";
+  import { Button } from "$lib/components/ui/button";
+  import { ActionMenu } from "$lib/components/ui/action-menu";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -80,7 +82,6 @@
     onprojectopen,
   }: Props = $props();
 
-  let menuOpen = $state(false);
   let linkOpen = $state(false);
   let editing = $state(false);
   let draftTitle = $state("");
@@ -168,8 +169,10 @@
     }
   }
 
+  let closeMenu = $state<(() => void) | null>(null);
+
   function handleMenuAction(action: "rename" | "delete" | "drawer"): void {
-    menuOpen = false;
+    closeMenu?.();
     switch (action) {
       case "rename":
         void startEdit();
@@ -185,33 +188,13 @@
 
   function handleLinkPick(projectId: string | null): void {
     linkOpen = false;
-    menuOpen = false;
+    closeMenu?.();
     onlink?.(projectId);
   }
 
   function handleProjectChipClick(): void {
     if (linkedProject && onprojectopen) onprojectopen(linkedProject.id);
   }
-
-  function handleDocumentClick(ev: MouseEvent): void {
-    if (!menuOpen && !linkOpen) return;
-    const target = ev.target as Node | null;
-    if (!target) return;
-    const root = document.querySelector<HTMLElement>(
-      "[data-chat-header-menu-root]",
-    );
-    if (root && !root.contains(target)) {
-      menuOpen = false;
-      linkOpen = false;
-    }
-  }
-
-  $effect(() => {
-    if (menuOpen || linkOpen) {
-      document.addEventListener("click", handleDocumentClick);
-      return () => document.removeEventListener("click", handleDocumentClick);
-    }
-  });
 </script>
 
 <div
@@ -304,7 +287,7 @@
     <!-- Action cluster -->
     <div class="flex items-center gap-0.5 shrink-0" data-chat-header-menu-root>
       {#if !hideConfig}
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onclick={() => onconfigtoggle?.()}
           class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
@@ -312,63 +295,70 @@
           data-testid="chat-config-button"
         >
           <Settings2 size={14} />
-        </button>
+        </Button>
       {/if}
 
       <!-- Overflow / actions menu -->
-      <div class="relative">
-        <button
-          type="button"
-          onclick={() => (menuOpen = !menuOpen)}
-          class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-          aria-label={$t("chat.session_actions")}
-          aria-expanded={menuOpen}
-          data-testid="chat-header-overflow-button"
-        >
-          <MoreHorizontal size={14} />
-        </button>
-        {#if menuOpen}
-          <div
-            class="absolute right-0 top-full mt-1 z-20 min-w-[12rem] rounded-md border border-border/50 bg-card shadow-elev-2 py-1 animate-fade-in"
-            role="menu"
-            data-testid="chat-header-overflow-menu"
+      <ActionMenu
+        align="end"
+        class="min-w-[12rem]"
+        triggerLabel={$t("chat.session_actions")}
+        data-testid="chat-header-overflow-button"
+      >
+        {#snippet triggerSlot(props)}
+          <button
+            type="button"
+            {...props}
+            class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-label={$t("chat.session_actions")}
+            data-testid="chat-header-overflow-button"
           >
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => handleMenuAction("rename")}
-              disabled={sessionStatus === "closed"}
-              class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 disabled:opacity-40 disabled:cursor-not-allowed"
-              data-testid="chat-header-menu-rename"
-            >
-              <Edit3 size={12} /> {$t("chat.rename_session")}
-            </button>
-
-            <!-- Link to project submenu -->
-            {#if linkedProject}
+            <MoreHorizontal size={14} />
+          </button>
+        {/snippet}
+        {#snippet body({ close })}
+          {void (closeMenu = close)}
+          <ul class="flex flex-col gap-0.5" role="menu" data-testid="chat-header-overflow-menu">
+            <li role="none">
               <button
                 type="button"
                 role="menuitem"
-                onclick={() => handleLinkPick(null)}
-                disabled={!onlink}
-                class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 disabled:opacity-40 disabled:cursor-not-allowed"
-                data-testid="chat-header-menu-unlink-project"
+                onclick={() => handleMenuAction("rename")}
+                disabled={sessionStatus === "closed"}
+                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                data-testid="chat-header-menu-rename"
               >
-                <FolderMinus size={12} />
-                <span class="truncate">
-                  {$t("chat.unlink_project", {
-                    values: { name: linkedProject.name },
-                  })}
-                </span>
+                <Edit3 size={12} /> {$t("chat.rename_session")}
               </button>
+            </li>
+
+            <!-- Link to project submenu -->
+            {#if linkedProject}
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => handleLinkPick(null)}
+                  disabled={!onlink}
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                  data-testid="chat-header-menu-unlink-project"
+                >
+                  <FolderMinus size={12} />
+                  <span class="truncate">
+                    {$t("chat.unlink_project", {
+                      values: { name: linkedProject.name },
+                    })}
+                  </span>
+                </button>
+              </li>
             {:else}
-              <div class="relative">
+              <li role="none" class="relative">
                 <button
                   type="button"
                   role="menuitem"
                   onclick={() => (linkOpen = !linkOpen)}
                   disabled={!onlink || availableProjects.length === 0}
-                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 disabled:opacity-40 disabled:cursor-not-allowed"
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                   aria-expanded={linkOpen}
                   data-testid="chat-header-menu-link-project"
                 >
@@ -390,7 +380,7 @@
                           type="button"
                           role="menuitem"
                           onclick={() => handleLinkPick(project.id)}
-                          class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
+                          class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
                           data-testid="chat-header-link-project-item"
                         >
                           <Folder size={12} class="shrink-0" />
@@ -400,35 +390,41 @@
                     {/if}
                   </div>
                 {/if}
-              </div>
+              </li>
             {/if}
 
             {#if !hideConfig && onconfigtoggle}
+              <li role="none" class="md:hidden">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => handleMenuAction("drawer")}
+                  class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                  data-testid="chat-header-menu-drawer"
+                >
+                  <Settings2 size={12} /> {$t("chat.toggle_context_drawer")}
+                </button>
+              </li>
+            {/if}
+
+            <li role="separator" aria-hidden="true">
+              <div class="my-1 border-t border-border/30"></div>
+            </li>
+
+            <li role="none">
               <button
                 type="button"
                 role="menuitem"
-                onclick={() => handleMenuAction("drawer")}
-                class="md:hidden w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                data-testid="chat-header-menu-drawer"
+                onclick={() => handleMenuAction("delete")}
+                class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
+                data-testid="chat-header-menu-delete"
               >
-                <Settings2 size={12} /> {$t("chat.toggle_context_drawer")}
+                <Trash2 size={12} /> {$t("chat.delete_session")}
               </button>
-            {/if}
-
-            <div class="my-1 border-t border-border/30" aria-hidden="true"></div>
-
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => handleMenuAction("delete")}
-              class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
-              data-testid="chat-header-menu-delete"
-            >
-              <Trash2 size={12} /> {$t("chat.delete_session")}
-            </button>
-          </div>
-        {/if}
-      </div>
+            </li>
+          </ul>
+        {/snippet}
+      </ActionMenu>
 
       <button
         type="button"

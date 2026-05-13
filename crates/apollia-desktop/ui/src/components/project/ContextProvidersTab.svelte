@@ -2,8 +2,7 @@
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
   import { Plus, Eye, RefreshCw, Layers } from "lucide-svelte";
-  import BtnPrimary from "$lib/components/operator/BtnPrimary.svelte";
-  import BtnSecondary from "$lib/components/operator/BtnSecondary.svelte";
+  import { Button } from "$lib/components/ui/button";
   import EmptyState from "$lib/components/operator/EmptyState.svelte";
   import SectionTitle from "$lib/components/operator/SectionTitle.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
@@ -100,14 +99,14 @@
       {$t("projects.context_intro")}
     </p>
     <div class="flex gap-2 shrink-0">
-      <BtnSecondary onclick={togglePreview}>
+      <Button variant="outline" size="sm" onclick={togglePreview}>
         {#snippet icon()}<Eye size={12} />{/snippet}
         {$t("projects.context_snapshot_preview")}
-      </BtnSecondary>
-      <BtnPrimary onclick={openCreate}>
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={openCreate}>
         {#snippet icon()}<Plus size={12} />{/snippet}
         {$t("projects.context_add_provider")}
-      </BtnPrimary>
+      </Button>
     </div>
   </div>
 
@@ -119,10 +118,10 @@
     >
       {#snippet icon()}<Layers size={20} />{/snippet}
       {#snippet action()}
-        <BtnPrimary onclick={openCreate}>
+        <Button variant="primary-solid" size="sm" onclick={openCreate}>
           {#snippet icon()}<Plus size={12} />{/snippet}
           {$t("projects.context_add_provider")}
-        </BtnPrimary>
+        </Button>
       {/snippet}
     </EmptyState>
   {:else}
@@ -150,10 +149,10 @@
             {$t("projects.context_snapshot_cwd_hint")}
           </div>
         </div>
-        <BtnSecondary onclick={loadSnapshot}>
+        <Button variant="outline" size="sm" onclick={loadSnapshot}>
           {#snippet icon()}<RefreshCw size={12} />{/snippet}
           {$t("projects.context_snapshot_refresh")}
-        </BtnSecondary>
+        </Button>
       </div>
       <SnapshotPreview {snapshot} loading={snapshotLoading} />
     </div>

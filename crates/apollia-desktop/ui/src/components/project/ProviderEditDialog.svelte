@@ -14,8 +14,7 @@
   import { Dialog, DialogFooter } from "$lib/components/ui/dialog";
   import { Input } from "$lib/components/ui/input";
   import { Toggle } from "$lib/components/ui/toggle";
-  import BtnPrimary from "$lib/components/operator/BtnPrimary.svelte";
-  import BtnSecondary from "$lib/components/operator/BtnSecondary.svelte";
+  import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast/store";
   import type { ProjectProviderRow } from "$lib/types";
 
@@ -182,7 +181,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
       {#each TYPES as type (type.id)}
         {@const IconCmp = type.icon}
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onclick={() => selectType(type.id)}
           class="flex items-start gap-3 px-3.5 py-3 rounded-lg cursor-pointer text-left bg-surface-1 border border-border hover:border-primary/40 transition-colors"
@@ -199,11 +198,11 @@
               {$t(`projects.provider_type_${type.id}_desc`)}
             </div>
           </div>
-        </button>
+        </Button>
       {/each}
     </div>
     <DialogFooter>
-      <BtnSecondary onclick={onclose}>{$t("common.cancel")}</BtnSecondary>
+      <Button variant="outline" size="sm" onclick={onclose}>{$t("common.cancel")}</Button>
     </DialogFooter>
   {:else}
     <div class="space-y-4">
@@ -240,10 +239,10 @@
           </div>
           <div class="flex gap-2">
             <Input bind:value={path} placeholder="/path/to/script.sh" class="flex-1" />
-            <BtnSecondary onclick={pickScriptPath}>
+            <Button variant="outline" size="sm" onclick={pickScriptPath}>
               {#snippet icon()}<Folder size={12} />{/snippet}
               {$t("projects.provider_pick_script")}
-            </BtnSecondary>
+            </Button>
           </div>
         </div>
         <div>
@@ -279,13 +278,13 @@
 
     <DialogFooter>
       {#if !editing}
-        <BtnSecondary onclick={() => (step = "pick")}>{$t("common.back")}</BtnSecondary>
+        <Button variant="outline" size="sm" onclick={() => (step = "pick")}>{$t("common.back")}</Button>
       {:else}
-        <BtnSecondary onclick={onclose}>{$t("common.cancel")}</BtnSecondary>
+        <Button variant="outline" size="sm" onclick={onclose}>{$t("common.cancel")}</Button>
       {/if}
-      <BtnPrimary onclick={handleSave} disabled={!canSave || saving}>
+      <Button variant="primary-solid" size="sm" onclick={handleSave} disabled={!canSave || saving}>
         {saving ? $t("common.loading") : $t("common.save")}
-      </BtnPrimary>
+      </Button>
     </DialogFooter>
   {/if}
 </Dialog>

@@ -262,7 +262,7 @@
         {#each filteredTools as tool (tool.name)}
           {@const checked = allowedTools.has(tool.name)}
           <li>
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onclick={() => toggleTool(tool.name)}
               class="flex w-full items-start gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-2"
@@ -284,7 +284,7 @@
                   </p>
                 {/if}
               </div>
-            </button>
+            </Button>
           </li>
         {/each}
       </ul>

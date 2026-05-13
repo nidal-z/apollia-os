@@ -5,6 +5,7 @@
   import { addToast } from "$lib/components/ui/toast";
   import { navigateTo } from "$lib/stores/navigation";
   import type { ConfigSection } from "$lib/types";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     section: ConfigSection;
@@ -43,8 +44,8 @@
   );
 </script>
 
-<div class="glass-card glass-border rounded-lg" data-testid="config-file-card-{section.name}">
-  <button
+<Card class="rounded-lg" data-testid="config-file-card-{section.name}">
+  <Button variant="ghost" size="sm"
     type="button"
     class="flex w-full items-center justify-between gap-3 p-4 text-left hover:bg-muted/30 rounded-lg"
     onclick={() => (expanded = !expanded)}
@@ -77,7 +78,7 @@
         {/if}
       </div>
     </div>
-  </button>
+  </Button>
 
   {#if expanded}
     <div class="border-t border-border/50 p-4 space-y-3">
@@ -87,7 +88,7 @@
             class="font-mono text-muted-foreground truncate"
             title={filePath}
           >{filePath}</code>
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
             onclick={copyPath}
@@ -95,7 +96,7 @@
           >
             <Copy class="h-3 w-3" />
             {$t("settings.config.copy_path")}
-          </button>
+          </Button>
         </div>
       {/if}
 
@@ -126,13 +127,13 @@
           {/each}
         </div>
 
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           class="text-xs text-muted-foreground hover:text-foreground"
           onclick={() => (rawOpen = !rawOpen)}
         >
           {rawOpen ? $t("settings.config.hide_raw") : $t("settings.config.show_raw")}
-        </button>
+        </Button>
         {#if rawOpen}
           <pre class="rounded bg-muted/50 p-2 text-xs font-mono overflow-x-auto"><code>{rawValue}</code></pre>
         {/if}
@@ -141,4 +142,4 @@
       {/if}
     </div>
   {/if}
-</div>
+</Card>

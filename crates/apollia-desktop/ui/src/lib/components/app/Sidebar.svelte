@@ -13,6 +13,7 @@
   } from "$lib/stores/chat";
   import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
   import { uiMode } from "$lib/stores/mode";
+  import { Button } from "$lib/components/ui/button";
   import {
     LayoutDashboard, MessageSquare, Bot, FolderKanban, ListChecks, ShieldCheck, Plug,
     Settings, X, Plus, Repeat,
@@ -158,13 +159,13 @@
       </div>
 
       <div class="px-3 pb-2">
-        <button
+        <Button variant="ghost" size="sm"
           class="flex w-full items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-primary-sm hover:bg-primary/90"
           onclick={startNewChat}
         >
           <Plus size={15} strokeWidth={2} class="shrink-0" />
           <span>{$t("chat.new_chat")}</span>
-        </button>
+        </Button>
       </div>
 
       <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3" aria-label={$t("nav.sidebar_label")}>

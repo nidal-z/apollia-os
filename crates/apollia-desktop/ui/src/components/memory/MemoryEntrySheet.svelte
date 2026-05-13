@@ -1,8 +1,9 @@
 <script lang="ts">
   import { Clock, Database, Cog, Copy, Trash2, X, Check } from "lucide-svelte";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetHeader, SheetContent, SheetFooter } from "$lib/components/ui/sheet";
   import type { MemoryEntry } from "$lib/types";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     entry: MemoryEntry | null;
@@ -95,21 +96,22 @@
 
 <Sheet {open} {onclose} width="lg">
   {#if entry}
-    <!-- Header — type icon + key + close -->
-    <header class="flex items-center gap-3 px-6 py-4 border-b border-border/50">
-      <div
-        class="w-[32px] h-[32px] rounded-md shrink-0 inline-flex items-center justify-center bg-muted text-muted-foreground"
-        title={typeLabel}
-      >
-        {#if entry.entry_type === "episodic"}
-          <Clock size={16} />
-        {:else if entry.entry_type === "procedural"}
-          <Cog size={16} />
-        {:else}
-          <Database size={16} />
-        {/if}
-      </div>
-      <div class="flex-1 min-w-0">
+    <SheetHeader title="" {onclose} closeLabel="Fermer" class="items-center px-6 py-4">
+      {#snippet leading()}
+        <div
+          class="w-[32px] h-[32px] rounded-md inline-flex items-center justify-center bg-muted text-muted-foreground"
+          title={typeLabel}
+        >
+          {#if entry.entry_type === "episodic"}
+            <Clock size={16} />
+          {:else if entry.entry_type === "procedural"}
+            <Cog size={16} />
+          {:else}
+            <Database size={16} />
+          {/if}
+        </div>
+      {/snippet}
+      {#snippet titleSlot()}
         <div class="flex items-center gap-2">
           <span
             class="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[10px] font-medium tracking-tight border border-border/60 bg-background text-muted-foreground"
@@ -121,19 +123,10 @@
         <code class="block mt-1 text-[13px] font-mono font-medium text-foreground truncate" title={entry.key}>
           {entry.key}
         </code>
-      </div>
-      <button
-        type="button"
-        onclick={onclose}
-        class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-        aria-label="Fermer"
-      >
-        <X size={14} />
-      </button>
-    </header>
+      {/snippet}
+    </SheetHeader>
 
-    <!-- Body — scrollable -->
-    <div class="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+    <SheetContent padding="flush" class="px-6 py-4 space-y-5">
       <!-- Value -->
       <section>
         <div class="flex items-center justify-between mb-2">
@@ -196,13 +189,13 @@
           {/if}
         </dl>
       </section>
-    </div>
+    </SheetContent>
 
     <!-- Footer actions -->
     {#if ondelete}
-      <footer class="px-6 py-3 border-t border-border/50 bg-surface-1/60 flex items-center justify-end gap-2">
+      <SheetFooter class="bg-surface-1/60">
         {#if !confirmingDelete}
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={() => (confirmingDelete = true)}
             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
@@ -210,20 +203,20 @@
           >
             <Trash2 size={12} />
             Supprimer
-          </button>
+          </Button>
         {:else}
           <span class="text-[11.5px] text-muted-foreground mr-2">
             Confirmer la suppression ?
           </span>
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={() => (confirmingDelete = false)}
             disabled={deleting}
             class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11.5px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
           >
             <X size={11} /> Annuler
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={handleDeleteConfirm}
             disabled={deleting}
@@ -231,9 +224,9 @@
             data-testid="memory-entry-sheet-delete-confirm"
           >
             <Check size={11} /> {deleting ? "…" : "Confirmer"}
-          </button>
+          </Button>
         {/if}
-      </footer>
+      </SheetFooter>
     {/if}
   {/if}
 </Sheet>

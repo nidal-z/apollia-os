@@ -6,6 +6,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
   import { Shield, CheckCircle2, XCircle, ChevronDown } from "lucide-svelte";
+  import { Card } from "$lib/components/ui/card";
+  import { FormField } from "$lib/components/ui/form-field";
 
   const PAGE_SIZE = 50;
 
@@ -144,19 +146,19 @@
     <!-- KPI strip -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="audit-stats">
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.audit_kpi_entries')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.entries}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.audit_kpi_tools')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">{stats.tools}</div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.audit_kpi_failures')}
         </div>
         <div
@@ -167,7 +169,7 @@
         </div>
       </article>
       <article class="glass-inset rounded-lg px-4 py-3">
-        <div class="font-mono text-[10px] tracking-[1.4px] text-muted-foreground/70 uppercase mb-1.5">
+        <div class="section-meta text-[10px] tracking-[1.4px] mb-1.5">
           {$t('observability.audit_kpi_avg_duration')}
         </div>
         <div class="text-[20px] font-semibold tabular-nums leading-none">
@@ -178,84 +180,72 @@
 
     <!-- Filters -->
     <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
-      <div class="flex items-center gap-2">
-        <label for="filter-tool" class="text-[12px] text-muted-foreground">
-          {$t('observability.tool_filter')}
-        </label>
-        <Select id="filter-tool" class="h-8 w-auto" bind:value={filterTool}>
+      <FormField inline id="filter-tool" label={$t('observability.tool_filter')} labelClass="text-[12px] font-normal">
+        <Select id="filter-tool" size="sm" class="w-auto" bind:value={filterTool}>
           <option value="all">{$t('observability.all_tools')}</option>
           {#each uniqueTools as tool (tool)}
             <option value={tool}>{tool}</option>
           {/each}
         </Select>
-      </div>
+      </FormField>
 
-      <div class="flex items-center gap-2">
-        <label for="filter-agent" class="text-[12px] text-muted-foreground">
-          {$t('observability.agent_filter')}
-        </label>
-        <Select id="filter-agent" class="h-8 w-auto" bind:value={filterAgent}>
+      <FormField inline id="filter-agent" label={$t('observability.agent_filter')} labelClass="text-[12px] font-normal">
+        <Select id="filter-agent" size="sm" class="w-auto" bind:value={filterAgent}>
           <option value="all">{$t('observability.all_agents')}</option>
           {#each uniqueAgents as agentName (agentName)}
             <option value={agentName}>{agentName}</option>
           {/each}
         </Select>
-      </div>
+      </FormField>
     </div>
 
     <!-- Table -->
     {#if filteredEntries.length === 0}
-      <div
-        class="glass-card glass-border rounded-xl flex flex-col items-center justify-center py-16"
-        data-testid="audit-trail-empty"
-      >
+      <Card class="flex flex-col items-center justify-center py-16" data-testid="audit-trail-empty">
         <div class="rounded-full glass-inset p-4 mb-4">
           <Shield class="h-8 w-8 text-muted-foreground/60" />
         </div>
         <p class="text-[13px] text-muted-foreground">{$t('observability.empty_audit')}</p>
-      </div>
+      </Card>
     {:else}
-      <div
-        class="glass-card glass-border rounded-xl overflow-hidden"
-        data-testid="audit-trail-table"
-      >
+      <Card class="overflow-hidden" data-testid="audit-trail-table">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[720px] text-[13px]">
             <thead>
               <tr class="border-b border-border/40">
                 <th
                   scope="col"
-                  class="text-left px-5 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold"
+                  class="section-meta text-left px-5 py-3 text-[10px] tracking-[1.4px]"
                 >
                   {$t('observability.table.timestamp')}
                 </th>
                 <th
                   scope="col"
-                  class="text-left px-3 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold"
+                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
                 >
                   {$t('observability.table.tool')}
                 </th>
                 <th
                   scope="col"
-                  class="text-left px-3 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold"
+                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
                 >
                   {$t('observability.table.agent')}
                 </th>
                 <th
                   scope="col"
-                  class="text-right px-3 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold"
+                  class="section-meta text-right px-3 py-3 text-[10px] tracking-[1.4px]"
                 >
                   {$t('observability.table.duration')}
                 </th>
                 <th
                   scope="col"
-                  class="text-left px-3 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold"
+                  class="section-meta text-left px-3 py-3 text-[10px] tracking-[1.4px]"
                 >
                   {$t('observability.table.status')}
                 </th>
                 <th
                   scope="col"
-                  class="text-right px-5 py-3 font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold w-8"
+                  class="section-meta text-right px-5 py-3 text-[10px] tracking-[1.4px] w-8"
                   aria-label="expand"
                 ></th>
               </tr>
@@ -309,7 +299,7 @@
                       <div class="space-y-3 rounded-lg glass-inset border border-border/30 p-4">
                         {#if entry.args_json}
                           <div>
-                            <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold">
+                            <span class="section-meta text-[10px] tracking-[1.4px]">
                               {$t('observability.table.arguments')}
                             </span>
                             <pre
@@ -319,7 +309,7 @@
                         {/if}
                         {#if entry.stdout}
                           <div>
-                            <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-muted-foreground/70 font-semibold">
+                            <span class="section-meta text-[10px] tracking-[1.4px]">
                               stdout
                             </span>
                             <pre
@@ -329,7 +319,7 @@
                         {/if}
                         {#if entry.stderr}
                           <div>
-                            <span class="font-mono text-[10px] tracking-[1.4px] uppercase text-destructive font-semibold">
+                            <span class="section-meta text-[10px] tracking-[1.4px] text-destructive">
                               stderr
                             </span>
                             <pre
@@ -350,7 +340,7 @@
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       {#if hasMore}
         <div class="flex justify-center">

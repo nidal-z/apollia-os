@@ -1,6 +1,8 @@
 <script lang="ts">
   import { Clock, Database, Cog, MoreHorizontal, Trash2, Eye, Copy, Check, X } from "lucide-svelte";
   import type { MemoryEntry } from "$lib/types";
+  import { Button } from "$lib/components/ui/button";
+  import { ActionMenu } from "$lib/components/ui/action-menu";
 
   interface Props {
     entry: MemoryEntry;
@@ -82,63 +84,21 @@
 
   // ── Menu kebab + confirmation suppression inline (pattern ConversationRow) ──
   const hasActions = $derived(Boolean(oncopy || ondelete));
-  let menuOpen = $state(false);
-  let menuRoot = $state<HTMLDivElement | undefined>(undefined);
   let confirmingDelete = $state(false);
 
-  function toggleMenu(): void {
-    menuOpen = !menuOpen;
-    if (!menuOpen) confirmingDelete = false;
-  }
-
-  function handleCopy(): void {
-    menuOpen = false;
-    oncopy?.();
-  }
-
-  function handleDeleteRequest(): void {
-    confirmingDelete = true;
-  }
-
-  function handleDeleteConfirm(): void {
-    ondelete?.();
-  }
-
-  function handleDeleteCancel(): void {
-    confirmingDelete = false;
-    menuOpen = false;
-  }
-
   function onRowClick(ev: MouseEvent): void {
-    const target = ev.target as Node | null;
-    if (menuRoot && target && menuRoot.contains(target)) return;
-    if (confirmingDelete) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("[data-memory-row-actions]")) return;
     onclick?.();
   }
 
   function onRowKeydown(ev: KeyboardEvent): void {
     if (ev.key !== "Enter" && ev.key !== " ") return;
-    const target = ev.target as Node | null;
-    if (menuRoot && target && menuRoot.contains(target)) return;
-    if (confirmingDelete) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("[data-memory-row-actions]")) return;
     ev.preventDefault();
     onclick?.();
   }
-
-  function handleDocumentClick(ev: MouseEvent): void {
-    if (!menuOpen || !menuRoot) return;
-    const path = ev.composedPath();
-    if (!path.includes(menuRoot)) {
-      menuOpen = false;
-      confirmingDelete = false;
-    }
-  }
-
-  $effect(() => {
-    if (!menuOpen) return;
-    document.addEventListener("click", handleDocumentClick);
-    return () => document.removeEventListener("click", handleDocumentClick);
-  });
 
   // Score BM25 affichage formaté
   const scoreLabel = $derived(
@@ -153,7 +113,7 @@
   tabindex={onclick ? 0 : undefined}
   onclick={onclick ? onRowClick : undefined}
   onkeydown={onclick ? onRowKeydown : undefined}
-  class="group relative flex gap-3 px-4 py-2.5 cursor-pointer border-b border-border/40 transition-colors {selected
+  class="group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b border-border/40 transition-colors {selected
     ? 'bg-primary/10'
     : 'bg-transparent hover:bg-muted/40'}"
   data-testid="memory-entry-row-{entry.id}"
@@ -234,74 +194,84 @@
 
   <!-- Menu actions kebab (visible au hover) -->
   {#if hasActions}
-    <div class="relative self-start mt-1" bind:this={menuRoot}>
-      <button
-        type="button"
-        onclick={toggleMenu}
-        class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus:opacity-100 {selected || menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
-        aria-label="Actions"
-        aria-expanded={menuOpen}
+    <div class="self-start mt-1" data-memory-row-actions>
+      <ActionMenu
+        align="end"
+        class="p-1 min-w-[10rem]"
+        triggerLabel="Actions"
         data-testid="memory-entry-row-menu-button-{entry.id}"
       >
-        <MoreHorizontal size={12} />
-      </button>
-      {#if menuOpen && !confirmingDelete}
-        <div
-          class="absolute right-0 top-full z-30 mt-1 min-w-[10rem] rounded-md border border-border/50 bg-card py-1 shadow-elev-2"
-          role="menu"
-        >
-          {#if oncopy}
-            <button
-              type="button"
-              role="menuitem"
-              onclick={handleCopy}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-            >
-              <Copy size={12} /> Copier la valeur
-            </button>
-          {/if}
-          {#if onclick}
-            <button
-              type="button"
-              role="menuitem"
-              onclick={(e) => { e.stopPropagation(); menuOpen = false; onclick?.(); }}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-            >
-              <Eye size={12} /> Détails
-            </button>
-          {/if}
-          {#if ondelete}
-            <button
-              type="button"
-              role="menuitem"
-              onclick={handleDeleteRequest}
-              class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 size={12} /> Supprimer
-            </button>
-          {/if}
-        </div>
-      {/if}
-      {#if menuOpen && confirmingDelete}
-        <div
-          class="absolute right-0 top-full z-30 mt-1 flex min-w-[10rem] items-center gap-1 rounded-md border border-border/50 bg-card px-2 py-1 shadow-elev-2"
-        >
+        {#snippet triggerSlot(props)}
           <button
             type="button"
-            onclick={handleDeleteConfirm}
-            class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
+            {...props}
+            class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-opacity hover:bg-muted/60 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 {selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100'}"
+            aria-label="Actions"
+            data-testid="memory-entry-row-menu-button-{entry.id}"
           >
-            <Check size={11} /> Confirmer
+            <MoreHorizontal size={12} />
           </button>
-          <button
-            type="button"
-            onclick={handleDeleteCancel}
-            class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-          >
-            <X size={11} /> Annuler
-          </button>
-        </div>
-      {/if}
+        {/snippet}
+        {#snippet body({ close })}
+          {#if confirmingDelete}
+            <div class="flex items-center gap-1 px-1 py-0.5">
+              <Button variant="ghost" size="sm"
+                type="button"
+                onclick={() => { ondelete?.(); confirmingDelete = false; close(); }}
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90"
+              >
+                <Check size={11} /> Confirmer
+              </Button>
+              <Button variant="ghost" size="sm"
+                type="button"
+                onclick={() => { confirmingDelete = false; close(); }}
+                class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              >
+                <X size={11} /> Annuler
+              </Button>
+            </div>
+          {:else}
+            <ul class="flex flex-col gap-0.5" role="menu">
+              {#if oncopy}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { oncopy?.(); close(); }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                  >
+                    <Copy size={12} /> Copier la valeur
+                  </button>
+                </li>
+              {/if}
+              {#if onclick}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { close(); onclick?.(); }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-foreground hover:bg-muted"
+                  >
+                    <Eye size={12} /> Détails
+                  </button>
+                </li>
+              {/if}
+              {#if ondelete}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={() => { confirmingDelete = true; }}
+                    class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 size={12} /> Supprimer
+                  </button>
+                </li>
+              {/if}
+            </ul>
+          {/if}
+        {/snippet}
+      </ActionMenu>
     </div>
   {/if}
 </div>

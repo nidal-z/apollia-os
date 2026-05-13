@@ -29,9 +29,7 @@
   import {
     PageHeader,
     SectionTitle,
-    BtnPrimary,
-    BtnSecondary,
-    Chip,
+    
     StatusDot,
     Card,
     EmptyState,
@@ -39,6 +37,8 @@
     ProjectCard,
     type InboxType,
   } from "$lib/components/operator";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Button } from "$lib/components/ui/button";
 
   // Adapters for the unified inbox preview feed (reuses types).
   import type { InboxItem, InboxRisk } from "../components/inbox/types";
@@ -218,14 +218,14 @@
       subtitle={headlineSubtitle}
     >
       {#snippet actions()}
-        <BtnSecondary onclick={navigateToProjects}>
+        <Button variant="outline" size="sm" onclick={navigateToProjects}>
           {#snippet icon()}<FolderOpen size={13} />{/snippet}
           Projets
-        </BtnSecondary>
-        <BtnPrimary onclick={navigateToChat}>
+        </Button>
+        <Button variant="primary-solid" size="sm" onclick={navigateToChat}>
           {#snippet icon()}<MessageSquarePlus size={13} />{/snippet}
           Nouvelle conversation
-        </BtnPrimary>
+        </Button>
       {/snippet}
     </PageHeader>
 
@@ -393,7 +393,7 @@
                 </button>
               {/each}
               {#if agentsAtWork.length > 5}
-                <Chip size="sm" tone="neutral">+ {agentsAtWork.length - 5}</Chip>
+                <Badge size="sm" variant="neutral">+ {agentsAtWork.length - 5}</Badge>
               {/if}
             </div>
           {/if}
@@ -422,9 +422,10 @@
           <div class="px-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {#each recentActivityFeed as tk (tk.id)}
               <Card hover class="">
-                <button
+                <Button variant="ghost"
+                  size="auto"
                   type="button"
-                  class="w-full text-left px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-xl"
+                  class="w-full text-left px-3 py-2.5 flex-col items-stretch focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-xl"
                   onclick={navigateToTasks}
                 >
                   <div class="flex items-center gap-1.5 mb-1">
@@ -437,7 +438,7 @@
                   <div class="text-[10.5px] text-muted-foreground/80 mt-0.5">
                     {formatRelativeTime(tk.created_at)}
                   </div>
-                </button>
+                </Button>
               </Card>
             {/each}
           </div>
@@ -467,9 +468,9 @@
             >
               {#snippet icon()}<FolderOpen size={22} />{/snippet}
               {#snippet action()}
-                <BtnSecondary onclick={navigateToProjects}>
+                <Button variant="outline" size="sm" onclick={navigateToProjects}>
                   Ouvrir Projets
-                </BtnSecondary>
+                </Button>
               {/snippet}
             </EmptyState>
           </div>

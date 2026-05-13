@@ -2,25 +2,47 @@
   import { cn } from "$lib/utils";
   import type { HTMLAttributes } from "svelte/elements";
 
+  type Surface = "glass" | "solid";
+
   interface Props extends HTMLAttributes<HTMLDivElement> {
     class?: string;
+    /** Adds the spring-press effect + glass-card-hover lift on hover. */
     interactive?: boolean;
+    /** Adds the primary-tinted glow border for promoted cards. */
     premium?: boolean;
+    /**
+     * Surface treatment:
+     * - `"glass"` (default) — warm glassmorphism (`glass-card` + `glass-border`).
+     * - `"solid"` — opaque surface (`bg-card` + `border-border`) for dense
+     *   listings / sidebars where the blur backdrop would be noisy.
+     */
+    surface?: Surface;
   }
 
   let {
     class: className = "",
     interactive = false,
     premium = false,
+    surface = "glass",
     children,
     ...restProps
   }: Props = $props();
+
+  const glassClasses = $derived(
+    interactive ? "glass-card-hover card-spring" : "glass-card",
+  );
+  const solidClasses = $derived(
+    interactive
+      ? "bg-card border border-border hover-lift cursor-pointer"
+      : "bg-card border border-border",
+  );
 </script>
 
 <div
   class={cn(
-    interactive ? "glass-card-hover card-spring" : "glass-card",
-    "glass-border rounded-xl text-card-foreground",
+    surface === "glass" ? glassClasses : solidClasses,
+    surface === "glass" && "glass-border",
+    "rounded-xl text-card-foreground",
     premium && "card-premium",
     className
   )}

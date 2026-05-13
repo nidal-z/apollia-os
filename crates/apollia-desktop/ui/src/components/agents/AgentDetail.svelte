@@ -4,7 +4,7 @@
   import type { AgentListItem } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { navigateTo } from "$lib/stores/navigation";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -14,6 +14,7 @@
   import AgentTriggers from "./AgentTriggers.svelte";
   import AgentLlmInfo from "./AgentLlmInfo.svelte";
   import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     agent: AgentListItem;
@@ -102,7 +103,7 @@
   <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-name={agent.name}>
 
     <!-- ═══ HEADER — glass card with brand wash ═══ -->
-    <div class="mx-4 mt-6 rounded-xl glass-card glass-border overflow-hidden">
+    <Card class="mx-4 mt-6 overflow-hidden">
       <!-- Accent bar -->
       <div class="h-0.5 w-full {isRunning ? 'bg-primary' : 'bg-muted'}"></div>
 
@@ -159,7 +160,7 @@
           {/if}
         </div>
       </div>
-    </div>
+    </Card>
 
     {#if stopError || actionError}
       <div class="mx-4 mt-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -168,40 +169,40 @@
     {/if}
 
     <!-- ═══ SCROLLABLE CONTENT ═══ -->
-    <div class="flex-1 overflow-auto px-4 pt-4 pb-6 space-y-3">
+    <SheetContent padding="flush" class="px-4 pt-4 pb-6 space-y-3">
 
       <!-- Description card -->
       {#if agent.description}
-        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-detail-description">
+        <Card class="rounded-lg px-4 py-3.5" data-testid="agent-detail-description">
           <p class="text-[13px] text-foreground/85 leading-relaxed">{agent.description}</p>
-        </div>
+        </Card>
       {/if}
 
       <!-- Info grid: mode + version details -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {#if agent.execution_mode}
-          <div class="glass-card glass-border rounded-lg px-3.5 py-3" data-testid="agent-detail-execution-mode">
+          <Card class="rounded-lg px-3.5 py-3" data-testid="agent-detail-execution-mode">
             <div class="flex items-center gap-2 mb-1.5">
               <Cpu size={12} class="text-muted-foreground/50" />
               <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.execution_mode_title')}</span>
             </div>
             <p class="text-sm text-foreground/80">{executionModeLabel(agent.execution_mode)}</p>
-          </div>
+          </Card>
         {/if}
         {#if agent.install_path}
-          <div class="glass-card glass-border rounded-lg px-3.5 py-3" data-testid="agent-detail-install-path">
+          <Card class="rounded-lg px-3.5 py-3" data-testid="agent-detail-install-path">
             <div class="flex items-center gap-2 mb-1.5">
               <Terminal size={12} class="text-muted-foreground/50" />
               <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.install_path_title')}</span>
             </div>
             <p class="text-xs text-muted-foreground font-mono truncate" title={agent.install_path}>{agent.install_path}</p>
-          </div>
+          </Card>
         {/if}
       </div>
 
       <!-- Tags -->
       {#if agent.tags.length > 0}
-        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-detail-tags">
+        <Card class="rounded-lg px-4 py-3.5" data-testid="agent-detail-tags">
           <div class="flex items-center gap-2 mb-2.5">
             <Tag size={12} class="text-muted-foreground/50" />
             <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tags_title')}</span>
@@ -211,12 +212,12 @@
               <span class="rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-foreground/65">{tag}</span>
             {/each}
           </div>
-        </div>
+        </Card>
       {/if}
 
       <!-- Tools -->
       {#if allTools.length > 0}
-        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="agent-detail-tools">
+        <Card class="rounded-lg overflow-hidden" data-testid="agent-detail-tools">
           <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
             <Wrench size={12} class="text-muted-foreground/50" />
             <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tools_title')}</span>
@@ -232,35 +233,35 @@
               </div>
             {/each}
           </div>
-        </div>
+        </Card>
       {/if}
 
       <!-- Activity -->
       {#if agent.id}
-        <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+        <Card class="rounded-lg px-4 py-3.5">
           <AgentActivity agentId={agent.id} onTaskClick={handleTaskClick} />
-        </div>
+        </Card>
       {/if}
 
       <!-- Triggers -->
-      <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+      <Card class="rounded-lg px-4 py-3.5">
         <AgentTriggers agentName={agent.name} />
-      </div>
+      </Card>
 
       <!-- LLM info -->
-      <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+      <Card class="rounded-lg px-4 py-3.5">
         <AgentLlmInfo />
-      </div>
+      </Card>
 
       <!-- Agent messages (A2A + builder mode only) -->
       {#if showMessagesSection}
-        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-messages-tab">
+        <Card class="rounded-lg px-4 py-3.5" data-testid="agent-messages-tab">
           <div class="flex items-center gap-2 mb-3">
             <MessageSquare size={12} class="text-muted-foreground/50" />
             <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.messages_title')}</span>
           </div>
           <AgentMessagesPanel agentName={agent.name} />
-        </div>
+        </Card>
       {/if}
 
       <!-- Memory link (builder only) -->
@@ -274,6 +275,6 @@
           {$t('agent_detail.memory_link', { values: { namespace: agent.name } })}
         </button>
       {/if}
-    </div>
+    </SheetContent>
   </div>
 </Sheet>

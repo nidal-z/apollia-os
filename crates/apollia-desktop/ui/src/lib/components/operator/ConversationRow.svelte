@@ -1,6 +1,7 @@
 <script lang="ts">
   import { MessageCircle, Pin, Archive, MoreHorizontal, Edit3, Trash2, Check, X, FolderOpen } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
+  import { Button } from "$lib/components/ui/button";
 
   export type ConversationState =
     | "active"
@@ -280,7 +281,7 @@
           data-testid="conversation-row-menu"
         >
           {#if onrename}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               role="menuitem"
               onclick={handleRename}
@@ -288,10 +289,10 @@
               data-testid="conversation-row-menu-rename"
             >
               <Edit3 size={12} /> Renommer
-            </button>
+            </Button>
           {/if}
           {#if ondelete}
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               role="menuitem"
               onclick={handleDeleteRequest}
@@ -299,7 +300,7 @@
               data-testid="conversation-row-menu-delete"
             >
               <Trash2 size={12} /> Supprimer
-            </button>
+            </Button>
           {/if}
         </div>
       {/if}
@@ -308,22 +309,22 @@
           class="absolute right-0 top-full z-30 mt-1 flex min-w-[10rem] items-center gap-1 rounded-md border border-border/50 bg-card px-2 py-1 shadow-elev-2"
           data-testid="conversation-row-delete-confirm"
         >
-          <button
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={handleDeleteConfirm}
             class="inline-flex flex-1 items-center justify-center gap-1 rounded bg-destructive px-2 py-1 text-[11px] font-semibold text-white hover:bg-destructive/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
             data-testid="conversation-row-delete-confirm-btn"
           >
             <Check size={11} /> Confirmer
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost" size="sm"
             type="button"
             onclick={handleDeleteCancel}
             class="inline-flex flex-1 items-center justify-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             data-testid="conversation-row-delete-cancel-btn"
           >
             <X size={11} /> Annuler
-          </button>
+          </Button>
         </div>
       {/if}
     </div>

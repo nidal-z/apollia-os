@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { Dialog } from "$lib/components/ui/dialog";
+  import { FormField } from "$lib/components/ui/form-field";
   import {
     Package,
     FolderOpen,
@@ -347,11 +348,12 @@
           </div>
 
           <!-- Secret input -->
-          <div class="space-y-1">
-            <label class="text-[10px] text-muted-foreground uppercase tracking-wide" for="secret-{trigger.id}">
-              Secret HMAC-SHA256
-              {#if trigger.needs_config}<span class="text-destructive">*</span>{/if}
-            </label>
+          <FormField
+            id="secret-{trigger.id}"
+            label="Secret HMAC-SHA256"
+            labelClass="text-[10px] font-normal uppercase tracking-wide"
+            required={trigger.needs_config}
+          >
             <div class="relative">
               <input
                 id="secret-{trigger.id}"
@@ -361,7 +363,7 @@
                 bind:value={webhookSecrets[trigger.id]}
               />
               {#if (webhookSecrets[trigger.id] ?? "").trim().length > 0}
-                <button
+                <Button variant="ghost" size="sm"
                   class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onclick={() => copyToClipboard(webhookSecrets[trigger.id], trigger.id + "-secret")}
                   title="Copier le secret"
@@ -371,13 +373,13 @@
                   {:else}
                     <Copy size={11} />
                   {/if}
-                </button>
+                </Button>
               {/if}
             </div>
             {#if trigger.needs_config && (webhookSecrets[trigger.id] ?? "").trim().length > 0 && (webhookSecrets[trigger.id] ?? "").trim().length < 32}
               <p class="text-[10px] text-destructive">Le secret doit faire au moins 32 caractères.</p>
             {/if}
-          </div>
+          </FormField>
         </div>
       {/each}
 

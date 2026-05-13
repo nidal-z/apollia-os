@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { AlertTriangle } from "lucide-svelte";
-  import ApprovalLevelSelector from "./ApprovalLevelSelector.svelte";
+  import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
   import CapabilityExampleCard from "./CapabilityExampleCard.svelte";
   import { Spinner } from "$lib/components/ui/progress";
 

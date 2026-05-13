@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
+  import { DataTable, type Column } from "$lib/components/ui/data-table";
 
   const REFRESH_INTERVAL_MS = 30_000;
 
@@ -41,6 +42,14 @@
   const totalTokens = $derived(rows.reduce((sum, r) => sum + r.total_tokens, 0));
   const totalCost = $derived(rows.reduce((sum, r) => sum + r.total_cost_usd, 0));
 
+  const columns = $derived<Column<LlmCostStatsRow>[]>([
+    { key: "backend", header: $t('llm.table.backend') },
+    { key: "model", header: $t('llm.table.model'), cell: modelCell },
+    { key: "call_count", header: $t('llm.table.calls'), align: "right", cell: callsCell },
+    { key: "total_tokens", header: $t('llm.table.tokens'), align: "right", cell: tokensCell },
+    { key: "total_cost_usd", header: $t('llm.table.cost_usd'), align: "right", cell: costCell },
+  ]);
+
   onMount(() => {
     void loadStats();
     refreshTimer = setInterval(() => {
@@ -55,6 +64,22 @@
     }
   });
 </script>
+
+{#snippet modelCell(row: LlmCostStatsRow)}
+  <span class="text-muted-foreground">{row.model}</span>
+{/snippet}
+
+{#snippet callsCell(row: LlmCostStatsRow)}
+  <span class="tabular-nums">{row.call_count}</span>
+{/snippet}
+
+{#snippet tokensCell(row: LlmCostStatsRow)}
+  <span class="tabular-nums">{formatTokens(row.total_tokens)}</span>
+{/snippet}
+
+{#snippet costCell(row: LlmCostStatsRow)}
+  <span class="tabular-nums">{formatCost(row.total_cost_usd)}</span>
+{/snippet}
 
 <div>
   {#if loading}
@@ -71,37 +96,26 @@
       {$t('llm.used_today', { values: { count: totalCalls, cost: formatCost(totalCost) } })}
     </p>
   {:else}
-    <!-- Builder mode: full table with standard glass-card pattern -->
-    <div class="glass-card glass-border overflow-x-auto rounded-lg" data-testid="llm-stats-table">
-      <table class="w-full min-w-[520px] text-[13px]">
-        <thead class="border-b border-border bg-muted/50">
-          <tr>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.backend')}</th>
-            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.model')}</th>
-            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.calls')}</th>
-            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.tokens')}</th>
-            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.cost_usd')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each rows as row (row.backend + row.model)}
-            <tr class="border-b border-border last:border-0 hover:bg-muted">
-              <td class="px-3 py-2">{row.backend}</td>
-              <td class="px-3 py-2 text-muted-foreground">{row.model}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{row.call_count}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{formatTokens(row.total_tokens)}</td>
-              <td class="px-3 py-2 text-right tabular-nums">{formatCost(row.total_cost_usd)}</td>
-            </tr>
-          {/each}
-          <!-- Total row -->
-          <tr class="border-t border-border" data-testid="llm-stats-total-row">
-            <td class="px-3 py-2 font-medium" colspan="2">{$t('llm.table.total')}</td>
-            <td class="px-3 py-2 text-right font-medium tabular-nums">{totalCalls}</td>
-            <td class="px-3 py-2 text-right font-medium tabular-nums">{formatTokens(totalTokens)}</td>
-            <td class="px-3 py-2 text-right font-medium tabular-nums">{formatCost(totalCost)}</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Builder mode: full table -->
+    <div data-testid="llm-stats-table">
+      <DataTable
+        data={rows}
+        {columns}
+        rowKey={(r) => r.backend + r.model}
+        class="min-w-[520px]"
+        emptyLabel={$t('llm.no_calls')}
+      />
+      <div
+        class="flex items-center justify-between gap-3 rounded-b-xl glass-card glass-border border-t border-border/40 px-4 py-3 text-sm"
+        data-testid="llm-stats-total-row"
+      >
+        <span class="font-medium">{$t('llm.table.total')}</span>
+        <div class="flex items-center gap-6 font-medium tabular-nums">
+          <span>{totalCalls}</span>
+          <span>{formatTokens(totalTokens)}</span>
+          <span>{formatCost(totalCost)}</span>
+        </div>
+      </div>
     </div>
   {/if}
 </div>

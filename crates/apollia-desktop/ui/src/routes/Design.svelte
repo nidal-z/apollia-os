@@ -118,12 +118,12 @@
       Primary utilities
     </h2>
     <div class="flex flex-wrap gap-3">
-      <button class="bg-primary-solid inline-flex h-10 items-center rounded-md px-4 text-sm font-medium">
+      <Button variant="ghost" size="sm" class="bg-primary-solid inline-flex h-10 items-center rounded-md px-4 text-sm font-medium">
         bg-primary-solid
-      </button>
-      <button class="bg-primary-gradient inline-flex h-10 items-center rounded-md px-4 text-sm font-medium">
+      </Button>
+      <Button variant="ghost" size="sm" class="bg-primary-gradient inline-flex h-10 items-center rounded-md px-4 text-sm font-medium">
         bg-primary-gradient
-      </button>
+      </Button>
       <span class="border-primary-subtle inline-flex h-10 items-center rounded-md bg-background px-4 text-sm font-medium text-foreground">
         border-primary-subtle
       </span>

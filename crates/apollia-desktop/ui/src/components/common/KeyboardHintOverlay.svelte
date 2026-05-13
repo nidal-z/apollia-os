@@ -6,6 +6,7 @@
   import { shortcuts, registerShortcuts, type Shortcut } from "$lib/stores/shortcuts";
   import { KeyboardHint } from "$lib/components/feedback";
   import { X } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
 
   let open = $state(false);
 
@@ -75,26 +76,19 @@
     transition:fade={{ duration: 150 }}
     data-testid="keyboard-hint-backdrop"
   ></div>
-  <div
-    class="fixed left-1/2 top-1/2 z-[91] w-[min(28rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-xl glass-card glass-border p-5"
-    role="dialog"
-    aria-modal="true"
-    aria-label={$t("a11y.keyboard_shortcuts")}
-    transition:fly={{ y: 8, duration: 200, easing: cubicOut }}
-    data-testid="keyboard-hint-overlay"
-  >
+  <div class="glass-card glass-border fixed left-1/2 top-1/2 z-[91] w-[min(28rem,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-xl p-5" role="dialog" aria-modal="true" aria-label={$t("a11y.keyboard_shortcuts")} transition:fly={{ y: 8, duration: 200, easing: cubicOut }} data-testid="keyboard-hint-overlay">
     <div class="mb-3 flex items-center justify-between">
       <h2 class="text-sm font-semibold text-foreground">
         {$t("a11y.keyboard_shortcuts")}
       </h2>
-      <button
+      <Button variant="ghost" size="sm"
         class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-a11y hover:bg-muted hover:text-foreground"
         onclick={() => (open = false)}
         aria-label={$t("common.close")}
         data-testid="keyboard-hint-close"
       >
         <X size={16} strokeWidth={1.75} />
-      </button>
+      </Button>
     </div>
 
     {#if grouped.length === 0}

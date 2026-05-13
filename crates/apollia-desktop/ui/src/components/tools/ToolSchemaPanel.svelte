@@ -10,12 +10,13 @@
   import { t } from "svelte-i18n";
   import { uiMode } from "$lib/stores/mode";
   import type { ToolDescriptorView } from "$lib/types";
-  import { Sheet } from "$lib/components/ui/sheet";
+  import { Sheet, SheetContent } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import JsonViewer from "../common/JsonViewer.svelte";
   import EmptyState from "../common/EmptyState.svelte";
   import { FileQuestion } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
+  import { Card } from "$lib/components/ui/card";
 
   interface Props {
     toolName: string;
@@ -90,8 +91,9 @@
 </script>
 
 <Sheet {open} onclose={onclose}>
-  <div
-    class="flex h-full flex-col gap-5 overflow-y-auto p-6 pt-10"
+  <SheetContent
+    padding="flush"
+    class="flex flex-col gap-5 p-6 pt-10"
     data-testid="tool-schema-panel"
   >
     {#if loading}
@@ -129,7 +131,7 @@
       {/if}
 
       <!-- Input Schema -->
-      <div class="glass-card glass-border rounded-xl p-4">
+      <Card class="p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{inputLabel}</p>
         {#if descriptor.input_schema}
           <div data-testid="tool-schema-json">
@@ -138,10 +140,10 @@
         {:else}
           <p class="text-xs text-muted-foreground/40 italic">{$t("memory.tool_schema.no_schema")}</p>
         {/if}
-      </div>
+      </Card>
 
       <!-- Output Schema -->
-      <div class="glass-card glass-border rounded-xl p-4">
+      <Card class="p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{outputLabel}</p>
         {#if descriptor.output_schema}
           <div data-testid="tool-schema-json">
@@ -150,10 +152,10 @@
         {:else}
           <p class="text-xs text-muted-foreground/40 italic">{$t("memory.tool_schema.no_schema")}</p>
         {/if}
-      </div>
+      </Card>
 
       <!-- Permissions -->
-      <div class="glass-card glass-border rounded-xl p-4">
+      <Card class="p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{permissionsLabel}</p>
         {#if descriptor.permissions.length > 0}
           <div class="flex flex-wrap gap-1.5">
@@ -164,7 +166,7 @@
         {:else}
           <p class="text-xs text-muted-foreground/40 italic">{$t("memory.tool_schema.no_permissions")}</p>
         {/if}
-      </div>
+      </Card>
     {/if}
-  </div>
+  </SheetContent>
 </Sheet>

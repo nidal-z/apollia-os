@@ -12,6 +12,12 @@
     activeTab: string;
     ontabchange: (key: string) => void;
     testidPrefix: string;
+    /**
+     * Visual style :
+     * - `pill` (default) — segmented control with a pill-shaped background.
+     * - `underline` — flat tabs with an active border-bottom indicator.
+     */
+    variant?: "pill" | "underline";
     class?: string;
   }
 
@@ -20,6 +26,7 @@
     activeTab,
     ontabchange,
     testidPrefix,
+    variant = "pill",
     class: className = "",
   }: Props = $props();
 
@@ -53,21 +60,34 @@
 <div
   role="tablist"
   class={cn(
-    "flex gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/50 p-1 scrollbar-none",
+    variant === "pill"
+      ? "flex gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/50 p-1 scrollbar-none"
+      : "flex gap-1 overflow-x-auto border-b border-border/60 scrollbar-none",
     className,
   )}
   data-testid="{testidPrefix}-tabbar"
 >
   {#each items as item, i}
+    {@const active = item.key === activeTab}
     <button
       role="tab"
-      aria-selected={item.key === activeTab}
-      tabindex={item.key === activeTab ? 0 : -1}
+      aria-selected={active}
+      tabindex={active ? 0 : -1}
       class={cn(
-        "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-        item.key === activeTab
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
+        "shrink-0 whitespace-nowrap transition-all",
+        variant === "pill"
+          ? cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium",
+              active
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )
+          : cn(
+              "px-3 py-2 text-[12.5px] -mb-px border-b-2 bg-transparent",
+              active
+                ? "text-foreground font-semibold border-primary"
+                : "text-muted-foreground font-medium border-transparent hover:text-foreground",
+            ),
       )}
       onclick={() => ontabchange(item.key)}
       onkeydown={(e) => handleKeydown(e, i)}

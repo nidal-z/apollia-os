@@ -1,5 +1,8 @@
 <script lang="ts" module>
   import type { LlmBackendConfig } from "$lib/types";
+  import { Input } from "$lib/components/ui/input";
+  import { Select } from "$lib/components/ui/select";
+  import { Textarea } from "$lib/components/ui/textarea";
 
   export type LlmProvider = LlmBackendConfig["provider"];
 
@@ -117,6 +120,7 @@
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
   import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { FormField } from "$lib/components/ui/form-field";
   import SettingsToggle from "./SettingsToggle.svelte";
   import type { LlmPingResult } from "$lib/types";
 
@@ -453,11 +457,12 @@
     {/if}
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div class="space-y-1">
-        <label for="llm-name" class="text-xs font-medium text-muted-foreground">
-          {$t("settings.llm_dialog.field_name")}
-        </label>
-        <input
+      <FormField
+        id="llm-name"
+        label={$t("settings.llm_dialog.field_name")}
+        error={labelFor("name") || undefined}
+      >
+        <Input
           id="llm-name"
           type="text"
           placeholder="local-code"
@@ -465,16 +470,10 @@
           bind:value={form.name}
           disabled={editing}
           data-testid="llm-dialog-name"
-        />
-        {#if labelFor("name")}
-          <p class="text-xs text-destructive" data-testid="llm-dialog-name-error">{labelFor("name")}</p>
-        {/if}
-      </div>
-      <div class="space-y-1">
-        <label for="llm-provider" class="text-xs font-medium text-muted-foreground">
-          {$t("settings.llm_dialog.field_provider")}
-        </label>
-        <select
+         />
+      </FormField>
+      <FormField id="llm-provider" label={$t("settings.llm_dialog.field_provider")}>
+        <Select
           id="llm-provider"
           class={inputClass("provider") + " appearance-none"}
           bind:value={form.provider}
@@ -485,62 +484,58 @@
           <option value="anthropic">Anthropic</option>
           <option value="mistral">Mistral</option>
           <option value="ollama">Ollama</option>
-        </select>
-      </div>
+        </Select>
+      </FormField>
     </div>
 
     {#if isRemoteProvider(form.provider)}
-      <div class="space-y-1">
-        <label for="llm-endpoint" class="text-xs font-medium text-muted-foreground">
-          {$t("settings.llm_dialog.field_endpoint")}
-        </label>
-        <input
+      <FormField
+        id="llm-endpoint"
+        label={$t("settings.llm_dialog.field_endpoint")}
+        error={labelFor("endpoint") || undefined}
+      >
+        <Input
           id="llm-endpoint"
           type="url"
           placeholder="https://api.openai.com/v1"
           class={inputClass("endpoint") + " font-mono"}
           bind:value={form.endpoint}
           data-testid="llm-dialog-endpoint"
-        />
-        {#if labelFor("endpoint")}
-          <p class="text-xs text-destructive" data-testid="llm-dialog-endpoint-error">{labelFor("endpoint")}</p>
-        {/if}
-      </div>
-      <div class="space-y-1">
-        <label for="llm-key" class="text-xs font-medium text-muted-foreground">
-          {$t("settings.llm_dialog.field_api_key")}
-        </label>
-        <input
+         />
+      </FormField>
+      <FormField
+        id="llm-key"
+        label={$t("settings.llm_dialog.field_api_key")}
+        error={labelFor("apiKey") || undefined}
+      >
+        <Input
           id="llm-key"
           type="password"
           placeholder={editing ? $t("settings.llm_dialog.api_key_unchanged") : "sk-..."}
           class={inputClass("apiKey") + " font-mono"}
           bind:value={form.apiKey}
           data-testid="llm-dialog-apikey"
-        />
-        {#if labelFor("apiKey")}
-          <p class="text-xs text-destructive" data-testid="llm-dialog-apikey-error">{labelFor("apiKey")}</p>
-        {/if}
-      </div>
+         />
+      </FormField>
     {/if}
 
-    <div class="space-y-1">
-      <label for="llm-model" class="text-xs font-medium text-muted-foreground">
-        {form.provider === "llama-cpp"
-          ? $t("settings.llm_dialog.field_model_path")
-          : $t("settings.llm_dialog.field_model")}
-      </label>
+    <FormField
+      id="llm-model"
+      label={form.provider === "llama-cpp"
+        ? $t("settings.llm_dialog.field_model_path")
+        : $t("settings.llm_dialog.field_model")}
+    >
       {#if form.provider === "llama-cpp"}
         <div class="flex gap-1.5">
-          <input
+          <Input
             id="llm-model"
             type="text"
             placeholder="/path/to/model.gguf"
             class={inputClass("model") + " font-mono flex-1 min-w-0"}
             bind:value={form.model}
             data-testid="llm-dialog-model"
-          />
-          <button
+           />
+          <Button variant="ghost" size="sm"
             type="button"
             class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
             onclick={handleBrowse}
@@ -549,8 +544,8 @@
           >
             <FolderOpen size={13} strokeWidth={1.75} />
             {browsing ? "…" : $t("settings.llm_dialog.browse")}
-          </button>
-          <button
+          </Button>
+          <Button variant="ghost" size="sm"
             type="button"
             class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
             onclick={handleScan}
@@ -559,7 +554,7 @@
           >
             <ScanSearch size={13} strokeWidth={1.75} />
             {scanning ? "…" : $t("settings.llm_dialog.scan")}
-          </button>
+          </Button>
         </div>
         {#if showScanDropdown && scannedModels.length > 0}
           <div
@@ -567,7 +562,7 @@
             data-testid="llm-dialog-scan-results"
           >
             {#each scannedModels as model (model.path)}
-              <button
+              <Button variant="ghost" size="sm"
                 type="button"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/60 first:rounded-t-md last:rounded-b-md"
                 onclick={() => selectScannedModel(model)}
@@ -583,7 +578,7 @@
                 {#if form.model === model.path}
                   <Check size={11} strokeWidth={2.5} class="shrink-0 text-primary" />
                 {/if}
-              </button>
+              </Button>
             {/each}
           </div>
         {:else if showScanDropdown && scannedModels.length === 0}
@@ -605,23 +600,23 @@
           </div>
         {/if}
       {:else}
-        <input
+        <Input
           id="llm-model"
           type="text"
           placeholder="gpt-4o-mini"
           class={inputClass("model") + " font-mono"}
           bind:value={form.model}
           data-testid="llm-dialog-model"
-        />
+         />
       {/if}
       {#if labelFor("model")}
         <p class="text-xs text-destructive" data-testid="llm-dialog-model-error">{labelFor("model")}</p>
       {/if}
-    </div>
+    </FormField>
 
     <!-- Advanced collapsible -->
     <div class="rounded-md border border-border/60">
-      <button
+      <Button variant="ghost" size="sm"
         type="button"
         class="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/40"
         onclick={() => (advancedOpen = !advancedOpen)}
@@ -630,7 +625,7 @@
       >
         <span>{$t("settings.llm_dialog.advanced")}</span>
         <span aria-hidden="true">{advancedOpen ? "▾" : "▸"}</span>
-      </button>
+      </Button>
       {#if advancedOpen}
         <div class="space-y-4 border-t border-border/60 p-3">
           <!-- Generation parameters -->
@@ -639,11 +634,12 @@
               {$t("settings.llm_dialog.section_gen_params")}
             </p>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <div class="space-y-1">
-                <label for="llm-temperature" class="text-xs text-muted-foreground">
-                  {$t("settings.llm_dialog.field_temperature")}
-                </label>
-                <input
+              <FormField
+                id="llm-temperature"
+                label={$t("settings.llm_dialog.field_temperature")}
+                labelClass="font-normal"
+              >
+                <Input
                   id="llm-temperature"
                   type="number"
                   min="0"
@@ -658,12 +654,13 @@
                   }}
                   data-testid="llm-dialog-temperature"
                 />
-              </div>
-              <div class="space-y-1">
-                <label for="llm-top-k" class="text-xs text-muted-foreground">
-                  {$t("settings.llm_dialog.field_top_k")}
-                </label>
-                <input
+              </FormField>
+              <FormField
+                id="llm-top-k"
+                label={$t("settings.llm_dialog.field_top_k")}
+                labelClass="font-normal"
+              >
+                <Input
                   id="llm-top-k"
                   type="number"
                   min="0"
@@ -677,12 +674,13 @@
                   }}
                   data-testid="llm-dialog-top-k"
                 />
-              </div>
-              <div class="space-y-1">
-                <label for="llm-top-p" class="text-xs text-muted-foreground">
-                  {$t("settings.llm_dialog.field_top_p")}
-                </label>
-                <input
+              </FormField>
+              <FormField
+                id="llm-top-p"
+                label={$t("settings.llm_dialog.field_top_p")}
+                labelClass="font-normal"
+              >
+                <Input
                   id="llm-top-p"
                   type="number"
                   min="0"
@@ -697,12 +695,13 @@
                   }}
                   data-testid="llm-dialog-top-p"
                 />
-              </div>
-              <div class="space-y-1">
-                <label for="llm-repeat-penalty" class="text-xs text-muted-foreground">
-                  {$t("settings.llm_dialog.field_repeat_penalty")}
-                </label>
-                <input
+              </FormField>
+              <FormField
+                id="llm-repeat-penalty"
+                label={$t("settings.llm_dialog.field_repeat_penalty")}
+                labelClass="font-normal"
+              >
+                <Input
                   id="llm-repeat-penalty"
                   type="number"
                   min="0"
@@ -717,12 +716,13 @@
                   }}
                   data-testid="llm-dialog-repeat-penalty"
                 />
-              </div>
-              <div class="space-y-1">
-                <label for="llm-context-size" class="text-xs text-muted-foreground">
-                  {$t("settings.llm_dialog.field_context_size")}
-                </label>
-                <input
+              </FormField>
+              <FormField
+                id="llm-context-size"
+                label={$t("settings.llm_dialog.field_context_size")}
+                labelClass="font-normal"
+              >
+                <Input
                   id="llm-context-size"
                   type="number"
                   min="512"
@@ -736,7 +736,7 @@
                   }}
                   data-testid="llm-dialog-context-size"
                 />
-              </div>
+              </FormField>
             </div>
             <p class="text-[11px] text-muted-foreground/70">
               {$t("settings.llm_dialog.gen_params_hint")}
@@ -750,7 +750,7 @@
                 {$t("settings.llm_dialog.hf_autofill_title")}
               </p>
               <div class="flex gap-1.5">
-                <input
+                <Input
                   type="text"
                   placeholder="Qwen/Qwen3-30B-A3B-GGUF"
                   class="flex h-9 flex-1 min-w-0 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -758,7 +758,7 @@
                   onkeydown={(e) => { if (e.key === "Enter") void fetchHfParams(); }}
                   data-testid="llm-dialog-hf-repo"
                 />
-                <button
+                <Button variant="ghost" size="sm"
                   type="button"
                   class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
                   onclick={() => void fetchHfParams()}
@@ -771,7 +771,7 @@
                     <Sparkles size={13} strokeWidth={1.75} />
                   {/if}
                   {fetchingHfParams ? "…" : $t("settings.llm_dialog.hf_autofill_btn")}
-                </button>
+                </Button>
               </div>
               {#if hfFillResult}
                 <p class="text-xs {hfFillResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}">
@@ -782,11 +782,12 @@
           {/if}
 
           <!-- Timeout -->
-          <div class="space-y-1">
-            <label for="llm-timeout" class="text-xs font-medium text-muted-foreground">
-              {$t("settings.llm_dialog.field_timeout")}
-            </label>
-            <input
+          <FormField
+            id="llm-timeout"
+            label={$t("settings.llm_dialog.field_timeout")}
+            error={labelFor("timeoutSec") || undefined}
+          >
+            <Input
               id="llm-timeout"
               type="number"
               min="1"
@@ -794,18 +795,16 @@
               class={inputClass("timeoutSec") + " font-mono"}
               bind:value={form.timeoutSec}
               data-testid="llm-dialog-timeout"
-            />
-            {#if labelFor("timeoutSec")}
-              <p class="text-xs text-destructive">{labelFor("timeoutSec")}</p>
-            {/if}
-          </div>
+             />
+          </FormField>
 
           <!-- Extra JSON -->
-          <div class="space-y-1">
-            <label for="llm-extra" class="text-xs font-medium text-muted-foreground">
-              {$t("settings.llm_dialog.field_extra_json")}
-            </label>
-            <textarea
+          <FormField
+            id="llm-extra"
+            label={$t("settings.llm_dialog.field_extra_json")}
+            error={labelFor("extraJson") || undefined}
+          >
+            <Textarea
               id="llm-extra"
               rows={3}
               placeholder={`{ "device": "metal" }`}
@@ -813,11 +812,8 @@
                 (errors.extraJson ? "border-destructive/60" : "border-border")}
               bind:value={form.extraJson}
               data-testid="llm-dialog-extra"
-            ></textarea>
-            {#if labelFor("extraJson")}
-              <p class="text-xs text-destructive">{labelFor("extraJson")}</p>
-            {/if}
-          </div>
+            ></Textarea>
+          </FormField>
 
           <SettingsToggle
             label={$t("settings.llm_backend_enabled")}

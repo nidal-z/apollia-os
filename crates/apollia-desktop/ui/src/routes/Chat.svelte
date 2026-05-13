@@ -45,13 +45,14 @@
 
   // Operator design-system primitives — V3 Chat Refonte v2.
   import {
-    BtnPrimary,
     ConversationRow,
     Journal,
     type JournalEvent,
     type JournalMode,
     type ConversationState,
   } from "$lib/components/operator";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
 
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
@@ -449,19 +450,19 @@
           size={12}
           class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
-        <input
+        <Input
           type="search"
           bind:value={sessionSearchQuery}
           placeholder="Rechercher…"
           data-testid="session-search-input"
           class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-        />
+         />
       </div>
 
-      <BtnPrimary onclick={() => openNewChatPicker()}>
+      <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
         {#snippet icon()}<Plus size={12} />{/snippet}
         Nouvelle conversation
-      </BtnPrimary>
+      </Button>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto" data-testid="chat-active-list">
@@ -558,10 +559,10 @@
             Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.
           </p>
           <div class="inline-flex">
-            <BtnPrimary onclick={() => openNewChatPicker()}>
+            <Button variant="primary-solid" size="sm" onclick={() => openNewChatPicker()}>
               {#snippet icon()}<Plus size={12} />{/snippet}
               {$t("chat.new_chat")}
-            </BtnPrimary>
+            </Button>
           </div>
         </div>
       </div>

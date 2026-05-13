@@ -13,7 +13,8 @@
   import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import { Loader2, AlertTriangle } from "lucide-svelte";
+  import { AlertTriangle } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
     open: boolean;
@@ -169,7 +170,7 @@
         data-testid={dataTestId ? `${dataTestId}-confirm` : undefined}
       >
         {#if loading}
-          <Loader2 class="mr-2 h-4 w-4 animate-spin" />
+          <Spinner class="mr-2 h-4 w-4" />
         {/if}
         {confirmLabel}
       </Button>
