@@ -512,44 +512,42 @@ pub async fn fetch_mcp_registry(
             Err(_) => HashSet::new(),
         };
 
+    // Drop public-registry entries that are already covered by an Apollia
+    // curated enrichment. Otherwise the catalogue shows duplicates: e.g.
+    // a stray "Figma" from the public registry next to "Figma" (Dev Mode)
+    // and "Figma (cloud, OAuth)" injected from our curated set.
+    //
+    // A public entry is considered covered when its registry name matches
+    // an enrichment's registry_names, OR any of its package identifiers
+    // matches an enrichment's package_identifier, OR any of its remote URLs
+    // matches an enrichment's remote_url. The curated synthetic injection
+    // below adds back our own version with verified URLs and headers.
+    let enrichment_by_remote_url: HashSet<&str> = enrichments
+        .iter()
+        .filter_map(|e| e.remote_url.as_deref())
+        .collect();
+
     let views: Vec<RegistryServerView> = raw_servers
         .into_iter()
-        .map(|s| {
-            let mut view = RegistryServerView::from(s);
-
-            // Try to find enrichment: first by registry server name, then by package identifier.
-            let matched = enrichment_by_name
-                .get(view.name.as_str())
-                .copied()
-                .or_else(|| {
-                    view.packages.as_ref().and_then(|pkgs| {
-                        pkgs.iter()
-                            .find_map(|pkg| enrichment_by_pkg.get(pkg.identifier.as_str()).copied())
-                    })
-                });
-
-            if let Some(enrichment) = matched {
-                view.trust_level = trust_level_str(&enrichment.trust_level);
-                view.category = Some(enrichment.category.clone());
-                view.enrichment = Some(ConnectorEnrichmentView {
-                    operator_label: enrichment
-                        .operator_label
-                        .get("en")
-                        .cloned()
-                        .unwrap_or_default(),
-                    category: enrichment.category.clone(),
-                    icon_name: enrichment.icon_name.clone(),
-                    trust_level: enrichment.trust_level.clone(),
-                    auth_help_url: enrichment.auth_help_url.clone(),
-                    auth_help_text: enrichment
-                        .auth_help_text
-                        .as_ref()
-                        .and_then(|m| m.get("en").cloned()),
-                    default_requires_approval: enrichment.default_requires_approval,
-                });
-                // Apply enrichment header fallback when the registry entry omits headers.
-                apply_remote_header_fallback(&mut view.remotes, enrichment);
+        .filter_map(|s| {
+            let detail = &s.server;
+            let name_covered = enrichment_by_name.contains_key(detail.name.as_str());
+            let pkg_covered = detail.packages.as_ref().is_some_and(|pkgs| {
+                pkgs.iter()
+                    .any(|pkg| enrichment_by_pkg.contains_key(pkg.identifier.as_str()))
+            });
+            let remote_covered = detail
+                .remotes
+                .iter()
+                .any(|r| enrichment_by_remote_url.contains(r.url.as_str()));
+            if name_covered || pkg_covered || remote_covered {
+                tracing::debug!(
+                    server = %detail.name,
+                    "mcp.registry.dedup — skipping public entry already covered by curated"
+                );
+                return None;
             }
+            let mut view = RegistryServerView::from(s);
 
             // Auto-categorize by keywords when no enrichment provided a category.
             if view.category.is_none() {
@@ -561,7 +559,7 @@ pub async fn fetch_mcp_registry(
                 view.is_installed = true;
             }
 
-            view
+            Some(view)
         })
         .collect();
 

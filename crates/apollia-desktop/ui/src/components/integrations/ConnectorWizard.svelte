@@ -169,8 +169,27 @@
     }
   });
 
+  /**
+   * Backend validate_name() in apollia-mcp enforces `[a-z0-9_-]+` strictly,
+   * so identifiers like `@modelcontextprotocol/server-filesystem` or
+   * `com.figma/mcp-cloud` must be sanitised before being sent. We:
+   * - lowercase the string
+   * - replace every non-`[a-z0-9_-]` character with `-`
+   * - collapse runs of `-` and trim them at the edges
+   * - fall back to `mcp-server` if the result is empty.
+   */
+  function sanitizeServerName(raw: string): string {
+    const cleaned = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    return cleaned.length > 0 ? cleaned : "mcp-server";
+  }
+
   // ── Config builder ──────────────────────────────────────────────────────────
   function buildConfig(forTest: boolean): McpServerConfigInput | null {
+    const safeName = sanitizeServerName(server.name);
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
       for (const header of remote.headers) {
@@ -180,7 +199,7 @@
             : (envValues[header.name] ?? "");
       }
       return {
-        name: server.name,
+        name: safeName,
         url: remote.url,
         transport: remote.type,
         env,
@@ -197,7 +216,7 @@
             : (envValues[envVar.name] ?? "");
       }
       return {
-        name: server.name,
+        name: safeName,
         command: pkg.runtime_hint ?? "npx",
         args: [
           pkg.identifier,

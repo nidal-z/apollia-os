@@ -58,7 +58,20 @@
       // cache, or auth that takes too long.
       return $t("integrations.wizard.test_err.handshake_timeout");
     }
+    if (lower.includes("http 401") || lower.includes("transport closed: http 401")) {
+      // The remote returned 401 Unauthorized at the transport layer (before
+      // any MCP handshake). Typical for OAuth-only endpoints (Figma cloud,
+      // Notion, Linear) where a Bearer token isn't accepted.
+      return $t("integrations.wizard.test_err.unauthorized");
+    }
+    if (lower.includes("http 403") || lower.includes("transport closed: http 403")) {
+      return $t("integrations.wizard.test_err.forbidden");
+    }
+    if (lower.includes("http 404") || lower.includes("transport closed: http 404")) {
+      return $t("integrations.wizard.test_err.not_found");
+    }
     if (
+      lower.includes("transport closed") ||
       lower.includes("transport send channel closed") ||
       lower.includes("server exited") ||
       lower.includes("stdin closed")

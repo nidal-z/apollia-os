@@ -477,6 +477,15 @@
     customTestResult = null;
   }
 
+  function sanitizeServerName(raw: string): string {
+    const cleaned = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    return cleaned.length > 0 ? cleaned : "custom-mcp";
+  }
+
   function buildCustomConfig(): Record<string, unknown> | null {
     const env: Record<string, string> = {};
     for (const line of customForm.headers.split(/\r?\n/)) {
@@ -487,7 +496,7 @@
       env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
     }
     const base: Record<string, unknown> = {
-      name: customForm.name.trim() || "custom-mcp",
+      name: sanitizeServerName(customForm.name || "custom-mcp"),
       env,
       transport: customForm.transport,
       requires_approval: customForm.requires_approval,

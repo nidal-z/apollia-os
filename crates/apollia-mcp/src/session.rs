@@ -149,8 +149,13 @@ pub enum McpSessionError {
     SerdeError(String),
 
     /// The transport's send channel was closed.
-    #[error("server '{server}' transport send channel closed")]
-    StdinClosed { server: String },
+    ///
+    /// `cause` carries the underlying transport error message when available
+    /// (e.g. `"HTTP 401"` for an unauthorized remote, `"timeout"`, or the
+    /// raw `reqwest` / IO error). Surfaces as a richer UI hint than the
+    /// previous bare "channel closed" message.
+    #[error("server '{server}' transport closed: {cause}")]
+    StdinClosed { server: String, cause: String },
 
     /// A hot reload was requested for a server that is not currently managed.
     #[error("cannot reload server '{server}': not found in managed sessions")]
@@ -364,8 +369,9 @@ impl McpSession {
         self.transport
             .send(&json)
             .await
-            .map_err(|_| McpSessionError::StdinClosed {
+            .map_err(|e| McpSessionError::StdinClosed {
                 server: self.config.name.clone(),
+                cause: e.to_string(),
             })?;
 
         let duration = std::time::Duration::from_secs(timeout_secs);
@@ -413,8 +419,9 @@ impl McpSession {
         self.transport
             .send(&json)
             .await
-            .map_err(|_| McpSessionError::StdinClosed {
+            .map_err(|e| McpSessionError::StdinClosed {
                 server: self.config.name.clone(),
+                cause: e.to_string(),
             })
     }
 
@@ -888,6 +895,7 @@ mod tests {
                 if attempt < 3 {
                     Err(McpSessionError::StdinClosed {
                         server: "test-server".to_string(),
+                        cause: "simulated".to_string(),
                     })
                 } else {
                     Ok(42u32)
