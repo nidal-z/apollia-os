@@ -56,7 +56,9 @@ pub use governance_db::{
 pub use journal::{
     list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
 };
-pub use native_dispatcher::{build_native_dispatcher, NativeDispatcherConfig};
+pub use native_dispatcher::{
+    build_dispatcher_with, build_native_dispatcher, NativeDispatcherConfig,
+};
 pub use package_repository::{InstalledPackage, PackageRepository, PackageRepositoryError};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,

@@ -66,18 +66,19 @@
       {/if}
 
       <!-- Indicator
-           NB. The `ring-offset-color` token is inherited so the focus halo
-           around the active step blends with whatever container it lives in
-           (Dialog uses `bg-card`, the page may use `bg-background`).
-           Hard-coding `ring-offset-background` produced a 2px white sliver
-           around the active circle whenever the parent was `bg-card`. -->
+           Borderless on purpose: the previous `border border-border` drew a
+           1px halo whose colour did not always match the surrounding
+           container (Dialog uses `bg-card`, the page uses `bg-background`),
+           rendering as a visible white sliver around the upcoming steps and
+           a thicker rim around the active step. We rely on `bg-*` contrast
+           alone to differentiate the states. -->
       <span
         class={cn(
-          "relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-[background-color,transform,opacity] duration-200",
-          state === "completed" && "border-primary bg-primary text-primary-foreground",
+          "relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-[background-color,transform,opacity] duration-200",
+          state === "completed" && "bg-primary text-primary-foreground",
           state === "active" &&
-            "border-primary bg-card text-primary ring-2 ring-primary/30 scale-105",
-          state === "upcoming" && "border-border bg-muted text-muted-foreground",
+            "bg-primary text-primary-foreground scale-105",
+          state === "upcoming" && "bg-muted text-muted-foreground",
         )}
       >
         {#if state === "completed"}

@@ -147,6 +147,10 @@ struct AIPProductionBackend {
     memory_base_dir: PathBuf,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     user_memory_write: bool,
+    /// MCP client manager handle so the BridgeRunner can construct one
+    /// `McpToolExecutor` per active MCP tool and inject it into the agent's
+    /// dispatcher.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -164,6 +168,7 @@ impl Clone for AIPProductionBackend {
             pending_approvals: self.pending_approvals.clone(),
             task_repository: self.task_repository.clone(),
             user_memory_write: self.user_memory_write,
+            mcp_handle: self.mcp_handle.clone(),
         }
     }
 }
@@ -184,6 +189,10 @@ struct BridgeRunner {
     /// manager, `None` for standalone task-mode runs (HITL relies on AIP
     /// `input_required` instead).
     pending_user_inputs: Option<PendingUserInputs>,
+    /// Handle vers le MCP client manager — utilisé pour construire un
+    /// `McpToolExecutor` par tool MCP enregistré et l'injecter dans le
+    /// `ToolDispatcher` de l'agent. `None` quand MCP n'est pas configuré.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -202,6 +211,7 @@ impl AgentRunner for BridgeRunner {
         let memory_base_dir = self.memory_base_dir.clone();
         let user_memory_write = self.user_memory_write;
         let pending_user_inputs = self.pending_user_inputs.clone();
+        let mcp_handle = self.mcp_handle.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -220,26 +230,57 @@ impl AgentRunner for BridgeRunner {
                 tracing::warn!(error = %e, "governance snapshot unavailable — defaulting to all tools enabled");
                 Default::default()
             });
-            let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
-                sandbox_root: sandbox_root_for_agent(),
-                agent_id: agent_id.clone(),
-                venv_base_dir: memory_base_dir
-                    .parent()
-                    .map(|p| p.join("venvs"))
-                    .unwrap_or_else(|| memory_base_dir.join("venvs")),
-                memory_namespace: memory_namespace.clone(),
-                memory_shared_namespaces: Vec::new(),
-                memory_base_dir: memory_base_dir.clone(),
-                http_allowlist: None,
-                pending_user_inputs,
-                disabled_tools: snapshot.disabled_tools,
-                brave_api_key: snapshot.brave_api_key,
-                web_search_config: apollia_core::WebSearchConfig::default(),
-                web_read_config: apollia_core::WebReadConfig::default(),
-                governance_db_path: Some(
-                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-                ),
-            }));
+            // Build one McpToolExecutor per registered MCP tool so the agent's
+            // ToolDispatcher can route `mcp:<server>/<tool>` invocations
+            // through the MCP client manager. Without this, the registry
+            // surfaces the tool to the agent's prompt but the dispatcher
+            // returns UnknownTool at call time.
+            let mcp_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> =
+                if let Some(handle) = &mcp_handle {
+                    let mut execs: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
+                    for status in handle.status().await {
+                        if !status.connected {
+                            continue;
+                        }
+                        let Some(detail) = handle.server_detail(&status.name).await else {
+                            continue;
+                        };
+                        for tool in detail.tools {
+                            execs.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                                handle.clone(),
+                                status.name.clone(),
+                                tool.local_name.clone(),
+                            )));
+                        }
+                    }
+                    execs
+                } else {
+                    Vec::new()
+                };
+
+            let dispatcher = Arc::new(apollia_tools::build_dispatcher_with(
+                &NativeDispatcherConfig {
+                    sandbox_root: sandbox_root_for_agent(),
+                    agent_id: agent_id.clone(),
+                    venv_base_dir: memory_base_dir
+                        .parent()
+                        .map(|p| p.join("venvs"))
+                        .unwrap_or_else(|| memory_base_dir.join("venvs")),
+                    memory_namespace: memory_namespace.clone(),
+                    memory_shared_namespaces: Vec::new(),
+                    memory_base_dir: memory_base_dir.clone(),
+                    http_allowlist: None,
+                    pending_user_inputs,
+                    disabled_tools: snapshot.disabled_tools,
+                    brave_api_key: snapshot.brave_api_key,
+                    web_search_config: apollia_core::WebSearchConfig::default(),
+                    web_read_config: apollia_core::WebReadConfig::default(),
+                    governance_db_path: Some(
+                        governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+                    ),
+                },
+                mcp_executors,
+            ));
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {
                 (Some(registry), Some(audit)) => Some(
@@ -352,6 +393,7 @@ impl ExecutionBackend for AIPProductionBackend {
             user_memory_write: self.user_memory_write,
             // Task-mode backend: no chat UI to answer `ask_user` prompts.
             pending_user_inputs: None,
+            mcp_handle: self.mcp_handle.clone(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -385,6 +427,8 @@ pub struct ProductionBackendFactory {
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
+    pub mcp_handle:
+        Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -410,6 +454,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let audit_trail = self.audit_trail.get().cloned();
         let pending_approvals = self.pending_approvals.get().cloned();
         let task_repository = self.task_repository.get().cloned();
+        let mcp_handle = self.mcp_handle.get().cloned();
 
         let result: Result<AIPProductionBackend, String> = (|| {
             let module =
@@ -433,6 +478,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 pending_approvals,
                 task_repository,
                 user_memory_write,
+                mcp_handle,
             })
         })();
 
@@ -476,6 +522,11 @@ pub struct ProductionChatAgentRunner {
     /// `init_embedded()` returns so the native tool dispatcher can route
     /// `ask_user` invocations through the chat HITL loop.
     pub pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
+    /// MCP client manager handle, populated after init_embedded() so the
+    /// BridgeRunner can inject McpToolExecutor instances into the
+    /// dispatcher at run time.
+    pub mcp_handle:
+        Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
 }
 
 #[async_trait::async_trait]
@@ -544,6 +595,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             memory_base_dir: default_memory_dir(),
             user_memory_write,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
+            mcp_handle: self.mcp_handle.get().cloned(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

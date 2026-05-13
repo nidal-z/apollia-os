@@ -99,6 +99,13 @@ pub struct RuntimeHandle {
     ///
     /// `Some` quand `projects.db` est ouvert avec succès au démarrage.
     pub project_repository: Option<Arc<ProjectRepository>>,
+    /// Handle vers le MCP client manager.
+    ///
+    /// `Some` quand le supervisor a démarré le manager (toujours en v0.1.1+
+    /// même sans servers installés). Consommé par les agent runners pour
+    /// construire un `McpToolExecutor` par tool MCP enregistré et l'injecter
+    /// dans le ToolDispatcher de l'agent.
+    pub mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -352,6 +359,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
         project_repository: handles.project_repository,
+        mcp_handle: handles.mcp_handle,
         api_port: tcp_port,
     })
 }

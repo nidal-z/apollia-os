@@ -215,14 +215,15 @@ mod tests {
     }
 
     #[test]
-    fn v1_catalog_has_19_entries_with_cost_model() {
-        // GIVEN the v0.1.0 catalog (18 curated + 1 Figma cloud variant)
+    fn v1_catalog_has_18_entries_with_cost_model() {
+        // GIVEN the v0.1.0 catalog. The Figma cloud OAuth variant was
+        // removed pending automatic OAuth handshake (v0.1.1) — Figma
+        // remains accessible via the local Dev Mode entry.
         let enrichments = load_builtin_enrichments();
-        // THEN there are exactly 19 curated entries
         assert_eq!(
             enrichments.len(),
-            19,
-            "expected 19 curated entries in the v0.1.0 catalog"
+            18,
+            "expected 18 curated entries in the v0.1.0 catalog"
         );
         // AND every entry declares a cost model so the UI can show the badge
         for e in &enrichments {

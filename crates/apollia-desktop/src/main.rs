@@ -174,6 +174,10 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
+    // Populated post-init_embedded() so the BridgeRunner can inject one
+    // McpToolExecutor per registered MCP tool into the agent's dispatcher.
+    let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -182,6 +186,7 @@ fn main() {
         audit_trail: audit_trail_lock.clone(),
         pending_approvals: pending_approvals_lock.clone(),
         task_repository: task_repository_lock.clone(),
+        mcp_handle: mcp_handle_lock.clone(),
     });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
@@ -230,6 +235,7 @@ fn main() {
                 pending_approvals: pending_approvals_lock.clone(),
                 task_repository: task_repository_lock.clone(),
                 pending_user_inputs: pending_user_inputs_lock.clone(),
+                mcp_handle: mcp_handle_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(error = %e, "failed to open agents.db for ChatAgentRunner — Chat Agent mode disabled");
@@ -285,6 +291,9 @@ fn main() {
     }
     if let Some(chat) = runtime_handle.chat_manager.as_ref() {
         let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
+    }
+    if let Some(mcp) = runtime_handle.mcp_handle.clone() {
+        let _ = mcp_handle_lock.set(mcp);
     }
 
     // Auto-load installed agents NOW — OnceLocks are populated so the

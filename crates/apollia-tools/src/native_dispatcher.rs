@@ -96,6 +96,21 @@ pub struct NativeDispatcherConfig {
 /// and skipped. The dispatcher returns `UnknownTool` if the agent later
 /// attempts to invoke them, which surfaces as a clear error to the caller.
 pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
+    build_dispatcher_with(cfg, Vec::new())
+}
+
+/// Build a [`ToolDispatcher`] like [`build_native_dispatcher`] but with extra
+/// executors appended after the native ones — typically MCP tools.
+///
+/// MCP executors are constructed by the runtime once it has resolved the
+/// [`McpClientManagerHandle`](apollia_mcp::manager::McpClientManagerHandle)
+/// and the active session list. They live outside `NativeDispatcherConfig`
+/// because the `ToolExecutor` trait is not `Clone`, so the config struct must
+/// stay `Clone`-friendly for the rest of the runtime.
+pub fn build_dispatcher_with(
+    cfg: &NativeDispatcherConfig,
+    extra: Vec<Box<dyn ToolExecutor>>,
+) -> ToolDispatcher {
     let mut executors: Vec<Box<dyn ToolExecutor>> = Vec::with_capacity(16);
     let is_active = |name: &str| !cfg.disabled_tools.iter().any(|n| n == name);
 
@@ -232,6 +247,7 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
         }
     }
 
+    executors.extend(extra);
     ToolDispatcher::new(executors)
 }
 
