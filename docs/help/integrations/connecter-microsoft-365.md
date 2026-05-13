@@ -5,9 +5,10 @@
 ## Prérequis
 
 - Un compte Microsoft 365 (professionnel, scolaire, ou personnel) actif.
-- La variable d'environnement `APOLLIA_MICROSOFT_CLIENT_ID` est configurée par Apollia (ou par vous en mode entreprise).
-- Si votre tenant Azure AD exige une approbation administrative, l'administrateur doit pré-approuver l'application Apollia.
+- Si votre tenant Azure AD exige une approbation administrative, l'administrateur doit pré-approuver l'application Apollia (cas des organisations en *consent admin only*).
 - Le profil souveraineté n'est pas réglé sur `local_only`.
+
+Aucune configuration technique préalable n'est requise — l'application OAuth Apollia est multi-tenant et préconfigurée dans l'application.
 
 ## Périmètre complet v0.1.0
 
@@ -43,7 +44,7 @@ Microsoft Teams (chat + channels) est reporté à v0.2 — l'API channels est pl
 
 ## Multi-tenant
 
-Le connecteur utilise l'endpoint multi-tenant `/common/` par défaut, ce qui permet de connecter n'importe quel compte Microsoft (personnel, scolaire, professionnel) ou Azure AD. Pour un déploiement enterprise restrictif limité à un seul tenant, l'administrateur peut définir la variable `APOLLIA_MICROSOFT_TENANT_ID` dans la configuration.
+Le connecteur utilise l'endpoint multi-tenant `/common/` par défaut, ce qui permet de connecter n'importe quel compte Microsoft (personnel, scolaire, professionnel) ou Azure AD. Pour un déploiement enterprise restrictif limité à un seul tenant, l'administrateur peut spécifier le tenant cible dans la configuration Apollia (option à venir dans le panneau Paramètres → Souveraineté).
 
 ## Approbation HITL
 
@@ -68,7 +69,7 @@ Si votre flux principal est Gmail-only et que vous voulez la lecture complète, 
 ## Si ça ne marche pas
 
 - **AADSTS90094 — administrateur consent requis** : votre tenant Azure AD exige une approbation au niveau organisation. Contactez votre administrateur pour qu'il pré-approuve Apollia.
-- **AADSTS500011 — application introuvable dans le tenant** : `APOLLIA_MICROSOFT_CLIENT_ID` pointe sur une app inscrite dans un autre tenant. Vérifiez que l'app cible est bien multi-tenant ou que le tenant_id configuré est correct.
+- **AADSTS500011 — application introuvable dans le tenant** : votre administrateur a restreint les apps externes au tenant. Demandez-lui de pré-approuver Apollia, ou utilisez un compte Microsoft personnel.
 - **`outlook.send` échoue avec ErrorRecipientNotResolved** : Microsoft Graph valide les destinataires plus strictement que Google. Vérifiez l'adresse cible et l'absence d'alias mort.
 
 ## Déconnecter un compte

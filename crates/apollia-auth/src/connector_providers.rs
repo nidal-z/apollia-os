@@ -145,13 +145,67 @@ impl ConnectorProvider {
 
     /// Environment variable that overrides the compiled-in OAuth client ID.
     ///
-    /// In Expert Mode (cf. `mode-expert-google-restricted-scopes.md`), a power
-    /// user sets this to their own OAuth client ID to use restricted scopes.
+    /// **Not part of the user-facing flow.** This override targets Expert
+    /// Mode power users who run their own OAuth app (cf.
+    /// `mode-expert-google-restricted-scopes.md`) and developers running a
+    /// dev build against a non-production AS. End users never set this — the
+    /// compiled-in [`default_client_id`](Self::default_client_id) is used and
+    /// shipped in the binary.
     pub const fn client_id_env_var(self) -> &'static str {
         match self {
             Self::Google => "APOLLIA_GOOGLE_CLIENT_ID",
             Self::Microsoft => "APOLLIA_MICROSOFT_CLIENT_ID",
         }
+    }
+
+    /// Compiled-in default OAuth client ID shipped with Apollia.
+    ///
+    /// Apollia is a public OAuth client (PKCE — no client secret), so it is
+    /// safe to embed the client ID directly in the binary. Released builds
+    /// substitute the real values produced by Nidal's Google Cloud / Azure AD
+    /// apps at build time (see `docs/internal/release/OAUTH-CLIENT-IDS.md`).
+    ///
+    /// Returns an empty string in dev / unconfigured builds — the runtime
+    /// surfaces a clear "OAuth client not configured" error in that case
+    /// rather than panicking.
+    pub const fn default_client_id(self) -> &'static str {
+        match self {
+            // Replaced at release build time with the production client IDs.
+            // Dev / open-source builds default to empty — the runtime then
+            // surfaces an explicit error pointing at OAUTH-CLIENT-IDS.md.
+            Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_ID")),
+            Self::Microsoft => env_or_empty(option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID")),
+        }
+    }
+
+    /// Resolve the effective OAuth client ID at runtime.
+    ///
+    /// Priority order:
+    /// 1. Runtime env var override (`APOLLIA_GOOGLE_CLIENT_ID` /
+    ///    `APOLLIA_MICROSOFT_CLIENT_ID`) — used by Expert Mode + dev builds.
+    /// 2. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`).
+    ///
+    /// Returns `None` when both are absent so the UI can surface a clear
+    /// "OAuth not configured" message instead of failing mid-handshake.
+    pub fn resolve_client_id(self) -> Option<String> {
+        if let Ok(v) = std::env::var(self.client_id_env_var()) {
+            if !v.is_empty() {
+                return Some(v);
+            }
+        }
+        let compiled = self.default_client_id();
+        if compiled.is_empty() {
+            None
+        } else {
+            Some(compiled.to_owned())
+        }
+    }
+}
+
+const fn env_or_empty(opt: Option<&'static str>) -> &'static str {
+    match opt {
+        Some(s) => s,
+        None => "",
     }
 }
 
@@ -174,7 +228,7 @@ pub fn build_google_provider(scopes: &[GoogleScope]) -> ProviderConfig {
         name: "google",
         auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
         token_url: "https://oauth2.googleapis.com/token",
-        client_id: std::env::var(ConnectorProvider::Google.client_id_env_var()).unwrap_or_default(),
+        client_id: ConnectorProvider::Google.resolve_client_id().unwrap_or_default(),
         scopes: all_scopes,
     }
 }
@@ -217,7 +271,8 @@ pub fn build_microsoft_provider_for_tenant(
         name: "microsoft",
         auth_url,
         token_url,
-        client_id: std::env::var(ConnectorProvider::Microsoft.client_id_env_var())
+        client_id: ConnectorProvider::Microsoft
+            .resolve_client_id()
             .unwrap_or_default(),
         scopes: all_scopes,
     }

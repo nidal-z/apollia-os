@@ -24,16 +24,19 @@ Convention de nommage :
 
 Pour les MCP servers OAuth : service `apollia.mcp.<server-id>`.
 
-## Linux headless (sans Secret Service)
+## Linux headless (sans Secret Service) — mode avancé
 
-Sur un serveur Linux sans daemon Secret Service (container, VM minimale, distribution serveur), le keyring crate échoue. Définissez `APOLLIA_TOKEN_STORAGE=file` pour basculer sur le fallback chiffré :
+> Cette section concerne uniquement les cas serveur Linux sans environnement graphique (container Docker, VM minimale, distribution serveur sans daemon Secret Service). Sur un poste de travail standard (macOS, Windows, Linux desktop), ignorez-la.
+
+Sur un Linux sans daemon Secret Service, le keyring système n'est pas disponible. Apollia propose un stockage de secours sur fichier chiffré, activable au lancement :
 
 ```bash
-export APOLLIA_TOKEN_STORAGE=file
-export APOLLIA_TOKEN_PASSPHRASE="phrase-secrète-de-votre-choix"
+APOLLIA_TOKEN_STORAGE=file \
+  APOLLIA_TOKEN_PASSPHRASE="phrase-secrète-de-votre-choix" \
+  apollia-desktop
 ```
 
-Les tokens sont alors stockés dans `~/.apollia/secrets/` chiffrés avec [age](https://age-encryption.org/) (scrypt + ChaCha20-Poly1305). La passphrase est demandée une seule fois par session — un acteur dédié garde la clé en mémoire pour les appels suivants.
+Les tokens sont alors stockés dans `~/.apollia/secrets/` chiffrés avec [age](https://age-encryption.org/) (scrypt + ChaCha20-Poly1305). La passphrase est demandée au lancement et gardée en mémoire pour la session.
 
 **Attention :** si vous oubliez la passphrase, les tokens sont perdus définitivement. Vous devrez reconnecter chaque compte.
 
@@ -110,7 +113,7 @@ Consultable via **Historique des actions** dans l'UI Desktop ou via `apollia too
 
 ## Si ça ne marche pas
 
-- **Linux headless : `keyring: no entry`** : le daemon Secret Service n'est pas disponible. Basculez sur le mode fichier avec `APOLLIA_TOKEN_STORAGE=file` + `APOLLIA_TOKEN_PASSPHRASE`.
+- **Linux headless : `keyring: no entry`** : le daemon Secret Service n'est pas disponible. Lancez Apollia avec le mode fichier chiffré (cf. section *Linux headless* ci-dessus).
 - **`AuthError::NoRefreshToken`** lors d'un refresh : le compte a été connecté sans le scope `offline_access` (Microsoft) ou sans `access_type=offline` (Google). Reconnectez le compte.
 - **Le refresh boucle (401 répétés)** : le refresh token a été révoqué côté provider (par vous ou par leur politique de sécurité). Déconnectez puis reconnectez le compte.
 

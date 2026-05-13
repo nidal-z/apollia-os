@@ -5,8 +5,9 @@
 ## Prérequis
 
 - Un compte Google Workspace ou un compte Google personnel actif.
-- La variable d'environnement `APOLLIA_GOOGLE_CLIENT_ID` est configurée (sinon vous tombez en *mode expert*, voir page dédiée).
 - Le profil souveraineté n'est pas réglé sur `local_only` (sinon les connecteurs cloud sont désactivés).
+
+Aucune configuration technique préalable n'est requise — l'application OAuth est fournie par Apollia et préconfigurée dans l'application.
 
 ## Périmètre gratuit v0.1.0
 

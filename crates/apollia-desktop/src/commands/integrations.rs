@@ -78,6 +78,14 @@ pub enum IntegrationsError {
     /// The active sovereignty profile (`local_only`) bans cloud connectors.
     #[error("sovereignty profile blocks cloud connectors")]
     SovereigntyBlocked,
+    /// The provider has no OAuth client id configured.
+    ///
+    /// Means the build was made without `APOLLIA_BUILD_*_CLIENT_ID` and the
+    /// user has not set the runtime override either. The UI surfaces a clear
+    /// "OAuth client not configured" message instead of letting the flow
+    /// fail mid-handshake with an opaque AS error.
+    #[error("OAuth client not configured for {0}")]
+    OauthClientNotConfigured(String),
     /// The provider id sent by the frontend is not recognised.
     #[error("unknown provider: {0}")]
     UnknownProvider(String),
@@ -220,6 +228,11 @@ pub async fn oauth_start_flow(
 ) -> Result<OauthStartFlow, IntegrationsError> {
     ensure_cloud_allowed(sovereignty)?;
     let provider_id = provider_from_id(&provider)?;
+    if provider_id.resolve_client_id().is_none() {
+        return Err(IntegrationsError::OauthClientNotConfigured(
+            provider_id.id().to_owned(),
+        ));
+    }
     let provider_config = build_provider_with_scopes(provider_id, &scopes)?;
 
     let (_listener, port) = apollia_auth::callback::bind_ephemeral_port()
