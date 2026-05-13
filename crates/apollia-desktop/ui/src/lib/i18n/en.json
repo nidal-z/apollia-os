@@ -486,6 +486,8 @@
         "forbidden": "Access forbidden — your key doesn't have the required rights.",
         "not_found": "Service not found — check the URL or server name.",
         "network": "Network error — the service did not respond in time.",
+        "handshake_timeout": "The server started but did not reply to the MCP handshake. Common causes: wrong URL, npm/pypi package still downloading (try again), or a server that is not MCP-compliant.",
+        "transport_closed": "The server closed the connection before the handshake completed. Common causes: package not found on npm/pypi (check the identifier), remote URL unreachable (DNS/firewall), or missing local command.",
         "command_missing": "Command not found — the package is probably not installed.",
         "generic": "The connection failed. Check your credentials and try again.",
         "raw_details": "Show technical details",

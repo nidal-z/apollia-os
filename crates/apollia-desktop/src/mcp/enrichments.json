@@ -29,7 +29,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-brave-search",
+    "package_identifier": "@modelcontextprotocol/server-brave-search",
     "registry_names": [],
     "operator_label": { "en": "Brave Search", "fr": "Recherche Brave" },
     "description": {
@@ -64,7 +64,7 @@
     }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-filesystem",
+    "package_identifier": "@modelcontextprotocol/server-filesystem",
     "registry_names": [],
     "operator_label": { "en": "Local Files", "fr": "Fichiers locaux" },
     "description": {
@@ -82,7 +82,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-memory",
+    "package_identifier": "@modelcontextprotocol/server-memory",
     "registry_names": [],
     "operator_label": { "en": "Memory (Knowledge Graph)", "fr": "Mémoire (graphe de connaissances)" },
     "description": {
@@ -100,7 +100,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-puppeteer",
+    "package_identifier": "@modelcontextprotocol/server-puppeteer",
     "registry_names": [],
     "operator_label": { "en": "Web Browser", "fr": "Navigateur web" },
     "description": {
@@ -257,28 +257,20 @@
     "registry_names": ["com.figma/mcp"],
     "operator_label": { "en": "Figma", "fr": "Figma" },
     "description": {
-      "en": "Read Figma files, inspect frames, fetch design tokens.",
-      "fr": "Lire des fichiers Figma, inspecter des frames, récupérer des design tokens."
+      "en": "Read Figma files via the Figma Dev Mode local MCP server (requires Figma Desktop).",
+      "fr": "Lire des fichiers Figma via le serveur MCP local Dev Mode (Figma Desktop requis)."
     },
     "category": "design",
     "icon_name": "figma",
     "trust_level": "verified_official",
-    "auth_help_url": "https://www.figma.com/developers/api#access-tokens",
+    "auth_help_url": "https://help.figma.com/hc/en-us/articles/32132100833559",
     "auth_help_text": {
-      "en": "Generate a Figma personal access token from your account settings.",
-      "fr": "Générez un token Figma personnel depuis les paramètres de votre compte."
+      "en": "Open Figma Desktop, enable Dev Mode MCP Server in Preferences. The server is reachable at http://127.0.0.1:3845/sse — no token required.",
+      "fr": "Ouvrez Figma Desktop, activez le serveur MCP Dev Mode dans Préférences. Le serveur est joignable sur http://127.0.0.1:3845/sse — aucun token requis."
     },
     "default_requires_approval": false,
-    "remote_url": "https://mcp.figma.com",
-    "remote_transport": "streamable-http",
-    "remote_headers": [
-      {
-        "name": "X-Figma-Token",
-        "description": "Figma personal access token.",
-        "is_required": true,
-        "is_secret": true
-      }
-    ],
+    "remote_url": "http://127.0.0.1:3845/sse",
+    "remote_transport": "sse",
     "cost_model": { "kind": "free" }
   },
   {
@@ -340,7 +332,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-postgres",
+    "package_identifier": "@modelcontextprotocol/server-postgres",
     "registry_names": [],
     "operator_label": { "en": "PostgreSQL", "fr": "PostgreSQL" },
     "description": {
@@ -369,7 +361,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-sqlite",
+    "package_identifier": "@modelcontextprotocol/server-sqlite",
     "registry_names": [],
     "operator_label": { "en": "SQLite", "fr": "SQLite" },
     "description": {
@@ -387,7 +379,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-git",
+    "package_identifier": "@modelcontextprotocol/server-git",
     "registry_names": [],
     "operator_label": { "en": "Git", "fr": "Git" },
     "description": {
@@ -405,7 +397,7 @@
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-time",
+    "package_identifier": "mcp-server-time",
     "registry_names": [],
     "operator_label": { "en": "Time", "fr": "Heure" },
     "description": {
@@ -418,12 +410,12 @@
     "auth_help_url": null,
     "auth_help_text": null,
     "default_requires_approval": false,
-    "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_registry_type": "pypi",
+    "package_runtime_hint": "uvx",
     "cost_model": { "kind": "free" }
   },
   {
-    "package_identifier": "@anthropic/mcp-server-fetch",
+    "package_identifier": "mcp-server-fetch",
     "registry_names": [],
     "operator_label": { "en": "Fetch", "fr": "Récupération web" },
     "description": {
@@ -436,8 +428,8 @@
     "auth_help_url": null,
     "auth_help_text": null,
     "default_requires_approval": false,
-    "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_registry_type": "pypi",
+    "package_runtime_hint": "uvx",
     "cost_model": { "kind": "free" }
   }
 ]

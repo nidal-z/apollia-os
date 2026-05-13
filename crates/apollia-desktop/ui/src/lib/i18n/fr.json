@@ -486,6 +486,8 @@
         "forbidden": "Accès interdit — votre clé n'a pas les droits requis.",
         "not_found": "Service introuvable — vérifiez l'URL ou le nom du serveur.",
         "network": "Erreur réseau — le service n'a pas répondu à temps.",
+        "handshake_timeout": "Le serveur a démarré mais n'a pas répondu au handshake MCP. Causes typiques : URL incorrecte, paquet npm/pypi en cours de téléchargement (réessayez), ou serveur incompatible avec la spec MCP.",
+        "transport_closed": "Le serveur s'est fermé avant la fin du handshake. Causes typiques : paquet introuvable sur npm/pypi (vérifiez l'identifiant), URL distante injoignable (DNS/firewall), ou commande locale absente.",
         "command_missing": "Commande introuvable — le paquet n'est probablement pas installé.",
         "generic": "La connexion a échoué. Vérifiez vos identifiants et réessayez.",
         "raw_details": "Voir le détail technique",

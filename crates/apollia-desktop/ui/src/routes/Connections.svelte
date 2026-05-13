@@ -284,13 +284,40 @@
     handleManage(name);
   }
 
+  /**
+   * Build a synthetic blank registry entry so the operator can fill in their
+   * own server name + URL or command from the wizard. Distinct from a curated
+   * catalogue entry — no enrichment, no preset transport, custom trust level.
+   *
+   * v0.1.0 routes the resulting form through ConnectorWizard with all
+   * connection-mode toggles open and lets the user pick stdio vs HTTP vs SSE.
+   */
+  function makeCustomServer(): RegistryServerView {
+    return {
+      name: "custom-mcp-server",
+      title: "Serveur MCP personnalisé",
+      description: "Configurez votre propre serveur MCP (interne, communautaire ou en développement).",
+      version: "",
+      website_url: null,
+      packages: null,
+      icons: null,
+      repository: null,
+      trust_level: "custom",
+      category: "internal",
+      enrichment: null,
+      is_installed: false,
+      remotes: [],
+    } as RegistryServerView;
+  }
+
   function handleAddCustomMcp() {
-    // Open wizard with no preselected registry entry — handled by ConnectorWizard
-    // when fed a synthetic entry; for now, surface the disclaimer + scroll to
-    // catalogue. Custom URL entry is exposed inside OperatorServerManage flows.
+    const custom = makeCustomServer();
     if (!isDisclaimerAccepted()) {
+      selectedRegistryServer = custom;
       disclaimerOpen = true;
+      return;
     }
+    openWizardFor(custom);
   }
 
   $effect(() => {

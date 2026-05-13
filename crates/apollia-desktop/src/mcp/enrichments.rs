@@ -203,12 +203,15 @@ mod tests {
             .iter()
             .map(|e| e.package_identifier.as_str())
             .collect();
-        // THEN all 5 expected connectors are present
+        // THEN the 5 baseline connectors are present under the current
+        // canonical package identifiers (the @modelcontextprotocol namespace
+        // is the real one published on npm — earlier builds referenced an
+        // @anthropic prefix that never existed).
         assert!(ids.contains(&"@notionhq/notion-mcp-server"));
-        assert!(ids.contains(&"@anthropic/mcp-server-brave-search"));
-        assert!(ids.contains(&"@anthropic/mcp-server-filesystem"));
-        assert!(ids.contains(&"@anthropic/mcp-server-memory"));
-        assert!(ids.contains(&"@anthropic/mcp-server-puppeteer"));
+        assert!(ids.contains(&"@modelcontextprotocol/server-brave-search"));
+        assert!(ids.contains(&"@modelcontextprotocol/server-filesystem"));
+        assert!(ids.contains(&"@modelcontextprotocol/server-memory"));
+        assert!(ids.contains(&"@modelcontextprotocol/server-puppeteer"));
     }
 
     #[test]
@@ -263,7 +266,7 @@ mod tests {
         let enrichments = load_builtin_enrichments();
         let brave = enrichments
             .iter()
-            .find(|e| e.package_identifier == "@anthropic/mcp-server-brave-search")
+            .find(|e| e.package_identifier == "@modelcontextprotocol/server-brave-search")
             .expect("brave");
         let cost = brave.cost_model.as_ref().expect("cost_model");
         assert_eq!(cost.kind, CostKind::Freemium);

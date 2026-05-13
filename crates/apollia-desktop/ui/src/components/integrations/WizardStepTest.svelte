@@ -51,11 +51,29 @@
     if (
       lower.includes("timeout") ||
       lower.includes("timed out") ||
-      lower.includes("network")
+      lower.includes("initialize timeout")
     ) {
+      // Initialize timeout = the server started but never replied to the MCP
+      // handshake. Typically a wrong endpoint, slow npx download on cold
+      // cache, or auth that takes too long.
+      return $t("integrations.wizard.test_err.handshake_timeout");
+    }
+    if (
+      lower.includes("transport send channel closed") ||
+      lower.includes("server exited") ||
+      lower.includes("stdin closed")
+    ) {
+      // The subprocess (stdio) or the upstream (HTTP/SSE) closed the
+      // connection before the handshake completed. Most common causes:
+      // - npm package not found ("npx <pkg>" fails to download)
+      // - HTTP endpoint unreachable (wrong URL, DNS down)
+      // - auth rejected at connection layer (rare — usually surfaced as 401)
+      return $t("integrations.wizard.test_err.transport_closed");
+    }
+    if (lower.includes("network") || lower.includes("dns") || lower.includes("connect")) {
       return $t("integrations.wizard.test_err.network");
     }
-    if (lower.includes("enoent") || lower.includes("command")) {
+    if (lower.includes("enoent") || lower.includes("command not found")) {
       return $t("integrations.wizard.test_err.command_missing");
     }
     return $t("integrations.wizard.test_err.generic");

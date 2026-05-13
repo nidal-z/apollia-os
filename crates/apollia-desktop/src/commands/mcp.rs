@@ -472,10 +472,21 @@ pub async fn fetch_mcp_registry(
     state: State<'_, RuntimeHandle>,
     search: Option<String>,
 ) -> Result<Vec<RegistryServerView>, String> {
-    let raw_servers = registry
-        .fetch_servers(search.as_deref())
-        .await
-        .map_err(|e| e.to_string())?;
+    // The remote MCP registry can be unreachable (offline, DNS down, registry
+    // outage, or simply not configured in this build). When that happens we
+    // still want the operator to see the 18 curated entries from
+    // enrichments.json — they are baked into the binary and require no
+    // network. Treat any registry error as an empty result and log it.
+    let raw_servers = match registry.fetch_servers(search.as_deref()).await {
+        Ok(servers) => servers,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "mcp.registry.fetch_failed — falling back to curated catalogue only"
+            );
+            Vec::new()
+        }
+    };
 
     // Build enrichment lookups: by package identifier AND by registry server name.
     let enrichments = load_builtin_enrichments();
