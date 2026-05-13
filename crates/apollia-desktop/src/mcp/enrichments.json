@@ -257,20 +257,41 @@
     "registry_names": ["com.figma/mcp"],
     "operator_label": { "en": "Figma", "fr": "Figma" },
     "description": {
-      "en": "Read Figma files via the Figma Dev Mode local MCP server (requires Figma Desktop).",
-      "fr": "Lire des fichiers Figma via le serveur MCP local Dev Mode (Figma Desktop requis)."
+      "en": "Read Figma files via the official Figma Dev Mode MCP server (requires Figma Desktop running).",
+      "fr": "Lire les fichiers Figma via le serveur MCP officiel Dev Mode (Figma Desktop doit être lancé)."
     },
     "category": "design",
     "icon_name": "figma",
     "trust_level": "verified_official",
-    "auth_help_url": "https://help.figma.com/hc/en-us/articles/32132100833559",
+    "auth_help_url": "https://developers.figma.com/docs/figma-mcp-server/local-server-installation/",
     "auth_help_text": {
-      "en": "Open Figma Desktop, enable Dev Mode MCP Server in Preferences. The server is reachable at http://127.0.0.1:3845/sse — no token required.",
-      "fr": "Ouvrez Figma Desktop, activez le serveur MCP Dev Mode dans Préférences. Le serveur est joignable sur http://127.0.0.1:3845/sse — aucun token requis."
+      "en": "Open Figma Desktop → Preferences → enable Dev Mode MCP Server. The server then listens on http://127.0.0.1:3845/mcp without authentication (local-only binding). No token required.",
+      "fr": "Ouvrez Figma Desktop → Préférences → activez Dev Mode MCP Server. Le serveur écoute alors sur http://127.0.0.1:3845/mcp sans authentification (binding local). Aucun token requis."
     },
     "default_requires_approval": false,
-    "remote_url": "http://127.0.0.1:3845/sse",
-    "remote_transport": "sse",
+    "remote_url": "http://127.0.0.1:3845/mcp",
+    "remote_transport": "streamable-http",
+    "cost_model": { "kind": "free" }
+  },
+  {
+    "package_identifier": "com.figma/mcp-cloud",
+    "registry_names": ["com.figma/mcp-cloud"],
+    "operator_label": { "en": "Figma (cloud, OAuth)", "fr": "Figma (cloud, OAuth)" },
+    "description": {
+      "en": "Figma's hosted MCP server accessible from anywhere — uses OAuth 2.0 sign-in.",
+      "fr": "Le serveur MCP cloud Figma accessible partout — connexion via OAuth 2.0."
+    },
+    "category": "design",
+    "icon_name": "figma",
+    "trust_level": "verified_official",
+    "auth_help_url": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+    "auth_help_text": {
+      "en": "Figma's hosted MCP requires the client to perform an OAuth 2.0 flow. Apollia's automatic MCP OAuth handshake is scheduled for v0.1.1 — until then, use the local Dev Mode entry instead.",
+      "fr": "Le MCP cloud Figma exige un flow OAuth 2.0 côté client. Le handshake OAuth MCP automatique d'Apollia arrive en v0.1.1 — entre-temps, utilisez l'entrée Dev Mode locale."
+    },
+    "default_requires_approval": true,
+    "remote_url": "https://mcp.figma.com/mcp",
+    "remote_transport": "streamable-http",
     "cost_model": { "kind": "free" }
   },
   {

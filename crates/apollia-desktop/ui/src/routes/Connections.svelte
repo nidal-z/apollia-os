@@ -58,6 +58,162 @@
   let manageOpen = $state(false);
   let errorModalOpen = $state(false);
   let errorServer = $state<McpServerStatusView | null>(null);
+  let customDialogOpen = $state(false);
+
+  // ── Native Apollia connectors (Google Workspace, Microsoft 365) ─────────────
+  type ProviderId = "google" | "microsoft";
+
+  interface NativeConnectorCard {
+    id: ProviderId;
+    name: string;
+    description: string;
+  }
+
+  interface OauthAccountInfo {
+    provider: ProviderId;
+    account_id: string;
+  }
+
+  const NATIVE_CONNECTORS: NativeConnectorCard[] = [
+    {
+      id: "google",
+      name: "Google Workspace",
+      description: "Gmail (envoi + brouillons), Calendar, Drive Workspace",
+    },
+    {
+      id: "microsoft",
+      name: "Microsoft 365",
+      description: "Outlook Mail, Outlook Calendar, OneDrive",
+    },
+  ];
+
+  let nativeAccounts = $state<OauthAccountInfo[]>([]);
+  let nativeLoading = $state(false);
+  let nativeError = $state<string | null>(null);
+  let oauthDialogOpen = $state(false);
+  let oauthDialogProvider = $state<ProviderId | null>(null);
+  let oauthDialogAuthUrl = $state<string | null>(null);
+  let oauthDialogState = $state<string | null>(null);
+  let oauthDialogPastedCode = $state("");
+  let oauthDialogError = $state<string | null>(null);
+  let oauthDialogBusy = $state(false);
+
+  async function refreshNativeStatus() {
+    nativeLoading = true;
+    nativeError = null;
+    try {
+      nativeAccounts = await invoke<OauthAccountInfo[]>("oauth_get_status");
+    } catch (e) {
+      nativeError = formatTauriError(e);
+    } finally {
+      nativeLoading = false;
+    }
+  }
+
+  function accountsForProvider(provider: ProviderId): OauthAccountInfo[] {
+    return nativeAccounts.filter((a) => a.provider === provider);
+  }
+
+  function formatTauriError(e: unknown): string {
+    if (typeof e === "string") return e;
+    const anyE = e as { kind?: string; detail?: string; message?: string };
+    if (anyE.kind === "sovereignty_blocked") {
+      return "Profil souveraineté « local-only » : connecteurs cloud désactivés.";
+    }
+    if (anyE.kind === "oauth_client_not_configured") {
+      return "Client OAuth non configuré dans ce build. Voir docs/internal/release/OAUTH-CLIENT-IDS.md.";
+    }
+    if (anyE.kind && anyE.detail) {
+      return `${anyE.kind}: ${anyE.detail}`;
+    }
+    if (anyE.message) return anyE.message;
+    if (anyE.kind) return anyE.kind;
+    return String(e);
+  }
+
+  async function startNativeConnect(provider: ProviderId) {
+    oauthDialogProvider = provider;
+    oauthDialogAuthUrl = null;
+    oauthDialogState = null;
+    oauthDialogPastedCode = "";
+    oauthDialogError = null;
+    oauthDialogBusy = true;
+    oauthDialogOpen = true;
+    try {
+      // Default scopes mirror connector_providers.rs defaults — let the
+      // user trim later via "Gérer le compte" once we expose a scope picker.
+      const defaultScopes =
+        provider === "google"
+          ? [
+              "mail.send",
+              "mail.compose",
+              "calendar.read",
+              "calendar.write",
+              "drive.workspace",
+            ]
+          : [
+              "mail.read",
+              "mail.send",
+              "calendar.read",
+              "calendar.write",
+              "files.read",
+            ];
+      const start = await invoke<{
+        auth_url: string;
+        state: string;
+        callback_port: number;
+      }>("oauth_start_flow", {
+        provider,
+        scopes: defaultScopes,
+        sovereignty: "cloud_allowed",
+      });
+      oauthDialogAuthUrl = start.auth_url;
+      oauthDialogState = start.state;
+      // Open the system browser on the auth URL.
+      window.open(start.auth_url, "_blank");
+    } catch (e) {
+      oauthDialogError = formatTauriError(e);
+    } finally {
+      oauthDialogBusy = false;
+    }
+  }
+
+  async function completeNativeFlow() {
+    if (!oauthDialogState || !oauthDialogPastedCode) return;
+    oauthDialogBusy = true;
+    oauthDialogError = null;
+    try {
+      await invoke("oauth_complete_flow", {
+        state: oauthDialogState,
+        code: oauthDialogPastedCode.trim(),
+      });
+      oauthDialogOpen = false;
+      await refreshNativeStatus();
+    } catch (e) {
+      oauthDialogError = formatTauriError(e);
+    } finally {
+      oauthDialogBusy = false;
+    }
+  }
+
+  async function disconnectNative(account: OauthAccountInfo) {
+    if (
+      !confirm(
+        `Déconnecter ${account.account_id} (${account.provider}) ?\nLe token sera révoqué localement.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await invoke("oauth_disconnect", {
+        provider: account.provider,
+        accountId: account.account_id,
+      });
+      await refreshNativeStatus();
+    } catch (e) {
+      nativeError = formatTauriError(e);
+    }
+  }
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
@@ -285,43 +441,117 @@
   }
 
   /**
-   * Build a synthetic blank registry entry so the operator can fill in their
-   * own server name + URL or command from the wizard. Distinct from a curated
-   * catalogue entry — no enrichment, no preset transport, custom trust level.
-   *
-   * v0.1.0 routes the resulting form through ConnectorWizard with all
-   * connection-mode toggles open and lets the user pick stdio vs HTTP vs SSE.
+   * Open the custom MCP server dialog — a simpler form than the catalogue
+   * wizard, used to register a server identified only by command/URL +
+   * headers (no enrichment, no preset transport).
    */
-  function makeCustomServer(): RegistryServerView {
-    return {
-      name: "custom-mcp-server",
-      title: "Serveur MCP personnalisé",
-      description: "Configurez votre propre serveur MCP (interne, communautaire ou en développement).",
-      version: "",
-      website_url: null,
-      packages: null,
-      icons: null,
-      repository: null,
-      trust_level: "custom",
-      category: "internal",
-      enrichment: null,
-      is_installed: false,
-      remotes: [],
-    } as RegistryServerView;
+  function handleAddCustomMcp() {
+    customDialogOpen = true;
   }
 
-  function handleAddCustomMcp() {
-    const custom = makeCustomServer();
-    if (!isDisclaimerAccepted()) {
-      selectedRegistryServer = custom;
-      disclaimerOpen = true;
-      return;
+  // Custom MCP server form state.
+  let customForm = $state({
+    name: "",
+    transport: "stdio" as "stdio" | "streamable-http" | "sse",
+    command: "",
+    args: "",
+    url: "",
+    headers: "" as string, // free-form: "Header-Name=value" per line
+    requires_approval: true,
+  });
+  let customBusy = $state(false);
+  let customError = $state<string | null>(null);
+  let customTestResult = $state<string | null>(null);
+
+  function resetCustomForm() {
+    customForm = {
+      name: "",
+      transport: "stdio",
+      command: "",
+      args: "",
+      url: "",
+      headers: "",
+      requires_approval: true,
+    };
+    customError = null;
+    customTestResult = null;
+  }
+
+  function buildCustomConfig(): Record<string, unknown> | null {
+    const env: Record<string, string> = {};
+    for (const line of customForm.headers.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq <= 0) continue;
+      env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
     }
-    openWizardFor(custom);
+    const base: Record<string, unknown> = {
+      name: customForm.name.trim() || "custom-mcp",
+      env,
+      transport: customForm.transport,
+      requires_approval: customForm.requires_approval,
+      tags: [],
+    };
+    if (customForm.transport === "stdio") {
+      if (!customForm.command.trim()) {
+        customError = "Indiquez la commande à lancer (ex. npx, uvx, /usr/local/bin/myserver).";
+        return null;
+      }
+      base.command = customForm.command.trim();
+      base.args = customForm.args
+        .split(/\s+/)
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0);
+    } else {
+      if (!customForm.url.trim()) {
+        customError = "Indiquez l'URL du serveur MCP (HTTP ou SSE).";
+        return null;
+      }
+      base.url = customForm.url.trim();
+    }
+    return base;
+  }
+
+  async function testCustomServer() {
+    customError = null;
+    customTestResult = null;
+    const config = buildCustomConfig();
+    if (!config) return;
+    customBusy = true;
+    try {
+      const result = await invoke<{ tools: { local_name: string }[] }>(
+        "test_mcp_connection",
+        { config },
+      );
+      customTestResult = `${result.tools.length} outil(s) détecté(s).`;
+    } catch (e) {
+      customError = formatTauriError(e);
+    } finally {
+      customBusy = false;
+    }
+  }
+
+  async function installCustomServer() {
+    customError = null;
+    const config = buildCustomConfig();
+    if (!config) return;
+    customBusy = true;
+    try {
+      await invoke("add_mcp_server", { config });
+      customDialogOpen = false;
+      resetCustomForm();
+      await loadAll();
+    } catch (e) {
+      customError = formatTauriError(e);
+    } finally {
+      customBusy = false;
+    }
   }
 
   $effect(() => {
     loadAll();
+    void refreshNativeStatus();
   });
 
   // Avoid unused-binding warning from prop.
@@ -350,9 +580,66 @@
     </p>
   {/if}
 
-  <!-- ============ SECTION APOLLIA ============ -->
-  <SectionTitle count={`${activeCount} actif${activeCount > 1 ? "s" : ""} · ${servers.length} total`}>
+  <!-- ============ SECTION CONNECTEURS NATIFS APOLLIA (OAuth) ============ -->
+  <SectionTitle count={`${nativeAccounts.length} compte${nativeAccounts.length > 1 ? "s" : ""} connecté${nativeAccounts.length > 1 ? "s" : ""}`}>
     Connecteurs Apollia
+    {#snippet action()}
+      <Chip tone="primary" size="sm">curés · OAuth managé</Chip>
+    {/snippet}
+  </SectionTitle>
+
+  {#if nativeError}
+    <p class="px-8 pb-2 text-xs text-destructive">{nativeError}</p>
+  {/if}
+
+  <div class="px-8 pb-4 grid grid-cols-2 gap-3" data-testid="connections-native-grid">
+    {#each NATIVE_CONNECTORS as connector (connector.id)}
+      {@const accounts = accountsForProvider(connector.id)}
+      <div class="rounded-xl border border-border bg-surface-1 p-4 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-medium text-sm">{connector.name}</div>
+            <div class="text-xs text-muted-foreground">{connector.description}</div>
+          </div>
+          <Chip tone={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
+            {accounts.length > 0 ? `${accounts.length} actif` : "Non connecté"}
+          </Chip>
+        </div>
+
+        {#if accounts.length > 0}
+          <ul class="text-xs space-y-1 mt-1">
+            {#each accounts as account (account.account_id)}
+              <li class="flex items-center justify-between gap-2">
+                <span class="truncate">{account.account_id}</span>
+                <button
+                  type="button"
+                  class="text-destructive hover:underline text-[11px]"
+                  onclick={() => disconnectNative(account)}
+                  disabled={nativeLoading}
+                >
+                  Déconnecter
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        <div class="mt-1">
+          <BtnPrimary onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+            {#snippet icon()}<Plus size={12} />{/snippet}
+            {accounts.length > 0 ? "Ajouter un compte" : "Connecter un compte"}
+          </BtnPrimary>
+        </div>
+      </div>
+    {/each}
+  </div>
+
+  <!-- ============ SECTION SERVEURS MCP INSTALLÉS ============ -->
+  <SectionTitle count={`${activeCount} actif${activeCount > 1 ? "s" : ""} · ${servers.length} total`}>
+    Serveurs MCP installés
+    {#snippet action()}
+      <Chip tone="neutral" size="sm">protocole ouvert</Chip>
+    {/snippet}
   </SectionTitle>
 
   <div class="px-8 pb-2 flex items-center gap-2" data-testid="connections-status-filters">
@@ -649,3 +936,175 @@
   onretry={handleRetry}
   onviewLogs={handleViewLogs}
 />
+
+<!-- ============ NATIVE OAUTH DIALOG ============ -->
+{#if oauthDialogOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+    <div class="w-full max-w-md rounded-xl bg-surface-1 border border-border p-5 space-y-3">
+      <h2 class="text-lg font-semibold">
+        Connecter {oauthDialogProvider === "google" ? "Google Workspace" : "Microsoft 365"}
+      </h2>
+
+      {#if oauthDialogBusy && !oauthDialogAuthUrl}
+        <p class="text-sm text-muted-foreground">Préparation du flow OAuth…</p>
+      {:else if oauthDialogError && !oauthDialogAuthUrl}
+        <p class="text-sm text-destructive">{oauthDialogError}</p>
+      {:else if oauthDialogAuthUrl}
+        <p class="text-sm text-muted-foreground">
+          Une fenêtre navigateur s'est ouverte sur le consentement
+          {oauthDialogProvider === "google" ? "Google" : "Microsoft"}. Validez
+          les permissions, puis collez ici le code d'autorisation retourné.
+        </p>
+        <p class="text-xs text-muted-foreground">
+          Si la fenêtre ne s'est pas ouverte : <a
+            class="underline"
+            href={oauthDialogAuthUrl}
+            target="_blank"
+            rel="noopener noreferrer">ouvrir l'URL manuellement</a
+          >.
+        </p>
+        <input
+          type="text"
+          class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
+          placeholder="Code d'autorisation (4/0A...)"
+          bind:value={oauthDialogPastedCode}
+          disabled={oauthDialogBusy}
+        />
+        {#if oauthDialogError}
+          <p class="text-xs text-destructive">{oauthDialogError}</p>
+        {/if}
+      {/if}
+
+      <div class="flex justify-end gap-2 pt-1">
+        <BtnSecondary onclick={() => (oauthDialogOpen = false)}>Annuler</BtnSecondary>
+        {#if oauthDialogAuthUrl}
+          <BtnPrimary
+            onclick={completeNativeFlow}
+            disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
+          >
+            {oauthDialogBusy ? "Finalisation…" : "Finaliser"}
+          </BtnPrimary>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ============ CUSTOM MCP DIALOG ============ -->
+{#if customDialogOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+    <div class="w-full max-w-xl rounded-xl bg-surface-1 border border-border p-5 space-y-3 overflow-auto max-h-[90vh]">
+      <h2 class="text-lg font-semibold">Ajouter un serveur MCP personnalisé</h2>
+      <p class="text-xs text-muted-foreground">
+        Pour brancher un MCP server interne, communautaire, ou en cours de
+        développement. Pour un service curé (Notion, GitHub, Local Files…),
+        utilisez plutôt une carte du catalogue ci-dessous.
+      </p>
+
+      <div class="space-y-2">
+        <label class="block text-xs font-medium">
+          Nom (interne, unique)
+          <input
+            type="text"
+            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+            placeholder="ex. acme-internal"
+            bind:value={customForm.name}
+            disabled={customBusy}
+          />
+        </label>
+
+        <label class="block text-xs font-medium">
+          Transport
+          <select
+            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+            bind:value={customForm.transport}
+            disabled={customBusy}
+          >
+            <option value="stdio">stdio (subprocess local)</option>
+            <option value="streamable-http">Streamable HTTP (MCP 2025-11-25)</option>
+            <option value="sse">SSE (legacy 2024-11-05)</option>
+          </select>
+        </label>
+
+        {#if customForm.transport === "stdio"}
+          <label class="block text-xs font-medium">
+            Commande
+            <input
+              type="text"
+              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              placeholder="npx, uvx, /path/to/binary…"
+              bind:value={customForm.command}
+              disabled={customBusy}
+            />
+          </label>
+          <label class="block text-xs font-medium">
+            Arguments (espace-séparé)
+            <input
+              type="text"
+              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              placeholder="@modelcontextprotocol/server-filesystem /tmp"
+              bind:value={customForm.args}
+              disabled={customBusy}
+            />
+          </label>
+        {:else}
+          <label class="block text-xs font-medium">
+            URL du serveur
+            <input
+              type="url"
+              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+              placeholder="https://mcp.example.com/v1"
+              bind:value={customForm.url}
+              disabled={customBusy}
+            />
+          </label>
+        {/if}
+
+        <label class="block text-xs font-medium">
+          {customForm.transport === "stdio" ? "Variables d'environnement" : "Headers HTTP"} (une par ligne, format <code>NOM=valeur</code>)
+          <textarea
+            class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm font-mono"
+            rows="3"
+            placeholder={customForm.transport === "stdio"
+              ? "NOTION_TOKEN=ntn_xxxxx\nDEBUG=1"
+              : "Authorization=Bearer xxx\nX-Custom-Header=value"}
+            bind:value={customForm.headers}
+            disabled={customBusy}
+          ></textarea>
+        </label>
+
+        <label class="block text-xs font-medium flex items-center gap-2 pt-1">
+          <input type="checkbox" bind:checked={customForm.requires_approval} disabled={customBusy} />
+          Demander une approbation HITL pour chaque appel d'outil
+        </label>
+      </div>
+
+      {#if customTestResult}
+        <div class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+          ✓ Test OK — {customTestResult}
+        </div>
+      {/if}
+      {#if customError}
+        <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {customError}
+        </div>
+      {/if}
+
+      <div class="flex justify-end gap-2 pt-1">
+        <BtnSecondary
+          onclick={() => {
+            customDialogOpen = false;
+            resetCustomForm();
+          }}
+          disabled={customBusy}>Annuler</BtnSecondary
+        >
+        <BtnSecondary onclick={testCustomServer} disabled={customBusy}>
+          {customBusy ? "Test…" : "Tester"}
+        </BtnSecondary>
+        <BtnPrimary onclick={installCustomServer} disabled={customBusy}>
+          {customBusy ? "Installation…" : "Installer"}
+        </BtnPrimary>
+      </div>
+    </div>
+  </div>
+{/if}
