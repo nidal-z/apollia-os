@@ -531,6 +531,11 @@ struct ChatSessionManager {
     project_repo: Option<Arc<ProjectRepository>>,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
+    /// MCP manager handle, populated when the supervisor's Phase 3b
+    /// succeeds. Propagated to `NativeChatToolInvoker` per session so
+    /// chat-libre invocations of `mcp:<server>/<tool>` can be routed
+    /// through the manager.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
     pending_user_replies: HashMap<
@@ -1223,6 +1228,7 @@ impl ChatSessionManager {
             let event_bus = self.event_bus.clone();
 
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
+            let mcp_handle_for_session = self.mcp_handle.clone();
 
             // Capture HITL filesystem params for the invoker.
             let hitl_params = HitlInvokerParams {
@@ -1241,6 +1247,7 @@ impl ChatSessionManager {
                     &project_repo_for_session,
                     Some(hitl_params),
                     Some(pending_user_inputs_for_session),
+                    mcp_handle_for_session,
                 )
                 .await
                 {
@@ -2280,6 +2287,7 @@ async fn resolve_workspace_for_session(
     project_repo: &Option<Arc<ProjectRepository>>,
     hitl: Option<HitlInvokerParams>,
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let workspace_path = match project_id {
         None => {
@@ -2309,6 +2317,9 @@ async fn resolve_workspace_for_session(
     let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path);
     if let Some(pending) = pending_user_inputs {
         invoker = invoker.with_ask_user_support(pending);
+    }
+    if let Some(handle) = mcp_handle {
+        invoker = invoker.with_mcp_handle(handle);
     }
     if let Some(p) = hitl {
         Ok(invoker.with_hitl_support(
@@ -2379,6 +2390,7 @@ impl ChatSessionManagerHandle {
         a2a_invoker: Option<Arc<A2AInvoker>>,
         project_context: Option<Arc<dyn ProjectContextProvider>>,
         project_repo: Option<Arc<ProjectRepository>>,
+        mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -2413,6 +2425,7 @@ impl ChatSessionManagerHandle {
             project_context,
             project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
+            mcp_handle,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
         };
@@ -3104,6 +3117,7 @@ mod tests {
             None, // no A2A invoker in basic tests
             None, // no project context in basic tests
             None, // no project repo in basic tests
+            None, // no mcp handle in basic tests
         )
         .expect("spawn manager")
     }
@@ -3246,6 +3260,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .expect("spawn");
 
@@ -3340,6 +3355,7 @@ mod tests {
             pending_chat_approvals: pending,
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            mcp_handle: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3471,6 +3487,7 @@ mod tests {
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            mcp_handle: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3533,6 +3550,7 @@ mod tests {
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            mcp_handle: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3573,6 +3591,7 @@ mod tests {
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            mcp_handle: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,

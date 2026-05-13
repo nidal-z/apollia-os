@@ -73,6 +73,13 @@ pub struct NativeChatToolInvoker {
     risk_config: apollia_core::FilesystemRiskConfig,
     /// Pending user input registry for the `ask_user` tool.
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
+    /// MCP manager handle — when present, tools named `mcp:<server>/<tool>` are
+    /// routed through this handle's `call_tool` instead of returning the
+    /// `unknown tool` error path. Without this, the chat-libre LLM can see
+    /// MCP tools in its tool list (registered in `tool_registry`) but every
+    /// invocation fails because the hardcoded `match` in `invoke()` only
+    /// knows the native tool names.
+    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
 }
 
 impl NativeChatToolInvoker {
@@ -96,6 +103,7 @@ impl NativeChatToolInvoker {
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
             pending_user_inputs: None,
+            mcp_handle: None,
         }
     }
 
@@ -117,7 +125,19 @@ impl NativeChatToolInvoker {
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
             pending_user_inputs: None,
+            mcp_handle: None,
         }
+    }
+
+    /// Attach an [`McpClientManagerHandle`] so the invoker can route
+    /// `mcp:<server>/<tool>` tool calls through the manager instead of
+    /// returning `unknown tool`.
+    pub fn with_mcp_handle(
+        mut self,
+        handle: apollia_mcp::manager::McpClientManagerHandle,
+    ) -> Self {
+        self.mcp_handle = Some(handle);
+        self
     }
 
     /// Returns the workspace path associated with this invoker, if any.
@@ -578,6 +598,50 @@ impl ToolInvoker for NativeChatToolInvoker {
         tool_name: &str,
         arguments: &serde_json::Value,
     ) -> Result<String, String> {
+        // MCP tools follow `mcp:<server>/<tool>`. Route them through the MCP
+        // manager before reaching the native-tool match below; otherwise the
+        // hardcoded match falls through to "unknown tool" and the chat-libre
+        // LLM sees every MCP invocation fail.
+        if let Some(handle) = self.mcp_handle.as_ref() {
+            if let Some((server, tool)) =
+                apollia_mcp::executor::McpToolExecutor::parse_tool_name(tool_name)
+            {
+                let args = if arguments.is_null() {
+                    None
+                } else {
+                    Some(arguments.clone())
+                };
+                let result = handle
+                    .call_tool(server, tool, args)
+                    .await
+                    .map_err(|e| format!("mcp tool '{tool_name}' failed: {e}"))?;
+                // ToolCallResult.content is a list of typed chunks; collect
+                // their text parts into a single string for the LLM.
+                let collected: Vec<String> = result
+                    .content
+                    .into_iter()
+                    .filter_map(|c| match c {
+                        apollia_mcp::protocol::ToolCallContent::Text { text } => Some(text),
+                        apollia_mcp::protocol::ToolCallContent::Image { mime_type, .. } => {
+                            Some(format!("<{mime_type} image data omitted>"))
+                        }
+                        apollia_mcp::protocol::ToolCallContent::Resource { resource } => {
+                            Some(serde_json::to_string(&resource).unwrap_or_default())
+                        }
+                    })
+                    .collect();
+                let mut joined = collected.join("\n");
+                if result.is_error.unwrap_or(false) {
+                    joined = format!("(mcp server reported error)\n{joined}");
+                }
+                return Ok(joined);
+            }
+        } else if tool_name.starts_with("mcp:") {
+            return Err(format!(
+                "mcp tool '{tool_name}' could not be routed — the MCP manager is not attached to this chat invoker"
+            ));
+        }
+
         match tool_name {
             "bash_executor" => self.invoke_bash(arguments).await,
             "file_read" => self.invoke_file_read(arguments).await,

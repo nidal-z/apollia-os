@@ -189,7 +189,16 @@
 
   // ── Config builder ──────────────────────────────────────────────────────────
   function buildConfig(forTest: boolean): McpServerConfigInput | null {
-    const safeName = sanitizeServerName(server.name);
+    // Prefer the operator label (e.g. "Local Files") over the registry
+    // identifier (e.g. "@modelcontextprotocol/server-filesystem"). The
+    // operator label is the human-facing card name; using it as the server
+    // name keeps the installed-card label, the runtime logs, and the
+    // `mcp:<server>/<tool>` invocation prefix consistent and readable.
+    let nameSource = server.enrichment?.operator_label ?? server.title ?? server.name;
+    if (!nameSource || nameSource.trim().length === 0) {
+      nameSource = server.name;
+    }
+    const safeName = sanitizeServerName(nameSource);
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
       for (const header of remote.headers) {

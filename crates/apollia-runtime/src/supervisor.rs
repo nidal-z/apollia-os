@@ -972,6 +972,7 @@ impl Supervisor {
                         as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
                 }),
                 project_repository.clone(),
+                mcp_handle.clone(),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");

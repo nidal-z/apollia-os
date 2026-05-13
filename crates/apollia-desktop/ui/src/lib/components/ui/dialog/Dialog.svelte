@@ -124,7 +124,8 @@
     <div
       bind:this={dialogContentRef}
       class={cn(
-        "relative max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+        "relative max-h-[90vh] overflow-y-auto rounded-lg shadow-lg",
+        "bg-background text-foreground",
         sizeClasses[size],
         className,
       )}

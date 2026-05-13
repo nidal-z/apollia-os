@@ -723,6 +723,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .expect("spawn chat manager");
 
