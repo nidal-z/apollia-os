@@ -10,18 +10,19 @@ Le raccourci de dictée peut entrer en conflit avec un raccourci système (Spotl
 
 **Solution :**
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-2. Repérez le champ **Raccourci global** et appuyez sur la combinaison souhaitée pour vérifier qu'elle est bien capturée.
-   `[SCREENSHOT: page Paramètres Reconnaissance vocale, champ Raccourci global en focus avec combinaison affichée]`
-3. Si elle ne s'affiche pas, choisissez une combinaison différente (par exemple `Cmd+Shift+D`) et enregistrez.
-4. Testez à nouveau : un indicateur rouge **Enregistrement** doit apparaître dès l'appui.
+2. Repérez la ligne **Raccourci global** : la combinaison actuelle s'affiche sous forme de touches stylisées.
+3. **Cliquez sur la combinaison** : un dialog plein écran de capture s'ouvre. Appuyez sur la nouvelle combinaison souhaitée — elle est capturée en temps réel et enregistrée à la validation.
+   `[SCREENSHOT: dialog plein écran de capture de raccourci, message "Appuyez sur la combinaison souhaitée", touches détectées en gros caractères]`
+4. Quittez le dialog avec **Échap** pour annuler.
+5. Testez à nouveau le raccourci : **un overlay d'enregistrement avec visualizer audio** doit s'afficher dès l'appui.
 
 ### 2. Le modèle de transcription n'est pas téléchargé
 
-Apollia transcrit en local avec le modèle Whisper. Sans modèle chargé, l'appui sur le raccourci ne produit rien.
+Apollia transcrit en local avec un modèle Whisper. Sans modèle chargé, l'appui sur le raccourci ne produit rien.
 
 **Solution :**
 1. Ouvrez **Paramètres → Reconnaissance vocale** et regardez l'état du moteur en haut de la page.
-2. Si le modèle est marqué **Modèle non chargé**, cliquez sur **Paramètres → Hub de modèles** et téléchargez au minimum le modèle **Whisper Small** (suffisant pour le français).
+2. Si l'état affiche *« Modèle non chargé »* ou équivalent, ouvrez **Paramètres → Hub de modèles** et téléchargez au minimum le modèle **Whisper Small** (suffisant pour le français).
 3. Revenez sur la page **Reconnaissance vocale** : l'état doit afficher **Modèle chargé**.
 
 ### 3. Votre microphone système est muet ou mal sélectionné
@@ -53,8 +54,8 @@ Le modèle Whisper transcrit selon la langue configurée. Une langue erronée pr
 
 ## Si rien ne fonctionne
 
-1. Allez dans **Transcriptions** pour voir si des essais récents ont produit du contenu vide ou incohérent : cela aide à localiser le problème.
-2. Téléchargez un modèle Whisper plus précis (**Medium** ou **Large**) depuis **Model Hub** si vos dictées sont systématiquement floues.
-3. Relancez Apollia après chaque changement de modèle ou de raccourci.
+1. Allez dans **Transcriptions** *(visible dans la sidebar en mode Builder)* pour voir si des essais récents ont produit du contenu vide ou incohérent : cela aide à localiser le problème.
+2. Téléchargez un modèle Whisper plus précis (**Medium** ou **Large**) depuis **Paramètres → Hub de modèles** si vos dictées sont systématiquement floues.
+3. Relancez Apollia après chaque changement de modèle ou de raccourci pour que le moteur recharge sa configuration.
 
-> **Concept :** [Briques-STT](https://github.com/nidal-z/apollia-os/wiki/Briques-STT) — comprendre comment Apollia capte, traite et stocke vos dictées en local.
+> **Référence technique :** [Briques-STT](https://github.com/nidal-z/apollia-os/wiki/Briques-STT) — comprendre comment Apollia capte, traite et stocke vos dictées en local.

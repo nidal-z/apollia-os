@@ -1,8 +1,11 @@
 # Comprendre les permissions MCP
 
-> **Référence technique :** [Briques-MCP-Client](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP-Client) · [ADR-082 Tool Governance](https://github.com/nidal-z/apollia-os/wiki/ADR-082)
+> Pour les operators qui veulent comprendre les trois couches de garde-fous (trust level, approval policy, profil souveraineté) qu'Apollia applique quand un agent veut utiliser un outil — natif ou exposé par un serveur MCP.
 
-Apollia applique trois couches de garde-fous quand un agent veut utiliser un outil — natif ou exposé par un serveur MCP. Cette page explique comment elles se composent.
+## Prérequis
+
+- Vous avez au moins un connecteur ou un serveur MCP connecté.
+- Vous connaissez la différence entre connecteur natif et serveur MCP ([voir Vue d'ensemble](vue-d-ensemble-integrations.md)).
 
 ## Couche 1 — Trust levels du serveur
 
@@ -15,11 +18,11 @@ Le **trust level** classe la confiance qu'on accorde à la source d'un serveur M
 | `community` | Listé au registre mais non vérifié. | Toute publication tierce non-curée. |
 | `custom` | Ajouté manuellement par vous (via le wizard ou `mcp-overrides.json`). | Vos serveurs internes. |
 
-Le trust level est affiché comme badge dans le catalogue. Il **n'influence pas automatiquement** les permissions — c'est un indicateur visuel pour vous, l'opérateur.
+Le trust level est affiché comme badge dans le catalogue. Il **n'influence pas automatiquement** les permissions — c'est un indicateur visuel pour vous, l'operator.
 
 ## Couche 2 — Approval policy par outil
 
-Chaque outil exposé par un serveur ou par un connecteur natif déclare une **approval policy** (cf. ADR-082) :
+Chaque outil exposé par un serveur ou par un connecteur natif déclare une **approval policy** :
 
 | Policy | Comportement | Cas d'usage |
 |---|---|---|
@@ -31,7 +34,7 @@ Les policies par défaut sont posées par le crate qui expose l'outil. Vous pouv
 
 Conseil : laisser les défauts. Le coût d'une approbation supplémentaire est faible ; le coût d'un mail envoyé par erreur peut être élevé.
 
-## Couche 3 — Sovereignty profile
+## Couche 3 — Profil souveraineté
 
 Le profil **souveraineté** est une décision globale qui prime sur tout le reste :
 
@@ -73,3 +76,17 @@ Toutes les exécutions d'outils sont loggées dans `governance.db`. Vous pouvez 
 - Consulter l'historique : **Paramètres → Historique des actions**.
 - Filtrer par outil : `apollia tool-governance audit --tool 'gmail.*' --since '7d'`.
 - Exporter pour conformité : `apollia tool-governance export --format csv > audit-2026-05.csv`.
+
+## Vérification
+
+- Ouvrez **Paramètres → Gouvernance des outils** : vous voyez la liste de tous les outils enregistrés avec leur policy par défaut.
+- Lancez un agent qui appelle un outil `*.send` : une demande HITL apparaît dans la boîte de réception.
+- Activez `local_only` dans **Paramètres → Souveraineté** : les cards cloud passent en désactivé dans **Intégrations**.
+
+## Si ça ne marche pas
+
+- **Un outil read-only demande une approbation alors que je m'y attendais pas** : la policy par défaut a peut-être été durcie dans `governance.db`. Vérifiez via `apollia tool-governance get-policy <tool>`.
+- **Un MCP server a son tool en `community` mais marche sans approbation** : vous avez relâché la policy (volontairement ou par erreur) au moment de l'install. Retournez dans **Paramètres → Gouvernance des outils** et restaurez le défaut.
+- **`local_only` bloque mon flow alors que je suis sur un MCP stdio local** : vérifiez que le MCP est bien en transport `stdio` (pas `http` même pointé sur localhost). Le profil bloque tous les transports HTTP/SSE indépendamment de l'host.
+
+> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) · [ADR-082 Tool Governance](https://github.com/nidal-z/apollia-os/wiki/Decisions-Log)

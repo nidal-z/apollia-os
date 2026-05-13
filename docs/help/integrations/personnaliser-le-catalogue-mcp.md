@@ -1,5 +1,15 @@
 # Personnaliser le catalogue MCP
 
+> Pour les operators et les administrateurs d'équipe qui veulent ajouter, désactiver ou modifier des entrées du catalogue MCP sans attendre une release d'Apollia.
+
+## Prérequis
+
+- Vous savez écrire du JSON.
+- Vous avez un éditeur de texte.
+- Vous savez où trouver votre dossier `~/.apollia/` (créé au premier lancement d'Apollia).
+
+## Pourquoi ce fichier existe
+
 Le catalogue MCP par défaut d'Apollia v0.1.0 contient 18 entrées curées. Pour patcher ce catalogue (ajouter votre serveur interne, désactiver une entrée, modifier un comportement par défaut) sans attendre une release Apollia, déposez un fichier `~/.apollia/mcp-overrides.json`.
 
 ## Structure du fichier
@@ -78,6 +88,7 @@ Un objet avec `package_identifier` → patch JSON appliqué en deep-merge. Utili
 ```
 
 Sémantique du merge :
+
 - Les **objets** sont fusionnés récursivement (les clés du patch écrasent les clés homonymes de l'entrée).
 - Les **scalaires** (string, number, bool) sont remplacés.
 - Les **tableaux** sont remplacés entièrement (pas de concaténation).
@@ -88,13 +99,25 @@ Sémantique du merge :
 2. **override** est appliqué ensuite sur les entrées restantes.
 3. **add** est appliqué en dernier : les nouvelles entrées sont ajoutées en fin de liste.
 
-## Validation
+## Étapes
 
-Le fichier est chargé au démarrage d'Apollia Desktop :
+1. Créez ou éditez `~/.apollia/mcp-overrides.json` avec le contenu souhaité.
+2. Sauvegardez le fichier.
+3. Redémarrez Apollia Desktop pour que le fichier soit rechargé (v0.1.0 ne fait pas de hot-reload).
+4. Ouvrez **Connexions → catalogue** et vérifiez que vos modifications sont visibles.
 
-- S'il **n'existe pas** : le catalogue par défaut est utilisé tel quel.
-- S'il est **mal formé** (JSON invalide, champ obligatoire manquant) : un warning est loggé (`mcp.catalog.overrides.parse_failed`) et le catalogue par défaut est utilisé. **Aucun crash.**
-- S'il est **valide** : un info log confirme le nombre d'entrées ajoutées / désactivées / patchées (`mcp.catalog.overrides.applied`).
+## Vérification
+
+- Les entrées listées dans `disable` ne sont plus visibles dans le catalogue.
+- Les entrées listées dans `add` apparaissent avec leur logo et leur badge `Custom` (trust level).
+- Les overrides sont reflétés (par exemple, `default_requires_approval=false` rend les outils auto-approuvés).
+- Dans les logs du runtime : `mcp.catalog.overrides.applied add=N disable=N overrides=N`.
+
+## Si ça ne marche pas
+
+- **Le fichier est ignoré silencieusement** : il est mal formé (JSON invalide). Apollia logge un warning `mcp.catalog.overrides.parse_failed` mais ne crashe pas. Vérifiez avec `jq . ~/.apollia/mcp-overrides.json` ou un linter JSON.
+- **Une entrée `add` n'apparaît pas** : un champ obligatoire (`package_identifier`, `operator_label`, `category`, `icon_name`, `trust_level`) manque. Les autres entrées du fichier sont quand même appliquées.
+- **L'override de mes paramètres se perd après mise à jour d'Apollia** : non — le fichier `~/.apollia/mcp-overrides.json` est respecté par toutes les versions ultérieures qui partagent ce schéma. Le schéma reste stable cross-paliers (v0.1.0 → v0.3 registry → v0.4 marketplace).
 
 ## Cas particulier : serveurs self-hosted
 
@@ -105,3 +128,5 @@ Pour distinguer vos serveurs internes des serveurs officiels SaaS, utilisez `tru
 - Pas de hot-reload : un changement du fichier nécessite un redémarrage d'Apollia Desktop.
 - Pas de validation de signature sur les entrées `add` : vous êtes responsable du contenu que vous ajoutez (cohérent avec une approche power-user).
 - La v0.3 introduira un registry remote optionnel (`apollia-mcp-registry`) qui couvre les cas multi-utilisateurs avec gouvernance par PR.
+
+> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP)

@@ -45,7 +45,7 @@ crates/
 ├── apollia-connectors/    ← Native SaaS connectors (ADR-088, ADR-090) — Google Workspace (Gmail/Calendar/Drive Workspace), Microsoft 365 (Outlook/Calendar/OneDrive) — trait Connector + HttpClient avec retry/refresh
 ├── apollia-core/          ← Types partagés (AgentId, TaskId, StepBudget) — dépendance de tout le reste
 ├── apollia-desktop/       ← Application Desktop (Tauri v2 + Svelte 5, ~114 commandes IPC, 15 routes)
-├── apollia-llm/           ← LLM Backend (llama.cpp, Anthropic, OpenAI, Ollama, Bedrock, Vertex, LlmRouter)
+├── apollia-llm/           ← LLM Backend (llama.cpp, Anthropic, OpenAI, Ollama, Vertex, LlmRouter)
 ├── apollia-mcp/           ← Client MCP natif (JSON-RPC 2.0, stdio/HTTP/SSE, McpClientManager)
 ├── apollia-memory/        ← Memory Engine (SQLite FTS5, épisodique/sémantique/procédurale, export/import)
 ├── apollia-notifications/ ← Notification Engine (desktop notify-rust, webhook reqwest)

@@ -15,8 +15,8 @@ Avant de continuer, demandez-vous :
 
 ## Étape 1 — Sauvegarder ce qui compte (recommandé)
 
-1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace>` pour exporter la mémoire de chaque agent.
-2. **Transcriptions :** ouvrez **Transcriptions** et notez les transcriptions importantes.
+1. **Mémoire :** utilisez la CLI `apollia-os memory export --namespace <namespace> --output <fichier>` pour exporter la mémoire de chaque agent. Réimport ensuite avec `apollia-os memory import --input <fichier>`.
+2. **Transcriptions :** ouvrez **Transcriptions** *(mode Builder)* et notez les transcriptions importantes.
 3. **Liste de vos agents et connexions :** prenez une capture d'écran ou notez les noms : vous devrez les réinstaller manuellement après le reset.
 
 ## Étape 2 — Lancer la réinitialisation
@@ -28,11 +28,11 @@ Avant de continuer, demandez-vous :
 
 ## Étape 3 — Confirmer explicitement
 
-Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques secondes pendant lesquelles le bouton est désactivé.
+Une fenêtre de confirmation s'ouvre avec une **pause de sécurité de 3 secondes** pendant lesquelles le bouton de confirmation reste désactivé.
 
 1. Lisez à nouveau la liste des données concernées.
-2. Dans le champ de confirmation, **tapez exactement** `FACTORY RESET` (en majuscules). Aucun copier-coller n'est accepté.
-3. Le bouton **Confirmer la réinitialisation** devient actif uniquement quand le mot est correct et la pause écoulée.
+2. Dans le champ de confirmation, **tapez exactement** `FACTORY RESET` (en majuscules, espace inclus). Le coller au presse-papiers est **bloqué** : vous devez taper la phrase au clavier.
+3. Le bouton **Confirmer la réinitialisation** devient actif uniquement quand le mot est correct **et** la pause de 3 secondes écoulée.
 4. Cliquez sur **Confirmer la réinitialisation**.
 
 ## Étape 4 — Après la réinitialisation
@@ -41,7 +41,7 @@ Une fenêtre de confirmation s'ouvre avec une pause de sécurité de quelques se
 2. Au redémarrage, le **parcours de configuration en quatre étapes** s'ouvre automatiquement : **Accueil → Profil → Modèles → Calibrage**. C'est le même parcours qu'au tout premier lancement.
 3. À l'étape **Modèles**, vous devez reconfigurer le LLM (téléchargement d'un modèle local ou ajout d'un backend cloud) — la réinitialisation a effacé l'ensemble de vos backends LLM. Voir aussi [Connecter un fournisseur d'IA](../installation/connecter-un-fournisseur-d-ia.md) si vous préférez ne pas passer par le parcours intégré.
 4. Une fois le parcours terminé, réinstallez vos agents, vos intégrations MCP et vos projets selon votre besoin.
-5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import`.
+5. Si vous avez exporté votre mémoire via la CLI à l'étape 1, réimportez-la avec `apollia-os memory import --input <fichier>`.
 
 ## Si quelque chose se passe mal
 

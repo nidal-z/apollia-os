@@ -1,10 +1,17 @@
 # Connecter Microsoft 365
 
-> **Référence technique :** [Briques-Connectors](https://github.com/nidal-z/apollia-os/wiki/Briques-Connectors)
+> Pour les operators qui veulent donner accès à Outlook (mails + calendrier) et OneDrive à leurs agents — via le connecteur natif Microsoft Graph, avec le périmètre complet en mode gratuit.
 
-Le connecteur natif Microsoft 365 couvre Outlook Mail (lecture, recherche, envoi, réponse, gestion de dossiers), Outlook Calendar et OneDrive. Contrairement à Google, Microsoft ne requiert pas d'audit CASA — toutes les opérations sont disponibles dès la connexion par défaut.
+## Prérequis
+
+- Un compte Microsoft 365 (professionnel, scolaire, ou personnel) actif.
+- La variable d'environnement `APOLLIA_MICROSOFT_CLIENT_ID` est configurée par Apollia (ou par vous en mode entreprise).
+- Si votre tenant Azure AD exige une approbation administrative, l'administrateur doit pré-approuver l'application Apollia.
+- Le profil souveraineté n'est pas réglé sur `local_only`.
 
 ## Périmètre complet v0.1.0
+
+Contrairement à Google, Microsoft Graph ne requiert pas d'audit CASA — toutes les opérations sont disponibles dès la connexion par défaut.
 
 | Service | Opérations | Scope Graph |
 |---|---|---|
@@ -12,20 +19,31 @@ Le connecteur natif Microsoft 365 couvre Outlook Mail (lecture, recherche, envoi
 | Outlook Calendar | `list_events`, `get_event`, `create_event`, `update_event`, `delete_event` | `Calendars.Read` + `Calendars.ReadWrite` |
 | OneDrive | `search`, `get_metadata`, `download`, `list_recent` | `Files.Read.All` |
 
-Microsoft Teams est **reporté à v0.2** — l'API channels/chat est plus complexe et hors-scope v0.1.0.
+Microsoft Teams (chat + channels) est reporté à v0.2 — l'API channels est plus complexe et hors-scope v0.1.0.
 
-## Procédure de connexion
+## Étapes
 
 1. Ouvrez **Intégrations** dans Apollia Desktop.
+
 2. Sur la carte **Microsoft 365**, ajustez les permissions si besoin (toutes cochées par défaut).
+
 3. Cliquez **Connecter un compte Microsoft 365**. Une fenêtre navigateur s'ouvre sur l'écran de consentement Microsoft.
+
 4. Si votre administrateur Azure AD a activé le consentement utilisateur, vous validez seul. Sinon, l'administrateur doit pré-approuver l'application au niveau du tenant.
+
 5. Le navigateur affiche un code d'autorisation. Copiez-le et collez-le dans Apollia Desktop, puis **Finaliser la connexion**.
+
 6. Le compte apparaît avec son `userPrincipalName` (généralement votre adresse email pro).
+
+## Vérification
+
+- Sur la carte Microsoft 365, le compte apparaît sous "Comptes connectés" avec votre `userPrincipalName`.
+- Le keyring de votre OS contient une entrée `apollia-connector-microsoft`.
+- Lancez un agent test qui appelle `outlook.search query:"from:me"` : la requête s'exécute sans approbation HITL (lecture seule) et retourne les premiers mails matchés.
 
 ## Multi-tenant
 
-Le connecteur utilise l'endpoint multi-tenant `/common/` par défaut, ce qui permet de connecter n'importe quel compte Microsoft (personnel, scolaire, professionnel) ou Azure AD. Pour un déploiement enterprise restrictif limité à un seul tenant, Nidal peut définir la variable `APOLLIA_MICROSOFT_TENANT_ID` dans la configuration.
+Le connecteur utilise l'endpoint multi-tenant `/common/` par défaut, ce qui permet de connecter n'importe quel compte Microsoft (personnel, scolaire, professionnel) ou Azure AD. Pour un déploiement enterprise restrictif limité à un seul tenant, l'administrateur peut définir la variable `APOLLIA_MICROSOFT_TENANT_ID` dans la configuration.
 
 ## Approbation HITL
 
@@ -33,7 +51,7 @@ Toutes les opérations d'écriture (envoi, réponse, déplacement, création/mod
 
 `outlook_cal.delete_event` exige en plus une phrase de confirmation (suppression irréversible).
 
-## Comparaison Google vs Microsoft
+## Comparaison Google vs Microsoft en mode gratuit
 
 | Capacité | Google v0.1.0 | Microsoft v0.1.0 |
 |---|---|---|
@@ -47,6 +65,14 @@ Toutes les opérations d'écriture (envoi, réponse, déplacement, création/mod
 
 Si votre flux principal est Gmail-only et que vous voulez la lecture complète, lisez [Mode expert Google](mode-expert-google-restricted-scopes.md).
 
+## Si ça ne marche pas
+
+- **AADSTS90094 — administrateur consent requis** : votre tenant Azure AD exige une approbation au niveau organisation. Contactez votre administrateur pour qu'il pré-approuve Apollia.
+- **AADSTS500011 — application introuvable dans le tenant** : `APOLLIA_MICROSOFT_CLIENT_ID` pointe sur une app inscrite dans un autre tenant. Vérifiez que l'app cible est bien multi-tenant ou que le tenant_id configuré est correct.
+- **`outlook.send` échoue avec ErrorRecipientNotResolved** : Microsoft Graph valide les destinataires plus strictement que Google. Vérifiez l'adresse cible et l'absence d'alias mort.
+
 ## Déconnecter un compte
 
 Sur la carte Microsoft 365, cliquez **Déconnecter** à côté du compte. Le token est supprimé du keyring. Pour révoquer également côté Microsoft, allez sur https://myaccount.microsoft.com et retirez l'autorisation de l'application Apollia.
+
+> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth)
