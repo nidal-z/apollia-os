@@ -59,7 +59,7 @@
     type="button"
     class="block w-full text-left rounded-xl border border-border/40 bg-card/80 px-3 py-2.5
       hover:border-primary/40 hover:bg-card/95 transition-all
-      shadow-[0_2px_8px_-4px_rgba(0,0,0,0.08)]"
+      shadow-elev-1"
     onclick={openInBrowser}
     data-testid="link-preview-card"
   >

@@ -9,6 +9,9 @@
    *   - amber: runtime is healthy but no LLM backend is connected
    *   - red:   runtime heartbeat is missing or reconnecting
    * The trail derives from `currentRoute` via `routeMeta`.
+   *
+   * Promoted from `components/layout/Breadcrumb.svelte`. Status dot shadows
+   * are now driven by the `--shadow-status-*` tokens in app.css.
    */
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo } from "$lib/stores/navigation";
@@ -32,10 +35,10 @@
 
   const dotClass = $derived(
     status.level === "ok"
-      ? "bg-emerald-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(142_70%_45%/0.35)]"
+      ? "bg-emerald-500 shadow-status-ok"
       : status.level === "warn"
-        ? "bg-amber-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(40_92%_50%/0.35)]"
-        : "bg-rose-500 shadow-[0_0_0_3px_hsl(var(--background)),0_0_0_4px_hsl(0_84%_60%/0.35)] animate-pulse",
+        ? "bg-amber-500 shadow-status-warn"
+        : "bg-rose-500 shadow-status-error animate-pulse",
   );
 
   function goHome() {

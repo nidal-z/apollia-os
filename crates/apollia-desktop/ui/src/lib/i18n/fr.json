@@ -55,7 +55,10 @@
     "placeholder_field": "champ",
     "placeholder_value": "valeur",
     "default_badge": "PAR DÉFAUT",
-    "worker_badge": "Worker"
+    "worker_badge": "Worker",
+    "saving": "Enregistrement…",
+    "finalize": "Finaliser",
+    "finalizing": "Finalisation…"
   },
   "companion": {
     "toggle_label": "Aide Apollia",
@@ -191,7 +194,23 @@
       "reconnecting": "Reconnexion...",
       "error": "Connexion perdue"
     },
-    "projects": "Projets"
+    "projects": "Projets",
+    "sidebar": {
+      "dashboard": "Accueil",
+      "chat": "Chat",
+      "agents": "Assistants",
+      "projects": "Projets",
+      "tasks": "Mon travail",
+      "automations": "Automatisations",
+      "inbox": "Boîte de réception",
+      "notifications": "Notifications",
+      "memory": "Mémoire",
+      "observability": "Observabilité",
+      "llm": "Modèles LLM",
+      "transcriptions": "Transcriptions",
+      "integrations": "Connexions",
+      "settings": "Paramètres"
+    }
   },
   "sidebar": {
     "group": {
@@ -243,7 +262,8 @@
       "ok": "Runtime connecté · fournisseur LLM disponible",
       "no_llm": "Runtime connecté · aucun fournisseur LLM configuré",
       "runtime_down": "Runtime hors ligne — reconnexion en cours"
-    }
+    },
+    "search_aria": "Recherche et palette de commandes"
   },
   "userMenu": {
     "open_label": "Ouvrir le menu utilisateur",
@@ -326,6 +346,13 @@
       "no_suggestions_title": "Pas de suggestions pour le moment",
       "no_suggestions_description": "Installez des assistants pour recevoir des recommandations adaptées.",
       "browse_catalogue": "Parcourir le catalogue"
+    },
+    "native_section_title": "Connecteurs Apollia",
+    "native_section_tag": "curés · OAuth managé",
+    "native_accounts_connected_one": "{count} compte connecté",
+    "native_accounts_connected_other": "{count} comptes connectés",
+    "custom_mcp": {
+      "code_placeholder": "Code d'autorisation (4/0A…)"
     }
   },
   "integrations": {
@@ -546,6 +573,8 @@
       "status_section": "Statut",
       "approval_section": "Approbation",
       "activity_section": "Activité récente",
+      "tools_section": "Outils exposés ({count})",
+      "tools_empty": "Le serveur n'expose aucun outil pour l'instant.",
       "tools_count": "{count} outils disponibles",
       "last_call": "Dernier appel {time}",
       "no_activity": "Aucune activité pour l’instant",
@@ -944,7 +973,24 @@
       "loading": "Chargement de l'aperçu…"
     },
     "rules": {
-      "manage_link": "Gérer mes règles"
+      "manage_link": "Gérer mes règles",
+      "title": "Règles de permission",
+      "subtitle": "Outils et serveurs MCP auxquels vous avez accordé un accès persistant.",
+      "empty_title": "Aucune règle de permission",
+      "empty_subtitle": "Quand vous approuvez une permission avec « toujours », elle apparaît ici.",
+      "col_tool": "Outil",
+      "col_scope": "Portée",
+      "col_agent": "Agent",
+      "col_created": "Créée",
+      "revoke": "Révoquer",
+      "revoke_all": "Tout révoquer",
+      "revoke_all_confirm_title": "Révoquer toutes les règles de permission ?",
+      "revoke_all_confirm_body": "Toutes les permissions persistantes seront révoquées. Les outils redemanderont une approbation à leur prochaine utilisation.",
+      "revoke_all_type_prompt": "Tapez REVOKE pour confirmer",
+      "toast": {
+        "revoked": "Règle révoquée",
+        "revoked_all": "Toutes les règles de permission ont été révoquées"
+      }
     },
     "always": {
       "button": "Toujours autoriser",
@@ -1708,6 +1754,7 @@
       "configuration": "Configuration",
       "tools": "Outils",
       "permissions": "Autorisations",
+      "integrations": "Intégrations OAuth",
       "system": "Informations système",
       "shortcuts": "Raccourcis",
       "observability": "Observabilité",
@@ -2768,7 +2815,8 @@
       "description": "Démarre un nouveau chat pour discuter avec tes agents ou le LLM en mode libre.",
       "new_chat": "Nouveau chat",
       "getting_started": "Premiers pas"
-    }
+    },
+    "send": "Envoyer"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -3363,7 +3411,14 @@
       "color_label": "Couleur",
       "ready_title": "Prêt à démarrer",
       "ready_detail": "{count} agents pré-assignés · prêt à être configuré."
-    }
+    },
+    "loading": "Chargement des projets…",
+    "memory_documents": "Documents en mémoire",
+    "memory_namespaces": "Espaces de mémoire",
+    "no_project_memory": "Aucune mémoire de projet",
+    "no_project_memory_desc": "Les agents de ce projet n'ont pas encore stocké de mémoire.",
+    "no_tasks_desc": "Les tâches créées par les agents apparaîtront ici.",
+    "tasks_need_agents": "Les tâches ont besoin d'au moins un agent"
   },
   "hitl": {
     "impact": {

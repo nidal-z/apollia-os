@@ -16,6 +16,7 @@
     ShieldCheck,
     Check,
     Menu,
+    PlugZap,
   } from "lucide-svelte";
   import {
     settingsSubRoute,
@@ -54,6 +55,7 @@
     configuration: () => import("./settings/Configuration.svelte"),
     tools: () => import("./settings/Tools.svelte"),
     permissions: () => import("./settings/Permissions.svelte"),
+    integrations: () => import("./settings/Integrations.svelte"),
     system: () => import("./settings/System.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),
     observability: () => import("./settings/Observability.svelte"),
@@ -268,6 +270,7 @@
         { key: "configuration", labelKey: "settings.nav.configuration", icon: Sliders },
         { key: "tools", labelKey: "settings.nav.tools", icon: Wrench },
         { key: "permissions", labelKey: "settings.nav.permissions", icon: ShieldCheck },
+        { key: "integrations", labelKey: "settings.nav.integrations", icon: PlugZap },
         { key: "system", labelKey: "settings.nav.system", icon: Info },
         { key: "shortcuts", labelKey: "settings.nav.shortcuts", icon: Keyboard },
         { key: "observability", labelKey: "settings.nav.observability", icon: Activity },
@@ -328,6 +331,12 @@
     permissions: {
       title: $t("settings.nav.permissions"),
       subtitle: "Visualisez et révoquez les autorisations accordées aux outils, par portée.",
+      kicker: "SYSTÈME",
+    },
+    integrations: {
+      title: "Intégrations OAuth",
+      subtitle:
+        "Configurez les identifiants OAuth des connecteurs Google et Microsoft pour les builds personnalisés.",
       kicker: "SYSTÈME",
     },
     system: {

@@ -111,6 +111,15 @@ impl McpTransport for StreamableHttpTransport {
         })?;
 
         let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            let www_authenticate = response
+                .headers()
+                .get(reqwest::header::WWW_AUTHENTICATE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            return Err(TransportError::Unauthorized { www_authenticate });
+        }
         if !status.is_success() {
             return Err(TransportError::Io(format!("HTTP {}", status.as_u16())));
         }
@@ -359,9 +368,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_http_transport_401_returns_error() {
-        // GIVEN a server that returns HTTP 401
-        let app = Router::new().route("/mcp", post(|| async { StatusCode::UNAUTHORIZED }));
+    async fn test_http_transport_401_surfaces_unauthorized_with_header() {
+        // GIVEN a server that returns HTTP 401 with a WWW-Authenticate header
+        // pointing at the protected-resource metadata document (RFC 9728)
+        let app = Router::new().route(
+            "/mcp",
+            post(|| async {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    "WWW-Authenticate",
+                    r#"Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource""#
+                        .parse()
+                        .expect("valid header value"),
+                );
+                (StatusCode::UNAUTHORIZED, headers).into_response()
+            }),
+        );
         let addr = start_server(app).await;
 
         let transport = StreamableHttpTransport::new(
@@ -376,13 +398,42 @@ mod tests {
             .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
             .await;
 
-        // THEN a TransportError::Io containing the HTTP status code is returned
-        assert!(matches!(result, Err(TransportError::Io(_))));
-        if let Err(TransportError::Io(msg)) = result {
-            assert!(
-                msg.contains("401"),
-                "error message must contain '401', got: {msg}"
-            );
+        // THEN a typed Unauthorized error is returned with the WWW-Authenticate
+        // value so the orchestration layer can drive RFC 9728 discovery.
+        match result {
+            Err(TransportError::Unauthorized { www_authenticate }) => {
+                assert!(
+                    www_authenticate.contains("resource_metadata"),
+                    "expected resource_metadata in header, got: {www_authenticate}"
+                );
+            }
+            other => panic!("expected Unauthorized, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_transport_401_without_header_returns_empty_unauthorized() {
+        // GIVEN a server that returns HTTP 401 with no WWW-Authenticate header
+        let app = Router::new().route("/mcp", post(|| async { StatusCode::UNAUTHORIZED }));
+        let addr = start_server(app).await;
+
+        let transport = StreamableHttpTransport::new(
+            format!("http://{addr}/mcp"),
+            vec![],
+            Duration::from_secs(5),
+        )
+        .expect("transport construction must succeed");
+
+        let result = transport
+            .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
+            .await;
+
+        // THEN the error variant is still Unauthorized with an empty header value
+        match result {
+            Err(TransportError::Unauthorized { www_authenticate }) => {
+                assert!(www_authenticate.is_empty());
+            }
+            other => panic!("expected Unauthorized, got: {other:?}"),
         }
     }
 

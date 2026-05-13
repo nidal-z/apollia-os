@@ -597,6 +597,8 @@ fn main() {
             commands::integrations::oauth_list_accounts,
             commands::integrations::oauth_disconnect,
             commands::integrations::oauth_get_status,
+            commands::integrations::oauth_list_client_ids,
+            commands::integrations::oauth_set_client_id,
             commands::llm::list_llm_backends,
             commands::llm::create_llm_backend,
             commands::llm::update_llm_backend,

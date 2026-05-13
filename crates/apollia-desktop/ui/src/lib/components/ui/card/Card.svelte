@@ -36,21 +36,21 @@
   .card-spring:active {
     transform: translateY(-0.5px) scale(0.98);
     transition:
-      transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      box-shadow 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform var(--motion-fast) var(--ease-spring),
+      box-shadow var(--motion-fast) var(--ease-spring);
   }
 
   .card-premium {
     border-width: 2px;
     border-color: hsl(var(--primary) / 0.20);
     box-shadow:
-      0 0 20px -2px rgba(52, 53, 245, 0.20),
+      0 0 20px -2px hsl(var(--primary) / 0.20),
       var(--shadow-elev-2);
   }
   :global(.dark) .card-premium {
     border-color: hsl(var(--primary) / 0.30);
     box-shadow:
-      0 0 20px -2px rgba(52, 53, 245, 0.35),
+      0 0 20px -2px hsl(var(--primary) / 0.35),
       var(--shadow-elev-2);
   }
 

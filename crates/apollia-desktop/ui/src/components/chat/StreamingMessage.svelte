@@ -67,7 +67,7 @@
       <div
         class="max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)] rounded-2xl rounded-bl-sm
           bg-card/80 border border-border/40 px-3.5 py-2.5 text-[13px] text-foreground
-          shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]"
+          shadow-elev-1"
       >
         <StreamingText text={textContent} />
       </div>

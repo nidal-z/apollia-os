@@ -131,6 +131,10 @@ pub struct RegistryPackageArg {
     /// Whether the argument must be provided before the server can start.
     #[serde(rename = "isRequired", default)]
     pub is_required: bool,
+    /// Whether the user can supply multiple whitespace-separated values that
+    /// expand to one argv entry each (e.g. multiple allowed directories).
+    #[serde(rename = "isRepeatable", default)]
+    pub is_repeatable: bool,
 }
 
 /// An icon asset for an MCP server.

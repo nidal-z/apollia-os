@@ -174,8 +174,8 @@
     flex-direction: column;
     gap: 0.75rem;
     transition:
-      top 400ms cubic-bezier(0.4, 0, 0.2, 1),
-      left 400ms cubic-bezier(0.4, 0, 0.2, 1);
+      top 400ms var(--ease-standard),
+      left 400ms var(--ease-standard);
   }
 
   .card-header {
@@ -208,7 +208,7 @@
   }
 
   .skip-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: hsl(var(--foreground) / 0.06);
     color: hsl(var(--muted-foreground));
   }
 
@@ -261,11 +261,11 @@
   .nav-btn-prev {
     background: transparent;
     color: hsl(var(--muted-foreground));
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid hsl(var(--foreground) / 0.1);
   }
 
   .nav-btn-prev:hover:not(:disabled) {
-    background: rgba(0, 0, 0, 0.04);
+    background: hsl(var(--foreground) / 0.04);
   }
 
   .nav-btn-next {

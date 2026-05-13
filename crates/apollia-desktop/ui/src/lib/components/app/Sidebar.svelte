@@ -19,28 +19,31 @@
     Brain, Database, Activity, Mic, Bell,
   } from "lucide-svelte";
 
+  // Each entry's `labelKey` resolves through svelte-i18n at render time. Keeping
+  // labels out of the source array lets the bundle preserve a single
+  // translation map (`nav.sidebar.*`) shared by drawer + rail.
   const PRIMARY_NAV = [
-    { route: "dashboard"     as Route, Icon: LayoutDashboard, label: "Accueil",         badge: "none"      },
-    { route: "chat"          as Route, Icon: MessageSquare,   label: "Chat",            badge: "chat"      },
-    { route: "agents"        as Route, Icon: Bot,             label: "Assistants",      badge: "none"      },
-    { route: "projects"      as Route, Icon: FolderKanban,    label: "Projets",         badge: "none"      },
-    { route: "tasks"         as Route, Icon: ListChecks,      label: "Mon travail",     badge: "tasks"     },
-    { route: "automations"   as Route, Icon: Repeat,          label: "Automatisations", badge: "none"      },
-    { route: "inbox"         as Route, Icon: ShieldCheck,     label: "Boîte de réception", badge: "approvals" },
-    { route: "notifications" as Route, Icon: Bell,            label: "Notifications",   badge: "none"      },
-    { route: "memory"        as Route, Icon: Database,        label: "Mémoire",         badge: "none"      },
-    { route: "observability" as Route, Icon: Activity,        label: "Observabilité",   badge: "none"      },
+    { route: "dashboard"     as Route, Icon: LayoutDashboard, labelKey: "nav.sidebar.dashboard",     badge: "none"      },
+    { route: "chat"          as Route, Icon: MessageSquare,   labelKey: "nav.sidebar.chat",          badge: "chat"      },
+    { route: "agents"        as Route, Icon: Bot,             labelKey: "nav.sidebar.agents",        badge: "none"      },
+    { route: "projects"      as Route, Icon: FolderKanban,    labelKey: "nav.sidebar.projects",      badge: "none"      },
+    { route: "tasks"         as Route, Icon: ListChecks,      labelKey: "nav.sidebar.tasks",         badge: "tasks"     },
+    { route: "automations"   as Route, Icon: Repeat,          labelKey: "nav.sidebar.automations",   badge: "none"      },
+    { route: "inbox"         as Route, Icon: ShieldCheck,     labelKey: "nav.sidebar.inbox",         badge: "approvals" },
+    { route: "notifications" as Route, Icon: Bell,            labelKey: "nav.sidebar.notifications", badge: "none"      },
+    { route: "memory"        as Route, Icon: Database,        labelKey: "nav.sidebar.memory",        badge: "none"      },
+    { route: "observability" as Route, Icon: Activity,        labelKey: "nav.sidebar.observability", badge: "none"      },
   ];
 
   // Cluster Builder — vues purement techniques (apparaît uniquement en mode Builder).
   const BUILDER_NAV = [
-    { route: "llm"            as Route, Icon: Brain, label: "Modèles LLM" },
-    { route: "transcriptions" as Route, Icon: Mic,   label: "Transcriptions" },
+    { route: "llm"            as Route, Icon: Brain, labelKey: "nav.sidebar.llm" },
+    { route: "transcriptions" as Route, Icon: Mic,   labelKey: "nav.sidebar.transcriptions" },
   ];
 
   const SECONDARY_NAV = [
-    { route: "integrations" as Route, Icon: Plug,     label: "Connexions" },
-    { route: "settings"     as Route, Icon: Settings, label: "Paramètres" },
+    { route: "integrations" as Route, Icon: Plug,     labelKey: "nav.sidebar.integrations" },
+    { route: "settings"     as Route, Icon: Settings, labelKey: "nav.sidebar.settings" },
   ];
 
   const isBuilder = $derived($uiMode === "builder");
@@ -168,6 +171,7 @@
         {#each PRIMARY_NAV as item (item.route)}
           {@const isActive = $currentRoute === item.route}
           {@const badgeCount = getBadgeCount(item.badge)}
+          {@const label = $t(item.labelKey)}
           <button
             type="button"
             class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
@@ -175,7 +179,7 @@
             aria-current={isActive ? "page" : undefined}
           >
             <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
-            <span class="truncate">{item.label}</span>
+            <span class="truncate">{label}</span>
             {#if badgeCount > 0}
               <span class="ml-auto min-w-[18px] rounded-full bg-primary px-1.5 py-0.5 text-center text-[10px] font-semibold text-white leading-none">{badgeCount}</span>
             {:else if item.badge === "tasks" && runningCount > 0}
@@ -190,6 +194,7 @@
           </div>
           {#each BUILDER_NAV as item (item.route)}
             {@const isActive = $currentRoute === item.route}
+            {@const label = $t(item.labelKey)}
             <button
               type="button"
               class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
@@ -198,7 +203,7 @@
               data-testid="nav-{item.route}"
             >
               <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
-              <span class="truncate">{item.label}</span>
+              <span class="truncate">{label}</span>
             </button>
           {/each}
         {/if}
@@ -207,6 +212,7 @@
       <div class="border-t border-border/60 p-3 flex flex-col gap-0.5">
         {#each SECONDARY_NAV as item (item.route)}
           {@const isActive = $currentRoute === item.route}
+          {@const label = $t(item.labelKey)}
           <button
             type="button"
             class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
@@ -214,7 +220,7 @@
             data-testid="nav-{item.route}"
           >
             <item.Icon size={17} strokeWidth={1.5} class="shrink-0" />
-            <span>{item.label}</span>
+            <span>{label}</span>
           </button>
         {/each}
       </div>
@@ -223,8 +229,7 @@
 {:else}
   <!-- V3 64px icon rail — permanent, no expand -->
   <aside
-    class="rail flex h-full w-16 flex-shrink-0 flex-col items-center border-r border-border bg-muted py-3 gap-1"
-    style="border-width: 0.5px;"
+    class="rail v4-hair flex h-full w-16 flex-shrink-0 flex-col items-center border-r border-border bg-muted py-3 gap-1"
     role="navigation"
     aria-label={$t("nav.sidebar_label")}
     data-testid="sidebar"
@@ -240,14 +245,15 @@
       {@const isActive = $currentRoute === item.route}
       {@const badgeCount = getBadgeCount(item.badge)}
       {@const isPulse = item.badge === "tasks" && runningCount > 0}
+      {@const label = $t(item.labelKey)}
       <div class="rail-item group relative mb-1">
         <button
           type="button"
-          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-[120ms] {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
-          aria-label={item.label}
-          title={item.label}
+          aria-label={label}
+          title={label}
           data-nav-item="true"
           data-testid="nav-{item.route}"
         >
@@ -256,7 +262,7 @@
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
           {#if badgeCount > 0}
-            <span class="absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-primary px-1 py-px text-center text-[9px] font-bold text-white leading-none">{badgeCount > 9 ? "9+" : badgeCount}</span>
+            <span class="absolute -right-0.5 -top-0.5 min-w-[14px] rounded-full bg-primary px-1 py-px text-center text-[9px] font-semibold text-white leading-none">{badgeCount > 9 ? "9+" : badgeCount}</span>
           {:else if isPulse}
             <span class="absolute right-0.5 top-0.5 flex h-1.5 w-1.5">
               <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
@@ -265,8 +271,8 @@
           {/if}
         </button>
         <!-- Tooltip -->
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-[120ms] group-hover:opacity-100">
-          {item.label}
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+          {label}
         </span>
       </div>
     {/each}
@@ -276,14 +282,15 @@
       <div class="my-1 h-px w-8 bg-border/60" data-testid="sidebar-builder-separator"></div>
       {#each BUILDER_NAV as item (item.route)}
         {@const isActive = $currentRoute === item.route}
+        {@const label = $t(item.labelKey)}
         <div class="rail-item group relative mb-1">
           <button
             type="button"
-            class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-[120ms] {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+            class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
             onclick={() => navigate(item.route)}
             aria-current={isActive ? "page" : undefined}
-            aria-label={item.label}
-            title={item.label}
+            aria-label={label}
+            title={label}
             data-nav-item="true"
             data-testid="nav-{item.route}"
           >
@@ -292,8 +299,8 @@
             {/if}
             <item.Icon size={17} strokeWidth={1.5} />
           </button>
-          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-[120ms] group-hover:opacity-100">
-            {item.label}
+          <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+            {label}
           </span>
         </div>
       {/each}
@@ -305,14 +312,15 @@
     <!-- Secondary nav (Connexions, Paramètres) -->
     {#each SECONDARY_NAV as item (item.route)}
       {@const isActive = $currentRoute === item.route}
+      {@const label = $t(item.labelKey)}
       <div class="rail-item group relative mb-1">
         <button
           type="button"
-          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-[120ms] {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
+          class="relative flex h-10 w-10 items-center justify-center rounded-[10px] transition-all duration-fast {isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground'}"
           onclick={() => navigate(item.route)}
           aria-current={isActive ? "page" : undefined}
-          aria-label={item.label}
-          title={item.label}
+          aria-label={label}
+          title={label}
           data-testid="nav-{item.route}"
         >
           {#if isActive}
@@ -320,8 +328,8 @@
           {/if}
           <item.Icon size={17} strokeWidth={1.5} />
         </button>
-        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-[120ms] group-hover:opacity-100">
-          {item.label}
+        <span class="tooltip pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-elev-3 transition-opacity duration-fast group-hover:opacity-100">
+          {label}
         </span>
       </div>
     {/each}
@@ -330,7 +338,7 @@
     <div class="mt-1">
       <span
         class="flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-semibold text-white shadow-elev-1"
-        style="background: linear-gradient(135deg, #c2715a, #9a4f3c);"
+        style="background: var(--avatar-gradient-warm);"
         title="Nidal Z"
       >NZ</span>
     </div>

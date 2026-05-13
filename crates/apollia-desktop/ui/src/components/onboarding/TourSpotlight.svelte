@@ -162,7 +162,7 @@
   <div
     class="spotlight-overlay"
     style:clip-path={clipPath}
-    style:transition={`clip-path ${animationDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`}
+    style:transition={`clip-path ${animationDuration}ms var(--ease-standard)`}
     onclick={handleOverlayClick}
     role="presentation"
     data-testid="tour-spotlight"

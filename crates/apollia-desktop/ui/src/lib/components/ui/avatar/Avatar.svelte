@@ -77,8 +77,8 @@
     {src}
     alt={name}
     onerror={() => (imgFailed = true)}
-    class="shrink-0 object-cover font-semibold text-white {sizeClass} {ringClass} {klass}"
-    style="background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%); box-shadow: 0 2px 8px -1px hsla({hue},60%,38%,0.3);"
+    class="agent-avatar-shadow shrink-0 object-cover font-semibold text-white {sizeClass} {ringClass} {klass}"
+    style="--agent-hue: {hue}; background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%);"
     data-avatar-hue={hue}
     {...rest}
   />
@@ -86,8 +86,8 @@
   <span
     role="img"
     aria-label={name}
-    class="inline-flex shrink-0 items-center justify-center font-semibold text-white select-none {sizeClass} {ringClass} {klass}"
-    style="background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%); box-shadow: 0 2px 8px -1px hsla({hue},60%,38%,0.3);"
+    class="agent-avatar-shadow inline-flex shrink-0 items-center justify-center font-semibold text-white select-none {sizeClass} {ringClass} {klass}"
+    style="--agent-hue: {hue}; background: linear-gradient(135deg, hsl({hue},60%,48%) 0%, hsl({hue},60%,42%) 100%);"
     data-avatar-hue={hue}
     {...rest}
   >

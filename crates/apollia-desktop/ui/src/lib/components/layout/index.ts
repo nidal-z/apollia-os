@@ -1,4 +1,5 @@
 import EmptyState from "./EmptyState.svelte";
+import OperatorBreadcrumb from "./OperatorBreadcrumb.svelte";
 import SkipToContent from "./SkipToContent.svelte";
 
-export { EmptyState, SkipToContent };
+export { EmptyState, OperatorBreadcrumb, SkipToContent };

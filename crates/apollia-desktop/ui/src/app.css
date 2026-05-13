@@ -107,6 +107,20 @@
     /* ── Semantic shadows ── */
     --shadow-success-md: 0 4px 16px -2px hsl(144 33% 37% / 0.35);
     --shadow-destructive-md: 0 4px 16px -2px hsl(11 57% 42% / 0.30);
+    /* Warm focus glow — applied on the chat composer when the textarea
+       receives focus. Pure rgba (not hsl) so the terracotta tone keeps its
+       hand-crafted feel against the parchment surface. */
+    --shadow-warm-focus: 0 0 0 1px rgba(255, 180, 120, 0.35),
+                         0 4px 14px -6px rgba(255, 150, 80, 0.45);
+    /* Status dot halos — 3px clear ring against the background,
+       then a 4px coloured aura. Used by the topbar runtime status
+       indicator (OperatorBreadcrumb) and any future health dot. */
+    --shadow-status-ok: 0 0 0 3px hsl(var(--background)),
+                        0 0 0 4px hsl(142 70% 45% / 0.35);
+    --shadow-status-warn: 0 0 0 3px hsl(var(--background)),
+                          0 0 0 4px hsl(40 92% 50% / 0.35);
+    --shadow-status-error: 0 0 0 3px hsl(var(--background)),
+                           0 0 0 4px hsl(0 84% 60% / 0.35);
 
     /* ── Backdrop ── */
     --backdrop: rgba(26, 24, 20, 0.40);
@@ -160,6 +174,11 @@
     /* ── V4 warm accent (terracotta, for HITL / warmth accents) ── */
     --warm-accent: 15 47% 56%;
     --warm-accent-bg: 15 47% 56% / 0.10;
+
+    /* ── User avatar gradient (terracotta) — used by the sidebar avatar
+       and any future "current user" badge. Hardcoded hex preserves the
+       hand-tuned tone independently of brand palette shifts. ── */
+    --avatar-gradient-warm: linear-gradient(135deg, #c2715a, #9a4f3c);
   }
 
   .dark {

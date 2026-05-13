@@ -304,6 +304,34 @@
 
   const installedNames = $derived(new Set(servers.map((s) => s.name)));
 
+  /**
+   * Registry entries are keyed by the package identifier (e.g.
+   * `@modelcontextprotocol/server-filesystem`) but the installed-server
+   * `name` is the sanitized operator label (e.g. `local-files`). To bridge
+   * the two, we index the installed servers by their `package` field so we
+   * can map a registry entry → its actual installed server name.
+   */
+  const installedByPackage = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const s of servers) {
+      if (s.package) map.set(s.package, s.name);
+    }
+    return map;
+  });
+
+  /** Resolve the installed server name (if any) for a registry catalogue entry. */
+  function installedNameFor(entry: RegistryServerView): string | null {
+    if (installedNames.has(entry.name)) return entry.name;
+    const byPkg = installedByPackage.get(entry.name);
+    if (byPkg) return byPkg;
+    const pkgId = entry.packages?.[0]?.identifier;
+    if (pkgId) {
+      const match = installedByPackage.get(pkgId);
+      if (match) return match;
+    }
+    return null;
+  }
+
   const activeCount = $derived(servers.filter((s) => s.connected && !s.error).length);
   const errorCount = $derived(servers.filter((s) => !!s.error).length);
   const idleCount = $derived(
@@ -337,12 +365,12 @@
       .length,
   );
   const installedRegCount = $derived(
-    mcpEntries.filter((e) => e.is_installed || installedNames.has(e.name)).length,
+    mcpEntries.filter((e) => e.is_installed || installedNameFor(e) !== null).length,
   );
 
   const filteredMcp = $derived(
     mcpEntries.filter((e) => {
-      const installed = e.is_installed || installedNames.has(e.name);
+      const installed = e.is_installed || installedNameFor(e) !== null;
       if (mcpFilter === "installed") return installed;
       if (mcpFilter === "official")
         return (
@@ -573,7 +601,7 @@
   <PageHeader
     kicker={heroKicker}
     title={$t("connections.hero.title")}
-    subtitle="Les services externes qu'Apollia peut utiliser avec votre accord. Deux familles : les Connecteurs Apollia (curés, premium) et le Catalogue MCP (protocole ouvert, communauté)."
+    subtitle={$t("connections.hero.subtitle")}
   >
     {#snippet actions()}
       <BtnPrimary onclick={handleAddCustomMcp}>
@@ -590,10 +618,17 @@
   {/if}
 
   <!-- ============ SECTION CONNECTEURS NATIFS APOLLIA (OAuth) ============ -->
-  <SectionTitle count={`${nativeAccounts.length} compte${nativeAccounts.length > 1 ? "s" : ""} connecté${nativeAccounts.length > 1 ? "s" : ""}`}>
-    Connecteurs Apollia
+  <SectionTitle
+    count={$t(
+      nativeAccounts.length === 1
+        ? "connections.native_accounts_connected_one"
+        : "connections.native_accounts_connected_other",
+      { values: { count: nativeAccounts.length } },
+    )}
+  >
+    {$t("connections.native_section_title")}
     {#snippet action()}
-      <Chip tone="primary" size="sm">curés · OAuth managé</Chip>
+      <Chip tone="primary" size="sm">{$t("connections.native_section_tag")}</Chip>
     {/snippet}
   </SectionTitle>
 
@@ -863,7 +898,8 @@
       {:else}
         <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-grid">
           {#each visibleMcp as entry (entry.name)}
-            {@const installed = entry.is_installed || installedNames.has(entry.name)}
+            {@const installedName = installedNameFor(entry)}
+            {@const installed = entry.is_installed || installedName !== null}
             {@const isOfficial =
               entry.trust_level === "verified_official" ||
               entry.trust_level === "community_verified"}
@@ -878,7 +914,9 @@
                 official={isOfficial}
                 installed={installed}
                 onclick={() =>
-                  installed ? handleManage(entry.name) : handleConnect(entry)}
+                  installed
+                    ? handleManage(installedName ?? entry.name)
+                    : handleConnect(entry)}
               />
               {#if url}
                 <span
@@ -975,7 +1013,7 @@
         <input
           type="text"
           class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
-          placeholder="Code d'autorisation (4/0A...)"
+          placeholder={$t("connections.custom_mcp.code_placeholder")}
           bind:value={oauthDialogPastedCode}
           disabled={oauthDialogBusy}
         />
@@ -985,13 +1023,13 @@
       {/if}
 
       <div class="flex justify-end gap-2 pt-1">
-        <BtnSecondary onclick={() => (oauthDialogOpen = false)}>Annuler</BtnSecondary>
+        <BtnSecondary onclick={() => (oauthDialogOpen = false)}>{$t("common.cancel")}</BtnSecondary>
         {#if oauthDialogAuthUrl}
           <BtnPrimary
             onclick={completeNativeFlow}
             disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
           >
-            {oauthDialogBusy ? "Finalisation…" : "Finaliser"}
+            {oauthDialogBusy ? $t("common.finalizing") : $t("common.finalize")}
           </BtnPrimary>
         {/if}
       </div>

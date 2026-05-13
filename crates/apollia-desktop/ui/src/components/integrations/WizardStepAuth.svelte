@@ -2,16 +2,38 @@
   import { t } from "svelte-i18n";
   import { Eye, EyeOff, ExternalLink, Lock } from "lucide-svelte";
   import { Input } from "$lib/components/ui/input";
-  import type { ConnectorEnrichmentView, RegistryEnvVarView } from "$lib/types";
+  import type {
+    ConnectorEnrichmentView,
+    RegistryEnvVarView,
+    RegistryPackageArgView,
+  } from "$lib/types";
+
+  interface PackageArgEntry {
+    index: number;
+    arg: RegistryPackageArgView;
+  }
 
   interface Props {
     envVars: RegistryEnvVarView[];
     enrichment: ConnectorEnrichmentView | null;
     values: Record<string, string>;
     onchange: (key: string, value: string) => void;
+    /** Positional/named args the user must supply (registry value is null). */
+    packageArgs?: PackageArgEntry[];
+    /** Values typed by the user, keyed by the entry's `index`. */
+    argValues?: Record<number, string>;
+    onArgChange?: (index: number, value: string) => void;
   }
 
-  let { envVars, enrichment, values, onchange }: Props = $props();
+  let {
+    envVars,
+    enrichment,
+    values,
+    onchange,
+    packageArgs = [],
+    argValues = {},
+    onArgChange = () => {},
+  }: Props = $props();
 
   let revealed = $state<Record<string, boolean>>({});
 
@@ -26,28 +48,84 @@
 </script>
 
 <div class="space-y-4" data-testid="wizard-step-auth">
-  {#if envVars.length === 0}
+  {#if envVars.length === 0 && packageArgs.length === 0}
     <p class="text-sm text-muted-foreground" data-testid="auth-no-vars">
       {$t("integrations.wizard.no_auth_required")}
     </p>
   {:else}
-    {#if enrichment?.auth_help_url}
+    {#if enrichment?.auth_help_text || enrichment?.auth_help_url}
       <div class="rounded-md border border-border bg-muted/40 px-4 py-3">
-        <p class="text-sm text-muted-foreground">
-          {enrichment.auth_help_text ?? $t("integrations.wizard.auth_help_default")}
-        </p>
-        <a
-          href={enrichment.auth_help_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="mt-1.5 inline-flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
-          data-testid="auth-help-link"
-        >
-          <ExternalLink size={12} />
-          {$t("integrations.wizard.auth_help_link")}
-        </a>
+        {#if enrichment?.auth_help_text}
+          <p class="text-sm text-muted-foreground">{enrichment.auth_help_text}</p>
+        {:else}
+          <p class="text-sm text-muted-foreground">
+            {$t("integrations.wizard.auth_help_default")}
+          </p>
+        {/if}
+        {#if enrichment?.auth_help_url}
+          <a
+            href={enrichment.auth_help_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-1.5 inline-flex items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
+            data-testid="auth-help-link"
+          >
+            <ExternalLink size={12} />
+            {$t("integrations.wizard.auth_help_link")}
+          </a>
+        {/if}
       </div>
     {/if}
+
+    {#if packageArgs.length > 0}
+      <div class="space-y-3" data-testid="wizard-step-args">
+        {#each packageArgs as entry (entry.index)}
+          {@const arg = entry.arg}
+          {@const inputId = `arg-${entry.index}`}
+          {@const label = arg.valueHint ?? `arg ${entry.index + 1}`}
+          <div class="space-y-1.5">
+            <label class="block text-sm font-medium text-foreground" for={inputId}>
+              {label}
+              {#if arg.isRequired}
+                <span class="ml-1 text-xs text-destructive">*</span>
+              {:else}
+                <span class="ml-1 text-xs text-muted-foreground">({$t("integrations.wizard.optional")})</span>
+              {/if}
+            </label>
+            {#if arg.description}
+              <p class="text-xs text-muted-foreground">{arg.description}</p>
+            {/if}
+            {#if arg.isRepeatable}
+              <textarea
+                id={inputId}
+                rows="2"
+                class="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
+                placeholder={arg.valueHint ?? ""}
+                value={argValues[entry.index] ?? ""}
+                oninput={(e) =>
+                  onArgChange(entry.index, (e.currentTarget as HTMLTextAreaElement).value)}
+                data-testid={`arg-input-${entry.index}`}
+              ></textarea>
+            {:else}
+              <Input
+                id={inputId}
+                type="text"
+                value={argValues[entry.index] ?? ""}
+                oninput={(e) =>
+                  onArgChange(entry.index, (e.currentTarget as HTMLInputElement).value)}
+                placeholder={arg.valueHint ?? ""}
+                autocomplete="off"
+                data-testid={`arg-input-${entry.index}`}
+              />
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    {#if envVars.length === 0}
+      <!-- args-only path: no env vars to render -->
+    {:else}
 
     <div class="space-y-3">
       {#each envVars as envVar (envVar.name)}
@@ -114,5 +192,6 @@
         </div>
       {/each}
     </div>
+    {/if}
   {/if}
 </div>

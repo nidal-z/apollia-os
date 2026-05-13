@@ -1371,12 +1371,21 @@ export interface RegistryEnvVarView {
   is_secret: boolean;
 }
 
-/** A positional or named argument forwarded to an MCP package at launch. */
+/**
+ * A positional or named argument forwarded to an MCP package at launch.
+ * Field names mirror the wire format produced by serde (`#[serde(rename = ...)]`
+ * in `apollia-desktop::mcp::registry_client::RegistryPackageArg`).
+ */
 export interface RegistryPackageArgView {
-  arg_type: string;
-  value_hint: string | null;
+  /** Argument kind: `"positional"` or `"named"`. Wire key is `type`. */
+  type: string;
+  /** Fixed value injected verbatim when present; null means the user must supply it. */
+  value: string | null;
+  valueHint: string | null;
   description: string | null;
-  is_required: boolean;
+  isRequired: boolean;
+  /** True when the user input is split on whitespace and one argv entry is emitted per token. */
+  isRepeatable: boolean;
 }
 
 /** UI-friendly metadata enriching a registry server entry for the catalogue. */

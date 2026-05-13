@@ -1,12 +1,15 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
   import { fly, fade } from "svelte/transition";
+  import { rm } from "$lib/design/motion";
 
   interface Props {
     open: boolean;
     onclose: () => void;
     width?: "sm" | "md" | "lg";
     side?: "left" | "right";
+    /** Accessible label for the sheet — screen readers announce this when the panel opens. */
+    ariaLabel?: string;
     class?: string;
     children?: import("svelte").Snippet;
   }
@@ -16,6 +19,7 @@
     onclose,
     width = "md",
     side = "right",
+    ariaLabel,
     class: className = "",
     children,
   }: Props = $props();
@@ -58,7 +62,7 @@
     tabindex="-1"
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
-    transition:fade={{ duration: 300 }}
+    transition:fade={rm({ duration: 300 })}
   ></div>
 
   <!-- Panel -->
@@ -73,8 +77,9 @@
     role="dialog"
     tabindex="-1"
     aria-modal="true"
+    aria-label={ariaLabel}
     onkeydown={handleKeydown}
-    transition:fly={{ x: flyX, duration: 300, easing: easeOutCubic }}
+    transition:fly={rm({ x: flyX, duration: 300, easing: easeOutCubic })}
   >
     {@render children?.()}
   </div>

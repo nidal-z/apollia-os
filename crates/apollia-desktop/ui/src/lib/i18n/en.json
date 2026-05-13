@@ -55,7 +55,10 @@
     "placeholder_field": "field",
     "placeholder_value": "value",
     "default_badge": "DEFAULT",
-    "worker_badge": "Worker"
+    "worker_badge": "Worker",
+    "saving": "Saving…",
+    "finalize": "Finalize",
+    "finalizing": "Finalizing…"
   },
   "companion": {
     "toggle_label": "Apollia Help",
@@ -191,7 +194,23 @@
       "reconnecting": "Reconnecting...",
       "error": "Connection lost"
     },
-    "projects": "Projects"
+    "projects": "Projects",
+    "sidebar": {
+      "dashboard": "Home",
+      "chat": "Chat",
+      "agents": "Agents",
+      "projects": "Projects",
+      "tasks": "My work",
+      "automations": "Automations",
+      "inbox": "Inbox",
+      "notifications": "Notifications",
+      "memory": "Memory",
+      "observability": "Observability",
+      "llm": "LLM models",
+      "transcriptions": "Transcriptions",
+      "integrations": "Connections",
+      "settings": "Settings"
+    }
   },
   "sidebar": {
     "group": {
@@ -243,7 +262,8 @@
       "ok": "Runtime connected · LLM provider available",
       "no_llm": "Runtime connected · no LLM provider configured",
       "runtime_down": "Runtime offline — reconnecting"
-    }
+    },
+    "search_aria": "Search and command palette"
   },
   "userMenu": {
     "open_label": "Open user menu",
@@ -326,6 +346,13 @@
       "no_suggestions_title": "No suggestions yet",
       "no_suggestions_description": "Install assistants to receive tailored recommendations.",
       "browse_catalogue": "Browse catalogue"
+    },
+    "native_section_title": "Apollia Connectors",
+    "native_section_tag": "curated · managed OAuth",
+    "native_accounts_connected_one": "{count} account connected",
+    "native_accounts_connected_other": "{count} accounts connected",
+    "custom_mcp": {
+      "code_placeholder": "Authorization code (4/0A…)"
     }
   },
   "integrations": {
@@ -546,6 +573,8 @@
       "status_section": "Status",
       "approval_section": "Approval",
       "activity_section": "Recent activity",
+      "tools_section": "Exposed tools ({count})",
+      "tools_empty": "This server does not expose any tool yet.",
       "tools_count": "{count} tools available",
       "last_call": "Last call {time}",
       "no_activity": "No activity yet",
@@ -944,7 +973,24 @@
       "loading": "Loading preview…"
     },
     "rules": {
-      "manage_link": "Manage my rules"
+      "manage_link": "Manage my rules",
+      "title": "Permission rules",
+      "subtitle": "Tools and MCP servers you've granted persistent access to.",
+      "empty_title": "No permission rules yet",
+      "empty_subtitle": "When you approve a permission with \"always\", it appears here.",
+      "col_tool": "Tool",
+      "col_scope": "Scope",
+      "col_agent": "Agent",
+      "col_created": "Created",
+      "revoke": "Revoke",
+      "revoke_all": "Revoke all",
+      "revoke_all_confirm_title": "Revoke all permission rules?",
+      "revoke_all_confirm_body": "This will revoke every persistent permission. Tools will ask for approval again on their next use.",
+      "revoke_all_type_prompt": "Type REVOKE to confirm",
+      "toast": {
+        "revoked": "Rule revoked",
+        "revoked_all": "All permission rules revoked"
+      }
     },
     "always": {
       "button": "Always allow",
@@ -1708,6 +1754,7 @@
       "configuration": "Configuration",
       "tools": "Tools",
       "permissions": "Permissions",
+      "integrations": "OAuth integrations",
       "system": "System info",
       "shortcuts": "Shortcuts",
       "observability": "Observability",
@@ -2768,7 +2815,8 @@
       "description": "Start a new chat to talk with your agents or the LLM in free mode.",
       "new_chat": "New chat",
       "getting_started": "Getting started"
-    }
+    },
+    "send": "Send"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -3363,7 +3411,14 @@
       "color_label": "Color",
       "ready_title": "Ready to start",
       "ready_detail": "{count} agents pre-assigned · ready to configure."
-    }
+    },
+    "loading": "Loading projects…",
+    "memory_documents": "Memory documents",
+    "memory_namespaces": "Memory namespaces",
+    "no_project_memory": "No project memory yet",
+    "no_project_memory_desc": "Agents in this project haven't stored memory yet.",
+    "no_tasks_desc": "Tasks created by agents will appear here.",
+    "tasks_need_agents": "Tasks need at least one agent"
   },
   "hitl": {
     "impact": {

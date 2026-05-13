@@ -182,16 +182,25 @@ impl ConnectorProvider {
     ///
     /// Priority order:
     /// 1. Runtime env var override (`APOLLIA_GOOGLE_CLIENT_ID` /
-    ///    `APOLLIA_MICROSOFT_CLIENT_ID`) — used by Expert Mode + dev builds.
-    /// 2. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`).
+    ///    `APOLLIA_MICROSOFT_CLIENT_ID`) — handy for one-off shell sessions
+    ///    and CI.
+    /// 2. User-editable `~/.apollia/oauth-clients.toml` — populated by the
+    ///    Settings → Integrations panel, so a power user running a custom
+    ///    build can plug in their own Google / Microsoft client IDs without
+    ///    rebuilding the binary.
+    /// 3. Build-time compiled default (`APOLLIA_BUILD_*_CLIENT_ID`) — what
+    ///    the official desktop release uses.
     ///
-    /// Returns `None` when both are absent so the UI can surface a clear
-    /// "OAuth not configured" message instead of failing mid-handshake.
+    /// Returns `None` when all sources are absent so the UI can surface a
+    /// clear "OAuth not configured" message instead of failing mid-handshake.
     pub fn resolve_client_id(self) -> Option<String> {
         if let Ok(v) = std::env::var(self.client_id_env_var()) {
             if !v.is_empty() {
                 return Some(v);
             }
+        }
+        if let Some(v) = crate::oauth_clients_file::lookup_client_id(self.id()) {
+            return Some(v);
         }
         let compiled = self.default_client_id();
         if compiled.is_empty() {

@@ -16,8 +16,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mcp::enrichments::{load_builtin_enrichments, ConnectorEnrichment, TrustLevel};
 use crate::mcp::registry_client::{
-    McpRegistryClient, RegistryEnvVar, RegistryIcon, RegistryPackage, RegistryRemote,
-    RegistryRemoteHeader, RegistryRepository, RegistryServer, RegistryTransport,
+    McpRegistryClient, RegistryEnvVar, RegistryIcon, RegistryPackage, RegistryPackageArg,
+    RegistryRemote, RegistryRemoteHeader, RegistryRepository, RegistryServer, RegistryTransport,
 };
 use crate::mcp::secret_store::SecretStore;
 
@@ -622,7 +622,21 @@ pub async fn fetch_mcp_registry(
                                 is_secret: ev.is_secret,
                             })
                             .collect(),
-                        package_arguments: vec![],
+                        package_arguments: enrichment
+                            .package_arguments
+                            .iter()
+                            .map(|a| RegistryPackageArg {
+                                arg_type: a.arg_type.clone(),
+                                value: None,
+                                value_hint: a.value_hint.clone(),
+                                description: a
+                                    .description
+                                    .as_ref()
+                                    .and_then(|m| m.get("en").cloned()),
+                                is_required: a.is_required,
+                                is_repeatable: a.is_repeatable,
+                            })
+                            .collect(),
                     }]
                 }),
                 icons: None,

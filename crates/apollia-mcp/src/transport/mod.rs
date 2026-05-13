@@ -39,6 +39,18 @@ pub enum TransportError {
     /// The requested transport variant is not supported.
     #[error("unsupported transport: {0}")]
     Unsupported(String),
+
+    /// The remote MCP server responded with HTTP 401 Unauthorized.
+    ///
+    /// `www_authenticate` carries the `WWW-Authenticate` header value verbatim
+    /// (or an empty string when absent). The orchestration layer is expected
+    /// to parse it (RFC 9728 `Bearer resource_metadata="..."` form) and drive
+    /// the MCP OAuth 2.1 handshake before retrying the transport.
+    #[error("MCP server returned 401 Unauthorized; OAuth handshake required")]
+    Unauthorized {
+        /// `WWW-Authenticate` header from the 401 response, empty if absent.
+        www_authenticate: String,
+    },
 }
 
 // ─── trait ───────────────────────────────────────────────────────────────────

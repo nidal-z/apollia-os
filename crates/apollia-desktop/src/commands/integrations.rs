@@ -346,6 +346,81 @@ pub async fn oauth_get_status() -> Result<Vec<OauthAccountInfo>, IntegrationsErr
     Ok(out)
 }
 
+// ─── OAuth client_id overrides (~/.apollia/oauth-clients.toml) ──────────────
+
+/// One row of `oauth_list_client_ids`.
+///
+/// Reports the **effective** client id used by the resolution chain
+/// (`env var → override file → compiled default`) so the UI can show the
+/// user what is currently active per provider, and whether the override
+/// file contains a per-provider entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct OauthClientIdStatus {
+    /// Provider id (`"google"` / `"microsoft"`).
+    pub provider: String,
+    /// Effective client id used at runtime. Empty string when no source is configured.
+    pub effective_client_id: String,
+    /// Source that produced the effective value: `"env"`, `"file"`, `"builtin"`, or `"none"`.
+    pub source: String,
+    /// Override stored in `~/.apollia/oauth-clients.toml`, if any.
+    pub override_client_id: Option<String>,
+}
+
+fn detect_source(provider: ConnectorProvider) -> &'static str {
+    if std::env::var(provider.client_id_env_var())
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_some()
+    {
+        return "env";
+    }
+    if apollia_auth::oauth_clients_file::lookup_client_id(provider.id()).is_some() {
+        return "file";
+    }
+    if !provider.default_client_id().is_empty() {
+        return "builtin";
+    }
+    "none"
+}
+
+/// Snapshot the current OAuth client_id configuration per provider.
+///
+/// Used by the Settings → Integrations OAuth panel to render which client id
+/// is active and where it came from. Safe to call without a sovereignty check
+/// since the response contains no token material — only the public client id.
+#[tauri::command]
+pub async fn oauth_list_client_ids() -> Result<Vec<OauthClientIdStatus>, IntegrationsError> {
+    let mut out = Vec::new();
+    for provider in [ConnectorProvider::Google, ConnectorProvider::Microsoft] {
+        let effective = provider.resolve_client_id().unwrap_or_default();
+        let source = detect_source(provider).to_string();
+        let override_value = apollia_auth::oauth_clients_file::lookup_client_id(provider.id());
+        out.push(OauthClientIdStatus {
+            provider: provider.id().to_owned(),
+            effective_client_id: effective,
+            source,
+            override_client_id: override_value,
+        });
+    }
+    Ok(out)
+}
+
+/// Write the client_id override for `provider` into `~/.apollia/oauth-clients.toml`.
+///
+/// Passing an empty string clears the override (the resolution chain then falls
+/// back to env var or compiled default). The file is created on demand with
+/// 0o600 permissions on Unix.
+#[tauri::command]
+pub async fn oauth_set_client_id(
+    provider: String,
+    client_id: String,
+) -> Result<(), IntegrationsError> {
+    let provider_id = provider_from_id(&provider)?;
+    apollia_auth::oauth_clients_file::set_client_id(provider_id.id(), client_id.trim())
+        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    Ok(())
+}
+
 // ─── Userinfo probe ──────────────────────────────────────────────────────────
 
 async fn resolve_account_id(

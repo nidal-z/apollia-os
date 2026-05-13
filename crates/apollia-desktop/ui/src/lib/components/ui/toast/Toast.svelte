@@ -3,6 +3,7 @@
   import { fly } from "svelte/transition";
   import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-svelte";
   import { t } from "svelte-i18n";
+  import { rm } from "$lib/design/motion";
   import type { ToastVariant } from "./store";
 
   interface Props {
@@ -116,7 +117,7 @@
     role={ariaRole}
     aria-live={ariaLive}
     aria-atomic="true"
-    transition:fly={{ y: -8, duration: 200 }}
+    transition:fly={rm({ y: -8, duration: 200 })}
     onmouseenter={handlePause}
     onmouseleave={handleResume}
     onfocusin={handlePause}
@@ -127,7 +128,7 @@
     <p class="flex-1 text-sm text-card-foreground">{message}</p>
     {#if actionLabel}
       <button
-        class="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[#7c5fd6] hover:bg-[#7c5fd6]/10 transition-colors"
+        class="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-secondary hover:bg-secondary/10 transition-colors"
         onclick={handleAction}
         data-testid="toast-action"
       >

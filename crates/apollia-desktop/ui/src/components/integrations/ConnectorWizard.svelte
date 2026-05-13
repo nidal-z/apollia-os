@@ -65,6 +65,10 @@
   // ── Auth / Test / Coaching state ────────────────────────────────────────────
   let currentStepIndex = $state(0);
   let envValues = $state<Record<string, string>>({});
+  /** User-supplied values for package positional args, indexed by their
+   *  position in `pkg.package_arguments`. Only consulted for args whose
+   *  `value` is null (i.e. the user must supply it at install time). */
+  let argValues = $state<Record<number, string>>({});
   let approvalLevel = $state<"auto" | "ask" | "readonly">("ask");
   let testSucceeded = $state(false);
   let testBypassed = $state(false);
@@ -76,6 +80,7 @@
     if (open) {
       currentStepIndex = 0;
       envValues = {};
+      argValues = {};
       approvalLevel = "ask";
       testSucceeded = false;
       testBypassed = false;
@@ -120,6 +125,23 @@
     return [];
   });
 
+  /** Positional args whose value is not pre-filled by the registry — the user
+   *  must supply them at install time. Returned with their original index in
+   *  `pkg.package_arguments` so `argValues[idx]` stays addressable. */
+  const userPackageArgs = $derived.by((): { index: number; arg: import("$lib/types").RegistryPackageArgView }[] => {
+    if (connectionMode !== "package" || !pkg) return [];
+    return (pkg.package_arguments ?? [])
+      .map((arg, index) => ({ index, arg }))
+      .filter((entry) => entry.arg.value === null || entry.arg.value === undefined);
+  });
+
+  const argsComplete = $derived.by((): boolean => {
+    return userPackageArgs.every(({ index, arg }) => {
+      if (!arg.isRequired) return true;
+      return (argValues[index] ?? "").trim().length > 0;
+    });
+  });
+
   const hasWriteTools = $derived.by((): boolean => {
     // Heuristic fallback until backend exposes `enrichment.capabilities.has_write`:
     // assume a server has write tools unless it is an explicit read-only category.
@@ -151,7 +173,8 @@
   // Required-field completion for the auth step: every required var must have a value.
   const authComplete = $derived.by((): boolean => {
     const required = authEnvVars.filter((v) => v.is_required);
-    return required.every((v) => (envValues[v.name] ?? "").trim() !== "");
+    const envOk = required.every((v) => (envValues[v.name] ?? "").trim() !== "");
+    return envOk && argsComplete;
   });
 
   const canAdvance = $derived.by((): boolean => {
@@ -224,13 +247,23 @@
             ? `\${APOLLIA_SECRET:${envVar.name}}`
             : (envValues[envVar.name] ?? "");
       }
+      // Expand declared package arguments into a flat argv. Each entry either
+      // contributes its registry-fixed `value` verbatim, or pulls the user's
+      // input from `argValues` (split on whitespace for `isRepeatable` args,
+      // which is how `@modelcontextprotocol/server-filesystem` declares its
+      // allowed-directory list).
+      const extraArgs: string[] = (pkg.package_arguments ?? []).flatMap(
+        (arg, idx) => {
+          if (arg.value !== null && arg.value !== undefined) return [arg.value];
+          const raw = (argValues[idx] ?? "").trim();
+          if (raw.length === 0) return [];
+          return arg.isRepeatable ? raw.split(/\s+/).filter(Boolean) : [raw];
+        },
+      );
       return {
         name: safeName,
         command: pkg.runtime_hint ?? "npx",
-        args: [
-          pkg.identifier,
-          ...(pkg.package_arguments ?? []).map((_, i) => String(i)),
-        ],
+        args: [pkg.identifier, ...extraArgs],
         env,
         transport: pkg.transport_type ?? "stdio",
         requires_approval: approvalLevel === "ask",
@@ -263,6 +296,10 @@
 
   function handleEnvChange(key: string, value: string): void {
     envValues = { ...envValues, [key]: value };
+  }
+
+  function handleArgChange(index: number, value: string): void {
+    argValues = { ...argValues, [index]: value };
   }
 
   function handleTestSuccess(): void {
@@ -368,6 +405,9 @@
         enrichment={server.enrichment}
         values={envValues}
         onchange={handleEnvChange}
+        packageArgs={userPackageArgs}
+        argValues={argValues}
+        onArgChange={handleArgChange}
       />
     {:else if currentStep === "test"}
       {#if testConfig}

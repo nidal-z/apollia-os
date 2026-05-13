@@ -122,6 +122,10 @@ const config: Config = {
         "primary-md": "var(--shadow-primary-md)",
         "primary-lg": "var(--shadow-primary-lg)",
         "primary-xl": "var(--shadow-primary-xl)",
+        "warm-focus": "var(--shadow-warm-focus)",
+        "status-ok": "var(--shadow-status-ok)",
+        "status-warn": "var(--shadow-status-warn)",
+        "status-error": "var(--shadow-status-error)",
       },
       borderRadius: {
         lg: "var(--radius)",

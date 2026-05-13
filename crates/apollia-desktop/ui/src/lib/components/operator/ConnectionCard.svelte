@@ -70,7 +70,7 @@
     </div>
     <div class="flex items-start gap-3">
       <div
-        class="w-10 h-10 rounded-[10px] shrink-0 inline-flex items-center justify-center text-white font-bold text-base"
+        class="w-10 h-10 rounded-[10px] shrink-0 inline-flex items-center justify-center text-white font-semibold text-base"
         style="background: {logoColor};"
       >
         {initial}
@@ -117,7 +117,7 @@
   <Card hover class="px-3.5 py-3 relative">
     <div class="flex items-center gap-2.5 mb-1">
       <div
-        class="w-[26px] h-[26px] rounded-md bg-surface-2 text-foreground inline-flex items-center justify-center text-xs font-bold"
+        class="w-[26px] h-[26px] rounded-md bg-surface-2 text-foreground inline-flex items-center justify-center text-xs font-semibold"
       >
         {initial}
       </div>

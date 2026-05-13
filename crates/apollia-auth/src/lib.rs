@@ -23,6 +23,7 @@ pub mod connector_providers;
 pub mod error;
 pub mod mcp_oauth;
 pub mod multi_account;
+pub mod oauth_clients_file;
 pub mod pkce;
 pub mod providers;
 pub mod secret_storage;

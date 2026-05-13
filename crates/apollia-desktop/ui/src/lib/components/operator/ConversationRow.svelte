@@ -219,7 +219,7 @@
         type="text"
         maxlength="100"
         data-testid="conversation-row-rename-input"
-        class="w-full rounded-sm border border-primary/40 bg-background px-1 py-0.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+        class="w-full rounded-sm border border-primary/40 bg-background px-1 py-0.5 text-[12.5px] text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
         style:font-weight={isActive || isUnread ? 600 : 500}
       />
     {:else}
@@ -256,7 +256,7 @@
   </div>
   {#if unreadCount !== undefined && unreadCount > 0}
     <span
-      class="self-center bg-primary text-white text-[9.5px] font-bold px-1.5 py-px rounded-full"
+      class="self-center bg-primary text-white text-[9.5px] font-semibold px-1.5 py-px rounded-full"
     >
       {unreadCount}
     </span>

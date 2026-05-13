@@ -12,7 +12,7 @@
   import { navigateTo } from "$lib/stores/navigation";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
-  import Breadcrumb from "./Breadcrumb.svelte";
+  import { OperatorBreadcrumb } from "$lib/components/layout";
   import UserMenu from "./UserMenu.svelte";
   import ModeChip from "./ModeChip.svelte";
 
@@ -43,7 +43,7 @@
       </button>
     {/if}
 
-    <Breadcrumb />
+    <OperatorBreadcrumb />
   </div>
 
   <!-- Center: command bar -->

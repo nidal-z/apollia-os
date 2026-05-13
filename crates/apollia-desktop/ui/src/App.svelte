@@ -3,8 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { isLoading, t } from "svelte-i18n";
-  import Sidebar from "./components/layout/Sidebar.svelte";
-  import Main from "./components/layout/Main.svelte";
+  import { Main, Sidebar } from "$lib/components/app";
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";

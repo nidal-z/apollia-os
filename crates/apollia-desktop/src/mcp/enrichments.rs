@@ -44,6 +44,11 @@ pub struct ConnectorEnrichment {
     /// Environment variable names required by this package (for synthetic entries).
     #[serde(default)]
     pub package_env_vars: Vec<EnrichmentEnvVar>,
+    /// Positional or named arguments forwarded to the package at launch
+    /// (for synthetic entries). Used to declare runtime parameters such as
+    /// `@modelcontextprotocol/server-filesystem`'s allowed-directory paths.
+    #[serde(default)]
+    pub package_arguments: Vec<EnrichmentPackageArg>,
     /// Fallback auth headers for remote connectors when the registry entry
     /// does not declare its own headers. Registry data takes precedence.
     #[serde(default)]
@@ -95,6 +100,35 @@ pub struct EnrichmentRemoteHeader {
     /// Whether the value should be stored in the OS keychain.
     #[serde(default)]
     pub is_secret: bool,
+}
+
+/// A positional argument declared in an enrichment for synthetic package entries.
+///
+/// Used for connectors whose CLI takes runtime parameters that the operator
+/// must supply (e.g. `npx @modelcontextprotocol/server-filesystem /path/to/dir`).
+/// When `is_repeatable` is true, the wizard splits the user input on whitespace
+/// and emits one argv entry per token.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichmentPackageArg {
+    /// Argument kind: `"positional"` or `"named"`. Defaults to positional.
+    #[serde(default = "default_arg_type")]
+    pub arg_type: String,
+    /// Hint shown in the wizard when the user must supply the value
+    /// (e.g. `"/path/to/allowed/directory"`).
+    pub value_hint: Option<String>,
+    /// Per-locale description shown next to the input.
+    #[serde(default)]
+    pub description: Option<HashMap<String, String>>,
+    /// Whether the argument must be provided before the server can start.
+    #[serde(default)]
+    pub is_required: bool,
+    /// Whether multiple values can be supplied (split on whitespace, one argv entry each).
+    #[serde(default)]
+    pub is_repeatable: bool,
+}
+
+fn default_arg_type() -> String {
+    "positional".to_string()
 }
 
 /// An environment variable declared in an enrichment for synthetic package entries.

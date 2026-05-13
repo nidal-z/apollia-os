@@ -816,6 +816,20 @@ impl McpClientManager {
     /// Spawn an ephemeral session for `config`, capture the result, then kill it.
     ///
     /// No session is stored and the tool registry is never modified.
+    ///
+    /// **OAuth handshake follow-up:** when the underlying HTTP transport
+    /// receives a 401 the error reaches this function as
+    /// [`crate::transport::TransportError::Unauthorized`] (wrapped inside
+    /// `McpSessionError::Transport` further down). The orchestration layer
+    /// (desktop `commands::mcp::test_mcp_connection` /
+    /// `add_mcp_server`) is expected to parse the captured
+    /// `WWW-Authenticate` header with
+    /// [`apollia_auth::parse_www_authenticate`], run the MCP OAuth 2.1
+    /// discovery + PKCE flow via
+    /// [`apollia_auth::McpDiscoveryClient`], persist the resulting access
+    /// token, and retry `test_connection` with the new
+    /// `Authorization: Bearer …` header. This split keeps `apollia-mcp`
+    /// transport-agnostic (no UI / keyring dependency leaking in here).
     async fn handle_test_connection(
         config: McpServerConfig,
     ) -> Result<McpConnectionTestResult, McpSessionError> {

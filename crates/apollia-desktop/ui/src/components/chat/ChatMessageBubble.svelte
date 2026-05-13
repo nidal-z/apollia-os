@@ -62,7 +62,7 @@
   const bubbleClass = $derived(
     isUser
       ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.35)]"
-      : "bg-card/80 border border-border/40 rounded-2xl rounded-bl-sm text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]",
+      : "bg-card/80 border border-border/40 rounded-2xl rounded-bl-sm text-foreground shadow-elev-1",
   );
 
   let copied = $state(false);

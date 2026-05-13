@@ -619,7 +619,7 @@
     opacity: 0;
   }
   :global(.shadow-warm-glow) {
-    box-shadow: 0 0 0 1px rgba(255, 180, 120, 0.35), 0 4px 14px -6px rgba(255, 150, 80, 0.45);
+    box-shadow: var(--shadow-warm-focus);
   }
   @media (prefers-reduced-motion: reduce) {
     .chat-input-textarea::placeholder {

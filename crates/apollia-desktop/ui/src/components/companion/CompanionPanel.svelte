@@ -431,8 +431,8 @@
 <style>
   .companion-snap {
     transition:
-      left 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
-      top 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      left 150ms var(--ease-spring),
+      top 150ms var(--ease-spring);
   }
   /* Fullscreen uses `dvh` (dynamic viewport) so mobile URL-bar toggling
      doesn't cut off the close button. Falls back to `100vh` on browsers

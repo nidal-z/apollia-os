@@ -234,6 +234,66 @@
         </div>
       </section>
 
+      <!-- Tools exposed by the server -->
+      <section aria-labelledby="manage-tools-heading">
+        <h3
+          id="manage-tools-heading"
+          class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          {$t("integrations.manage.tools_section", {
+            values: { count: detail.tools.length },
+          })}
+        </h3>
+        {#if detail.tools.length === 0}
+          <p
+            class="text-xs text-muted-foreground"
+            data-testid="manage-tools-empty"
+          >
+            {$t("integrations.manage.tools_empty")}
+          </p>
+        {:else}
+          <ul
+            class="space-y-1.5 max-h-64 overflow-y-auto pr-1"
+            data-testid="manage-tools-list"
+          >
+            {#each detail.tools as tool (tool.full_name)}
+              <li
+                class="glass-card glass-border rounded-md px-3 py-2"
+                data-testid={`manage-tool-${tool.local_name}`}
+              >
+                <details class="group">
+                  <summary class="flex cursor-pointer items-start justify-between gap-2 list-none">
+                    <div class="min-w-0 flex-1">
+                      <div class="font-mono text-xs text-foreground truncate">
+                        {tool.local_name}
+                      </div>
+                      {#if tool.description}
+                        <p class="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {tool.description}
+                        </p>
+                      {/if}
+                    </div>
+                    <span
+                      class="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground group-open:hidden"
+                    >
+                      schema ▾
+                    </span>
+                    <span
+                      class="mt-0.5 hidden text-[10px] uppercase tracking-wide text-muted-foreground group-open:inline"
+                    >
+                      schema ▴
+                    </span>
+                  </summary>
+                  <pre
+                    class="mt-2 max-h-48 overflow-auto rounded bg-muted/40 p-2 text-[11px] font-mono leading-relaxed text-muted-foreground"
+                    data-testid={`manage-tool-schema-${tool.local_name}`}>{JSON.stringify(tool.input_schema, null, 2)}</pre>
+                </details>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+
       <!-- Approval level -->
       <section aria-labelledby="manage-approval-heading">
         <h3

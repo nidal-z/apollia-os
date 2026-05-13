@@ -75,10 +75,25 @@
     "icon_name": "folder",
     "trust_level": "community_verified",
     "auth_help_url": null,
-    "auth_help_text": null,
+    "auth_help_text": {
+      "en": "List one or more absolute directory paths the server is allowed to access. Separate multiple paths with spaces or new lines.",
+      "fr": "Indiquez un ou plusieurs chemins absolus de dossiers auxquels le serveur a accès. Séparez les chemins par des espaces ou des sauts de ligne."
+    },
     "default_requires_approval": false,
     "package_registry_type": "npm",
     "package_runtime_hint": "node",
+    "package_arguments": [
+      {
+        "arg_type": "positional",
+        "value_hint": "/Users/me/Documents",
+        "description": {
+          "en": "Absolute path to an allowed directory. Add more paths separated by whitespace.",
+          "fr": "Chemin absolu d'un dossier autorisé. Ajoutez d'autres chemins séparés par des espaces."
+        },
+        "is_required": true,
+        "is_repeatable": true
+      }
+    ],
     "cost_model": { "kind": "free" }
   },
   {
