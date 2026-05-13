@@ -5,7 +5,8 @@
 //! `/api/v1/llm/backends` ; le ping et les statistiques utilisent leurs
 //! propres routes dédiées.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use apollia_core::LlmBackendRepository;
 use apollia_llm::LlmRouter;
@@ -15,6 +16,28 @@ use tauri::State;
 
 use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 use crate::SharedLlmRouter;
+
+/// Snapshot of the most recent ping result for a single backend.
+///
+/// Kept in memory only — re-evaluated on the next ping after a restart.
+#[derive(Debug, Clone, Serialize)]
+pub struct PingState {
+    /// Error message returned by the last ping, `None` if the last ping succeeded.
+    pub last_error: Option<String>,
+    /// Round-trip latency of the last ping in milliseconds.
+    pub last_latency_ms: Option<u64>,
+    /// RFC 3339 timestamp of the last ping (UTC).
+    pub last_ping_at: Option<String>,
+    /// `true` if the last ping reported the backend as reachable.
+    pub last_available: bool,
+}
+
+/// Process-wide cache of last ping outcomes, keyed by backend name.
+///
+/// Populated by `ping_llm_backend` and projected onto `LlmBackendView`
+/// entries returned by `list_llm_backends` so the UI can surface the
+/// most recent error without a fresh ping.
+pub type LlmPingCache = Arc<RwLock<HashMap<String, PingState>>>;
 
 /// Vue d'un backend LLM pour les opérations CRUD.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +54,12 @@ pub struct LlmBackendView {
     pub enabled: bool,
     /// `true` si c'est le backend utilisé par défaut.
     pub is_default: bool,
+    /// Message d'erreur du dernier ping (`None` si dernier ping OK ou jamais pingé).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_ping_error: Option<String>,
+    /// Horodatage RFC 3339 du dernier ping (`None` si jamais pingé).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub last_ping_at: Option<String>,
 }
 
 /// Corps de requête pour la création d'un backend LLM.
@@ -109,10 +138,12 @@ fn parse_backend_view(json: serde_json::Value) -> Result<LlmBackendView, String>
 
 /// Liste tous les backends LLM configurés.
 ///
-/// Délègue à `GET /api/v1/llm/backends`.
+/// Délègue à `GET /api/v1/llm/backends`, puis enrichit chaque vue avec
+/// les dernières données de ping issues du `LlmPingCache` (en RAM).
 #[tauri::command]
 pub async fn list_llm_backends(
     state: State<'_, RuntimeHandle>,
+    cache: State<'_, LlmPingCache>,
 ) -> Result<Vec<LlmBackendView>, String> {
     let json = http_get_json(state.api_port, "/api/v1/llm/backends").await?;
 
@@ -122,7 +153,21 @@ pub async fn list_llm_backends(
         .cloned()
         .unwrap_or_default();
 
-    backends.into_iter().map(parse_backend_view).collect()
+    let mut views: Vec<LlmBackendView> = backends
+        .into_iter()
+        .map(parse_backend_view)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if let Ok(guard) = cache.read() {
+        for view in views.iter_mut() {
+            if let Some(ping) = guard.get(&view.name) {
+                view.last_ping_error = ping.last_error.clone();
+                view.last_ping_at = ping.last_ping_at.clone();
+            }
+        }
+    }
+
+    Ok(views)
 }
 
 /// Crée un nouveau backend LLM.
@@ -198,17 +243,20 @@ pub async fn set_default_llm_backend(
 
 /// Ping un backend LLM et retourne la latence.
 ///
-/// Délègue à `POST /api/v1/llm/ping`.
+/// Délègue à `POST /api/v1/llm/ping`. Le résultat est également écrit
+/// dans le `LlmPingCache` partagé afin que `list_llm_backends` puisse
+/// projeter `last_ping_error` / `last_ping_at` sur les vues retournées.
 #[tauri::command]
 pub async fn ping_llm_backend(
     state: State<'_, RuntimeHandle>,
+    cache: State<'_, LlmPingCache>,
     name: String,
 ) -> Result<PingResult, String> {
     let body = serde_json::json!({ "backend": name });
     let json = http_post_json(state.api_port, "/api/v1/llm/ping", &body).await;
 
-    match json {
-        Ok(resp) => Ok(PingResult {
+    let result = match json {
+        Ok(resp) => PingResult {
             backend: resp
                 .get("backend")
                 .and_then(|v| v.as_str())
@@ -220,14 +268,28 @@ pub async fn ping_llm_backend(
                 .unwrap_or(false),
             latency_ms: resp.get("latency_ms").and_then(|v| v.as_u64()),
             error: resp.get("error").and_then(|v| v.as_str()).map(String::from),
-        }),
-        Err(e) => Ok(PingResult {
-            backend: name,
+        },
+        Err(e) => PingResult {
+            backend: name.clone(),
             available: false,
             latency_ms: None,
             error: Some(e),
-        }),
+        },
+    };
+
+    if let Ok(mut guard) = cache.write() {
+        guard.insert(
+            name.clone(),
+            PingState {
+                last_error: result.error.clone(),
+                last_latency_ms: result.latency_ms,
+                last_ping_at: Some(chrono::Utc::now().to_rfc3339()),
+                last_available: result.available,
+            },
+        );
     }
+
+    Ok(result)
 }
 
 /// Retourne le seuil d'alerte de coût LLM configuré en USD.

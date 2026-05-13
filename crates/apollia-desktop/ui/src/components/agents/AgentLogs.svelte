@@ -7,6 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { addToast } from "$lib/components/ui/toast";
   import {
     ScrollText,
     RefreshCw,
@@ -19,6 +20,7 @@
     Search,
     X,
     ArrowDownWideNarrow,
+    Copy,
   } from "lucide-svelte";
 
   interface Props {
@@ -127,6 +129,33 @@
     sortBy = "recent";
   }
 
+  async function copyLogs() {
+    const header = `Apollia · ${$t('agents.logs_title')} · ${agentId} · ${new Date().toISOString()}`;
+    const lines = [header, "─".repeat(header.length), ""];
+    for (const task of filteredTasks) {
+      const status = $t(STATUS_I18N[task.status] ?? "dashboard.status_submitted");
+      lines.push(
+        `[${status}] ${formatRelativeTime(task.created_at)} (${formatAbsoluteTime(task.created_at)}) · ${formatDuration(task.duration_ms)}`,
+        `  ID: ${task.id}`,
+        `  ${$t('agents.copy_logs_input_label')}: ${task.input_preview ?? ""}`,
+      );
+      if (task.output_text) {
+        const outLabel = task.status === 'failed' ? $t('agents.task_error_label') : $t('agents.task_output_label');
+        lines.push(`  ${outLabel}: ${task.output_text}`);
+      }
+      lines.push("");
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      addToast(
+        $t("agents.copy_logs_toast", { values: { count: filteredTasks.length } }),
+        "success",
+      );
+    } catch {
+      addToast($t("agents.copy_logs_error"), "error");
+    }
+  }
+
   const filteredTasks = $derived.by(() => {
     const query = searchQuery.trim().toLowerCase();
     let out = taskList.filter((task) => {
@@ -189,9 +218,23 @@
             </p>
           </div>
         </div>
-        <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchTasks} disabled={loading} aria-label={$t('common.refresh')}>
-          <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
-        </Button>
+        <div class="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            class="h-7 w-7 p-0"
+            onclick={copyLogs}
+            disabled={taskList.length === 0}
+            aria-label={$t('agents.copy_logs_button')}
+            title={$t('agents.copy_logs_button')}
+            data-testid="agent-logs-copy-btn"
+          >
+            <Copy size={13} class="text-muted-foreground" />
+          </Button>
+          <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchTasks} disabled={loading} aria-label={$t('common.refresh')}>
+            <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
+          </Button>
+        </div>
       </div>
     </div>
 

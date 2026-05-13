@@ -149,6 +149,7 @@
         autocomplete="off"
         autocorrect="off"
         spellcheck={false}
+        onpaste={(e: ClipboardEvent) => e.preventDefault()}
         aria-label={$t("settings.danger.confirm_input_aria", { values: { word: confirmWord } })}
         data-testid={dataTestId ? `${dataTestId}-input` : undefined}
       />

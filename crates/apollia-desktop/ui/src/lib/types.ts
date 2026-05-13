@@ -398,6 +398,10 @@ export interface LlmBackendConfig {
   config_json: Record<string, unknown>;
   enabled: boolean;
   is_default: boolean;
+  /** Message d'erreur du dernier ping en RAM (absent = jamais pingé ou dernier OK). */
+  last_ping_error?: string | null;
+  /** Horodatage RFC 3339 du dernier ping (absent = jamais pingé). */
+  last_ping_at?: string | null;
 }
 
 /** Résultat d'un ping LLM. */

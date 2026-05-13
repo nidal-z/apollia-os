@@ -431,6 +431,7 @@ fn main() {
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
         ) as commands::model_hub::SharedDownloadManager)
         .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
+        .manage(commands::llm::LlmPingCache::default())
         .setup(move |app| {
             tray::setup_tray(app)?;
 

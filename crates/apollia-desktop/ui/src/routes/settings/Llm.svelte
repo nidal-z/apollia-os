@@ -11,7 +11,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { Plus, Pencil, Trash2, Star, CheckCircle2, XCircle, PauseCircle } from "lucide-svelte";
+  import { Plus, Pencil, Trash2, Plug, Star, CheckCircle2, XCircle, PauseCircle } from "lucide-svelte";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
   import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
@@ -19,7 +20,7 @@
   import LlmBackendDialog from "../../components/settings/LlmBackendDialog.svelte";
   import { llmBackendsStore, settingsLoaders } from "$lib/stores/settings";
   import { addToast } from "$lib/components/ui/toast";
-  import type { LlmBackendConfig } from "$lib/types";
+  import type { LlmBackendConfig, LlmPingResult } from "$lib/types";
 
   let actionError = $state<string | null>(null);
   let dialogOpen = $state(false);
@@ -29,6 +30,61 @@
   let deleteTarget = $state<LlmBackendConfig | null>(null);
   let deleteConfirmText = $state("");
   let deleting = $state(false);
+
+  // Inline ping test state — keyed by backend name.
+  const FEEDBACK_DURATION_MS = 5_000;
+  let testingMap = $state<Record<string, boolean>>({});
+  let testResultMap = $state<Record<string, LlmPingResult>>({});
+  const feedbackTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  async function handleTest(b: LlmBackendConfig) {
+    const name = b.name;
+    if (testingMap[name]) return;
+    testingMap = { ...testingMap, [name]: true };
+    if (feedbackTimers[name]) {
+      clearTimeout(feedbackTimers[name]);
+      delete feedbackTimers[name];
+    }
+    const { [name]: _drop, ...rest } = testResultMap;
+    testResultMap = rest;
+    try {
+      const result: LlmPingResult = await invoke("ping_llm_backend", { name });
+      testResultMap = { ...testResultMap, [name]: result };
+      if (result.available) {
+        addToast(
+          $t("settings.llm.test_ok_toast", { values: { name } }),
+          "success",
+        );
+      } else {
+        addToast(
+          $t("settings.llm.test_failed_toast", {
+            values: { name, error: result.error ?? $t("common.status.error") },
+          }),
+          "error",
+        );
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      testResultMap = {
+        ...testResultMap,
+        [name]: { backend: name, available: false, latency_ms: null, error: message },
+      };
+      addToast(
+        $t("settings.llm.test_failed_toast", { values: { name, error: message } }),
+        "error",
+      );
+    } finally {
+      testingMap = { ...testingMap, [name]: false };
+      feedbackTimers[name] = setTimeout(() => {
+        const { [name]: _gone, ...remaining } = testResultMap;
+        testResultMap = remaining;
+        delete feedbackTimers[name];
+      }, FEEDBACK_DURATION_MS);
+      // Refresh the backend list so the persistent status tooltip
+      // reflects the cached ping result once the temporary badge fades.
+      void refresh();
+    }
+  }
 
   async function refresh() {
     await settingsLoaders.llmBackends(true);
@@ -81,13 +137,36 @@
     }
   }
 
-  function statusOf(b: LlmBackendConfig): { kind: "connected" | "disabled" | "unknown"; label: string } {
+  function statusOf(
+    b: LlmBackendConfig,
+  ): { kind: "connected" | "disabled" | "error"; label: string; tooltip?: string } {
     if (!b.enabled) return { kind: "disabled", label: $t("settings.llm.status_disabled") };
+    if (b.last_ping_error) {
+      return {
+        kind: "error",
+        label: $t("settings.llm.status_error"),
+        tooltip: b.last_ping_error,
+      };
+    }
     return { kind: "connected", label: $t("settings.llm.status_configured") };
   }
 
-  onMount(() => {
-    void settingsLoaders.llmBackends();
+  /** Ping every enabled backend in parallel so cached errors are populated. */
+  async function autoPingAllEnabled() {
+    const backends = $llmBackendsStore.data ?? [];
+    const enabled = backends.filter((b) => b.enabled);
+    if (enabled.length === 0) return;
+    await Promise.all(
+      enabled.map((b) =>
+        invoke<LlmPingResult>("ping_llm_backend", { name: b.name }).catch(() => null),
+      ),
+    );
+    await refresh();
+  }
+
+  onMount(async () => {
+    await settingsLoaders.llmBackends();
+    void autoPingAllEnabled();
   });
 </script>
 
@@ -146,6 +225,17 @@
               <div class="flex items-center gap-1">
                 <button
                   type="button"
+                  class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                  title={$t("settings.llm.test")}
+                  aria-label={$t("settings.llm.test")}
+                  onclick={() => handleTest(backend)}
+                  disabled={!backend.enabled || !!testingMap[backend.name]}
+                  data-testid="test-backend-{backend.name}"
+                >
+                  <Plug class="h-4 w-4 {testingMap[backend.name] ? 'animate-pulse' : ''}" />
+                </button>
+                <button
+                  type="button"
                   class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                   title={$t("settings.llm.edit")}
                   aria-label={$t("settings.llm.edit")}
@@ -167,8 +257,12 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between text-xs">
-              <span class="inline-flex items-center gap-1.5">
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span
+                class="inline-flex items-center gap-1.5"
+                title={status.tooltip ?? undefined}
+                data-testid="status-{backend.name}"
+              >
                 {#if status.kind === "connected"}
                   <CheckCircle2 class="h-3.5 w-3.5 text-success" />
                 {:else if status.kind === "disabled"}
@@ -178,16 +272,30 @@
                 {/if}
                 <span class="text-muted-foreground">{status.label}</span>
               </span>
-              {#if !backend.is_default}
-                <button
-                  type="button"
-                  class="text-primary hover:underline"
-                  onclick={() => handleSetDefault(backend)}
-                  data-testid="set-default-{backend.name}"
-                >
-                  {$t("settings.llm_set_default")}
-                </button>
-              {/if}
+              <div class="flex items-center gap-2 shrink-0">
+                {#if testResultMap[backend.name]}
+                  {@const result = testResultMap[backend.name]}
+                  {#if result.available}
+                    <Badge variant="success" size="sm" data-testid="test-result-ok-{backend.name}">
+                      OK{result.latency_ms !== null ? ` · ${result.latency_ms} ms` : ""}
+                    </Badge>
+                  {:else}
+                    <Badge variant="danger" size="sm" class="max-w-[220px]" data-testid="test-result-err-{backend.name}">
+                      <span class="truncate">{$t("common.status.error")}{result.error ? `: ${result.error}` : ""}</span>
+                    </Badge>
+                  {/if}
+                {/if}
+                {#if !backend.is_default}
+                  <button
+                    type="button"
+                    class="text-primary hover:underline"
+                    onclick={() => handleSetDefault(backend)}
+                    data-testid="set-default-{backend.name}"
+                  >
+                    {$t("settings.llm_set_default")}
+                  </button>
+                {/if}
+              </div>
             </div>
           </div>
         {/each}
