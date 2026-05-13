@@ -517,39 +517,41 @@ impl Supervisor {
                     }
                 };
 
-                let handle = if server_configs.is_empty() {
-                    info!("Supervisor: no MCP servers configured — Phase 3b skipped");
-                    None
-                } else {
-                    let server_count = server_configs.len();
-                    match McpClientManagerHandle::start(
-                        server_configs,
-                        &tool_registry_handle,
-                        Some(event_sender.clone()),
-                        None,
-                    )
-                    .await
-                    {
-                        Ok(handle) => {
-                            let status = handle.status().await;
-                            let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
-                            info!(
-                                servers = server_count,
-                                connected = status.len(),
-                                tools = total_tools,
-                                "MCP Phase 3b complete"
-                            );
-                            // Start MCP config watcher for hot reload when mcp.toml exists.
-                            apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
-                                mcp_config_path.clone(),
-                                handle.clone(),
-                            );
-                            Some(handle)
-                        }
-                        Err(e) => {
-                            warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
-                            None
-                        }
+                // Always start the McpClientManager actor, even when the
+                // server list is empty. Without this, the desktop "Add MCP
+                // server" flow cannot register a first server: every write
+                // route (POST /api/v1/mcp/servers, …) checks
+                // require_mcp_handle and returns 503 "MCP is not configured"
+                // until at least one server exists in mcp.db at boot — a
+                // chicken-and-egg trap for first-time users.
+                let server_count = server_configs.len();
+                let handle = match McpClientManagerHandle::start(
+                    server_configs,
+                    &tool_registry_handle,
+                    Some(event_sender.clone()),
+                    None,
+                )
+                .await
+                {
+                    Ok(handle) => {
+                        let status = handle.status().await;
+                        let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
+                        info!(
+                            servers = server_count,
+                            connected = status.len(),
+                            tools = total_tools,
+                            "MCP Phase 3b complete"
+                        );
+                        // Start MCP config watcher for hot reload when mcp.toml exists.
+                        apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
+                            mcp_config_path.clone(),
+                            handle.clone(),
+                        );
+                        Some(handle)
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
+                        None
                     }
                 };
 
@@ -1704,9 +1706,10 @@ mod tests {
     fn native_tool_descriptors_returns_expected_count() {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
-        // THEN: 13 baseline tools, plus optional web tools when their features are on.
+        // THEN: 16 baseline tools (13 historical + 3 permission_rule_* added
+        // by ADR-086), plus optional web tools when their features are on.
         let expected_count =
-            13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+            16 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
         let descriptors = native_tool_descriptors();
         assert_eq!(descriptors.len(), expected_count);
     }
@@ -1924,10 +1927,11 @@ mod tests {
         assert!(agents.unwrap().is_empty());
 
         // ToolRegistryHandle: can list (native tools should be registered).
-        // Count mirrors native_tool_descriptors() — 13 baseline + web-search + web-read
+        // Count mirrors native_tool_descriptors() — 16 baseline (13 historical
+        // + 3 permission_rule_* added by ADR-086) + web-search + web-read
         // when those features are compiled in (ADR-072).
         let expected =
-            13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+            16 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
         let tools = handles.tool_registry_handle.list().await;
         assert!(tools.is_ok());
         assert_eq!(

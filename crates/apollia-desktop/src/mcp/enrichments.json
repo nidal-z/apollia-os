@@ -188,12 +188,20 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://linear.app/settings/api",
     "auth_help_text": {
-      "en": "Sign in with Linear OAuth when prompted by the MCP server.",
-      "fr": "Connectez-vous via OAuth Linear quand le serveur MCP le demande."
+      "en": "Linear MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix, or your Linear API key.",
+      "fr": "Le MCP Linear utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `, ou votre clé API Linear."
     },
     "default_requires_approval": true,
     "remote_url": "https://mcp.linear.app/sse",
     "remote_transport": "sse",
+    "remote_headers": [
+      {
+        "name": "Authorization",
+        "description": "Linear OAuth access token (Bearer <token>) or API key. v0.1.1 will automate the OAuth handshake.",
+        "is_required": true,
+        "is_secret": true
+      }
+    ],
     "cost_model": { "kind": "free" }
   },
   {
@@ -209,12 +217,20 @@
     "trust_level": "verified_official",
     "auth_help_url": "https://www.atlassian.com/software/rovo",
     "auth_help_text": {
-      "en": "Sign in with Atlassian OAuth. Rovo availability depends on your Atlassian plan.",
-      "fr": "Connectez-vous via OAuth Atlassian. La disponibilité de Rovo dépend de votre plan."
+      "en": "Atlassian Rovo MCP officially uses OAuth. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix. Rovo availability depends on your Atlassian plan.",
+      "fr": "Le MCP Atlassian Rovo utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `. La disponibilité de Rovo dépend de votre plan."
     },
     "default_requires_approval": true,
     "remote_url": "https://mcp.atlassian.com",
     "remote_transport": "streamable-http",
+    "remote_headers": [
+      {
+        "name": "Authorization",
+        "description": "Atlassian OAuth access token (Bearer <token>). v0.1.1 will automate the OAuth handshake.",
+        "is_required": true,
+        "is_secret": true
+      }
+    ],
     "cost_model": {
       "kind": "freemium",
       "note_i18n": {
@@ -278,20 +294,28 @@
     "registry_names": ["com.figma/mcp-cloud"],
     "operator_label": { "en": "Figma (cloud, OAuth)", "fr": "Figma (cloud, OAuth)" },
     "description": {
-      "en": "Figma's hosted MCP server accessible from anywhere — uses OAuth 2.0 sign-in.",
-      "fr": "Le serveur MCP cloud Figma accessible partout — connexion via OAuth 2.0."
+      "en": "Figma's hosted MCP server accessible from anywhere — uses OAuth 2.0 sign-in (manual token in v0.1.0).",
+      "fr": "Le serveur MCP cloud Figma accessible partout — connexion OAuth 2.0 (token manuel en v0.1.0)."
     },
     "category": "design",
     "icon_name": "figma",
     "trust_level": "verified_official",
     "auth_help_url": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
     "auth_help_text": {
-      "en": "Figma's hosted MCP requires the client to perform an OAuth 2.0 flow. Apollia's automatic MCP OAuth handshake is scheduled for v0.1.1 — until then, use the local Dev Mode entry instead.",
-      "fr": "Le MCP cloud Figma exige un flow OAuth 2.0 côté client. Le handshake OAuth MCP automatique d'Apollia arrive en v0.1.1 — entre-temps, utilisez l'entrée Dev Mode locale."
+      "en": "The Figma cloud MCP officially uses OAuth 2.0. Until Apollia's automatic OAuth handshake lands (v0.1.1), paste an OAuth access token manually with the `Bearer ` prefix. Or use the local Dev Mode entry which needs no token.",
+      "fr": "Le MCP cloud Figma utilise officiellement OAuth 2.0. En attendant le handshake OAuth automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `. Ou utilisez l'entrée Dev Mode locale qui ne demande aucun token."
     },
     "default_requires_approval": true,
     "remote_url": "https://mcp.figma.com/mcp",
     "remote_transport": "streamable-http",
+    "remote_headers": [
+      {
+        "name": "Authorization",
+        "description": "OAuth 2.0 access token (format: Bearer <token>). v0.1.1 will automate this handshake.",
+        "is_required": true,
+        "is_secret": true
+      }
+    ],
     "cost_model": { "kind": "free" }
   },
   {
