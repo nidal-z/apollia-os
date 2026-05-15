@@ -21,7 +21,7 @@ use crate::mcp::registry_client::{
 };
 use crate::mcp::secret_store::SecretStore;
 
-use super::{http_delete_json, http_get_json, http_patch_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, http_put_json};
 
 /// Apply enrichment `remote_headers` as fallback on remotes that have no headers.
 ///
@@ -426,6 +426,45 @@ pub async fn remove_mcp_server(
     http_delete_json(state.api_port, &path).await.map(|_| ())
 }
 
+/// Return the raw persisted launch configuration of a server.
+///
+/// Delegates to `GET /api/v1/mcp/servers/{name}/raw_config`. Used by the
+/// desktop "Modifier les arguments" flow to seed the inline edit form with
+/// the current command/args/env (placeholders, never resolved secrets).
+#[tauri::command]
+pub async fn get_mcp_server_raw_config(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+) -> Result<McpServerConfig, String> {
+    let path = format!("/api/v1/mcp/servers/{name}/raw_config");
+    let json = http_get_json(state.api_port, &path).await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse server config: {e}"))
+}
+
+/// Replace an MCP server's launch configuration and restart its session.
+///
+/// Delegates to `PUT /api/v1/mcp/servers/{name}/config` on the embedded
+/// runtime, which performs a remove → add (restart) → persist cycle so the
+/// new `command` / `args` / `env` / `transport` take effect immediately.
+/// Used by the desktop "Modifier les arguments" flow on the manage panel,
+/// which lets the operator fix runtime parameters (e.g. allowed directories
+/// for `@modelcontextprotocol/server-filesystem`) without re-running the
+/// full install wizard.
+///
+/// The `config.name` field must equal `name`; the runtime rejects mismatches.
+#[tauri::command]
+pub async fn update_mcp_server_config(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+    config: McpServerConfig,
+) -> Result<McpServerStatus, String> {
+    let body =
+        serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
+    let path = format!("/api/v1/mcp/servers/{name}/config");
+    let json = http_put_json(state.api_port, &path, &body).await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
+}
+
 /// Test an MCP server configuration without persisting a session.
 ///
 /// Delegates to `POST /api/v1/mcp/servers/test` on the embedded runtime.
@@ -683,6 +722,130 @@ pub async fn fetch_mcp_registry(
         }
     }
 
+    Ok(result)
+}
+
+/// Return only the 18 curated MCP entries baked into the binary —
+/// instant, network-free path.
+///
+/// Used by the Catalogue Sheet to show a useful subset immediately on
+/// open, before (optionally) triggering the heavy full-registry fetch.
+/// Mirrors the synthetic-injection codepath inside `fetch_mcp_registry`
+/// but skips the network call entirely.
+#[tauri::command]
+pub async fn fetch_mcp_curated(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<RegistryServerView>, String> {
+    let enrichments = load_builtin_enrichments();
+    let installed_names: HashSet<String> =
+        match http_get_json(state.api_port, "/api/v1/mcp/servers").await {
+            Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.name)
+                .collect(),
+            Err(_) => HashSet::new(),
+        };
+
+    let mut result: Vec<RegistryServerView> = Vec::with_capacity(enrichments.len());
+    for enrichment in &enrichments {
+        let name = enrichment
+            .registry_names
+            .first()
+            .cloned()
+            .unwrap_or_else(|| enrichment.package_identifier.clone());
+        result.push(RegistryServerView {
+            name: name.clone(),
+            title: Some(
+                enrichment
+                    .operator_label
+                    .get("en")
+                    .cloned()
+                    .unwrap_or_default(),
+            ),
+            description: enrichment
+                .description
+                .as_ref()
+                .and_then(|m| m.get("en").cloned()),
+            version: String::new(),
+            website_url: enrichment.auth_help_url.clone(),
+            packages: enrichment.package_registry_type.as_ref().map(|reg_type| {
+                vec![RegistryPackage {
+                    registry_type: reg_type.clone(),
+                    identifier: enrichment.package_identifier.clone(),
+                    version: None,
+                    runtime_hint: enrichment.package_runtime_hint.clone(),
+                    transport: RegistryTransport {
+                        transport_type: "stdio".to_string(),
+                    },
+                    environment_variables: enrichment
+                        .package_env_vars
+                        .iter()
+                        .map(|ev| RegistryEnvVar {
+                            name: ev.name.clone(),
+                            description: ev.description.clone(),
+                            is_required: ev.is_required,
+                            is_secret: ev.is_secret,
+                        })
+                        .collect(),
+                    package_arguments: enrichment
+                        .package_arguments
+                        .iter()
+                        .map(|a| RegistryPackageArg {
+                            arg_type: a.arg_type.clone(),
+                            value: None,
+                            value_hint: a.value_hint.clone(),
+                            description: a
+                                .description
+                                .as_ref()
+                                .and_then(|m| m.get("en").cloned()),
+                            is_required: a.is_required,
+                            is_repeatable: a.is_repeatable,
+                        })
+                        .collect(),
+                }]
+            }),
+            icons: None,
+            repository: None,
+            trust_level: trust_level_str(&enrichment.trust_level),
+            category: Some(enrichment.category.clone()),
+            enrichment: Some(ConnectorEnrichmentView {
+                operator_label: enrichment
+                    .operator_label
+                    .get("en")
+                    .cloned()
+                    .unwrap_or_default(),
+                category: enrichment.category.clone(),
+                icon_name: enrichment.icon_name.clone(),
+                trust_level: enrichment.trust_level.clone(),
+                auth_help_url: enrichment.auth_help_url.clone(),
+                auth_help_text: enrichment
+                    .auth_help_text
+                    .as_ref()
+                    .and_then(|m| m.get("en").cloned()),
+                default_requires_approval: enrichment.default_requires_approval,
+            }),
+            is_installed: installed_names.contains(&enrichment.package_identifier)
+                || installed_names.contains(&name),
+            remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
+                (Some(url), Some(transport)) => vec![RegistryRemote {
+                    transport_type: transport.clone(),
+                    url: url.clone(),
+                    headers: enrichment
+                        .remote_headers
+                        .iter()
+                        .map(|h| RegistryRemoteHeader {
+                            name: h.name.clone(),
+                            description: h.description.clone(),
+                            is_required: h.is_required,
+                            is_secret: h.is_secret,
+                        })
+                        .collect(),
+                }],
+                _ => vec![],
+            },
+        });
+    }
     Ok(result)
 }
 

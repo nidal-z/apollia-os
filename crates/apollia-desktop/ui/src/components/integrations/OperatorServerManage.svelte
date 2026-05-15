@@ -9,6 +9,7 @@
   import type { McpServerDetailView, McpServerStatusView } from "$lib/types";
   import ConnectionStatusIndicator from "./ConnectionStatusIndicator.svelte";
   import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
+  import McpServerSettingsEditor from "./McpServerSettingsEditor.svelte";
   import { Card } from "$lib/components/ui/card";
 
   type ApprovalLevel = "auto" | "ask" | "readonly";
@@ -43,6 +44,22 @@
   let confirmDisconnect = $state(false);
   let disconnecting = $state(false);
   let disconnectError = $state<string | null>(null);
+
+  /** Heuristic: the installed `@modelcontextprotocol/server-filesystem` server
+   *  needs at least one allowed-directory positional arg. If only the package
+   *  identifier is present we surface a warning so the operator can fix the
+   *  install without having to read the registry README. */
+  function detectMissingRequiredArgs(d: McpServerDetailView | null): string | null {
+    if (!d) return null;
+    const args = d.config.args ?? [];
+    const looksLikeFilesystem = args.some((a) =>
+      a.includes("@modelcontextprotocol/server-filesystem"),
+    );
+    if (looksLikeFilesystem && args.length <= 1) {
+      return "Ce serveur n'a aucun dossier autorisé configuré. Ajoutez au moins un chemin absolu via les paramètres pour que ses outils file-system puissent lire ou écrire quoi que ce soit.";
+    }
+    return null;
+  }
 
   function deriveApprovalLevel(requiresApproval: boolean): ApprovalLevel {
     return requiresApproval ? "ask" : "auto";
@@ -293,6 +310,27 @@
             {/each}
           </ul>
         {/if}
+      </section>
+
+      <!-- Launch configuration (command + args + env + timeouts), editable —
+           rendered by the shared `McpServerSettingsEditor` so both this Sheet
+           and the inline Connections detail panel use the same component. -->
+      {#if detectMissingRequiredArgs(detail)}
+        <Card class="rounded-lg px-4 py-3 border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+          <p class="text-xs leading-[1.5]" data-testid="manage-config-warning">
+            {detectMissingRequiredArgs(detail)}
+          </p>
+        </Card>
+      {/if}
+
+      <section aria-labelledby="manage-config-heading">
+        <h3
+          id="manage-config-heading"
+          class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          Configuration de lancement
+        </h3>
+        <McpServerSettingsEditor {serverName} onSaved={fetchDetail} />
       </section>
 
       <!-- Approval level -->

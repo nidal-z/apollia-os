@@ -66,6 +66,7 @@
 
   <div class="px-8 pt-5">
     <TabBar
+      variant="underline"
       items={tabItems}
       activeTab={activeTab}
       ontabchange={handleTabChange}

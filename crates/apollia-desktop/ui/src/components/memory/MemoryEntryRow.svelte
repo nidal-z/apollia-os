@@ -113,7 +113,7 @@
   tabindex={onclick ? 0 : undefined}
   onclick={onclick ? onRowClick : undefined}
   onkeydown={onclick ? onRowKeydown : undefined}
-  class="group relative flex items-center gap-2.5 px-4 py-2.5 cursor-pointer border-b border-border/40 transition-colors {selected
+  class="group relative flex items-start gap-3 px-6 py-3.5 cursor-pointer border-b border-border/40 transition-colors {selected
     ? 'bg-primary/10'
     : 'bg-transparent hover:bg-muted/40'}"
   data-testid="memory-entry-row-{entry.id}"
@@ -121,17 +121,17 @@
   <!-- Icone type — uniforme en gris muted, pas de couleur sémantique
        pour éviter la collision tonale avec les chips de catégorie -->
   <div
-    class="w-[22px] h-[22px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {selected
+    class="w-[28px] h-[28px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center {selected
       ? 'bg-primary text-white'
       : 'bg-muted text-muted-foreground'}"
     title={typeLabel}
   >
     {#if entry.entry_type === "episodic"}
-      <Clock size={11} />
+      <Clock size={13} />
     {:else if entry.entry_type === "procedural"}
-      <Cog size={11} />
+      <Cog size={13} />
     {:else}
-      <Database size={11} />
+      <Database size={13} />
     {/if}
   </div>
 
@@ -139,7 +139,7 @@
     <!-- Ligne 1 : key + badges -->
     <div class="flex items-center gap-2 min-w-0">
       <code
-        class="text-[12px] truncate {keyKind === 'seen'
+        class="text-[13px] truncate {keyKind === 'seen'
           ? 'text-muted-foreground/80'
           : keyKind === 'entity'
             ? 'text-foreground'
@@ -173,8 +173,8 @@
       {/if}
     </div>
 
-    <!-- Ligne 2 : preview valeur + metadata -->
-    <div class="text-[10.5px] text-muted-foreground mt-1 inline-flex items-center gap-1.5 min-w-0 w-full">
+    <!-- Ligne 2 : preview valeur -->
+    <div class="text-[11.5px] text-muted-foreground mt-1.5 inline-flex items-center gap-1.5 min-w-0 w-full">
       {#if valuePreview}
         <span class="truncate min-w-0 flex-1" title={entry.value}>{valuePreview}</span>
       {:else}
@@ -183,7 +183,7 @@
     </div>
 
     <!-- Ligne 3 : timestamps + TTL -->
-    <div class="text-[10px] text-muted-foreground/70 mt-0.5 inline-flex items-center gap-1.5">
+    <div class="text-[10.5px] text-muted-foreground/70 mt-1 inline-flex items-center gap-1.5">
       <span class="tabular-nums">il y a {relativeTime(entry.created_at)}</span>
       {#if entry.expires_at}
         <span>·</span>

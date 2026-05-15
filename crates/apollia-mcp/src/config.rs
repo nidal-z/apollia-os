@@ -160,6 +160,18 @@ pub enum McpConfigError {
     /// An `${VAR}` placeholder in an env value has no corresponding environment variable.
     #[error("server '{server}': unresolved environment variable: ${{{var}}}")]
     UnresolvedEnvVar { server: String, var: String },
+
+    /// A stdio server's `command` looks like an npm/pypi package identifier
+    /// rather than an executable name. The most common cause is a misconfigured
+    /// catalog launcher that put the package id in `command` instead of in
+    /// `args` behind a launcher like `npx -y` / `uvx`. We catch this at
+    /// validation time so the failure mode is a clear error instead of a
+    /// confusing `MODULE_NOT_FOUND` from the launched Node/Python process.
+    #[error(
+        "server '{server}': command '{command}' looks like a package identifier — \
+         use a launcher (e.g. `command = \"npx\"`, `args = [\"-y\", \"{command}\", ...]`)"
+    )]
+    PackageIdAsCommand { server: String, command: String },
 }
 
 impl McpConfig {
@@ -248,6 +260,12 @@ impl McpServerConfig {
                         server: self.name.clone(),
                     });
                 }
+                if looks_like_package_identifier(&self.command) {
+                    return Err(McpConfigError::PackageIdAsCommand {
+                        server: self.name.clone(),
+                        command: self.command.clone(),
+                    });
+                }
             }
             "streamable-http" | "sse" => {
                 let url = match self.url.as_deref() {
@@ -300,6 +318,38 @@ impl McpServerConfig {
             })
             .collect()
     }
+}
+
+/// Heuristic: does this `command` value look like an npm/pypi package
+/// identifier that should have been placed in `args` behind a launcher?
+///
+/// We flag two well-known shapes:
+/// - `@scope/name` — scoped npm packages always start with `@`.
+/// - `name/sub` — bare slash-segmented identifiers that are *not* absolute or
+///   relative filesystem paths (no leading `/`, `./`, `../`, no Windows drive
+///   prefix). Real executables resolved from `PATH` don't contain slashes.
+///
+/// Anything else (single tokens like `npx`, `uvx`, `mcp-server-time`, absolute
+/// paths) is accepted — we'd rather false-negative than reject a legitimate
+/// custom command.
+fn looks_like_package_identifier(command: &str) -> bool {
+    let cmd = command.trim();
+    if cmd.starts_with('@') {
+        return true;
+    }
+    // Absolute or relative paths are legitimate executables.
+    if cmd.starts_with('/') || cmd.starts_with("./") || cmd.starts_with("../") {
+        return false;
+    }
+    // Windows drive prefix (e.g. `C:\bin\foo.exe`) — also a legitimate path.
+    if cmd.len() >= 3
+        && cmd.as_bytes()[1] == b':'
+        && (cmd.as_bytes()[2] == b'\\' || cmd.as_bytes()[2] == b'/')
+    {
+        return false;
+    }
+    // Bare slash-segmented identifier (e.g. `io.github.foo/bar-mcp`).
+    cmd.contains('/')
 }
 
 /// Replace all `${VAR}` occurrences in `value`, dispatching to either the system
@@ -590,6 +640,84 @@ mod tests {
             config.validate(),
             Err(McpConfigError::EmptyCommand { .. })
         ));
+    }
+
+    #[test]
+    fn test_scoped_npm_package_as_command_is_rejected() {
+        // GIVEN a stdio server whose `command` is the scoped npm identifier
+        // (the bug shape produced by older catalog wizard versions).
+        let config = McpServerConfig {
+            name: "local-files".to_string(),
+            command: "@modelcontextprotocol/server-filesystem".to_string(),
+            args: vec!["/tmp".to_string()],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN validation rejects with a guidance-bearing error.
+        match config.validate() {
+            Err(McpConfigError::PackageIdAsCommand { command, .. }) => {
+                assert_eq!(command, "@modelcontextprotocol/server-filesystem");
+            }
+            other => panic!("expected PackageIdAsCommand, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_dotted_reverse_dns_package_as_command_is_rejected() {
+        // GIVEN a Java-style reverse-DNS package identifier in `command`.
+        let config = McpServerConfig {
+            name: "github".to_string(),
+            command: "io.github.github/github-mcp-server".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::PackageIdAsCommand { .. })
+        ));
+    }
+
+    #[test]
+    fn test_legitimate_launchers_pass_validation() {
+        // GIVEN well-formed configs using the conventional launchers / paths.
+        for cmd in [
+            "npx",
+            "uvx",
+            "bunx",
+            "mcp-server-time",
+            "/usr/local/bin/my-mcp",
+            "./local-bin/mcp",
+        ] {
+            let config = McpServerConfig {
+                name: "ok".to_string(),
+                command: cmd.to_string(),
+                args: vec![],
+                env: HashMap::new(),
+                transport: "stdio".to_string(),
+                url: None,
+                requires_approval: false,
+                init_timeout_secs: 30,
+                call_timeout_secs: 60,
+                tags: vec![],
+            };
+            // WHEN / THEN — must accept all of these.
+            assert!(
+                config.validate().is_ok(),
+                "command `{cmd}` should be accepted but was rejected",
+            );
+        }
     }
 
     // ── SecretResolver tests ─────────────────────────────────────────────────

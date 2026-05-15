@@ -30,10 +30,9 @@
   import {
     PageHeader,
     SectionTitle,
-    
+
     StatusDot,
     EmptyState as OperatorEmptyState,
-    ProjectCard,
     ConversationRow,
     TaskRow,
     NewProjectDialog,
@@ -49,7 +48,9 @@
   // ─── State ────────────────────────────────────────────────────────────────
 
   let loading = $state(false);
-  let mode = $state<"grid" | "split">("grid");
+  // No more "grid" mode — the page always shows the sidebar + detail layout
+  // (mirror Assistants), with the first project auto-selected. Grid + cards
+  // were removed in the 2026-05-15 refonte UX.
 
   // Dialog state (NewProjectDialog DS)
   let showCreateDialog = $state(false);
@@ -117,7 +118,6 @@
   async function selectProject(id: string): Promise<void> {
     selectedProjectId = id;
     detailLoading = true;
-    mode = "split";
     activeTab = "conversations";
     try {
       selectedProject = await invoke<ProjectDetail>("get_project", { id });
@@ -127,12 +127,31 @@
       void loadProjectMemorySummary();
     } catch (err: unknown) {
       addToast(err instanceof Error ? err.message : String(err), "error");
-      mode = "grid";
       selectedProjectId = null;
+      selectedProject = null;
     } finally {
       detailLoading = false;
     }
   }
+
+  // Auto-select the first project once the list loads. Mirrors the Agents
+  // page behaviour: the sidebar is never "empty + nothing on the right" when
+  // there's at least one project to show.
+  $effect(() => {
+    if (loading) return;
+    if (selectedProjectId !== null) {
+      // Drop selection if the chosen project no longer exists (e.g. deleted).
+      if (!$projects.some((p) => p.id === selectedProjectId)) {
+        selectedProjectId = null;
+        selectedProject = null;
+      } else {
+        return;
+      }
+    }
+    if ($projects.length > 0) {
+      void selectProject($projects[0].id);
+    }
+  });
 
   async function loadProjectChats(): Promise<void> {
     if (!selectedProjectId) return;
@@ -316,12 +335,6 @@
     }
   }
 
-  function backToGrid() {
-    mode = "grid";
-    selectedProjectId = null;
-    selectedProject = null;
-  }
-
   async function startNewChat(): Promise<void> {
     if (!selectedProject) return;
     const request: CreateSessionRequest = {
@@ -459,7 +472,10 @@
       );
       showDeleteConfirm = false;
       if (selectedProjectId === deleteProjectId) {
-        backToGrid();
+        // Drop the deleted project from the right pane — the auto-select
+        // effect will pick the next one if any remain.
+        selectedProjectId = null;
+        selectedProject = null;
       }
       await loadProjects();
     } catch (err: unknown) {
@@ -550,101 +566,34 @@
 </script>
 
 <div class="flex flex-col h-full min-h-0" data-testid="projects-page">
-  {#if mode === "grid"}
-    <!-- ============ GRID (entry view) ============ -->
+  {#if !loading && $projects.length === 0}
+    <!-- Empty state — no projects yet, full-width invitation. -->
     <PageHeader
       kicker={$t("projects.kicker", {
         values: {
-          count: $projects.length,
-          label: $t($projects.length > 1 ? "projects.kicker_plural" : "projects.kicker_singular"),
+          count: 0,
+          label: $t("projects.kicker_singular"),
         },
       })}
       title={$t("projects.title")}
       subtitle={$t("projects.subtitle")}
-    >
-      {#snippet actions()}
-        <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
-          {#snippet icon()}<Plus size={12} />{/snippet}
-          {#snippet kbd()}<span class="font-mono text-[10px] opacity-80">⌘N</span>{/snippet}
-          {$t("projects.new_project")}
-        </Button>
-      {/snippet}
-    </PageHeader>
-
+    />
     <div class="flex-1 overflow-auto px-8 pt-5 pb-8">
-      {#if loading}
-        <div
-          class="flex items-center justify-center py-16 text-muted-foreground text-sm"
-        >
-          {$t("common.loading")}
-        </div>
-      {:else if $projects.length === 0}
-        <OperatorEmptyState
-          title={$t("projects.empty_title")}
-          desc={$t("projects.empty_subtitle")}
-        >
-          {#snippet icon()}<Folder size={22} />{/snippet}
-          {#snippet action()}
-            <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
-              {#snippet icon()}<Plus size={12} />{/snippet}
-              {$t("projects.new_project")}
-            </Button>
-          {/snippet}
-        </OperatorEmptyState>
-      {:else}
-        <div
-          class="grid gap-3.5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-          data-testid="projects-grid"
-        >
-          {#each sortedProjects as project (project.id)}
-            <div
-              class="relative group"
-              data-testid="project-card-{project.id}"
-            >
-              <ProjectCard
-                title={project.name}
-                description={project.description ?? undefined}
-                status="active"
-                lastActivity={fmtRelative(project.updated_at || project.created_at)}
-                color={accentFor(project.id)}
-                hover
-                onclick={() => selectProject(project.id)}
-              />
-              <button
-                type="button"
-                class="absolute top-2.5 right-2.5 h-6 w-6 rounded-md inline-flex items-center justify-center bg-card/70 text-muted-foreground border border-border opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-danger-a11y transition-all"
-                title={$t("common.delete")}
-                onclick={(e) => {
-                  e.stopPropagation();
-                  requestDelete(project.id, project.name);
-                }}
-                data-testid="delete-project-{project.id}"
-              >
-                <Trash2 size={12} strokeWidth={1.75} />
-              </button>
-            </div>
-          {/each}
-
-          <!-- Create card -->
-          <button
-            type="button"
-            onclick={openCreateDialog}
-            class="rounded-xl border border-dashed border-border px-4 py-5 flex flex-col items-center justify-center cursor-pointer text-muted-foreground bg-transparent min-h-[200px] hover:border-primary/50 hover:text-primary transition-colors"
-            data-testid="projects-create-card"
-          >
-            <Plus size={18} />
-            <span class="text-[12.5px] font-medium mt-1.5">
-              {$t("projects.new_project")}
-            </span>
-            <span class="text-[10.5px] text-muted-foreground/70 mt-0.5 font-mono">
-              ⌘N
-            </span>
-          </button>
-        </div>
-      {/if}
+      <OperatorEmptyState
+        title={$t("projects.empty_title")}
+        desc={$t("projects.empty_subtitle")}
+      >
+        {#snippet icon()}<Folder size={22} />{/snippet}
+        {#snippet action()}
+          <Button variant="primary-solid" size="sm" onclick={openCreateDialog}>
+            {#snippet icon()}<Plus size={12} />{/snippet}
+            {$t("projects.new_project")}
+          </Button>
+        {/snippet}
+      </OperatorEmptyState>
     </div>
-  {:else if selectedProject}
-    <!-- ============ SPLIT (detail view) ============ -->
+  {:else}
+    <!-- ============ SIDEBAR + DETAIL (mirror Assistants) ============ -->
     <div class="flex-1 flex min-h-0">
       <!-- LEFT: project list -->
       <aside
@@ -672,9 +621,10 @@
             <Search size={11} class="text-muted-foreground" />
             <Input
               type="search"
+              unstyled
               bind:value={listFilter}
               placeholder={$t("projects.search_placeholder")}
-              class="flex-1 bg-transparent text-[11.5px] text-foreground placeholder:text-muted-foreground border-0 outline-none"
+              class="flex-1 text-[11.5px] text-foreground"
              />
           </div>
         </div>
@@ -682,7 +632,7 @@
           {#each filteredListProjects as p (p.id)}
             {@const accent = accentFor(p.id)}
             {@const isActive = p.id === selectedProjectId}
-            <Button variant="ghost" size="sm"
+            <Button variant="ghost" size="auto"
               type="button"
               onclick={() => selectProject(p.id)}
               class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg cursor-pointer mb-0.5 border-0 transition-colors {isActive
@@ -709,16 +659,11 @@
             </Button>
           {/each}
         </div>
-        <div class="px-3 py-2 border-t border-border">
-          <Button variant="outline" size="sm" onclick={backToGrid}>
-            ← {$t("common.back") || "Retour"}
-          </Button>
-        </div>
       </aside>
 
       <!-- RIGHT: detail -->
       <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
-        {#if detailLoading}
+        {#if detailLoading || !selectedProject}
           <div
             class="flex-1 flex items-center justify-center text-muted-foreground text-sm"
           >
@@ -989,6 +934,7 @@
                   <Input
                     bind:value={editName}
                     placeholder={$t("projects.field_name")}
+                    class="bg-card"
                     data-testid="settings-name-input"
                   />
                 </div>
@@ -1000,6 +946,7 @@
                   <Textarea
                     bind:value={editDescription}
                     rows={3}
+                    class="bg-card"
                     data-testid="settings-description-input"
                   />
                 </div>
@@ -1012,6 +959,7 @@
                     bind:value={editInstructions}
                     rows={5}
                     placeholder={$t("projects.settings_field_instructions_placeholder")}
+                    class="bg-card"
                     data-testid="settings-instructions-input"
                   />
                 </div>
@@ -1024,7 +972,7 @@
                     <Input
                       bind:value={editWorkspacePath}
                       placeholder="/path/to/workspace"
-                      class="flex-1"
+                      class="flex-1 bg-card"
                       data-testid="settings-workspace-input"
                     />
                     <Button variant="outline" size="sm" onclick={pickWorkspaceDir}>

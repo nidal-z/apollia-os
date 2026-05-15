@@ -88,6 +88,15 @@ pub trait McpTransport: Send + Sync + 'static {
     fn pid(&self) -> Option<u32> {
         None
     }
+
+    /// Returns the most recent stderr lines produced by the server, oldest
+    /// first. Only meaningful for subprocess-based transports — network
+    /// transports return an empty vec. Used by the session layer to enrich
+    /// `TransportError` messages on handshake / tool-call failures so the
+    /// operator sees what the subprocess actually wrote before stalling.
+    fn stderr_tail(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 // ─── factory ─────────────────────────────────────────────────────────────────
@@ -110,7 +119,12 @@ pub fn create_transport(
 ) -> Result<Box<dyn McpTransport>, TransportError> {
     match config.transport.as_str() {
         "stdio" => {
-            let transport = StdioTransport::spawn(&config.command, &config.args, resolved_env)?;
+            let transport = StdioTransport::spawn(
+                &config.name,
+                &config.command,
+                &config.args,
+                resolved_env,
+            )?;
             Ok(Box::new(transport))
         }
         "streamable-http" => {

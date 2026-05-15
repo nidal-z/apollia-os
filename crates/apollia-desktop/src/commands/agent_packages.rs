@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use apollia_aip::package_loader::{load_package, validate_manifest};
 use apollia_core::events::RuntimeEvent;
+use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
@@ -241,6 +242,7 @@ pub async fn install_agent_package(
     trigger_configs: Vec<TriggerConfigOverride>,
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
     agent_repo_state: State<'_, Arc<Mutex<AgentRepository>>>,
+    agent_loader: State<'_, Arc<dyn AgentLoader>>,
     runtime: State<'_, RuntimeHandle>,
 ) -> Result<InstallPackageResponse, String> {
     let root = PathBuf::from(&path);
@@ -263,52 +265,95 @@ pub async fn install_agent_package(
     let now = chrono::Utc::now().to_rfc3339();
     let mut agent_count = 0;
 
+    // Parse each agent's Python manifest from the freshly copied install path.
+    // Without this we'd store a stub manifest (memory_namespace=None,
+    // tools_required=[], …) and the UI would never see the real per-agent
+    // metadata until the agent is started. The PyO3 calls must run in a
+    // blocking thread.
+    let loader: Arc<dyn AgentLoader> = Arc::clone(&agent_loader);
+    let install_root_for_parse = install_root.clone();
+    let root_for_parse = root.clone();
+    let entries_for_parse: Vec<(String, PathBuf)> = pkg
+        .agents
+        .iter()
+        .map(|entry| {
+            let rel = entry.entry.strip_prefix(&root).unwrap_or(&entry.entry);
+            (entry.name.clone(), install_root_for_parse.join(rel))
+        })
+        .collect();
+    let parsed_manifests = tokio::task::spawn_blocking(move || {
+        let mut out: Vec<(String, PathBuf, apollia_core::AgentManifest)> =
+            Vec::with_capacity(entries_for_parse.len());
+        for (name, path) in entries_for_parse {
+            match loader.load_and_validate(&path) {
+                Ok(manifest) => out.push((name, path, manifest)),
+                // Best-effort: if parsing fails for one agent (rare — load_package
+                // already duck-typed the source), fall back to a stub manifest
+                // so the install still succeeds. The agent's Memory tab will
+                // simply show "no namespace declared" until the agent loads.
+                Err(_) => {
+                    let stub = apollia_core::AgentManifest {
+                        name: name.clone(),
+                        version: String::new(),
+                        description: String::new(),
+                        tools_required: vec![],
+                        tools_optional: vec![],
+                        supports_streaming: false,
+                        supports_a2a: false,
+                        memory_namespace: None,
+                        shared_memory_namespaces: vec![],
+                        max_concurrent_tasks: 1,
+                        step_budget: None,
+                        network_allowlist: None,
+                        dangerous_tools_allowed: false,
+                        tags: vec![],
+                        skills: vec![],
+                        execution_mode: "auto".to_string(),
+                        system_prompt: None,
+                        tools_requiring_approval: vec![],
+                        llm_backend: None,
+                        packages: vec![],
+                        memory_config: None,
+                        agent_type: None,
+                        examples: vec![],
+                        limitations: vec![],
+                        setup_notes: None,
+                        agent_class: None,
+                        user_memory_write: false,
+                    };
+                    out.push((name, path, stub));
+                }
+            }
+        }
+        out
+    })
+    .await
+    .map_err(|e| format!("spawn error: {e}"))?;
+    let _ = root_for_parse; // keep `root` alive in this scope — used below
+
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
-        for entry in &pkg.agents {
-            let installed_entry =
-                install_root.join(entry.entry.strip_prefix(&root).unwrap_or(&entry.entry));
+        for (name, installed_entry, mut manifest) in parsed_manifests {
+            // Ensure name/version are consistent with the package declaration
+            // (the Python manifest's `name` should already match, but we trust
+            // the package as the source of truth for these fields).
+            manifest.name = name.clone();
+            if manifest.version.is_empty() {
+                manifest.version = pkg_version.clone();
+            }
             let agent = InstalledAgent {
-                name: entry.name.clone(),
-                version: pkg_version.clone(),
+                name,
+                version: manifest.version.clone(),
                 install_path: installed_entry.clone(),
                 source_path: installed_entry,
-                manifest: apollia_core::AgentManifest {
-                    name: entry.name.clone(),
-                    version: pkg_version.clone(),
-                    description: format!("Part of package {}", pkg_name),
-                    tools_required: vec![],
-                    tools_optional: vec![],
-                    supports_streaming: false,
-                    supports_a2a: false,
-                    memory_namespace: None,
-                    shared_memory_namespaces: vec![],
-                    max_concurrent_tasks: 1,
-                    step_budget: None,
-                    network_allowlist: None,
-                    dangerous_tools_allowed: false,
-                    tags: vec![],
-                    skills: vec![],
-                    execution_mode: "auto".to_string(),
-                    system_prompt: None,
-                    tools_requiring_approval: vec![],
-                    llm_backend: None,
-                    packages: vec![],
-                    memory_config: None,
-                    agent_type: None,
-                    examples: vec![],
-                    limitations: vec![],
-                    setup_notes: None,
-                    agent_class: None,
-                    user_memory_write: false,
-                },
+                manifest,
                 enabled: true,
                 installed_at: now.clone(),
                 updated_at: now.clone(),
             };
             agent_repo
                 .save(&agent)
-                .map_err(|e| format!("failed to save agent '{}': {e}", entry.name))?;
+                .map_err(|e| format!("failed to save agent '{}': {e}", agent.name))?;
             agent_count += 1;
         }
     }

@@ -189,6 +189,18 @@ export interface AgentListItem {
     | "WorkerAgent"
     | string
     | null;
+  /**
+   * Namespace mémoire primaire déclaré dans le manifest Python. `null` si
+   * l'agent n'a pas de mémoire persistante.
+   *
+   * Plusieurs agents d'un même package partagent souvent le même namespace
+   * (ex. : tous les agents du package `veille-ia` déclarent
+   * `memory_namespace = "veille-ia"`), donc cette valeur n'est jamais
+   * dérivée de `name` — elle vient toujours du manifest.
+   */
+  memory_namespace: string | null;
+  /** Namespaces mémoire partagés accessibles en lecture par l'agent. */
+  shared_memory_namespaces: string[];
 }
 
 /** Skill A2A déclaré par un agent worker. */
@@ -1352,23 +1364,30 @@ export interface RegistryServerView {
   remotes: RegistryRemoteView[];
 }
 
-/** An installable package for an MCP registry server. */
+/**
+ * An installable package for an MCP registry server.
+ *
+ * Field names mirror the wire format produced by serde in
+ * `apollia-desktop::mcp::registry_client::RegistryPackage` (camelCase for the
+ * renamed fields, matching the upstream MCP registry JSON schema).
+ */
 export interface RegistryPackageView {
-  registry_type: string;
+  registryType: string;
   identifier: string;
   version: string;
-  runtime_hint: string | null;
-  transport_type: string;
-  environment_variables: RegistryEnvVarView[];
-  package_arguments: RegistryPackageArgView[];
+  runtimeHint: string | null;
+  /** Transport block (`{ "type": "stdio" }`), serialised by `RegistryTransport`. */
+  transport: { type: string };
+  environmentVariables: RegistryEnvVarView[];
+  packageArguments: RegistryPackageArgView[];
 }
 
 /** An environment variable required by an MCP server package. */
 export interface RegistryEnvVarView {
   name: string;
   description: string | null;
-  is_required: boolean;
-  is_secret: boolean;
+  isRequired: boolean;
+  isSecret: boolean;
 }
 
 /**

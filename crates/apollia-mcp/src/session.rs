@@ -113,8 +113,16 @@ pub enum McpSessionError {
     InitializeFailed { server: String, cause: String },
 
     /// The `initialize` handshake did not complete within the configured timeout.
-    #[error("server '{server}' initialize timed out after {timeout_secs}s")]
-    InitializeTimeout { server: String, timeout_secs: u64 },
+    ///
+    /// `stderr_hint` carries the last few lines emitted by the subprocess (or
+    /// the empty string for non-stdio transports) so the operator sees why the
+    /// child stalled without having to attach a debugger.
+    #[error("server '{server}' initialize timed out after {timeout_secs}s{stderr_hint}")]
+    InitializeTimeout {
+        server: String,
+        timeout_secs: u64,
+        stderr_hint: String,
+    },
 
     /// A `tools/call` request failed on the server side.
     #[error("server '{server}' tool call '{tool}' failed: {cause}")]
@@ -181,6 +189,17 @@ pub enum McpSessionError {
     /// Callers should retry the operation after a short delay.
     #[error("server '{server}' is currently being reloaded")]
     ServerReloading { server: String },
+}
+
+/// Build the human-readable `stderr_hint` suffix for handshake / call timeout
+/// errors. Empty input → empty hint (no leading separator added). When lines
+/// are present, they are concatenated oldest-first with ` | ` so an operator
+/// reading a single-line error message can still see what the subprocess said.
+fn format_stderr_hint(tail: &[String]) -> String {
+    if tail.is_empty() {
+        return String::new();
+    }
+    format!("; stderr: {}", tail.join(" | "))
 }
 
 // ─── session ─────────────────────────────────────────────────────────────────
@@ -402,6 +421,7 @@ impl McpSession {
                 Err(McpSessionError::InitializeTimeout {
                     server: self.config.name.clone(),
                     timeout_secs,
+                    stderr_hint: format_stderr_hint(&self.transport.stderr_tail()),
                 })
             }
         }
@@ -758,9 +778,35 @@ mod tests {
         let error = McpSessionError::InitializeTimeout {
             server: "notion".to_string(),
             timeout_secs: 30,
+            stderr_hint: String::new(),
         };
         // WHEN / THEN
         assert!(error.to_string().contains("30s"));
+    }
+
+    #[test]
+    fn test_initialize_timeout_error_includes_stderr_hint() {
+        let error = McpSessionError::InitializeTimeout {
+            server: "filesystem".to_string(),
+            timeout_secs: 30,
+            stderr_hint: "; stderr: npm: command not found".to_string(),
+        };
+        let msg = error.to_string();
+        assert!(msg.contains("npm: command not found"));
+        assert!(msg.contains("stderr"));
+    }
+
+    #[test]
+    fn test_format_stderr_hint() {
+        // Empty tail → empty hint
+        assert_eq!(format_stderr_hint(&[]), "");
+        // Single line is included
+        let hint = format_stderr_hint(&["boom".to_string()]);
+        assert!(hint.contains("boom"));
+        assert!(hint.starts_with("; stderr: "));
+        // Multiple lines kept oldest-first, joined with " | "
+        let hint = format_stderr_hint(&["a".to_string(), "b".to_string(), "c".to_string()]);
+        assert!(hint.contains("a | b | c"));
     }
 
     #[tokio::test]

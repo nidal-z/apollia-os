@@ -3,7 +3,7 @@
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
-  import type { AgentListItem } from "$lib/types";
+  import type { AgentListItem, MemoryEntry } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { connectionStatus, triggers } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
@@ -13,7 +13,9 @@
     AlertTriangle,
     Bot,
     Clock,
+    Cpu,
     Download,
+    ExternalLink,
     FolderOpen,
     Package,
     Play,
@@ -22,13 +24,19 @@
     Sparkles,
     Square,
     MessageSquare,
-    Settings,
+    Terminal,
     Trash2,
     Users,
     Zap,
   } from "lucide-svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
-  import AgentDetail from "../components/agents/AgentDetail.svelte";
+  import AgentActivity from "../components/agents/AgentActivity.svelte";
+  // AgentDetail.svelte (Sheet) was the previous "Configurer" target — replaced
+  // by inline tabs (Aperçu / Outils / Mémoire / Activité / Paramètres) in this
+  // route. The file is kept on disk for archival but no longer imported here.
+  import AgentTriggers from "../components/agents/AgentTriggers.svelte";
+  import AgentLlmInfo from "../components/agents/AgentLlmInfo.svelte";
+  import AgentMessagesPanel from "../components/agents/AgentMessagesPanel.svelte";
   import ApolliaChatConfigPanel from "../components/agents/ApolliaChatConfigPanel.svelte";
   import InstallPackageDialog from "../components/agents/InstallPackageDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
@@ -41,6 +49,9 @@
   } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { TabBar } from "$lib/components/ui/tabs";
+  import { uiMode } from "$lib/stores/mode";
   import type {
     AgentPackageListItem,
     AgentPackageDetailView,
@@ -67,10 +78,113 @@
   let installError = $state<string | null>(null);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
-  let detailAgent = $state<AgentListItem | null>(null);
-  let detailOpen = $state(false);
 
   let installPackageOpen = $state(false);
+
+  // ── Detail tabs (sidebar + tabs pattern, mirror Projets) ─────────────
+  type AgentTab = "overview" | "tools" | "memory" | "activity" | "settings";
+  type PackageTab = "overview" | "agents" | "triggers";
+  let agentDetailTab = $state<AgentTab>("overview");
+  let packageDetailTab = $state<PackageTab>("overview");
+
+  // Inline agent action state (formerly inside AgentDetail.svelte) ──────
+  let stoppingAgent = $state(false);
+  let confirmStopVisible = $state(false);
+  let stopError = $state<string | null>(null);
+  let startLoading = $state(false);
+  let toggleLoading = $state(false);
+  let actionError = $state<string | null>(null);
+
+  async function handleStopSelected(a: AgentListItem): Promise<void> {
+    if (!a.id) return;
+    confirmStopVisible = false;
+    stoppingAgent = true;
+    stopError = null;
+    try {
+      await invoke("stop_agent", { agentId: a.id });
+    } catch (err: unknown) {
+      stopError = err instanceof Error ? err.message : String(err);
+    } finally {
+      stoppingAgent = false;
+    }
+  }
+
+  async function handleStartSelected(a: AgentListItem): Promise<void> {
+    if (!a.install_path) return;
+    startLoading = true;
+    actionError = null;
+    try {
+      await invoke("start_agent", { path: a.install_path });
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      startLoading = false;
+    }
+  }
+
+  async function handleToggleEnabled(a: AgentListItem): Promise<void> {
+    toggleLoading = true;
+    actionError = null;
+    try {
+      if (a.enabled) {
+        await invoke("disable_agent", { name: a.name });
+      } else {
+        await invoke("enable_agent", { name: a.name });
+      }
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      toggleLoading = false;
+    }
+  }
+
+  function executionModeLabel(mode: string | null): string {
+    switch (mode) {
+      case "direct":
+        return $t("agent_detail.execution_mode_direct");
+      case "orchestrated":
+        return $t("agent_detail.execution_mode_orchestrated");
+      default:
+        return $t("agent_detail.execution_mode_auto");
+    }
+  }
+
+  // ── Memory tab — load entries from the agent's declared namespace ─────
+  // Important: `memory_namespace` comes from the Python manifest, not from
+  // `agent.name`. Multiple agents in a package often share a single namespace
+  // (e.g. all agents in the `veille-ia` package declare
+  // `memory_namespace = "veille-ia"`), so we must NEVER fall back to `name`
+  // when fetching entries — that would silently miss the package's memory.
+  let memoryEntries = $state<MemoryEntry[]>([]);
+  let memoryLoading = $state(false);
+  let memoryError = $state<string | null>(null);
+
+  async function loadAgentMemory(namespace: string): Promise<void> {
+    memoryLoading = true;
+    memoryError = null;
+    try {
+      memoryEntries = await invoke<MemoryEntry[]>("list_memory_entries", {
+        namespace,
+      });
+    } catch (err: unknown) {
+      memoryError = err instanceof Error ? err.message : String(err);
+      memoryEntries = [];
+    } finally {
+      memoryLoading = false;
+    }
+  }
+
+  $effect(() => {
+    if (agentDetailTab !== "memory") return;
+    const ns = selected?.memory_namespace;
+    if (!ns) {
+      memoryEntries = [];
+      memoryLoading = false;
+      memoryError = null;
+      return;
+    }
+    void loadAgentMemory(ns);
+  });
 
   // ── New V3 state ─────────────────────────────────────────────────────
   let query = $state("");
@@ -121,6 +235,21 @@
     if (filteredAssistants.length === 0) {
       selectedName = null;
     }
+  });
+
+  // Reset agent detail tab when the agent selection changes.
+  $effect(() => {
+    void selectedName;
+    agentDetailTab = "overview";
+    confirmStopVisible = false;
+    stopError = null;
+    actionError = null;
+  });
+
+  // Reset package detail tab when the package selection changes.
+  $effect(() => {
+    void selectedPackageName;
+    packageDetailTab = "overview";
   });
 
   // Filtered packages (same query as assistants).
@@ -177,12 +306,6 @@
     }
   }
 
-  function kindLabel(a: AgentListItem): string {
-    if (a.tags.includes("trigger")) return "trigger";
-    if (a.execution_mode === "orchestrated") return "tâche";
-    if (a.agent_type === "system") return "système";
-    return "libre";
-  }
 
   function isActive(a: AgentListItem): boolean {
     return a.runtime_status === "active" || a.runtime_status === "degraded";
@@ -248,16 +371,35 @@
   function closeLogs() {
     logsOpen = false;
   }
+  /**
+   * Select an agent and jump to its settings tab (replaces the old
+   * `AgentDetail` Sheet — the tour entry point still calls this).
+   */
   function openDetail(agent: AgentListItem) {
-    detailAgent = agent;
-    detailOpen = true;
+    selectedName = agent.name;
+    apolliaChatSelected = false;
+    selectedPackageName = null;
+    agentDetailTab = "settings";
   }
-  function closeDetail() {
-    detailOpen = false;
+  function handleTaskClick(_taskId: string) {
+    navigateTo("tasks");
   }
-  function openLogsFromDetail(agentId: string) {
-    closeDetail();
-    openLogs(agentId);
+  function handleMemoryLink() {
+    navigateTo("memory");
+  }
+
+  function formatMemoryRelative(iso: string): string {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    if (diffMs < 0) return "à venir";
+    const s = Math.floor(diffMs / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}j`;
+    return `${Math.floor(d / 7)}sem`;
   }
 
   async function startChatWithAgent(agentName: string): Promise<void> {
@@ -453,9 +595,10 @@
           <Search size={11} class="text-muted-foreground" />
           <Input
             type="text"
+            unstyled
             bind:value={query}
             placeholder="Filtrer"
-            class="flex-1 border-none bg-transparent text-[11.5px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+            class="flex-1 text-[11.5px] text-foreground"
             data-testid="agents-search"
            />
         </div>
@@ -469,7 +612,7 @@
           Mes assistants · {filteredAssistants.length}
         </div>
         <!-- Pinned system agent: Apollia Chat -->
-        <Button variant="ghost" size="sm"
+        <Button variant="ghost" size="auto"
           type="button"
           onclick={() => {
             apolliaChatSelected = true;
@@ -499,7 +642,6 @@
               Agent système · chat libre
             </div>
           </div>
-          <Badge size="sm" variant="info">Système</Badge>
         </Button>
 
         {#if $connectionStatus === "connecting" && allAssistants.length === 0}
@@ -553,7 +695,7 @@
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
             >
-              <Button variant="ghost" size="sm"
+              <Button variant="ghost" size="auto"
                 type="button"
                 onclick={() => {
                   selectedName = agent.name;
@@ -593,13 +735,14 @@
                     {agent.description ?? statusLabel(agent)}
                   </div>
                 </div>
-                <Badge size="sm" variant="neutral">{kindLabel(agent)}</Badge>
               </Button>
-              <Button variant="ghost" size="sm"
+              <Button variant="ghost" size="icon-sm"
                 type="button"
                 onclick={() => toggleAgentRuntime(agent)}
                 disabled={busy || (!running && !agent.install_path)}
-                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                class="-ml-1 text-muted-foreground transition-opacity hover:text-foreground hover:bg-transparent disabled:opacity-40 {running || busy
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
                 aria-label={running ? `Arrêter ${agent.name}` : `Démarrer ${agent.name}`}
                 title={running ? "Arrêter" : "Démarrer"}
                 data-testid="agent-list-toggle"
@@ -640,7 +783,7 @@
                 ? 'bg-primary/10'
                 : 'hover:bg-surface-1'}"
             >
-              <Button variant="ghost" size="sm"
+              <Button variant="ghost" size="auto"
                 type="button"
                 onclick={() => selectPackage(pkg)}
                 class="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
@@ -684,11 +827,13 @@
                   {packageStatusLabel(pkgState)}
                 </Badge>
               </Button>
-              <Button variant="ghost" size="sm"
+              <Button variant="ghost" size="icon-sm"
                 type="button"
                 onclick={() => togglePackageRuntime(pkg)}
                 disabled={pkgBusy || pkg.root_missing || pkg.agents.length === 0}
-                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                class="-ml-1 text-muted-foreground transition-opacity hover:text-foreground hover:bg-transparent disabled:opacity-40 {pkgRunning || pkgBusy
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}"
                 aria-label={pkgRunning ? `Arrêter ${pkg.name}` : `Démarrer ${pkg.name}`}
                 title={pkgRunning ? "Tout arrêter" : "Tout démarrer"}
                 data-testid="package-list-toggle"
@@ -731,9 +876,6 @@
                 le chat libre. Personnalisez sa personnalité, ses outils, et
                 le modèle qu'il utilise.
               </p>
-            </div>
-            <div class="flex shrink-0 gap-1.5">
-              <Badge size="sm" variant="info">Système</Badge>
             </div>
           </div>
         </div>
@@ -840,20 +982,33 @@
           </div>
         </div>
 
-        <!-- Content -->
-        <div class="px-8 pt-[18px] pb-8">
-          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <!-- Meta -->
-            <Card class="p-[14px_16px]">
-              <div class="mb-2 text-[12.5px] font-semibold text-foreground">
-                Informations
-              </div>
+        {@const pkgNamesSet = new Set(pkg.agents.map((x) => x.name))}
+        {@const pkgTriggers = $triggers.filter((tr) => pkgNamesSet.has(tr.agent))}
+
+        <!-- Tabs (underline, aligné Projets) -->
+        <div class="px-8 pt-3.5">
+          <TabBar
+            variant="underline"
+            testidPrefix="package-detail"
+            activeTab={packageDetailTab}
+            items={[
+              { key: "overview", label: "Aperçu" },
+              { key: "agents", label: "Agents", count: pkg.agents.length },
+              { key: "triggers", label: "Triggers", count: pkgTriggers.length },
+            ]}
+            ontabchange={(key) => (packageDetailTab = key as PackageTab)}
+          />
+        </div>
+
+        <!-- Tab content -->
+        <div class="px-8 pt-5 pb-8" data-testid="package-detail-tab-content">
+          {#if packageDetailTab === "overview"}
+            <Card class="p-[14px_16px] max-w-3xl">
+              <div class="mb-2 text-[12.5px] font-semibold text-foreground">Informations</div>
               <div class="flex flex-col gap-2 text-[11.5px] text-muted-foreground">
                 <div class="flex items-center gap-1.5">
                   <Clock size={11} />
-                  <span>
-                    Installé le {new Date(pkg.installed_at).toLocaleDateString()}
-                  </span>
+                  <span>Installé le {new Date(pkg.installed_at).toLocaleDateString()}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <FolderOpen size={11} class="shrink-0" />
@@ -869,9 +1024,8 @@
                 {/if}
               </div>
             </Card>
-
-            <!-- Agents -->
-            <Card class="p-[14px_16px]">
+          {:else if packageDetailTab === "agents"}
+            <Card class="p-[14px_16px] max-w-3xl">
               <div class="mb-2.5 flex items-center justify-between">
                 <span class="text-[12.5px] font-semibold text-foreground">
                   Agents · {pkg.agents.length}
@@ -891,7 +1045,7 @@
                       : 'border-b border-border/40'}"
                   >
                     <div class="min-w-0 flex-1">
-                      <Button variant="ghost" size="sm"
+                      <Button variant="ghost" size="auto"
                         type="button"
                         onclick={() => {
                           if (linked) {
@@ -900,7 +1054,7 @@
                           }
                         }}
                         disabled={!linked}
-                        class="block w-full truncate text-left text-[12.5px] font-medium text-foreground hover:underline disabled:no-underline disabled:opacity-60"
+                        class="block w-full truncate text-left p-0 text-[12.5px] font-medium text-foreground hover:underline disabled:no-underline disabled:opacity-60"
                       >
                         {pa.name}
                       </Button>
@@ -912,21 +1066,14 @@
                       {pa.role}
                     </Badge>
                     {#if linked}
-                      <StatusDot
-                        color={statusColor(linked)}
-                        glow={linkedRunning}
-                        size={5}
-                      />
+                      <StatusDot color={statusColor(linked)} glow={linkedRunning} size={5} />
                     {/if}
                   </div>
                 {/each}
               {/if}
             </Card>
-
-            <!-- Triggers -->
-            <Card class="p-[14px_16px] lg:col-span-2">
-              {@const pkgNamesSet = new Set(pkg.agents.map((x) => x.name))}
-              {@const pkgTriggers = $triggers.filter((t) => pkgNamesSet.has(t.agent))}
+          {:else if packageDetailTab === "triggers"}
+            <Card class="p-[14px_16px] max-w-3xl">
               <div class="mb-2.5 flex items-center justify-between">
                 <span class="text-[12.5px] font-semibold text-foreground">
                   Triggers · {pkgTriggers.length}
@@ -946,9 +1093,7 @@
                       ? ''
                       : 'border-b border-border/40'}"
                   >
-                    <div
-                      class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-primary/10 text-primary"
-                    >
+                    <div class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-primary/10 text-primary">
                       <Zap size={11} />
                     </div>
                     <div class="min-w-0 flex-1">
@@ -967,7 +1112,7 @@
                 {/each}
               {/if}
             </Card>
-          </div>
+          {/if}
         </div>
       {:else if selected}
         {@const a = selected}
@@ -995,12 +1140,6 @@
               </p>
             </div>
             <div class="flex shrink-0 gap-1.5">
-              <Button variant="outline" size="sm" onclick={() => openDetail(a)}>
-                {#snippet icon()}
-                  <Settings size={12} />
-                {/snippet}
-                Configurer
-              </Button>
               <Button variant="primary-solid" size="sm"
                 onclick={() => startChatWithAgent(a.name)}
                 disabled={!isActive(a)}
@@ -1039,199 +1178,351 @@
           </div>
         </div>
 
-        <!-- Content grid -->
-        <div class="px-8 pt-[18px] pb-8">
-          <div
-            class="grid grid-cols-1 gap-4 lg:grid-cols-2"
-            data-testid="agent-detail-grid"
-          >
-            <!-- Stat: tools count -->
-            <Card class="p-[16px_18px]">
-              <div
-                class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground"
-              >
-                Outils
-              </div>
-              <div
-                class="mt-1 tabular-nums"
-                style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;"
-              >
-                {a.tools_required.length + a.tools_optional.length}
-              </div>
-              <div class="mt-0.5 text-[11px] text-muted-foreground">
-                {a.tools_required.length} requis · {a.tools_optional.length} optionnels
-              </div>
-            </Card>
+        {@const isInstalledNow = a.installed_at !== null}
+        {@const runtimeStatus = a.runtime_status}
+        {@const isRunningNow =
+          runtimeStatus === "active" || runtimeStatus === "degraded"}
+        {@const isLoadedNow = runtimeStatus !== null}
+        {@const showA2AMessages =
+          a.supports_a2a === true && $uiMode === "builder"}
+        {@const allToolsAgent = [
+          ...a.tools_required.map((id) => ({ id, required: true })),
+          ...a.tools_optional.map((id) => ({ id, required: false })),
+        ]}
 
-            <!-- Stat: triggers count (placeholder, sourced from tags) -->
-            <Card class="p-[16px_18px]">
-              <div
-                class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground"
-              >
-                Déclencheurs
-              </div>
-              <div
-                class="mt-1 tabular-nums"
-                style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;"
-              >
-                {a.tags.filter((tag) => tag.startsWith("trigger:")).length}
-              </div>
-              <div class="mt-0.5 text-[11px] text-muted-foreground">
-                {a.tags.filter((tag) => tag.startsWith("trigger:")).length === 0
-                  ? "aucun trigger configuré"
-                  : "actifs"}
-              </div>
-            </Card>
+        <!-- Tabs (underline pattern, aligné Projets) -->
+        <div class="px-8 pt-3.5">
+          <TabBar
+            variant="underline"
+            testidPrefix="agent-detail"
+            activeTab={agentDetailTab}
+            items={[
+              { key: "overview", label: "Aperçu" },
+              { key: "tools", label: "Outils", count: allToolsAgent.length },
+              { key: "memory", label: "Mémoire" },
+              { key: "activity", label: "Activité" },
+              { key: "settings", label: "Paramètres" },
+            ]}
+            ontabchange={(key) => (agentDetailTab = key as AgentTab)}
+          />
+        </div>
 
-            <!-- Tools panel -->
-            <div class="lg:row-span-2">
-              <Card class="p-[14px_16px]">
-                <div class="mb-2.5 flex items-center justify-between">
-                  <span class="text-[12.5px] font-semibold text-foreground"
-                    >Outils disponibles</span
-                  >
-                  <Button variant="ghost" size="sm"
-                    type="button"
-                    onclick={() => openDetail(a)}
-                    class="cursor-pointer border-none bg-transparent text-[11px] text-primary hover:underline"
-                  >
-                    Gérer →
-                  </Button>
+        <!-- Tab content -->
+        <div class="px-8 pt-5 pb-8" data-testid="agent-detail-tab-content">
+          {#if agentDetailTab === "overview"}
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <!-- Stat: tools count -->
+              <Card class="p-[16px_18px]">
+                <div class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
+                  Outils
                 </div>
-
-                {@const allTools = [
-                  ...a.tools_required.map((id) => ({
-                    id,
-                    required: true,
-                  })),
-                  ...a.tools_optional.map((id) => ({
-                    id,
-                    required: false,
-                  })),
-                ]}
-
-                {#if allTools.length === 0}
-                  <div class="py-6 text-center text-[11.5px] text-muted-foreground">
-                    Aucun outil déclaré.
-                  </div>
-                {:else}
-                  {#each allTools as tool, i (tool.id)}
-                    {@const sensitive = tool.id.startsWith("fs.write") ||
-                      tool.id.includes("send") ||
-                      tool.id.includes("delete")}
-                    {@const scope = tool.id.split(/[._]/)[0] || "tool"}
-                    <div
-                      class="flex items-center gap-2.5 py-2 {i ===
-                      allTools.length - 1
-                        ? ''
-                        : 'border-b border-border/40'}"
-                    >
-                      <div
-                        class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-primary/10 text-primary"
-                      >
-                        <Zap size={11} />
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <div
-                          class="font-mono truncate text-[12px] font-medium text-foreground"
-                        >
-                          {tool.id}
-                        </div>
-                        <div class="text-[10.5px] text-muted-foreground">
-                          {tool.required ? "Requis" : "Optionnel"}
-                        </div>
-                      </div>
-                      <Badge size="sm" variant="neutral">{scope}</Badge>
-                      {#if sensitive}
-                        <Badge size="sm" variant="warning"
-                          >demander à chaque fois</Badge
-                        >
-                      {/if}
-                    </div>
-                  {/each}
-                {/if}
+                <div class="mt-1 tabular-nums" style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;">
+                  {a.tools_required.length + a.tools_optional.length}
+                </div>
+                <div class="mt-0.5 text-[11px] text-muted-foreground">
+                  {a.tools_required.length} requis · {a.tools_optional.length} optionnels
+                </div>
               </Card>
-            </div>
 
-            <!-- Memory panel -->
-            <Card class="p-[14px_16px]">
-              <div class="mb-2 flex items-center justify-between">
-                <span class="text-[12.5px] font-semibold text-foreground"
-                  >Mémoire</span
-                >
-                <span
-                  class="font-mono text-[10.5px] text-muted-foreground"
-                >
-                  {a.tags.length} tag{a.tags.length > 1 ? "s" : ""}
-                </span>
-              </div>
-              <p
-                class="m-0 mb-2 text-[11.5px] leading-[1.5] text-muted-foreground"
-              >
-                Ce que cet assistant retient — préférences, projets, contexte.
-              </p>
-              <div class="flex flex-wrap gap-1.5">
-                {#if a.tags.length === 0}
-                  <span class="text-[11px] text-muted-foreground/70">
-                    Aucun élément en mémoire.
-                  </span>
-                {:else}
-                  {#each a.tags as tag (tag)}
-                    <Badge size="sm" variant="secondary">{tag}</Badge>
-                  {/each}
-                {/if}
-              </div>
-            </Card>
+              <!-- Stat: triggers count -->
+              <Card class="p-[16px_18px]">
+                <div class="font-mono text-[10.5px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
+                  Déclencheurs
+                </div>
+                <div class="mt-1 tabular-nums" style="font-size: 24px; font-weight: 600; letter-spacing: -0.3px;">
+                  {a.tags.filter((tag) => tag.startsWith("trigger:")).length}
+                </div>
+                <div class="mt-0.5 text-[11px] text-muted-foreground">
+                  {a.tags.filter((tag) => tag.startsWith("trigger:")).length === 0
+                    ? "aucun trigger configuré"
+                    : "actifs"}
+                </div>
+              </Card>
 
-            <!-- Usage / examples -->
-            <Card class="p-[14px_16px]">
-              <div class="mb-2 flex items-center justify-between">
-                <span class="text-[12.5px] font-semibold text-foreground"
-                  >Activité</span
-                >
-                <span
-                  class="font-mono text-[10.5px] text-muted-foreground"
-                >
-                  {a.id ? "chargé" : "non chargé"}
-                </span>
-              </div>
-              <!-- Sparkline placeholder -->
-              <div class="flex h-12 items-end gap-1">
-                {#each [3, 5, 4, 7, 6, 9, 8, 11, 9, 12, 10, 14] as h, i (i)}
-                  <div
-                    class="flex-1 rounded-sm bg-primary/20"
-                    style="height: {(h / 14) * 100}%;"
-                  ></div>
-                {/each}
-              </div>
-              <div class="mt-2 text-[10.5px] text-muted-foreground">
-                Données d'usage à venir.
-              </div>
+              <!-- Info grid: execution_mode + install_path -->
+              {#if a.execution_mode}
+                <Card class="p-[16px_18px]">
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <Cpu size={12} class="text-muted-foreground/50" />
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      {$t('agent_detail.execution_mode_title')}
+                    </span>
+                  </div>
+                  <p class="text-sm text-foreground/80">{executionModeLabel(a.execution_mode)}</p>
+                </Card>
+              {/if}
+              {#if a.install_path}
+                <Card class="p-[16px_18px]">
+                  <div class="flex items-center gap-2 mb-1.5">
+                    <Terminal size={12} class="text-muted-foreground/50" />
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      {$t('agent_detail.install_path_title')}
+                    </span>
+                  </div>
+                  <p class="text-xs text-muted-foreground font-mono truncate" title={a.install_path}>{a.install_path}</p>
+                </Card>
+              {/if}
+
+              <!-- Examples -->
               {#if a.examples.length > 0}
-                <div class="mt-3 border-t border-border/40 pt-2.5">
-                  <div
-                    class="font-mono mb-1.5 text-[10px] font-semibold uppercase tracking-[1.2px] text-muted-foreground"
-                  >
+                <Card class="p-[14px_16px] lg:col-span-2">
+                  <div class="font-mono mb-2 text-[10px] font-semibold uppercase tracking-[1.2px] text-muted-foreground">
                     Exemples
                   </div>
                   <ul class="m-0 list-none space-y-1 p-0">
-                    {#each a.examples.slice(0, 3) as ex (ex)}
-                      <li class="text-[11.5px] text-muted-foreground">
-                        — {ex}
-                      </li>
+                    {#each a.examples.slice(0, 5) as ex (ex)}
+                      <li class="text-[12px] text-foreground/85">— {ex}</li>
                     {/each}
                   </ul>
+                </Card>
+              {/if}
+            </div>
+          {:else if agentDetailTab === "tools"}
+            <Card class="p-[14px_16px]">
+              <div class="mb-2.5 flex items-center justify-between">
+                <span class="text-[12.5px] font-semibold text-foreground">Outils disponibles</span>
+                <span class="font-mono text-[10.5px] text-muted-foreground">{allToolsAgent.length}</span>
+              </div>
+              {#if allToolsAgent.length === 0}
+                <div class="py-6 text-center text-[11.5px] text-muted-foreground">
+                  Aucun outil déclaré.
                 </div>
+              {:else}
+                {#each allToolsAgent as tool, i (tool.id)}
+                  {@const sensitive =
+                    tool.id.startsWith("fs.write") ||
+                    tool.id.includes("send") ||
+                    tool.id.includes("delete")}
+                  {@const scope = tool.id.split(/[._]/)[0] || "tool"}
+                  <div
+                    class="flex items-center gap-2.5 py-2 {i === allToolsAgent.length - 1 ? '' : 'border-b border-border/40'}"
+                  >
+                    <div class="inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Zap size={11} />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="font-mono truncate text-[12px] font-medium text-foreground">{tool.id}</div>
+                      <div class="text-[10.5px] text-muted-foreground">
+                        {tool.required ? "Requis" : "Optionnel"}
+                      </div>
+                    </div>
+                    <Badge size="sm" variant="neutral">{scope}</Badge>
+                    {#if sensitive}
+                      <Badge size="sm" variant="warning">demander à chaque fois</Badge>
+                    {/if}
+                  </div>
+                {/each}
               {/if}
             </Card>
-          </div>
+          {:else if agentDetailTab === "memory"}
+            {@const agentNamespace = a.memory_namespace}
+            <div class="space-y-4 max-w-3xl">
+              {#if !agentNamespace}
+                <Card class="p-[14px_16px]">
+                  <p class="text-[12px] text-muted-foreground italic">
+                    Cet assistant n'a pas de mémoire persistante déclarée dans son manifest.
+                  </p>
+                </Card>
+              {:else}
+                <!-- Namespace breadcrumb -->
+                <div class="flex items-center gap-3 text-[11.5px] text-muted-foreground">
+                  <div class="inline-flex items-center gap-1.5">
+                    <span class="font-mono text-foreground">{agentNamespace}</span>
+                    <span class="text-muted-foreground/60">·</span>
+                    <span class="tabular-nums">
+                      {memoryEntries.length} entrée{memoryEntries.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {#if a.shared_memory_namespaces.length > 0}
+                    <span class="text-muted-foreground/60">·</span>
+                    <span class="text-[10.5px]">
+                      + {a.shared_memory_namespaces.length} namespace{a.shared_memory_namespaces.length > 1 ? "s" : ""} partagé{a.shared_memory_namespaces.length > 1 ? "s" : ""}
+                    </span>
+                  {/if}
+                </div>
 
-          <!-- Logs link -->
-          {#if a.id}
-            <div class="mt-4 flex justify-end">
-              <Button variant="outline" size="sm" onclick={() => openLogs(a.id!)}>
-                {$t("agents.logs")}
-              </Button>
+                <!-- Entries -->
+                <Card class="overflow-hidden">
+                  {#if memoryLoading}
+                    <div class="px-4 py-6 text-center text-[12px] text-muted-foreground">
+                      Chargement…
+                    </div>
+                  {:else if memoryError}
+                    <div class="px-4 py-3 text-[12px] text-destructive" data-testid="agent-memory-error">
+                      {memoryError}
+                    </div>
+                  {:else if memoryEntries.length === 0}
+                    <div class="px-4 py-8 text-center">
+                      <p class="text-[12.5px] text-muted-foreground mb-1">
+                        Aucune entrée dans ce namespace.
+                      </p>
+                      <p class="text-[10.5px] text-muted-foreground/70">
+                        L'assistant n'a encore rien mémorisé.
+                      </p>
+                    </div>
+                  {:else}
+                    {#each memoryEntries.slice(0, 12) as entry, i (entry.id)}
+                      {@const isLast = i === Math.min(memoryEntries.length, 12) - 1}
+                      <div
+                        class="flex items-start gap-3 px-4 py-2.5 {isLast ? '' : 'border-b border-border/40'}"
+                        data-testid="agent-memory-row"
+                      >
+                        <div class="w-[22px] h-[22px] rounded-md shrink-0 mt-0.5 inline-flex items-center justify-center bg-muted text-muted-foreground">
+                          {#if entry.entry_type === "episodic"}
+                            <Clock size={11} />
+                          {:else if entry.entry_type === "procedural"}
+                            <Zap size={11} />
+                          {:else}
+                            <Sparkles size={11} />
+                          {/if}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 min-w-0">
+                            <code class="text-[12px] truncate text-foreground" title={entry.key}>{entry.key}</code>
+                            <span class="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[9.5px] font-medium tabular-nums tracking-tight border border-border/60 bg-background text-muted-foreground">
+                              {entry.entry_type.slice(0, 4).toLowerCase()}
+                            </span>
+                          </div>
+                          {#if entry.value}
+                            <div class="text-[11px] text-muted-foreground mt-1 truncate" title={entry.value}>
+                              {entry.value.length > 140 ? entry.value.slice(0, 140) + "…" : entry.value}
+                            </div>
+                          {/if}
+                          <div class="text-[10px] text-muted-foreground/70 mt-0.5 tabular-nums">
+                            il y a {formatMemoryRelative(entry.created_at)}
+                          </div>
+                        </div>
+                      </div>
+                    {/each}
+                    {#if memoryEntries.length > 12}
+                      <div class="px-4 py-2 text-[10.5px] text-muted-foreground/70 border-t border-border/40 text-center">
+                        +{memoryEntries.length - 12} entrée{memoryEntries.length - 12 > 1 ? "s" : ""}
+                        — <Button variant="ghost" size="auto" onclick={handleMemoryLink} class="inline p-0 text-[10.5px] text-primary hover:underline">voir toutes dans /mémoire</Button>
+                      </div>
+                    {/if}
+                  {/if}
+                </Card>
+
+                <Button variant="outline" size="sm" onclick={handleMemoryLink} class="gap-2">
+                  {#snippet icon()}<ExternalLink size={13} />{/snippet}
+                  {$t('agent_detail.memory_link', { values: { namespace: agentNamespace } })}
+                </Button>
+              {/if}
+            </div>
+          {:else if agentDetailTab === "activity"}
+            <div class="space-y-4 max-w-3xl" data-testid="agent-detail-activity">
+              {#if a.id}
+                <Card class="p-[14px_16px]">
+                  <AgentActivity agentId={a.id} onTaskClick={handleTaskClick} />
+                </Card>
+              {:else}
+                <Card class="p-[14px_16px]">
+                  <p class="text-[12px] text-muted-foreground italic">
+                    L'assistant n'est pas chargé — démarrez-le pour voir son activité récente.
+                  </p>
+                </Card>
+              {/if}
+
+              <Card class="p-[14px_16px]">
+                <AgentTriggers agentName={a.name} />
+              </Card>
+            </div>
+          {:else if agentDetailTab === "settings"}
+            <div class="space-y-4 max-w-3xl" data-testid="agent-detail-settings">
+              {#if stopError || actionError}
+                <div class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  {stopError || actionError}
+                </div>
+              {/if}
+
+              <!-- Runtime controls -->
+              <Card class="p-[14px_16px]">
+                <div class="font-mono text-[10px] font-semibold uppercase tracking-[1.2px] text-muted-foreground mb-3">
+                  Exécution
+                </div>
+                {#if confirmStopVisible}
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs text-muted-foreground">{$t('agents.stop_confirm')}</span>
+                    <Button size="sm" variant="destructive"
+                      onclick={() => handleStopSelected(a)}
+                      disabled={stoppingAgent}
+                      data-testid="agent-detail-stop-confirm"
+                    >
+                      {stoppingAgent ? $t('agents.stopping') : $t('common.confirm')}
+                    </Button>
+                    <Button size="sm" variant="outline" onclick={() => (confirmStopVisible = false)}>
+                      {$t('common.cancel')}
+                    </Button>
+                  </div>
+                {:else}
+                  <div class="flex items-center gap-2 flex-wrap">
+                    {#if !isLoadedNow && isInstalledNow && a.install_path}
+                      <Button size="sm" variant="primary-solid"
+                        onclick={() => handleStartSelected(a)}
+                        disabled={startLoading}
+                        data-testid="agent-detail-start-btn"
+                      >
+                        {#snippet icon()}<Play size={12} />{/snippet}
+                        {startLoading ? $t('agents.starting_agent') : $t('agents.start')}
+                      </Button>
+                    {/if}
+                    {#if isRunningNow && a.id}
+                      <Button size="sm" variant="outline"
+                        onclick={() => (confirmStopVisible = true)}
+                        data-testid="agent-detail-stop-btn"
+                      >
+                        {#snippet icon()}<Square size={12} />{/snippet}
+                        {$t('agents.stop')}
+                      </Button>
+                    {/if}
+                    {#if a.id}
+                      <Button size="sm" variant="ghost"
+                        onclick={() => openLogs(a.id!)}
+                        data-testid="agent-detail-logs-btn"
+                      >
+                        {$t('agents.logs')}
+                      </Button>
+                    {/if}
+                  </div>
+                {/if}
+
+                {#if isInstalledNow}
+                  <div class="mt-3 pt-3 border-t border-border/40 flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-[12px] font-medium text-foreground">{$t("agents.auto_start_enabled")}</div>
+                      <div class="text-[10.5px] text-muted-foreground mt-0.5">
+                        Démarre automatiquement avec Apollia OS.
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={a.enabled}
+                      onchange={() => handleToggleEnabled(a)}
+                      disabled={toggleLoading}
+                      size="sm"
+                      aria-label={$t("agents.auto_start_enabled")}
+                      data-testid="agent-detail-enabled-toggle"
+                    />
+                  </div>
+                {/if}
+              </Card>
+
+              <!-- LLM info -->
+              <Card class="p-[14px_16px]">
+                <AgentLlmInfo />
+              </Card>
+
+              <!-- Agent messages (A2A + builder only) -->
+              {#if showA2AMessages}
+                <Card class="p-[14px_16px]">
+                  <div class="flex items-center gap-2 mb-3">
+                    <MessageSquare size={12} class="text-muted-foreground/50" />
+                    <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                      {$t('agent_detail.messages_title')}
+                    </span>
+                  </div>
+                  <AgentMessagesPanel agentName={a.name} />
+                </Card>
+              {/if}
             </div>
           {/if}
         </div>
@@ -1268,14 +1559,6 @@
 
 {#if logsAgentId}
   <AgentLogs agentId={logsAgentId} open={logsOpen} onclose={closeLogs} />
-{/if}
-{#if detailAgent}
-  <AgentDetail
-    agent={detailAgent}
-    open={detailOpen}
-    onclose={closeDetail}
-    onlogs={openLogsFromDetail}
-  />
 {/if}
 
 <InstallPackageDialog

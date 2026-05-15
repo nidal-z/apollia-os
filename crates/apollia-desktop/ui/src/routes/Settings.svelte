@@ -437,13 +437,13 @@
                   {@const SvelteIcon = entry.icon}
                   {@const isActive = $settingsSubRoute === entry.key}
                   <li>
-                    <Button variant="ghost" size="sm"
+                    <Button variant="ghost" size="auto"
                       type="button"
                       onclick={() => onNavigate(entry.key)}
                       aria-current={isActive ? "page" : undefined}
                       data-settings-route={entry.key}
                       data-testid="settings-nav-{entry.key}"
-                      class="flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] transition-colors {entryClass(
+                      class="flex w-full items-center justify-start gap-2.5 rounded-lg border px-2.5 py-1.5 text-[12.5px] transition-colors {entryClass(
                         isActive,
                         cluster.danger === true,
                       )}"
@@ -479,13 +479,13 @@
                 {@const SvelteIcon = entry.icon}
                 {@const isActive = $settingsSubRoute === entry.key}
                 <li>
-                  <Button variant="ghost" size="sm"
+                  <Button variant="ghost" size="auto"
                     type="button"
                     onclick={() => onNavigate(entry.key)}
                     aria-current={isActive ? "page" : undefined}
                     data-settings-route={entry.key}
                     data-testid="settings-nav-{entry.key}"
-                    class="flex w-full items-center gap-[9px] rounded-lg border px-2.5 py-[7px] text-[12.5px] transition-colors {entryClass(
+                    class="flex w-full items-center justify-start gap-[9px] rounded-lg border px-2.5 py-[7px] text-[12.5px] transition-colors {entryClass(
                       isActive,
                       cluster.danger === true,
                     )}"

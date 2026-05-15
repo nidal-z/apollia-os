@@ -350,8 +350,10 @@
       if (detail?.tab) selectTab(detail.tab);
     }
     window.addEventListener("apollia:inbox:select-tab", onSelectTab);
-    if (activeTab === "activity") void loadActivity();
-    if (activeTab === "notifications") void loadNotificationLogs();
+    // Eagerly load activity + notification logs so the tab badges show
+    // accurate counts on first render (not just when the user opens the tab).
+    void loadActivity();
+    void loadNotificationLogs();
     return () => {
       window.removeEventListener("apollia:inbox:select-tab", onSelectTab);
     };

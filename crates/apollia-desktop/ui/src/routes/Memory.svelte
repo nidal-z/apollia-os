@@ -13,6 +13,7 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import { PageHeader } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
+  import { TabBar } from "$lib/components/ui/tabs";
 
   // ADR-087 — the per-user profile is edited from `Paramètres → Profil`.
   // This page is the namespace explorer only (sidebar with classified
@@ -181,7 +182,7 @@
     }
   }
 
-  // ── Type filter chips ───────────────────────────────────────────────────────
+  // ── Type filter tabs (underline pattern aligné sur Projets) ────────────────
   type FilterChipDef = { key: EntryTypeFilter; label: string; Icon: typeof Database };
   const filterChips: FilterChipDef[] = [
     { key: "all", label: "Toutes", Icon: Database },
@@ -189,6 +190,10 @@
     { key: "semantic", label: "Sémantique", Icon: Database },
     { key: "procedural", label: "Procédurale", Icon: Cog },
   ];
+
+  const memoryTabItems = $derived(
+    filterChips.map((c) => ({ key: c.key, label: c.label, count: entryCounts[c.key] })),
+  );
 
   onMount(async () => {
     await loadNamespaces();
@@ -241,46 +246,32 @@
           </div>
         {/if}
 
-        <!-- Header : type chips + search -->
-        <div class="px-6 py-3 border-b border-border/40 bg-surface-1/30">
-          <div class="flex items-center gap-3 flex-wrap">
-            <div class="inline-flex items-center gap-1 p-0.5 rounded-md bg-muted/40 border border-border/40">
-              {#each filterChips as chip}
-                {@const isActive = typeFilter === chip.key}
-                {@const count = entryCounts[chip.key]}
-                {@const Icon = chip.Icon}
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  onclick={() => (typeFilter = chip.key)}
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11.5px] font-medium tracking-tight transition-colors {isActive
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
-                  data-testid="memory-type-filter-{chip.key}"
-                >
-                  <Icon size={11} />
-                  {chip.label}
-                  <span class="tabular-nums {isActive ? 'text-muted-foreground' : 'text-muted-foreground/60'}">
-                    {count}
-                  </span>
-                </Button>
-              {/each}
-            </div>
-
-            <div class="ml-auto flex-1 max-w-[320px] min-w-[180px]">
-              <MemorySearch value={searchQuery} onsearch={handleSearch} />
-            </div>
-          </div>
-
-          <div class="mt-2 flex items-center gap-1.5 text-[10.5px] text-muted-foreground/80">
-            <Database size={10} />
-            <span class="font-mono">{selectedNamespace || "—"}</span>
+        <!-- Header : search + namespace breadcrumb -->
+        <div class="px-6 pt-4 pb-2 flex items-center gap-4 flex-wrap border-b border-border/30">
+          <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground min-w-0">
+            <Database size={11} class="shrink-0" />
+            <span class="font-mono truncate" title={selectedNamespace}>{selectedNamespace || "—"}</span>
             {#if searching}
               <span class="ml-2 inline-flex items-center gap-1 text-info">
-                <Search size={9} />
+                <Search size={10} />
                 {filteredEntries.length} résultat{filteredEntries.length > 1 ? "s" : ""}
               </span>
             {/if}
           </div>
+          <div class="ml-auto flex-1 max-w-[320px] min-w-[180px]">
+            <MemorySearch value={searchQuery} onsearch={handleSearch} />
+          </div>
+        </div>
+
+        <!-- Type tabs (underline pattern, aligné Projets) -->
+        <div class="px-6 pt-2">
+          <TabBar
+            variant="underline"
+            items={memoryTabItems}
+            activeTab={typeFilter}
+            ontabchange={(k) => (typeFilter = k as EntryTypeFilter)}
+            testidPrefix="memory-type"
+          />
         </div>
 
         <!-- Entries list -->

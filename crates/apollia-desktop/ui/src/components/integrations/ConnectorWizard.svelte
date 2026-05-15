@@ -114,23 +114,23 @@
     return remote.headers.map((h) => ({
       name: h.name,
       description: h.description,
-      is_required: h.isRequired,
-      is_secret: h.isSecret,
+      isRequired: h.isRequired,
+      isSecret: h.isSecret,
     }));
   });
 
   const authEnvVars = $derived.by((): RegistryEnvVarView[] => {
     if (connectionMode === "remote") return remoteHeadersAsEnvVars;
-    if (connectionMode === "package") return pkg?.environment_variables ?? [];
+    if (connectionMode === "package") return pkg?.environmentVariables ?? [];
     return [];
   });
 
   /** Positional args whose value is not pre-filled by the registry — the user
    *  must supply them at install time. Returned with their original index in
-   *  `pkg.package_arguments` so `argValues[idx]` stays addressable. */
+   *  `pkg.packageArguments` so `argValues[idx]` stays addressable. */
   const userPackageArgs = $derived.by((): { index: number; arg: import("$lib/types").RegistryPackageArgView }[] => {
     if (connectionMode !== "package" || !pkg) return [];
-    return (pkg.package_arguments ?? [])
+    return (pkg.packageArguments ?? [])
       .map((arg, index) => ({ index, arg }))
       .filter((entry) => entry.arg.value === null || entry.arg.value === undefined);
   });
@@ -172,7 +172,7 @@
 
   // Required-field completion for the auth step: every required var must have a value.
   const authComplete = $derived.by((): boolean => {
-    const required = authEnvVars.filter((v) => v.is_required);
+    const required = authEnvVars.filter((v) => v.isRequired);
     const envOk = required.every((v) => (envValues[v.name] ?? "").trim() !== "");
     return envOk && argsComplete;
   });
@@ -210,6 +210,41 @@
     return cleaned.length > 0 ? cleaned : "mcp-server";
   }
 
+  // ── Stdio launcher resolution ──────────────────────────────────────────────
+  // Map (registry_type, runtime_hint) to the actual launcher invocation. The
+  // registry's `runtime_hint` field is semantically informational ("which
+  // runtime is needed", e.g. `node`, `python`) — not an executable name. The
+  // wizard previously passed it straight to `command`, which produced
+  // `command="node", args=["@scope/pkg", ...]` for every npm-based server and
+  // made Node interpret the package name as a relative script path.
+  //
+  // This helper centralises the mapping so all 18 catalog entries plus any
+  // future runtime end up with a correct, non-interactive launcher invocation.
+  function resolveStdioLauncher(
+    registryType: string | null | undefined,
+    runtimeHint: string | null | undefined,
+  ): { command: string; prefixArgs: string[] } {
+    const hint = (runtimeHint ?? "").toLowerCase();
+    const reg = (registryType ?? "").toLowerCase();
+
+    // Direct launcher commands declared explicitly by the registry entry.
+    if (hint === "npx") return { command: "npx", prefixArgs: ["-y"] };
+    if (hint === "uvx") return { command: "uvx", prefixArgs: [] };
+    if (hint === "bunx") return { command: "bunx", prefixArgs: [] };
+
+    // Runtime-name hints — map to the conventional launcher for that ecosystem.
+    if (hint === "node" || reg === "npm") {
+      return { command: "npx", prefixArgs: ["-y"] };
+    }
+    if (hint === "python" || reg === "pypi") {
+      return { command: "uvx", prefixArgs: [] };
+    }
+
+    // Unknown hint — surface it verbatim so the user can fix it in custom mode
+    // rather than silently rewriting to something potentially wrong.
+    return { command: runtimeHint || "npx", prefixArgs: [] };
+  }
+
   // ── Config builder ──────────────────────────────────────────────────────────
   function buildConfig(forTest: boolean): McpServerConfigInput | null {
     // Prefer the operator label (e.g. "Local Files") over the registry
@@ -241,9 +276,9 @@
     }
     if (connectionMode === "package" && pkg) {
       const env: Record<string, string> = {};
-      for (const envVar of pkg.environment_variables ?? []) {
+      for (const envVar of pkg.environmentVariables ?? []) {
         env[envVar.name] =
-          envVar.is_secret && !forTest
+          envVar.isSecret && !forTest
             ? `\${APOLLIA_SECRET:${envVar.name}}`
             : (envValues[envVar.name] ?? "");
       }
@@ -252,7 +287,7 @@
       // input from `argValues` (split on whitespace for `isRepeatable` args,
       // which is how `@modelcontextprotocol/server-filesystem` declares its
       // allowed-directory list).
-      const extraArgs: string[] = (pkg.package_arguments ?? []).flatMap(
+      const extraArgs: string[] = (pkg.packageArguments ?? []).flatMap(
         (arg, idx) => {
           if (arg.value !== null && arg.value !== undefined) return [arg.value];
           const raw = (argValues[idx] ?? "").trim();
@@ -260,12 +295,13 @@
           return arg.isRepeatable ? raw.split(/\s+/).filter(Boolean) : [raw];
         },
       );
+      const launcher = resolveStdioLauncher(pkg.registryType, pkg.runtimeHint);
       return {
         name: safeName,
-        command: pkg.runtime_hint ?? "npx",
-        args: [pkg.identifier, ...extraArgs],
+        command: launcher.command,
+        args: [...launcher.prefixArgs, pkg.identifier, ...extraArgs],
         env,
-        transport: pkg.transport_type ?? "stdio",
+        transport: pkg.transport?.type ?? "stdio",
         requires_approval: approvalLevel === "ask",
         tags: [],
       };
@@ -345,9 +381,9 @@
           }
         }
       } else if (connectionMode === "package" && pkg) {
-        for (const envVar of pkg.environment_variables ?? []) {
+        for (const envVar of pkg.environmentVariables ?? []) {
           const val = envValues[envVar.name];
-          if (envVar.is_secret && val) {
+          if (envVar.isSecret && val) {
             await invoke("store_mcp_secret", {
               serverName: server.name,
               envVar: envVar.name,

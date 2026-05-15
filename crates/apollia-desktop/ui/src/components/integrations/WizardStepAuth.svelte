@@ -44,7 +44,7 @@
   }
 
   function inputType(envVar: RegistryEnvVarView): string {
-    if (!envVar.is_secret) return "text";
+    if (!envVar.isSecret) return "text";
     return revealed[envVar.name] ? "text" : "password";
   }
 </script>
@@ -134,19 +134,19 @@
           label={envVar.name}
           labelClass="text-sm text-foreground"
           class="space-y-1.5"
-          required={envVar.is_required}
-          optional={!envVar.is_required}
+          required={envVar.isRequired}
+          optional={!envVar.isRequired}
           optionalLabel={`(${$t("integrations.wizard.optional")})`}
           hint={envVar.description ?? undefined}
         >
-          {#if envVar.is_secret}
+          {#if envVar.isSecret}
             <p class="flex items-center gap-1 text-[11px] text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
               <Lock size={10} aria-hidden="true" />
               {$t("integrations.wizard.encrypted_locally")}
             </p>
           {/if}
 
-          {#if envVar.is_secret}
+          {#if envVar.isSecret}
             <Input
               id={`env-${envVar.name}`}
               type={inputType(envVar)}

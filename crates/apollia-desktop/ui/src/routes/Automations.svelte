@@ -187,12 +187,12 @@
     >
       {#each FILTERS as f (f.key)}
         {@const isActive = activeFilter === f.key}
-        <Button variant="ghost" size="sm"
+        <Button variant="ghost" size="auto"
           type="button"
           role="tab"
           aria-selected={isActive}
-          onclick={() => (activeFilter = f.key)}
-          class="cursor-pointer border-0 bg-transparent p-0"
+          onclick={(e) => { activeFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
+          class="cursor-pointer border-0 bg-transparent p-0 focus-visible:ring-offset-0 focus-visible:ring-1"
           data-testid="automations-filter-{f.key}"
           data-active={isActive}
         >

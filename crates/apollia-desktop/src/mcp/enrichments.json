@@ -46,7 +46,7 @@
     },
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "package_env_vars": [
       {
         "name": "BRAVE_API_KEY",
@@ -81,7 +81,7 @@
     },
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "package_arguments": [
       {
         "arg_type": "positional",
@@ -111,7 +111,7 @@
     "auth_help_text": null,
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" }
   },
   {
@@ -129,7 +129,7 @@
     "auth_help_text": null,
     "default_requires_approval": true,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" }
   },
   {
@@ -380,7 +380,7 @@
     },
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "package_env_vars": [
       {
         "name": "POSTGRES_URL",
@@ -406,7 +406,7 @@
     "auth_help_text": null,
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" }
   },
   {
@@ -424,7 +424,7 @@
     "auth_help_text": null,
     "default_requires_approval": false,
     "package_registry_type": "npm",
-    "package_runtime_hint": "node",
+    "package_runtime_hint": "npx",
     "cost_model": { "kind": "free" }
   },
   {

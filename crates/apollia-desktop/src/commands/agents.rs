@@ -90,6 +90,16 @@ pub struct AgentListItem {
     /// Renseigné par le validateur AIP. `None` pour les agents construits
     /// hors pipeline PyO3.
     pub agent_class: Option<String>,
+    /// Namespace mémoire primaire déclaré dans le manifest. `None` = l'agent
+    /// n'a pas accès à la mémoire persistante.
+    ///
+    /// Plusieurs agents d'un même package partagent souvent le même namespace
+    /// (convention : tous déclarent `memory_namespace = "<package-slug>"`),
+    /// donc cette valeur n'est jamais dérivée de `name` côté UI — elle doit
+    /// venir du manifest pour matcher la clé SQLite.
+    pub memory_namespace: Option<String>,
+    /// Namespaces mémoire partagés accessibles en lecture par l'agent.
+    pub shared_memory_namespaces: Vec<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +200,16 @@ pub async fn list_agents(
             .iter()
             .find(|e| e.manifest.name == agent.name);
 
-        let manifest = &agent.manifest;
+        // Prefer the runtime manifest when the agent is loaded — package
+        // installation (`install_agent_package`) stores a stub manifest with
+        // hardcoded defaults (memory_namespace=None, tools_required=[], ...)
+        // because it never reads the per-agent Python file. The runtime, on
+        // the other hand, has the real manifest parsed by apollia-aip when
+        // the agent was started. Falling back to the SQLite manifest only
+        // when the agent isn't loaded keeps offline metadata available.
+        let manifest = runtime_entry
+            .map(|e| &e.manifest)
+            .unwrap_or(&agent.manifest);
         items.push(AgentListItem {
             id: runtime_entry.map(|e| e.id.to_string()),
             name: agent.name.clone(),
@@ -223,6 +242,8 @@ pub async fn list_agents(
             limitations: manifest.limitations.clone(),
             setup_notes: manifest.setup_notes.clone(),
             agent_class: manifest.agent_class.clone(),
+            memory_namespace: manifest.memory_namespace.clone(),
+            shared_memory_namespaces: manifest.shared_memory_namespaces.clone(),
         });
     }
 
@@ -263,6 +284,8 @@ pub async fn list_agents(
                 limitations: manifest.limitations.clone(),
                 setup_notes: manifest.setup_notes.clone(),
                 agent_class: manifest.agent_class.clone(),
+                memory_namespace: manifest.memory_namespace.clone(),
+                shared_memory_namespaces: manifest.shared_memory_namespaces.clone(),
             });
         }
     }

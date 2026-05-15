@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { X, Sparkles, Plus, Check } from "lucide-svelte";
+  import { X, Sparkles, Plus, Check, Trash2, Settings } from "lucide-svelte";
   import StatusDot from "./StatusDot.svelte";
   import { Badge } from "$lib/components/ui/badge";
-  import Card from "./Card.svelte";
   import { Button } from "$lib/components/ui/button";
+  import Card from "./Card.svelte";
 
   export type ConnectionVariant = "apollia" | "mcp";
   export type ConnectionStatus = "active" | "error" | "syncing" | "idle";
@@ -29,7 +29,24 @@
     installed?: boolean;
     /** MCP only: official badge. */
     official?: boolean;
-    onclick?: (e: MouseEvent) => void;
+    /**
+     * Primary card action — triggered by clicking the card body or pressing
+     * Enter/Space when focused. Typical use: open the manage panel for an
+     * installed server, or open the install wizard for a catalogue entry.
+     */
+    onclick?: (e: MouseEvent | KeyboardEvent) => void;
+    /**
+     * Secondary "uninstall" / "remove" action. When provided, a Trash2 icon
+     * appears in the top-right corner on hover (Projects-style affordance).
+     * Implementations should typically open a ConfirmDialog before calling
+     * the destructive backend command.
+     */
+    onuninstall?: (e: MouseEvent) => void;
+    /**
+     * Accessibility label for the card as a whole. Defaults to the name plus
+     * a "ouvrir les détails" suffix when `onclick` is wired.
+     */
+    ariaLabel?: string;
   }
 
   let {
@@ -46,6 +63,8 @@
     installed = false,
     official = false,
     onclick,
+    onuninstall,
+    ariaLabel,
   }: Props = $props();
 
   const initial = $derived(logoChar ?? name.charAt(0).toUpperCase());
@@ -59,11 +78,38 @@
           ? { color: "hsl(var(--info))", glow: true }
           : { color: "hsl(var(--muted-foreground))", glow: false },
   );
+
+  const computedAriaLabel = $derived(
+    ariaLabel ?? (onclick ? `${name} — ouvrir les détails` : name),
+  );
 </script>
 
 {#if variant === "apollia"}
-  <Card hover class="px-4 py-3.5 relative">
-    <div class="absolute top-2.5 right-2.5">
+  <Card
+    hover={!!onclick}
+    onclick={onclick}
+    ariaLabel={computedAriaLabel}
+    class="px-4 py-3.5 relative group"
+    data-testid="connection-card-apollia"
+  >
+    <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+      {#if onuninstall}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          type="button"
+          title="Désinstaller"
+          aria-label="Désinstaller {name}"
+          onclick={(e: MouseEvent) => {
+            e.stopPropagation();
+            onuninstall(e);
+          }}
+          class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:bg-destructive/10 hover:text-danger-a11y transition-all"
+          data-testid="connection-card-uninstall"
+        >
+          <Trash2 size={12} strokeWidth={1.75} />
+        </Button>
+      {/if}
       <Badge variant="primary" size="sm">
         {#snippet icon()}<Sparkles size={9} />{/snippet}
         Apollia
@@ -89,14 +135,21 @@
             class="mt-2 text-[11px] text-danger-a11y flex items-center gap-1.5"
           >
             <X size={11} />
-            {error}
-            <Button variant="ghost" size="sm"
-              type="button"
-              {onclick}
-              class="ml-auto text-[11px] text-primary bg-transparent border-0 cursor-pointer font-medium hover:underline"
-            >
-              Reconnecter →
-            </Button>
+            <span class="truncate flex-1" title={error}>{error}</span>
+            {#if onclick}
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onclick={(e: MouseEvent) => {
+                  e.stopPropagation();
+                  onclick(e);
+                }}
+                class="ml-auto text-[11px] text-primary font-medium hover:underline"
+              >
+                Reconnecter →
+              </Button>
+            {/if}
           </div>
         {:else}
           <div
@@ -115,14 +168,38 @@
     </div>
   </Card>
 {:else}
-  <Card hover class="px-3.5 py-3 relative">
-    <div class="flex items-center gap-2.5 mb-1">
+  <Card
+    hover={!!onclick}
+    onclick={onclick}
+    ariaLabel={computedAriaLabel}
+    class="px-3.5 py-3 relative group"
+    data-testid="connection-card-mcp"
+  >
+    {#if onuninstall}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        type="button"
+        title="Désinstaller"
+        aria-label="Désinstaller {name}"
+        onclick={(e: MouseEvent) => {
+          e.stopPropagation();
+          onuninstall(e);
+        }}
+        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:bg-destructive/10 hover:text-danger-a11y transition-all"
+        data-testid="connection-card-uninstall"
+      >
+        <Trash2 size={12} strokeWidth={1.75} />
+      </Button>
+    {/if}
+
+    <div class="flex items-center gap-2.5 mb-1 pr-7">
       <div
         class="w-[26px] h-[26px] rounded-md bg-surface-2 text-foreground inline-flex items-center justify-center text-xs font-semibold"
       >
         {initial}
       </div>
-      <span class="text-[12.5px] font-semibold text-foreground">{name}</span>
+      <span class="text-[12.5px] font-semibold text-foreground truncate">{name}</span>
       {#if official}
         <span
           class="text-[9px] px-[5px] py-px rounded bg-success/10 text-success-a11y font-semibold tracking-[0.3px]"
@@ -135,24 +212,36 @@
       {/if}
     </div>
     {#if description}
-      <div class="text-[10.5px] text-muted-foreground mb-2.5 leading-[1.45]">
+      <div class="text-[10.5px] text-muted-foreground mb-2.5 leading-[1.45] line-clamp-2">
         {description}
       </div>
     {/if}
     {#if installed}
       <div
-        class="flex items-center gap-1.5 text-[10.5px] text-success-a11y font-medium"
+        class="flex items-center justify-between gap-1.5 text-[10.5px] text-success-a11y font-medium"
       >
-        <Check size={10} /> Installé
+        <span class="inline-flex items-center gap-1.5">
+          <Check size={10} /> Installé
+          {#if capabilities !== undefined && capabilities > 0}
+            <span class="text-muted-foreground font-normal">· {capabilities} outils</span>
+          {/if}
+        </span>
+        {#if onclick}
+          <span
+            class="inline-flex items-center gap-1 text-[10.5px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-hidden="true"
+          >
+            <Settings size={10} /> Gérer
+          </span>
+        {/if}
       </div>
-    {:else}
-      <Button variant="ghost" size="sm"
-        type="button"
-        {onclick}
-        class="text-[11px] text-primary bg-transparent border-0 p-0 cursor-pointer font-medium inline-flex items-center gap-1 hover:underline"
+    {:else if onclick}
+      <span
+        class="inline-flex items-center gap-1 text-[11px] text-primary font-medium"
+        aria-hidden="true"
       >
         <Plus size={10} /> Connecter
-      </Button>
+      </span>
     {/if}
   </Card>
 {/if}

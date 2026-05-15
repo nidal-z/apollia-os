@@ -39,6 +39,10 @@ pub fn mcp_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/mcp/servers/:name", get(get_server_detail::<B>))
         .route("/api/v1/mcp/servers/:name", delete(remove_server::<B>))
         .route(
+            "/api/v1/mcp/servers/:name/raw_config",
+            get(get_server_raw_config::<B>),
+        )
+        .route(
             "/api/v1/mcp/servers/:name/restart",
             post(restart_server::<B>),
         )
@@ -109,6 +113,41 @@ async fn get_server_detail<B: ExecutionBackend + Clone>(
             format!("server '{}' not found", name),
         )
     })
+}
+
+/// `GET /api/v1/mcp/servers/:name/raw_config` — Return the persisted launch
+/// configuration of a server (command, args, env, transport, …) as stored in
+/// `mcp.db`.
+///
+/// The `env` map contains either literal values for non-secret variables or
+/// `${APOLLIA_SECRET:NAME}` placeholders for secret ones — actual secret
+/// material is never returned. Used by the desktop "Modifier les arguments"
+/// flow to fetch the current config, patch `args`, and PUT the result back
+/// without losing the rest of the configuration.
+///
+/// Returns `404 Not Found` when no server with `name` is persisted.
+/// Returns `503 Service Unavailable` when the MCP repository is unavailable.
+async fn get_server_raw_config<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+) -> Result<Json<McpServerConfig>, JsonError> {
+    let repo = require_mcp_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        json_err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "repository lock poisoned",
+        )
+    })?;
+    let config = guard
+        .find_by_name(&name)
+        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
+        .ok_or_else(|| {
+            json_err(
+                StatusCode::NOT_FOUND,
+                format!("server '{}' not found", name),
+            )
+        })?;
+    Ok(Json(config))
 }
 
 /// `POST /api/v1/mcp/servers/:name/restart` — Restart a specific MCP server session.

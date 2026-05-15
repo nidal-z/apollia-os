@@ -1,13 +1,18 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Plus, Sparkles, Link as LinkIcon } from "lucide-svelte";
   import {
-    PageHeader,
-    SectionTitle,
-    
+    Plus,
+    Sparkles,
+    Link as LinkIcon,
+    Search,
+    Wrench,
+    RefreshCw,
+    Trash2,
+  } from "lucide-svelte";
+  import {
+    StatusDot,
     EmptyState,
-    ConnectionCard,
     type ConnectionStatus,
   } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
@@ -16,9 +21,15 @@
   import { Select } from "$lib/components/ui/select";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Checkbox } from "$lib/components/ui/checkbox";
+  import { Card } from "$lib/components/ui/card";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { TabBar } from "$lib/components/ui/tabs";
+  import { Sheet, SheetHeader, SheetContent } from "$lib/components/ui/sheet";
+  import { formatRelativeTime } from "$lib/utils";
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
+    McpServerDetailView,
     McpServerStatusView,
     RegistryServerView,
   } from "$lib/types";
@@ -26,9 +37,11 @@
     isDisclaimerAccepted,
   } from "../components/integrations/McpDisclaimerDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
-  import OperatorServerManage from "../components/integrations/OperatorServerManage.svelte";
+  import ConnectionStatusIndicator from "../components/integrations/ConnectionStatusIndicator.svelte";
   import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import { rankSuggestions } from "../components/connections/ConnectionSuggestions.svelte";
+  import ApprovalLevelSelector from "$lib/components/operator/approval/ApprovalLevelSelector.svelte";
+  import McpServerSettingsEditor from "../components/integrations/McpServerSettingsEditor.svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
@@ -59,11 +72,189 @@
   let disclaimerOpen = $state(false);
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
-  let managedServerName = $state<string | null>(null);
-  let manageOpen = $state(false);
   let errorModalOpen = $state(false);
   let errorServer = $state<McpServerStatusView | null>(null);
-  let customDialogOpen = $state(false);
+
+  // ── Sidebar+detail selection (mirror Projets/Agents) ──────────────────
+  // Sidebar entries:
+  //   - 2 native connectors (Google, Microsoft) — always shown
+  //   - Installed MCP servers — sorted by status
+  // Selection is a discriminated union so the right pane knows which tabs
+  // to render and which actions to wire.
+  type Selection =
+    | { kind: "native"; provider: ProviderId }
+    | { kind: "mcp"; name: string }
+    | null;
+  let selection = $state<Selection>(null);
+  let sidebarFilter = $state("");
+
+  type NativeTab = "accounts" | "settings";
+  type McpTab = "overview" | "tools" | "settings";
+  let nativeTab = $state<NativeTab>("accounts");
+  let mcpTab = $state<McpTab>("overview");
+
+  // Catalogue Sheet (replaces the inline catalogue grid + custom MCP dialog)
+  type CatalogueTab = "discover" | "custom";
+  let catalogueOpen = $state(false);
+  let catalogueTab = $state<CatalogueTab>("discover");
+
+  // ── MCP detail state (inlined from OperatorServerManage.svelte) ───────
+  // When the user selects an MCP server in the sidebar, the detail right
+  // pane needs the full McpServerDetailView (tools list, config, env keys,
+  // …). We fetch it lazily and re-fetch on selection change.
+  type ApprovalLevel = "auto" | "ask" | "readonly";
+  let mcpDetail = $state<McpServerDetailView | null>(null);
+  let mcpDetailLoading = $state(false);
+  let mcpDetailError = $state<string | null>(null);
+  let approvalLevel = $state<ApprovalLevel>("ask");
+  let approvalPending = $state(false);
+  let approvalError = $state<string | null>(null);
+  type TestState = "idle" | "testing" | "ok" | "error";
+  let testState = $state<TestState>("idle");
+  let testStatus = $state<McpServerStatusView | null>(null);
+  let testError = $state<string | null>(null);
+  let reconnecting = $state(false);
+  let reconnectError = $state<string | null>(null);
+  let confirmDisconnect = $state(false);
+  let disconnecting = $state(false);
+  let disconnectError = $state<string | null>(null);
+
+  function deriveApprovalLevel(requiresApproval: boolean): ApprovalLevel {
+    return requiresApproval ? "ask" : "auto";
+  }
+
+  async function fetchMcpDetail(name: string): Promise<void> {
+    mcpDetailLoading = true;
+    mcpDetailError = null;
+    try {
+      mcpDetail = await invoke<McpServerDetailView>("get_mcp_server_detail", {
+        name,
+      });
+      approvalLevel = deriveApprovalLevel(mcpDetail.config.requires_approval);
+    } catch (err: unknown) {
+      mcpDetailError = err instanceof Error ? err.message : String(err);
+      mcpDetail = null;
+    } finally {
+      mcpDetailLoading = false;
+    }
+  }
+
+  // Re-fetch detail when MCP selection changes; reset volatile state.
+  $effect(() => {
+    if (selection?.kind !== "mcp") {
+      mcpDetail = null;
+      return;
+    }
+    const name = selection.name;
+    mcpDetail = null;
+    testState = "idle";
+    testStatus = null;
+    testError = null;
+    reconnectError = null;
+    confirmDisconnect = false;
+    disconnectError = null;
+    approvalError = null;
+    mcpTab = "overview";
+    void fetchMcpDetail(name);
+  });
+
+  // Reset native tab when switching to a native connector.
+  $effect(() => {
+    if (selection?.kind === "native") {
+      nativeTab = "accounts";
+    }
+  });
+
+  async function handleApprovalChange(newLevel: ApprovalLevel): Promise<void> {
+    if (!mcpDetail || selection?.kind !== "mcp") return;
+    const name = selection.name;
+    approvalLevel = newLevel;
+    approvalPending = true;
+    approvalError = null;
+    const requiresApproval = newLevel === "ask";
+    try {
+      await invoke("set_mcp_server_approval", { name, requiresApproval });
+      mcpDetail = {
+        ...mcpDetail,
+        config: { ...mcpDetail.config, requires_approval: requiresApproval },
+        status: { ...mcpDetail.status, requires_approval: requiresApproval },
+      };
+    } catch (err: unknown) {
+      approvalError = err instanceof Error ? err.message : String(err);
+      approvalLevel = deriveApprovalLevel(mcpDetail.config.requires_approval);
+    } finally {
+      approvalPending = false;
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    if (selection?.kind !== "mcp") return;
+    const name = selection.name;
+    testState = "testing";
+    testError = null;
+    testStatus = null;
+    try {
+      const refreshed = await invoke<McpServerDetailView>("get_mcp_server_detail", {
+        name,
+      });
+      mcpDetail = refreshed;
+      testStatus = refreshed.status;
+      testState = refreshed.status.connected ? "ok" : "error";
+      if (!refreshed.status.connected) {
+        testError = refreshed.status.error ?? $t("integrations.manage.test_failed");
+      }
+    } catch (err: unknown) {
+      testState = "error";
+      testError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function handleReconnect(): Promise<void> {
+    if (selection?.kind !== "mcp") return;
+    const name = selection.name;
+    reconnecting = true;
+    reconnectError = null;
+    testState = "idle";
+    testStatus = null;
+    try {
+      const updated = await invoke<McpServerStatusView>("restart_mcp_server", {
+        name,
+      });
+      if (mcpDetail) {
+        mcpDetail = { ...mcpDetail, status: updated };
+      }
+      approvalLevel = deriveApprovalLevel(updated.requires_approval);
+    } catch (err: unknown) {
+      reconnectError = err instanceof Error ? err.message : String(err);
+    } finally {
+      reconnecting = false;
+    }
+  }
+
+  async function handleDisconnect(): Promise<void> {
+    if (!mcpDetail || selection?.kind !== "mcp") return;
+    const name = selection.name;
+    disconnecting = true;
+    disconnectError = null;
+    try {
+      for (const envKey of mcpDetail.config.env_keys) {
+        await invoke("delete_mcp_secret", { serverName: name, envVar: envKey });
+      }
+      await invoke("remove_mcp_server", { name });
+      selection = null;
+      await loadAll();
+    } catch (err: unknown) {
+      disconnectError = err instanceof Error ? err.message : String(err);
+    } finally {
+      disconnecting = false;
+    }
+  }
+
+  const lastActivityLabel = $derived(
+    mcpDetail?.status.last_call_at
+      ? formatRelativeTime(mcpDetail.status.last_call_at)
+      : null,
+  );
 
   // ── Native Apollia connectors (Google Workspace, Microsoft 365) ─────────────
   type ProviderId = "google" | "microsoft";
@@ -223,7 +414,11 @@
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   /** Phase 1: load servers + enrichments immediately (fast, no network call).
-   *  Phase 2: fetch the full registry catalogue in background. */
+   *  Phase 2 happens lazily — see `loadCuratedCatalogue` and `loadFullRegistry`.
+   *  The previous version always blocked on `fetch_mcp_registry` (full network
+   *  fetch of ~6000 entries, 30–60s on cold cache). That blocked the
+   *  Catalogue Sheet open with no visible content — fixed by gating the
+   *  heavy fetch behind a user opt-in. */
   async function loadAll(): Promise<void> {
     loading = true;
     loadError = null;
@@ -245,17 +440,41 @@
     } finally {
       loading = false;
     }
-    // Phase 2: fetch registry in background — page renders immediately above.
-    void loadRegistry();
   }
 
-  async function loadRegistry(): Promise<void> {
+  // Catalogue load tiers — curated (~18, instant) vs full registry (~6k, slow).
+  type CatalogueTier = "none" | "curated" | "full";
+  let catalogueTier = $state<CatalogueTier>("none");
+
+  /** Load the 18 curated enrichments instantly (no network). Called every
+   *  time the Catalogue Sheet opens so the user sees content < 100ms even
+   *  on a cold cache. */
+  async function loadCuratedCatalogue(): Promise<void> {
+    if (catalogueTier !== "none") return;
+    registryLoading = true;
+    try {
+      registry = await invoke<RegistryServerView[]>("fetch_mcp_curated").catch(
+        () => [] as RegistryServerView[],
+      );
+      catalogueTier = "curated";
+      catalogLimit = CATALOG_PAGE;
+    } finally {
+      registryLoading = false;
+    }
+  }
+
+  /** Explicit opt-in : fetch the full public MCP registry. May take 30–60s on
+   *  a cold cache (the registry paginates through ~60 pages of 100 entries).
+   *  Subsequent calls within 15 minutes hit the disk cache and return in
+   *  ~100ms. */
+  async function loadFullRegistry(): Promise<void> {
+    if (catalogueTier === "full" || registryLoading) return;
     registryLoading = true;
     try {
       registry = await invoke<RegistryServerView[]>("fetch_mcp_registry").catch(
         () => [] as RegistryServerView[],
       );
-      // Reset pagination so curated enrichments aren't pushed off the first page.
+      catalogueTier = "full";
       catalogLimit = CATALOG_PAGE;
     } finally {
       registryLoading = false;
@@ -396,11 +615,6 @@
   const visibleMcp = $derived(filteredMcp.slice(0, catalogLimit));
   const hasMoreMcp = $derived(filteredMcp.length > catalogLimit);
 
-  const heroKicker = $derived(
-    `INTÉGRATIONS · ${activeCount} ACTIVE${activeCount > 1 ? "S" : ""}` +
-      (errorCount > 0 ? ` · ${errorCount} ERREUR${errorCount > 1 ? "S" : ""}` : ""),
-  );
-
   // ── CTAs & flows (preserved from old Connections.svelte) ───────────────────
 
   function openWizardFor(server: RegistryServerView) {
@@ -409,6 +623,11 @@
   }
 
   function handleConnect(server: RegistryServerView) {
+    // Close the Catalogue Sheet before opening the wizard — otherwise the
+    // Sheet stays mounted under the wizard, leaking through the backdrop
+    // (regression observed: wizard z-index doesn't escape the parent Sheet
+    // portal stacking context).
+    catalogueOpen = false;
     if (!isDisclaimerAccepted()) {
       selectedRegistryServer = server;
       disclaimerOpen = true;
@@ -430,33 +649,91 @@
   function handleWizardComplete() {
     wizardOpen = false;
     selectedRegistryServer = null;
+    catalogueOpen = false;
     loadAll();
   }
 
   function handleManage(name: string) {
-    managedServerName = name;
-    manageOpen = true;
+    selection = { kind: "mcp", name };
   }
 
-  function handleManageClose() {
-    manageOpen = false;
-    managedServerName = null;
-  }
+  // ── Uninstall flow (Trash icon on installed cards) ─────────────────────────
 
-  function handleManageDisconnect() {
-    manageOpen = false;
-    managedServerName = null;
-    loadAll();
-  }
+  /**
+   * Uninstall confirmation state. We surface a [`ConfirmDialog`] before the
+   * destructive `remove_mcp_server` call — matching the pattern used by
+   * Projects.svelte. The `target` carries the installed server name (the
+   * sanitized identifier stored on disk, NOT the registry / package
+   * identifier) so legacy entries like `modelcontextprotocol-server-filesystem`
+   * remain addressable.
+   */
+  // Disconnect/uninstall is now handled inline inside the MCP detail's
+  // "Paramètres" tab (`handleDisconnect`). The old uninstall ConfirmDialog
+  // + uninstallTarget state were removed with the 3-section flat layout.
 
-  function handleApolliaCardClick(server: McpServerStatusView) {
-    if (server.error || !server.connected) {
-      errorServer = server;
-      errorModalOpen = true;
-    } else {
-      handleManage(server.name);
+  // Sorted MCP servers for the sidebar (error → active → syncing → idle, by name).
+  const sortedServers = $derived.by(() => {
+    const score: Record<ConnectionStatus, number> = {
+      error: 0,
+      active: 1,
+      syncing: 2,
+      idle: 3,
+    };
+    return [...filteredServers].sort((a, b) => {
+      const sa = score[statusOf(a)] ?? 99;
+      const sb = score[statusOf(b)] ?? 99;
+      if (sa !== sb) return sa - sb;
+      return a.name.localeCompare(b.name);
+    });
+  });
+
+  const sidebarFilteredServers = $derived.by(() => {
+    const q = sidebarFilter.trim().toLowerCase();
+    if (q === "") return sortedServers;
+    return sortedServers.filter((s) => {
+      const enr = resolveEnrichment(s);
+      const label = enr?.operator_label ?? s.name;
+      return (
+        label.toLowerCase().includes(q) ||
+        s.name.toLowerCase().includes(q)
+      );
+    });
+  });
+
+  // Auto-select the first available connector when the page mounts or the
+  // selection target disappears (mirror Projets/Agents pattern).
+  $effect(() => {
+    if (loading) return;
+    const current = selection;
+    if (current?.kind === "mcp" && !servers.some((s) => s.name === current.name)) {
+      selection = null;
     }
-  }
+    if (selection !== null) return;
+    if (servers.length > 0) {
+      selection = { kind: "mcp", name: sortedServers[0]?.name ?? servers[0].name };
+    } else {
+      selection = { kind: "native", provider: "google" };
+    }
+  });
+
+  const selectedServer = $derived.by(() => {
+    const s = selection;
+    if (s?.kind !== "mcp") return null;
+    return servers.find((srv) => srv.name === s.name) ?? null;
+  });
+  const selectedServerEnrichment = $derived(
+    selectedServer ? resolveEnrichment(selectedServer) : null,
+  );
+  const selectedNativeConnector = $derived.by(() => {
+    const s = selection;
+    if (s?.kind !== "native") return null;
+    return NATIVE_CONNECTORS.find((c) => c.id === s.provider) ?? null;
+  });
+  const selectedNativeAccounts = $derived.by(() => {
+    const s = selection;
+    if (s?.kind !== "native") return [];
+    return accountsForProvider(s.provider);
+  });
 
   async function handleRetry(name: string) {
     errorModalOpen = false;
@@ -473,14 +750,103 @@
     handleManage(name);
   }
 
-  /**
-   * Open the custom MCP server dialog — a simpler form than the catalogue
-   * wizard, used to register a server identified only by command/URL +
-   * headers (no enrichment, no preset transport).
-   */
-  function handleAddCustomMcp() {
-    customDialogOpen = true;
+  function handleOpenCatalogue() {
+    catalogueTab = "discover";
+    catalogueOpen = true;
+    // Curated (~18 entries, instant, no network) fills the visible area
+    // immediately. The full registry (~6k entries) loads in background
+    // straight after — appears as it arrives, no spinner blocking, no
+    // explicit user click required. Subsequent opens hit the 15-min disk
+    // cache and are near-instant.
+    void (async () => {
+      await loadCuratedCatalogue();
+      if (catalogueTier === "curated") {
+        void loadFullRegistry();
+      }
+    })();
   }
+
+  /** Derive a publisher/vendor label from a registry entry.
+   *
+   *  Sources in order of preference :
+   *    1. `repository.url` host org segment (most reliable for community)
+   *    2. `packages[0].identifier` namespace (`@notionhq/...` → "notionhq",
+   *       `com.notion/mcp` reverse-DNS → "notion")
+   *    3. Domain of the curated `remote_url` if no packages
+   *  Returns an empty string when nothing usable is found. */
+  function vendorLabel(entry: RegistryServerView): string {
+    // Repository URL: github.com/notion-hq/notion-mcp-server → "notion-hq"
+    const repoUrl = entry.repository_url;
+    if (repoUrl) {
+      try {
+        const u = new URL(repoUrl);
+        const segments = u.pathname.split("/").filter(Boolean);
+        if (segments.length > 0) return prettyVendor(segments[0]);
+      } catch {
+        /* fall through */
+      }
+    }
+
+    // Package identifier
+    const pkgId = entry.packages?.[0]?.identifier ?? entry.name;
+    if (pkgId.startsWith("@")) {
+      // npm scoped: @org/package
+      const slash = pkgId.indexOf("/");
+      if (slash > 1) return prettyVendor(pkgId.slice(1, slash));
+    }
+    // Reverse-DNS style: com.notion/mcp or io.foo/bar → take second segment
+    const dot = pkgId.indexOf(".");
+    const slash = pkgId.indexOf("/");
+    if (dot > 0 && (slash === -1 || dot < slash)) {
+      const after = pkgId.slice(dot + 1);
+      const end = after.indexOf(".") >= 0
+        ? after.indexOf(".")
+        : after.indexOf("/") >= 0
+          ? after.indexOf("/")
+          : after.length;
+      if (end > 0) return prettyVendor(after.slice(0, end));
+    }
+    // Remote URL host (e.g. mcp.notion.com → "notion")
+    const remoteUrl = entry.remotes?.[0]?.url;
+    if (remoteUrl) {
+      try {
+        const u = new URL(remoteUrl);
+        const parts = u.hostname.split(".").filter(Boolean);
+        if (parts.length >= 2) return prettyVendor(parts[parts.length - 2]);
+      } catch {
+        /* fall through */
+      }
+    }
+    return "";
+  }
+
+  function prettyVendor(raw: string): string {
+    const clean = raw.replace(/-mcp$|^mcp-|server[-_]?/gi, "").replace(/[-_]+/g, " ").trim();
+    if (clean.length === 0) return raw;
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  }
+
+  // IntersectionObserver-based auto-pagination — Amazon-style infinite
+  // scroll. Replaces the "Voir plus" button. The sentinel is mounted at
+  // the bottom of the list; when it scrolls into view we bump
+  // `catalogLimit` by a page (24).
+  let catalogueSentinel = $state<HTMLDivElement | null>(null);
+  $effect(() => {
+    const el = catalogueSentinel;
+    if (!el || !catalogueOpen || catalogueTab !== "discover") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          if (catalogLimit < filteredMcp.length) {
+            catalogLimit = Math.min(catalogLimit + CATALOG_PAGE, filteredMcp.length);
+          }
+        }
+      },
+      { rootMargin: "200px 0px" }, // pre-trigger 200px before reaching bottom
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
 
   // Custom MCP server form state.
   let customForm = $state({
@@ -581,7 +947,7 @@
     customBusy = true;
     try {
       await invoke("add_mcp_server", { config });
-      customDialogOpen = false;
+      catalogueOpen = false;
       resetCustomForm();
       await loadAll();
     } catch (e) {
@@ -602,314 +968,512 @@
   });
 </script>
 
-<div class="flex flex-col" data-testid="connections-route">
-  <PageHeader
-    kicker={heroKicker}
-    title={$t("connections.hero.title")}
-    subtitle={$t("connections.hero.subtitle")}
-  >
-    {#snippet actions()}
-      <Button variant="primary-solid" size="sm" onclick={handleAddCustomMcp}>
-        {#snippet icon()}<Plus size={12} />{/snippet}
-        {$t("connections.add_connection")}
-      </Button>
-    {/snippet}
-  </PageHeader>
-
-  {#if loadError}
-    <p class="text-sm text-destructive px-8 py-4" data-testid="connections-error">
-      {loadError}
-    </p>
-  {/if}
-
-  <!-- ============ SECTION CONNECTEURS NATIFS APOLLIA (OAuth) ============ -->
-  <SectionTitle
-    count={$t(
-      nativeAccounts.length === 1
-        ? "connections.native_accounts_connected_one"
-        : "connections.native_accounts_connected_other",
-      { values: { count: nativeAccounts.length } },
-    )}
-  >
-    {$t("connections.native_section_title")}
-    {#snippet action()}
-      <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
-    {/snippet}
-  </SectionTitle>
-
-  {#if nativeError}
-    <p class="px-8 pb-2 text-xs text-destructive">{nativeError}</p>
-  {/if}
-
-  <div class="px-8 pb-4 grid grid-cols-2 gap-3" data-testid="connections-native-grid">
-    {#each NATIVE_CONNECTORS as connector (connector.id)}
-      {@const accounts = accountsForProvider(connector.id)}
-      <div class="rounded-xl border border-border bg-surface-1 p-4 flex flex-col gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-medium text-sm">{connector.name}</div>
-            <div class="text-xs text-muted-foreground">{connector.description}</div>
-          </div>
-          <Badge variant={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
-            {accounts.length > 0 ? `${accounts.length} actif` : "Non connecté"}
-          </Badge>
+<div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
+  <div class="flex-1 flex min-h-0">
+    <!-- ============ LEFT — sidebar (mirror Projets/Agents) ============ -->
+    <aside class="w-[300px] shrink-0 border-r border-border flex flex-col bg-background" data-testid="connectors-sidebar">
+      <header class="px-4 pt-4 pb-2.5">
+        <div class="mb-2.5 font-mono text-[10.5px] font-semibold tracking-[1.2px] uppercase text-muted-foreground">
+          Mes connecteurs · {servers.length + NATIVE_CONNECTORS.length}
         </div>
-
-        {#if accounts.length > 0}
-          <ul class="text-xs space-y-1 mt-1">
-            {#each accounts as account (account.account_id)}
-              <li class="flex items-center justify-between gap-2">
-                <span class="truncate">{account.account_id}</span>
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  class="text-destructive hover:underline text-[11px]"
-                  onclick={() => disconnectNative(account)}
-                  disabled={nativeLoading}
-                >
-                  Déconnecter
-                </Button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-
-        <div class="mt-1">
-          <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
-            {#snippet icon()}<Plus size={12} />{/snippet}
-            {accounts.length > 0 ? "Ajouter un compte" : "Connecter un compte"}
-          </Button>
-        </div>
-      </div>
-    {/each}
-  </div>
-
-  <!-- ============ SECTION SERVEURS MCP INSTALLÉS ============ -->
-  <SectionTitle count={`${activeCount} actif${activeCount > 1 ? "s" : ""} · ${servers.length} total`}>
-    Serveurs MCP installés
-    {#snippet action()}
-      <Badge variant="neutral" size="sm">protocole ouvert</Badge>
-    {/snippet}
-  </SectionTitle>
-
-  <div class="px-8 pb-2 flex items-center gap-2" data-testid="connections-status-filters">
-    <Badge
-      variant={statusFilter === "all" ? "primary" : "neutral"}
-      size="sm"
-      outline={statusFilter !== "all"}
-      onclick={() => (statusFilter = "all")}
-    >
-      Tous · {servers.length}
-    </Badge>
-    <Badge
-      variant={statusFilter === "active" ? "success" : "neutral"}
-      size="sm"
-      outline={statusFilter !== "active"}
-      onclick={() => (statusFilter = "active")}
-    >
-      Actifs · {activeCount}
-    </Badge>
-    <Badge
-      variant={statusFilter === "error" ? "danger" : "neutral"}
-      size="sm"
-      outline={statusFilter !== "error"}
-      onclick={() => (statusFilter = "error")}
-    >
-      Erreur · {errorCount}
-    </Badge>
-    <Badge
-      variant={statusFilter === "idle" ? "neutral" : "neutral"}
-      size="sm"
-      outline={statusFilter !== "idle"}
-      onclick={() => (statusFilter = "idle")}
-    >
-      Inactif · {idleCount}
-    </Badge>
-  </div>
-
-  <div class="px-8 pt-3 pb-2">
-    {#if loading}
-      <div class="grid grid-cols-3 gap-3.5" data-testid="connections-loading">
-        {#each Array(6) as _, i (i)}
-          <Skeleton class="h-24 rounded-xl bg-surface-1 border border-border" />
-        {/each}
-      </div>
-    {:else if servers.length === 0}
-      <EmptyState
-        title={$t("connections.empty.no_connections_title")}
-        desc={$t("connections.empty.no_connections_description")}
-        tone="primary"
-      >
-        {#snippet icon()}<LinkIcon size={22} />{/snippet}
-        {#snippet action()}
-          <Button variant="primary-solid" size="sm" onclick={handleAddCustomMcp}>
-            {#snippet icon()}<Plus size={12} />{/snippet}
-            {$t("connections.add_connection")}
-          </Button>
-        {/snippet}
-      </EmptyState>
-    {:else if filteredServers.length === 0}
-      <EmptyState
-        title={$t("connections.empty.no_results_title", { values: { query: "" } })}
-        desc={$t("connections.empty.no_results_description")}
-        tone="neutral"
-      >
-        {#snippet action()}
-          <Button variant="outline" size="sm" onclick={() => (statusFilter = "all")}>
-            {$t("connections.filters.clear_all")}
-          </Button>
-        {/snippet}
-      </EmptyState>
-    {:else}
-      <div
-        class="grid grid-cols-3 gap-3.5"
-        data-testid="connections-apollia-grid"
-      >
-        {#each filteredServers as server (server.name)}
-          {@const enrichment = resolveEnrichment(server)}
-          {@const label = enrichment?.operator_label ?? server.name}
-          <ConnectionCard
-            variant="apollia"
-            name={label}
-            description={enrichment?.category ?? server.server_info ?? undefined}
-            status={statusOf(server)}
-            capabilities={server.tools_count}
-            logoColor={logoColorFor(label)}
-            error={server.error ?? undefined}
-            sync={syncLabel(server)}
-            onclick={() => handleApolliaCardClick(server)}
+        <div class="mb-2 flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface-1 border border-border">
+          <Search size={11} class="text-muted-foreground" />
+          <Input
+            type="search"
+            unstyled
+            bind:value={sidebarFilter}
+            placeholder="Filtrer…"
+            class="flex-1 text-[11.5px] text-foreground"
           />
-        {/each}
-      </div>
-    {/if}
-  </div>
-
-  <!-- ============ SECTION MCP ============ -->
-  <div class="mt-4 border-t border-border/40">
-    <SectionTitle count={`${mcpEntries.length} serveurs`}>
-      Catalogue MCP
-      {#snippet action()}
-        <Badge variant="neutral" size="sm">protocole ouvert · communauté</Badge>
-      {/snippet}
-    </SectionTitle>
-
-    <div class="px-8 pb-3 flex items-center gap-2" data-testid="connections-mcp-filters">
-      <Badge
-        variant={mcpFilter === "all" ? "primary" : "neutral"}
-        size="sm"
-        outline={mcpFilter !== "all"}
-        onclick={() => (mcpFilter = "all")}
-      >
-        Tous{mcpEntries.length > 0 ? ` · ${mcpEntries.length}` : registryLoading ? " · …" : ""}
-      </Badge>
-      <Badge
-        variant={mcpFilter === "installed" ? "success" : "neutral"}
-        size="sm"
-        outline={mcpFilter !== "installed"}
-        onclick={() => (mcpFilter = "installed")}
-      >
-        Installés · {installedRegCount}
-      </Badge>
-      <Badge
-        variant={mcpFilter === "official" ? "primary" : "neutral"}
-        size="sm"
-        outline={mcpFilter !== "official"}
-        onclick={() => (mcpFilter = "official")}
-      >
-        Officiels{officialCount > 0 ? ` · ${officialCount}` : ""}
-      </Badge>
-      <Badge
-        variant={mcpFilter === "community" ? "info" : "neutral"}
-        size="sm"
-        outline={mcpFilter !== "community"}
-        onclick={() => (mcpFilter = "community")}
-      >
-        Communauté{communityCount > 0 ? ` · ${communityCount}` : ""}
-      </Badge>
-    </div>
-
-    <div class="px-8 pb-8">
-      {#if loading || (registryLoading && mcpEntries.length === 0)}
-        <div class="space-y-4">
-          <div class="flex items-center gap-2 text-xs text-muted-foreground">
-            <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true"></span>
-            Chargement du catalogue MCP…
-          </div>
-          <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-loading">
-            {#each Array(12) as _, i (i)}
-              <Skeleton class="h-20 rounded-xl bg-surface-1 border border-border" />
-            {/each}
-          </div>
         </div>
-      {:else if mcpEntries.length === 0}
-        <EmptyState
-          title={$t("connections.empty.no_suggestions_title")}
-          desc={$t("connections.empty.no_suggestions_description")}
-          tone="neutral"
-        >
-          {#snippet icon()}<Sparkles size={22} />{/snippet}
-        </EmptyState>
-      {:else if filteredMcp.length === 0}
-        <EmptyState
-          title={$t("connections.empty.no_results_title", { values: { query: "" } })}
-          desc={$t("connections.empty.no_results_description")}
-          tone="neutral"
-        >
-          {#snippet action()}
-            <Button variant="outline" size="sm" onclick={() => (mcpFilter = "all")}>
-              {$t("connections.filters.clear_all")}
-            </Button>
-          {/snippet}
-        </EmptyState>
-      {:else}
-        <div class="grid grid-cols-4 gap-3" data-testid="connections-mcp-grid">
-          {#each visibleMcp as entry (entry.name)}
-            {@const installedName = installedNameFor(entry)}
-            {@const installed = entry.is_installed || installedName !== null}
-            {@const isOfficial =
-              entry.trust_level === "verified_official" ||
-              entry.trust_level === "community_verified"}
-            {@const vendor = isOfficial ? "officiel" : "communauté"}
-            {@const url = entry.remotes?.[0]?.url ?? entry.repository_url ?? ""}
-            <div class="flex flex-col gap-1.5">
-              <ConnectionCard
-                variant="mcp"
-                name={entry.enrichment?.operator_label ?? entry.title ?? entry.name}
-                vendor={vendor}
-                description={entry.description ?? undefined}
-                official={isOfficial}
-                installed={installed}
-                onclick={() =>
-                  installed
-                    ? handleManage(installedName ?? entry.name)
-                    : handleConnect(entry)}
-              />
-              {#if url}
-                <span
-                  class="px-3 text-[10px] font-mono text-muted-foreground/60 truncate"
-                  title={url}
-                >
-                  {url}
-                </span>
-              {/if}
-            </div>
+        <div class="flex flex-wrap gap-1" role="tablist" aria-label="Filtre statut">
+          {#each [
+            { key: "all" as const, label: "Tous", color: "hsl(var(--muted-foreground))", count: servers.length },
+            { key: "active" as const, label: "Actifs", color: "hsl(var(--success))", count: activeCount },
+            { key: "error" as const, label: "Erreur", color: "hsl(var(--destructive))", count: errorCount },
+            { key: "idle" as const, label: "Inactif", color: "hsl(var(--muted-foreground))", count: idleCount },
+          ] as f (f.key)}
+            {@const isActive = statusFilter === f.key}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onclick={(e) => { statusFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
+              class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-border bg-transparent text-muted-foreground hover:text-foreground'}"
+              data-testid="connections-sidebar-filter-{f.key}"
+            >
+              <StatusDot color={f.color} glow={isActive && f.key === 'active'} />
+              {f.label}
+              <span class="tabular-nums opacity-70">{f.count}</span>
+            </button>
           {/each}
         </div>
-        {#if hasMoreMcp}
-          <div class="mt-4 flex items-center justify-center gap-3">
-            <Button variant="outline" size="sm" onclick={() => (catalogLimit += CATALOG_PAGE)}>
-              Voir plus ({filteredMcp.length - catalogLimit} restants)
-            </Button>
-            {#if registryLoading}
-              <span class="text-xs text-muted-foreground">Chargement du catalogue…</span>
-            {/if}
-          </div>
-        {:else if registryLoading}
-          <div class="mt-4 flex justify-center">
-            <span class="text-xs text-muted-foreground">Chargement du catalogue…</span>
+      </header>
+
+      <div class="flex-1 overflow-auto px-2.5 pb-3" data-testid="connections-sidebar-list">
+        {#if loadError}
+          <div class="mx-1.5 my-2 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive" data-testid="connections-error">
+            {loadError}
           </div>
         {/if}
+
+        <!-- ─── Native Apollia (always shown) ───────────────────────────── -->
+        <div class="section-meta mt-1 mb-1.5 px-2 text-[10px] tracking-[1.4px]">
+          Apollia natifs
+        </div>
+        {#each NATIVE_CONNECTORS as connector (connector.id)}
+          {@const accounts = accountsForProvider(connector.id)}
+          {@const isActiveSel = selection?.kind === "native" && selection.provider === connector.id}
+          {@const accentColor = accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"}
+          <Button variant="ghost" size="auto"
+            type="button"
+            onclick={() => (selection = { kind: "native", provider: connector.id })}
+            class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg mb-0.5 border-0 transition-colors {isActiveSel
+              ? 'bg-primary/10'
+              : 'bg-transparent hover:bg-muted/40'}"
+            data-testid="sidebar-native-{connector.id}"
+          >
+            <div
+              class="w-0.5 self-stretch rounded-sm shrink-0 my-0.5"
+              style="background: {accentColor};"
+            ></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[12.5px] truncate text-foreground" style:font-weight={isActiveSel ? 600 : 500}>
+                {connector.name}
+              </div>
+              <div class="text-[10.5px] text-muted-foreground mt-0.5 truncate">
+                {accounts.length > 0
+                  ? `${accounts.length} compte${accounts.length > 1 ? "s" : ""} actif${accounts.length > 1 ? "s" : ""}`
+                  : "Non connecté"}
+              </div>
+            </div>
+          </Button>
+        {/each}
+
+        <!-- ─── MCP servers installed ──────────────────────────────────── -->
+        <div class="section-meta mt-4 mb-1.5 px-2 text-[10px] tracking-[1.4px]">
+          Serveurs MCP · {sortedServers.length}
+        </div>
+        {#if loading && servers.length === 0}
+          {#each Array(4) as _, i (i)}
+            <div class="flex items-center gap-2.5 px-2.5 py-2.5">
+              <Skeleton class="h-8 w-0.5 rounded-sm" />
+              <div class="flex-1 space-y-1.5">
+                <Skeleton class="h-3 w-3/5 rounded" />
+                <Skeleton class="h-2 w-2/5 rounded" />
+              </div>
+            </div>
+          {/each}
+        {:else if sidebarFilteredServers.length === 0}
+          <p class="px-2 py-3 text-[11px] text-muted-foreground/70">
+            {servers.length === 0
+              ? "Aucun serveur installé."
+              : sidebarFilter ? "Aucun résultat." : "Aucun serveur dans ce statut."}
+          </p>
+        {:else}
+          {#each sidebarFilteredServers as server (server.name)}
+            {@const enr = resolveEnrichment(server)}
+            {@const label = enr?.operator_label ?? server.name}
+            {@const st = statusOf(server)}
+            {@const isActiveSel = selection?.kind === "mcp" && selection.name === server.name}
+            {@const accentColor = st === "active"
+              ? "hsl(var(--success))"
+              : st === "error"
+                ? "hsl(var(--destructive))"
+                : "hsl(var(--muted-foreground))"}
+            <Button variant="ghost" size="auto"
+              type="button"
+              onclick={() => (selection = { kind: "mcp", name: server.name })}
+              class="w-full text-left flex items-start gap-2.5 px-2.5 py-2.5 rounded-lg mb-0.5 border-0 transition-colors {isActiveSel
+                ? 'bg-primary/10'
+                : 'bg-transparent hover:bg-muted/40'}"
+              data-testid="sidebar-mcp-{server.name}"
+            >
+              <div
+                class="w-0.5 self-stretch rounded-sm shrink-0 my-0.5"
+                style="background: {accentColor};"
+              ></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-[12.5px] truncate text-foreground" style:font-weight={isActiveSel ? 600 : 500}>{label}</span>
+                  {#if st === 'active'}
+                    <StatusDot color="hsl(var(--success))" glow size={5} />
+                  {:else if st === 'error'}
+                    <StatusDot color="hsl(var(--destructive))" glow size={5} />
+                  {/if}
+                </div>
+                <div class="text-[10.5px] text-muted-foreground mt-0.5 truncate">
+                  {syncLabel(server) ?? (st === 'error' ? 'Erreur' : st === 'active' ? `${server.tools_count} outil${server.tools_count !== 1 ? 's' : ''}` : 'Inactif')}
+                </div>
+              </div>
+            </Button>
+          {/each}
+        {/if}
+      </div>
+
+      <div class="px-3 py-2 border-t border-border">
+        <Button variant="outline" size="sm" onclick={handleOpenCatalogue} class="w-full justify-center" data-testid="connections-open-catalogue">
+          {#snippet icon()}<Plus size={12} />{/snippet}
+          Ajouter un connecteur
+        </Button>
+      </div>
+    </aside>
+
+    <!-- ============ RIGHT — detail pane ============ -->
+    <section class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background" data-testid="connector-detail">
+      {#if selection?.kind === "native" && selectedNativeConnector}
+        {@const connector = selectedNativeConnector}
+        {@const accounts = selectedNativeAccounts}
+
+        <!-- Header -->
+        <div class="px-8 pt-6 pb-4 border-b border-border/60">
+          <div class="flex items-start gap-3.5">
+            <div
+              class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+              style="background: {connector.id === 'google'
+                ? 'linear-gradient(135deg, #4285f4, #1a73e8)'
+                : 'linear-gradient(135deg, #0078d4, #005a9e)'}; color: white;"
+            >
+              <LinkIcon size={18} />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <Badge variant={accounts.length > 0 ? "success" : "neutral"} size="sm" outline={accounts.length === 0}>
+                  {#snippet icon()}
+                    <StatusDot color={accounts.length > 0 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))"} glow={accounts.length > 0} />
+                  {/snippet}
+                  {accounts.length > 0 ? `${accounts.length} actif${accounts.length > 1 ? "s" : ""}` : "Non connecté"}
+                </Badge>
+                <Badge variant="primary" size="sm">{$t("connections.native_section_tag")}</Badge>
+              </div>
+              <h2 class="m-0 text-foreground" style="font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2;">
+                {connector.name}
+              </h2>
+              <p class="mt-1 max-w-[600px] text-[12.5px] leading-[1.5] text-muted-foreground">
+                {connector.description}
+              </p>
+            </div>
+            <div class="flex shrink-0 gap-1.5">
+              <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+                {#snippet icon()}<Plus size={12} />{/snippet}
+                {accounts.length > 0 ? "Ajouter un compte" : "Connecter"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="px-8 pt-3.5">
+          <TabBar
+            variant="underline"
+            testidPrefix="native-detail"
+            activeTab={nativeTab}
+            items={[
+              { key: "accounts", label: "Comptes", count: accounts.length },
+              { key: "settings", label: "Paramètres" },
+            ]}
+            ontabchange={(k) => (nativeTab = k as NativeTab)}
+          />
+        </div>
+
+        <!-- Tab content -->
+        <div class="flex-1 overflow-auto px-8 py-5">
+          {#if nativeTab === "accounts"}
+            {#if nativeError}
+              <div class="mb-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {nativeError}
+              </div>
+            {/if}
+            {#if accounts.length === 0}
+              <Card class="p-6 max-w-2xl text-center">
+                <p class="text-[12.5px] text-muted-foreground mb-3">
+                  Aucun compte connecté pour {connector.name}.
+                </p>
+                <Button variant="primary-solid" size="sm" onclick={() => startNativeConnect(connector.id)} disabled={nativeLoading}>
+                  {#snippet icon()}<Plus size={12} />{/snippet}
+                  Connecter un compte
+                </Button>
+              </Card>
+            {:else}
+              <Card class="overflow-hidden max-w-2xl">
+                {#each accounts as account, i (account.account_id)}
+                  <div class="flex items-center gap-3 px-4 py-3 {i === accounts.length - 1 ? '' : 'border-b border-border/40'}">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[12.5px] font-medium text-foreground truncate">{account.account_id}</div>
+                      <div class="text-[10.5px] text-muted-foreground mt-0.5">Token chiffré localement (keyring)</div>
+                    </div>
+                    <Button variant="ghost" size="sm"
+                      onclick={() => disconnectNative(account)}
+                      disabled={nativeLoading}
+                      class="text-destructive hover:bg-destructive/10"
+                    >
+                      Déconnecter
+                    </Button>
+                  </div>
+                {/each}
+              </Card>
+            {/if}
+          {:else if nativeTab === "settings"}
+            <div class="space-y-4 max-w-2xl">
+              <Card class="p-[14px_16px]">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                  Permissions demandées
+                </div>
+                <ul class="space-y-1 text-[12px] text-foreground/85">
+                  {#each (connector.id === "google"
+                    ? ["Gmail — envoi + brouillons", "Calendar — lecture + écriture", "Drive Workspace — fichiers Apollia"]
+                    : ["Outlook Mail — lecture + envoi", "Outlook Calendar — lecture + écriture", "OneDrive — fichiers utilisateur"]) as scope}
+                    <li class="flex items-start gap-2">
+                      <span class="mt-1.5 w-1 h-1 rounded-full bg-muted-foreground/60 shrink-0"></span>
+                      <span>{scope}</span>
+                    </li>
+                  {/each}
+                </ul>
+              </Card>
+              <Card class="p-[14px_16px]">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                  Provider
+                </div>
+                <p class="text-[12px] text-foreground/85">
+                  {connector.id === "google" ? "OAuth 2.0 — accounts.google.com" : "OAuth 2.0 — login.microsoftonline.com"}
+                </p>
+                <p class="text-[11px] text-muted-foreground mt-1.5">
+                  Tokens stockés via keyring système. Rotation gérée automatiquement par le runtime.
+                </p>
+              </Card>
+            </div>
+          {/if}
+        </div>
+      {:else if selection?.kind === "mcp"}
+        {#if mcpDetailLoading && !mcpDetail}
+          <div class="flex-1 flex items-center justify-center text-[12.5px] text-muted-foreground">
+            <Spinner size={14} class="mr-2" /> Chargement…
+          </div>
+        {:else if mcpDetailError}
+          <div class="flex-1 flex items-center justify-center text-[12.5px] text-destructive px-8">
+            {mcpDetailError}
+          </div>
+        {:else if mcpDetail && selectedServer}
+          {@const server = selectedServer}
+          {@const enr = selectedServerEnrichment}
+          {@const label = enr?.operator_label ?? server.name}
+          {@const st = statusOf(server)}
+
+          <!-- Header -->
+          <div class="px-8 pt-6 pb-4 border-b border-border/60">
+            <div class="flex items-start gap-3.5">
+              <div
+                class="w-12 h-12 shrink-0 rounded-lg inline-flex items-center justify-center"
+                style="background: {logoColorFor(label)}; color: white;"
+              >
+                <LinkIcon size={18} />
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <Badge variant={st === "active" ? "success" : st === "error" ? "danger" : "neutral"} size="sm" outline={st === "idle"}>
+                    {#snippet icon()}
+                      <StatusDot
+                        color={st === "active" ? "hsl(var(--success))" : st === "error" ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))"}
+                        glow={st === "active"}
+                      />
+                    {/snippet}
+                    {st === "active" ? "actif" : st === "error" ? "erreur" : "inactif"}
+                  </Badge>
+                  {#if syncLabel(server)}
+                    <span class="text-[10.5px] text-muted-foreground">{syncLabel(server)}</span>
+                  {/if}
+                </div>
+                <h2 class="m-0 text-foreground" style="font-size: 22px; font-weight: 600; letter-spacing: -0.3px; line-height: 1.2;" data-testid="mcp-detail-title">
+                  {label}
+                </h2>
+                <p class="mt-1 max-w-[600px] text-[12.5px] leading-[1.5] text-muted-foreground">
+                  {enr?.category ?? server.server_info ?? "Serveur MCP installé"}
+                </p>
+              </div>
+              <div class="flex shrink-0 gap-1.5">
+                <Button variant="outline" size="sm" onclick={handleTest} disabled={testState === "testing"} data-testid="mcp-test-btn">
+                  {#snippet icon()}
+                    {#if testState === "testing"}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
+                  {/snippet}
+                  {testState === "testing" ? "Test…" : "Tester"}
+                </Button>
+                <Button variant="primary-solid" size="sm" onclick={handleReconnect} disabled={reconnecting} data-testid="mcp-reconnect-btn">
+                  {#snippet icon()}
+                    {#if reconnecting}<Spinner size={12} />{:else}<RefreshCw size={12} />{/if}
+                  {/snippet}
+                  Reconnecter
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="px-8 pt-3.5">
+            <TabBar
+              variant="underline"
+              testidPrefix="mcp-detail"
+              activeTab={mcpTab}
+              items={[
+                { key: "overview", label: "Aperçu" },
+                { key: "tools", label: "Outils", count: mcpDetail.tools.length },
+                { key: "settings", label: "Paramètres" },
+              ]}
+              ontabchange={(k) => (mcpTab = k as McpTab)}
+            />
+          </div>
+
+          <!-- Tab content -->
+          <div class="flex-1 overflow-auto px-8 py-5">
+            {#if mcpTab === "overview"}
+              <div class="space-y-4 max-w-3xl">
+                <Card class="p-[14px_16px]">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                    Connexion
+                  </div>
+                  <ConnectionStatusIndicator connected={mcpDetail.status.connected} error={mcpDetail.status.error} />
+                  <div class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground mt-2">
+                    <Wrench size={11} />
+                    <span data-testid="mcp-tools-count">
+                      {$t("integrations.manage.tools_count", { values: { count: mcpDetail.status.tools_count } })}
+                    </span>
+                  </div>
+                  {#if mcpDetail.status.error}
+                    <p class="text-[11.5px] text-destructive mt-2" data-testid="mcp-error">{mcpDetail.status.error}</p>
+                  {/if}
+                </Card>
+
+                <Card class="p-[14px_16px]">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                    Activité
+                  </div>
+                  {#if lastActivityLabel !== null}
+                    <p class="text-[12.5px] text-foreground" data-testid="mcp-last-activity">
+                      {$t("integrations.manage.last_call", { values: { time: lastActivityLabel } })}
+                    </p>
+                  {:else}
+                    <p class="text-[12.5px] text-muted-foreground italic" data-testid="mcp-no-activity">
+                      {$t("integrations.manage.no_activity")}
+                    </p>
+                  {/if}
+                </Card>
+
+                {#if testState === "ok" && testStatus}
+                  <p class="text-[12.5px] text-success" data-testid="mcp-test-ok">
+                    ✓ {$t("integrations.manage.test_ok", { values: { count: testStatus.tools_count } })}
+                  </p>
+                {:else if testState === "error"}
+                  <p class="text-[12.5px] text-destructive" data-testid="mcp-test-error">
+                    {testError ?? $t("integrations.manage.test_failed")}
+                  </p>
+                {/if}
+                {#if reconnectError}
+                  <p class="text-[12.5px] text-destructive" data-testid="mcp-reconnect-error">{reconnectError}</p>
+                {/if}
+              </div>
+            {:else if mcpTab === "tools"}
+              <Card class="p-[14px_16px] max-w-3xl">
+                <div class="mb-2.5 flex items-center justify-between">
+                  <span class="text-[12.5px] font-semibold text-foreground">Outils exposés</span>
+                  <span class="font-mono text-[10.5px] text-muted-foreground">{mcpDetail.tools.length}</span>
+                </div>
+                {#if mcpDetail.tools.length === 0}
+                  <p class="py-4 text-center text-[11.5px] text-muted-foreground">
+                    {$t("integrations.manage.tools_empty")}
+                  </p>
+                {:else}
+                  <ul class="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1" data-testid="mcp-tools-list">
+                    {#each mcpDetail.tools as tool (tool.full_name)}
+                      <li class="rounded-md border border-border/50 bg-card px-3 py-2" data-testid={`mcp-tool-${tool.local_name}`}>
+                        <details class="group">
+                          <summary class="flex cursor-pointer items-start justify-between gap-2 list-none">
+                            <div class="min-w-0 flex-1">
+                              <div class="font-mono text-[12px] text-foreground truncate">{tool.local_name}</div>
+                              {#if tool.description}
+                                <p class="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{tool.description}</p>
+                              {/if}
+                            </div>
+                            <span class="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground group-open:hidden">schema ▾</span>
+                            <span class="mt-0.5 hidden text-[10px] uppercase tracking-wide text-muted-foreground group-open:inline">schema ▴</span>
+                          </summary>
+                          <pre class="mt-2 max-h-48 overflow-auto rounded bg-muted/40 p-2 text-[11px] font-mono leading-relaxed text-muted-foreground">{JSON.stringify(tool.input_schema, null, 2)}</pre>
+                        </details>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </Card>
+            {:else if mcpTab === "settings"}
+              <div class="space-y-4 max-w-3xl">
+                <!-- Generic launch-time configuration (command, args, env, timeouts).
+                     Component handles stdio + remote transports uniformly and
+                     fetches/persists via `get_mcp_server_raw_config` +
+                     `update_mcp_server_config`, so the runtime restarts with the
+                     new parameters as soon as the user saves. -->
+                <McpServerSettingsEditor
+                  serverName={server.name}
+                  onSaved={() => void fetchMcpDetail(server.name)}
+                />
+
+                <Card class="p-[14px_16px]">
+                  <div class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+                    {$t("integrations.manage.approval_section")}
+                  </div>
+                  <ApprovalLevelSelector level={approvalLevel} onchange={handleApprovalChange} />
+                  {#if approvalPending}
+                    <p class="mt-1.5 flex items-center gap-1 text-[11.5px] text-muted-foreground">
+                      <Spinner size={11} />
+                      {$t("integrations.manage.approval_saving")}
+                    </p>
+                  {/if}
+                  {#if approvalError}
+                    <p class="mt-1.5 text-[11.5px] text-destructive" data-testid="mcp-approval-error">{approvalError}</p>
+                  {/if}
+                </Card>
+
+                <!-- Disconnect (destructive) -->
+                {#if !confirmDisconnect}
+                  <Button variant="destructive" size="sm" onclick={() => (confirmDisconnect = true)} data-testid="mcp-disconnect-btn">
+                    {#snippet icon()}<Trash2 size={12} />{/snippet}
+                    {$t("integrations.manage.disconnect_button")}
+                  </Button>
+                {:else}
+                  <Card class="border-destructive/30 bg-destructive/5 p-[14px_16px] space-y-3" data-testid="mcp-disconnect-confirm">
+                    <p class="text-[12.5px] text-foreground">
+                      {$t("integrations.manage.disconnect_warning", { values: { name: selection.name } })}
+                    </p>
+                    {#if disconnectError}
+                      <p class="text-[11px] text-destructive">{disconnectError}</p>
+                    {/if}
+                    <div class="flex gap-2">
+                      <Button variant="outline" size="sm"
+                        onclick={() => { confirmDisconnect = false; disconnectError = null; }}
+                        disabled={disconnecting}
+                      >
+                        Annuler
+                      </Button>
+                      <Button variant="destructive" size="sm"
+                        onclick={handleDisconnect}
+                        disabled={disconnecting}
+                        data-testid="mcp-disconnect-confirm-btn"
+                      >
+                        {#if disconnecting}<Spinner size={12} class="mr-1.5" />Déconnexion…{:else}Confirmer la déconnexion{/if}
+                      </Button>
+                    </div>
+                  </Card>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
+      {:else}
+        <!-- No selection (shouldn't happen post-auto-select, fallback) -->
+        <div class="flex-1 flex items-center justify-center text-[12.5px] text-muted-foreground">
+          Sélectionnez un connecteur dans la sidebar.
+        </div>
       {/if}
-    </div>
+    </section>
   </div>
 </div>
 
@@ -930,15 +1494,6 @@
     selectedRegistryServer = null;
   }}
 />
-
-{#if managedServerName !== null}
-  <OperatorServerManage
-    serverName={managedServerName}
-    open={manageOpen}
-    onclose={handleManageClose}
-    onDisconnect={handleManageDisconnect}
-  />
-{/if}
 
 <ConnectionErrorModal
   open={errorModalOpen}
@@ -1002,121 +1557,298 @@
   </div>
 {/if}
 
-<!-- ============ CUSTOM MCP DIALOG ============ -->
-{#if customDialogOpen}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-    <div class="w-full max-w-xl rounded-xl bg-surface-1 border border-border p-5 space-y-3 overflow-auto max-h-[90vh]">
-      <h2 class="text-lg font-semibold">Ajouter un serveur MCP personnalisé</h2>
-      <p class="text-xs text-muted-foreground">
-        Pour brancher un MCP server interne, communautaire, ou en cours de
-        développement. Pour un service curé (Notion, GitHub, Local Files…),
-        utilisez plutôt une carte du catalogue ci-dessous.
-      </p>
+<!-- ============ CATALOGUE SHEET ============ -->
+<!-- The public MCP catalogue + the "MCP personnalisé" form live together in
+     a single Sheet. They share the same audience ("add a new connector"),
+     and keeping them in one place avoids forking the entry-point UX.
 
-      <div class="space-y-2">
-        <label class="block text-xs font-medium">
-          Nom (interne, unique)
-          <Input
-            type="text"
-            class="mt-1"
-            placeholder="ex. acme-internal"
-            bind:value={customForm.name}
-            disabled={customBusy}
-          />
-        </label>
+     Load strategy (2026-05-15) :
+       1. On Sheet open → `fetch_mcp_curated()` returns the 18 baked entries
+          instantly (no network). User sees content in < 100ms.
+       2. The full public catalogue (~6k entries, 30–60s cold-cache) is
+          opt-in via the "Explorer le catalogue public" button at the
+          bottom of the curated list. Subsequent calls within 15 min hit
+          the disk cache and return in ~100ms.
 
-        <label class="block text-xs font-medium">
-          Transport
-          <Select
-            class="mt-1"
-            bind:value={customForm.transport}
-            disabled={customBusy}
+     Layout : vertical row list (single column at narrow widths, 2-column
+     grid wide). Cards on a Sheet contracted by the left rail were
+     illegible (titles truncated to 1 char) — rows scale to any width. -->
+<Sheet
+  open={catalogueOpen}
+  onclose={() => { catalogueOpen = false; resetCustomForm(); }}
+  class="w-full sm:max-w-[920px]"
+>
+  <SheetHeader
+    title="Ajouter un connecteur"
+    subtitle="Découvrez le catalogue MCP public ou enregistrez un serveur personnalisé."
+    onclose={() => { catalogueOpen = false; resetCustomForm(); }}
+  />
+  <SheetContent padding="flush" class="flex flex-col">
+    <div class="px-6 pt-3 shrink-0">
+      <TabBar
+        variant="underline"
+        testidPrefix="catalogue"
+        activeTab={catalogueTab}
+        items={[
+          { key: "discover", label: "Catalogue MCP", count: filteredMcp.length },
+          { key: "custom", label: "MCP personnalisé" },
+        ]}
+        ontabchange={(k) => (catalogueTab = k as CatalogueTab)}
+      />
+    </div>
+
+    {#if catalogueTab === "discover"}
+      <!-- Trust-level filter chips -->
+      <div class="px-6 pt-4 pb-3 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filtre type">
+        {#each [
+          { key: "all" as const, label: "Tous", color: "hsl(var(--muted-foreground))", count: mcpEntries.length },
+          { key: "installed" as const, label: "Installés", color: "hsl(var(--success))", count: installedRegCount },
+          { key: "official" as const, label: "Officiels", color: "hsl(var(--primary))", count: officialCount },
+          { key: "community" as const, label: "Communauté", color: "hsl(var(--info))", count: communityCount },
+        ] as f (f.key)}
+          {@const isActive = mcpFilter === f.key}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onclick={(e) => { mcpFilter = f.key; (e.currentTarget as HTMLButtonElement).blur(); }}
+            class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60 {isActive
+              ? 'border-primary/40 bg-primary/10 text-primary'
+              : 'border-border bg-transparent text-muted-foreground hover:text-foreground'}"
+            data-testid="catalogue-filter-{f.key}"
           >
-            <option value="stdio">stdio (subprocess local)</option>
-            <option value="streamable-http">Streamable HTTP (MCP 2025-11-25)</option>
-            <option value="sse">SSE (legacy 2024-11-05)</option>
-          </Select>
-        </label>
+            <StatusDot color={f.color} />
+            {f.label}
+            <span class="tabular-nums {isActive ? 'text-primary/80' : 'text-muted-foreground/60'}">{f.count}</span>
+          </button>
+        {/each}
+      </div>
 
-        {#if customForm.transport === "stdio"}
-          <label class="block text-xs font-medium">
-            Commande
-            <Input
-              type="text"
-              class="mt-1 font-mono"
-              placeholder="npx, uvx, /path/to/binary…"
-              bind:value={customForm.command}
-              disabled={customBusy}
-            />
-          </label>
-          <label class="block text-xs font-medium">
-            Arguments (espace-séparé)
-            <Input
-              type="text"
-              class="mt-1 font-mono"
-              placeholder="@modelcontextprotocol/server-filesystem /tmp"
-              bind:value={customForm.args}
-              disabled={customBusy}
-            />
-          </label>
+      <div class="flex-1 overflow-auto px-6 pb-6">
+        {#if registryLoading && mcpEntries.length === 0}
+          <div class="space-y-2" data-testid="catalogue-loading">
+            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <Spinner size={12} />
+              Chargement du catalogue MCP…
+            </div>
+            {#each Array(6) as _, i (i)}
+              <Skeleton class="h-16 rounded-lg bg-surface-1 border border-border" />
+            {/each}
+          </div>
+        {:else if mcpEntries.length === 0}
+          <EmptyState
+            title={$t("connections.empty.no_suggestions_title")}
+            desc={$t("connections.empty.no_suggestions_description")}
+            tone="neutral"
+          >
+            {#snippet icon()}<Sparkles size={22} />{/snippet}
+          </EmptyState>
+        {:else if filteredMcp.length === 0}
+          <EmptyState
+            title={$t("connections.empty.no_results_title", { values: { query: "" } })}
+            desc={$t("connections.empty.no_results_description")}
+            tone="neutral"
+          >
+            {#snippet action()}
+              <Button variant="outline" size="sm" onclick={() => (mcpFilter = "all")}>
+                {$t("connections.filters.clear_all")}
+              </Button>
+            {/snippet}
+          </EmptyState>
         {:else}
-          <label class="block text-xs font-medium">
-            URL du serveur
+          <!-- Vertical row list — readable at any Sheet width, scales to
+               long descriptions and long vendor names without truncation
+               nightmares. -->
+          <ul class="space-y-1.5" data-testid="catalogue-list">
+            {#each visibleMcp as entry (entry.name)}
+              {@const installedName = installedNameFor(entry)}
+              {@const installed = entry.is_installed || installedName !== null}
+              {@const isOfficial =
+                entry.trust_level === "verified_official" ||
+                entry.trust_level === "community_verified"}
+              {@const displayName = entry.enrichment?.operator_label ?? entry.title ?? entry.name}
+              {@const description = entry.description ?? entry.enrichment?.category ?? ""}
+              {@const vendor = vendorLabel(entry)}
+              <li>
+                <button
+                  type="button"
+                  class="w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:border-primary/40 hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                  onclick={() =>
+                    installed
+                      ? (() => { catalogueOpen = false; handleManage(installedName ?? entry.name); })()
+                      : handleConnect(entry)}
+                  data-testid="catalogue-entry-{entry.name}"
+                >
+                  <div
+                    class="w-9 h-9 shrink-0 rounded-md inline-flex items-center justify-center text-white"
+                    style="background: {logoColorFor(displayName)};"
+                  >
+                    <LinkIcon size={14} />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 min-w-0 mb-0.5">
+                      <span class="text-[13px] font-medium text-foreground truncate">{displayName}</span>
+                      {#if isOfficial}
+                        <Badge size="sm" variant="primary" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Officiel</Badge>
+                      {:else}
+                        <Badge size="sm" variant="neutral" outline class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Communauté</Badge>
+                      {/if}
+                      {#if installed}
+                        <Badge size="sm" variant="success" class="shrink-0 text-[9px] px-1 py-0 leading-[1.4]">Installé</Badge>
+                      {/if}
+                    </div>
+                    {#if vendor}
+                      <div class="text-[10.5px] text-muted-foreground mb-0.5">
+                        par <span class="text-foreground/80 font-medium">{vendor}</span>
+                      </div>
+                    {/if}
+                    {#if description}
+                      <p class="text-[11.5px] text-muted-foreground leading-[1.45] line-clamp-2">{description}</p>
+                    {/if}
+                  </div>
+                  <div class="shrink-0 self-center">
+                    {#if installed}
+                      <span class="text-[11px] text-primary font-medium">Gérer →</span>
+                    {:else}
+                      <span class="text-[11px] text-primary font-medium inline-flex items-center gap-1">
+                        <Plus size={11} /> Connecter
+                      </span>
+                    {/if}
+                  </div>
+                </button>
+              </li>
+            {/each}
+          </ul>
+
+          <!-- IntersectionObserver sentinel — auto-paginates DOM rendering
+               as the user scrolls (Amazon-style). When near the bottom,
+               `catalogLimit` is bumped to reveal the next chunk. -->
+          <div bind:this={catalogueSentinel} class="h-px" aria-hidden="true"></div>
+
+          <!-- Live status footer : background catalogue load + scroll hint. -->
+          {#if registryLoading && catalogueTier !== "full"}
+            <div class="mt-4 flex items-center justify-center gap-2 text-[11.5px] text-muted-foreground" data-testid="catalogue-bg-load">
+              <Spinner size={11} />
+              Chargement du catalogue public… ({mcpEntries.length} entrées)
+            </div>
+          {:else if hasMoreMcp}
+            <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/70" data-testid="catalogue-more-hint">
+              {filteredMcp.length - catalogLimit} entrées restantes — continuez à scroller
+            </div>
+          {:else if catalogueTier === "full" && filteredMcp.length > 0}
+            <div class="mt-4 flex items-center justify-center text-[11px] text-muted-foreground/60">
+              Fin du catalogue · {filteredMcp.length} entrées
+            </div>
+          {/if}
+        {/if}
+      </div>
+    {:else if catalogueTab === "custom"}
+      <div class="flex-1 overflow-auto px-6 pt-4 pb-6 max-w-2xl">
+        <p class="text-[12px] text-muted-foreground mb-4">
+          Pour brancher un MCP server interne, communautaire, ou en cours de
+          développement. Pour un service curé (Notion, GitHub, Local Files…),
+          utilisez plutôt une carte du catalogue.
+        </p>
+
+        <div class="space-y-3">
+          <label class="block text-[11.5px] font-medium text-foreground">
+            Nom (interne, unique)
             <Input
-              type="url"
-              class="mt-1 font-mono"
-              placeholder="https://mcp.example.com/v1"
-              bind:value={customForm.url}
+              type="text"
+              class="mt-1"
+              placeholder="ex. acme-internal"
+              bind:value={customForm.name}
               disabled={customBusy}
             />
           </label>
+
+          <label class="block text-[11.5px] font-medium text-foreground">
+            Transport
+            <Select
+              class="mt-1"
+              bind:value={customForm.transport}
+              disabled={customBusy}
+            >
+              <option value="stdio">stdio (subprocess local)</option>
+              <option value="streamable-http">Streamable HTTP (MCP 2025-11-25)</option>
+              <option value="sse">SSE (legacy 2024-11-05)</option>
+            </Select>
+          </label>
+
+          {#if customForm.transport === "stdio"}
+            <label class="block text-[11.5px] font-medium text-foreground">
+              Commande
+              <Input
+                type="text"
+                class="mt-1 font-mono"
+                placeholder="npx, uvx, /path/to/binary…"
+                bind:value={customForm.command}
+                disabled={customBusy}
+              />
+            </label>
+            <label class="block text-[11.5px] font-medium text-foreground">
+              Arguments (espace-séparé)
+              <Input
+                type="text"
+                class="mt-1 font-mono"
+                placeholder="@modelcontextprotocol/server-filesystem /tmp"
+                bind:value={customForm.args}
+                disabled={customBusy}
+              />
+            </label>
+          {:else}
+            <label class="block text-[11.5px] font-medium text-foreground">
+              URL du serveur
+              <Input
+                type="url"
+                class="mt-1 font-mono"
+                placeholder="https://mcp.example.com/v1"
+                bind:value={customForm.url}
+                disabled={customBusy}
+              />
+            </label>
+          {/if}
+
+          <label class="block text-[11.5px] font-medium text-foreground">
+            {customForm.transport === "stdio" ? "Variables d'environnement" : "Headers HTTP"}
+            <span class="font-normal text-muted-foreground">(une par ligne, <code>NOM=valeur</code>)</span>
+            <Textarea
+              class="mt-1 font-mono"
+              rows={3}
+              placeholder={customForm.transport === "stdio"
+                ? "NOTION_TOKEN=ntn_xxxxx\nDEBUG=1"
+                : "Authorization=Bearer xxx\nX-Custom-Header=value"}
+              bind:value={customForm.headers}
+              disabled={customBusy}
+            />
+          </label>
+
+          <label class="flex items-center gap-2 pt-1 text-[11.5px] font-medium text-foreground">
+            <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} />
+            Demander une approbation HITL pour chaque appel d'outil
+          </label>
+        </div>
+
+        {#if customTestResult}
+          <div class="mt-4 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+            ✓ Test OK — {customTestResult}
+          </div>
+        {/if}
+        {#if customError}
+          <div class="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {customError}
+          </div>
         {/if}
 
-        <label class="block text-xs font-medium">
-          {customForm.transport === "stdio" ? "Variables d'environnement" : "Headers HTTP"} (une par ligne, format <code>NOM=valeur</code>)
-          <Textarea
-            class="mt-1 font-mono"
-            rows={3}
-            placeholder={customForm.transport === "stdio"
-              ? "NOTION_TOKEN=ntn_xxxxx\nDEBUG=1"
-              : "Authorization=Bearer xxx\nX-Custom-Header=value"}
-            bind:value={customForm.headers}
-            disabled={customBusy}
-          />
-        </label>
-
-        <label class="block text-xs font-medium flex items-center gap-2 pt-1">
-          <Checkbox bind:checked={customForm.requires_approval} disabled={customBusy} />
-          Demander une approbation HITL pour chaque appel d'outil
-        </label>
-      </div>
-
-      {#if customTestResult}
-        <div class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
-          ✓ Test OK — {customTestResult}
+        <div class="mt-5 flex justify-end gap-2">
+          <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy}>
+            {customBusy ? "Test…" : "Tester"}
+          </Button>
+          <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy}>
+            {customBusy ? "Installation…" : "Installer"}
+          </Button>
         </div>
-      {/if}
-      {#if customError}
-        <div class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {customError}
-        </div>
-      {/if}
-
-      <div class="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm"
-          onclick={() => {
-            customDialogOpen = false;
-            resetCustomForm();
-          }}
-          disabled={customBusy}>Annuler</Button
-        >
-        <Button variant="outline" size="sm" onclick={testCustomServer} disabled={customBusy}>
-          {customBusy ? "Test…" : "Tester"}
-        </Button>
-        <Button variant="primary-solid" size="sm" onclick={installCustomServer} disabled={customBusy}>
-          {customBusy ? "Installation…" : "Installer"}
-        </Button>
       </div>
-    </div>
-  </div>
-{/if}
+    {/if}
+  </SheetContent>
+</Sheet>

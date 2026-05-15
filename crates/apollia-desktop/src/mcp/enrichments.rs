@@ -38,7 +38,12 @@ pub struct ConnectorEnrichment {
     /// Package registry type for synthetic package entries (`"npm"`, `"pypi"`).
     #[serde(default)]
     pub package_registry_type: Option<String>,
-    /// Runtime hint for the package (`"node"`, `"python"`).
+    /// Launcher hint for the package (`"npx"`, `"uvx"`, `"bunx"`).
+    ///
+    /// Mirrors the upstream MCP registry semantic where this field names the
+    /// **executable** used to fetch and run the package non-interactively, not
+    /// the underlying language runtime. The wizard maps this directly to the
+    /// stdio `command` (with the conventional `-y` prefix for `npx`).
     #[serde(default)]
     pub package_runtime_hint: Option<String>,
     /// Environment variable names required by this package (for synthetic entries).

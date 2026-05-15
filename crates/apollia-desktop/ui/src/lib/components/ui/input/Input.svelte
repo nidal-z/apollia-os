@@ -19,6 +19,11 @@
      * - `lg`      = `h-12 px-4 py-2.5 text-base` — hero search bars.
      */
     size?: Size;
+    /**
+     * Drop the canon border/background/padding/height. Use when embedding the
+     * input in a custom wrapper that owns these (e.g. icon+input toolbars).
+     */
+    unstyled?: boolean;
   }
 
   let {
@@ -28,6 +33,7 @@
     trailing,
     disabled,
     size = "default",
+    unstyled = false,
     ...restProps
   }: Props = $props();
 
@@ -36,6 +42,13 @@
     default: "h-10 px-3 py-2 text-sm",
     lg: "h-12 px-4 py-2.5 text-base",
   };
+
+  const baseClasses = $derived(
+    unstyled
+      ? "w-full bg-transparent border-0 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+      : "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50",
+  );
+  const sizeClass = $derived(unstyled ? "" : sizeClasses[size]);
 
   const hasIcon = $derived(IconComponent !== undefined);
   const hasTrailing = $derived(trailing !== undefined);
@@ -65,8 +78,8 @@
     {/if}
     <input
       class={cn(
-        "flex w-full rounded-md border border-border bg-background ring-offset-background transition-shadow duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50",
-        sizeClasses[size],
+        baseClasses,
+        sizeClass,
         hasIcon && iconPaddingLeft,
         hasTrailing && trailingPaddingRight,
         className,
