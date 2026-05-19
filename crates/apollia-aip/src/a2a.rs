@@ -291,11 +291,23 @@ async fn build_skill_tool_descriptor(
     let safe_id = skill_id.replace('.', "__");
     let tool_name = format!("a2a__{safe_id}");
 
-    Ok(serde_json::json!({
-        "name": tool_name,
-        "description": skill.description.clone(),
-        "input_schema": input_schema,
-    }))
+    // Build the descriptor. Examples are only included when present so that
+    // skills that don't ship a sample payload don't pollute the LLM context
+    // with an empty `examples: []`.
+    let mut descriptor = serde_json::Map::new();
+    descriptor.insert("name".into(), serde_json::Value::String(tool_name));
+    descriptor.insert(
+        "description".into(),
+        serde_json::Value::String(skill.description.clone()),
+    );
+    descriptor.insert("input_schema".into(), input_schema);
+    if !skill.examples.is_empty() {
+        descriptor.insert(
+            "examples".into(),
+            serde_json::Value::Array(skill.examples.clone()),
+        );
+    }
+    Ok(serde_json::Value::Object(descriptor))
 }
 
 impl A2AInterface {
@@ -380,6 +392,7 @@ mod tests {
                     },
                     "required": ["path"]
                 })),
+                examples: vec![],
             }],
             execution_mode: "direct".to_string(),
             system_prompt: None,

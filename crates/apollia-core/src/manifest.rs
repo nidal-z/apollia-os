@@ -256,6 +256,12 @@ pub struct AgentSkill {
     /// Modes de sortie supportés (ex: ["text", "file"]). Vide par défaut.
     #[serde(default)]
     pub output_modes: Vec<String>,
+    /// Exemples de payloads valides — propagés au tool descriptor LLM-facing
+    /// pour aider les modèles mid-market / petits à construire un appel correct
+    /// au premier coup. Stocké comme `Vec<Value>` (chaque entrée est un objet
+    /// JSON). Vide par défaut.
+    #[serde(default)]
+    pub examples: Vec<serde_json::Value>,
     /// Schéma des champs attendus dans la payload A2A.
     ///
     /// Format Apollia (custom, plus simple à écrire côté Python que JSON Schema

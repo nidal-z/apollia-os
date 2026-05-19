@@ -134,6 +134,7 @@ mod tests {
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
                 input_schema: None,
+                examples: vec![],
             })
             .collect();
 

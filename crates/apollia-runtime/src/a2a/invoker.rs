@@ -165,6 +165,10 @@ pub struct A2ASkillInfo {
     /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
     #[serde(default)]
     pub input_schema: Option<serde_json::Value>,
+    /// Exemples de payloads valides — propagés au tool descriptor LLM-facing
+    /// (cf. `AgentSkill::examples`). Vide par défaut.
+    #[serde(default)]
+    pub examples: Vec<serde_json::Value>,
 }
 
 /// Carte de découverte d'un agent A2A.
@@ -820,6 +824,7 @@ fn to_agent_card(entry: &AgentEntry) -> A2AAgentCard {
             input_modes: s.input_modes.clone(),
             output_modes: s.output_modes.clone(),
             input_schema: s.input_schema.clone(),
+            examples: s.examples.clone(),
         })
         .collect();
 
@@ -876,6 +881,7 @@ mod tests {
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
                 input_schema: None,
+                examples: vec![],
             })
             .collect();
 
@@ -1116,6 +1122,7 @@ mod tests {
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["data".to_string()],
                 input_schema: None,
+                examples: vec![],
             }],
             tags: vec!["excel".to_string()],
         };
@@ -1492,6 +1499,7 @@ mod a2a_guard_tests {
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
                 input_schema: None,
+                examples: vec![],
             })
             .collect();
 
