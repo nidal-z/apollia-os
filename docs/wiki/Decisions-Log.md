@@ -1297,6 +1297,134 @@ Sur Linux headless (server, container, distros minimales sans Secret Service dae
 
 [Détail → docs/adr/ADR-094-linux-keyring-fallback-strategy.md](adr/ADR-094-linux-keyring-fallback-strategy.md)
 
+## ADR-095 — Orchestration MCP HTTP OAuth de bout en bout
+
+**Date :** 2026-05-15 — **Statut :** Implémenté (en attente de validation utilisateur)
+
+L'ADR-089 a posé les primitives OAuth MCP (`parse_www_authenticate`, `McpDiscoveryClient`, CIMD const, PKCE, callback) sans jamais les câbler entre elles, sans persistance MCP-server-scoped, sans resolver dynamique côté transport, sans IPC, et sans UI wizard adaptée. Conséquence : 8 MCPs HTTP du catalogue non-fonctionnels, 1 (Figma) avec écran vide. Décision : implémenter un **orchestrateur générique** dans `apollia-auth` (`negotiate_token` + `ensure_fresh_token`) qui enchaîne RFC 9728 → 8414 → CIMD/DCR → PKCE → exchange RFC 8707 sans aucun code spécifique provider, persiste via `SecretStorage` existant sous clé `mcp_oauth:{server_name}`, expose un placeholder dynamique `${APOLLIA_OAUTH}` au resolver de `apollia-mcp::config`, unifie le router callback loopback (`/callback` + `/oauth/callback` même listener), et étend `test_mcp_connection` avec un enum `Success | OauthRequired | Error` qui dirige le wizard vers 3 modes UI auto-détectés (NoAuth / StaticToken / OAuth avec scope selector). Singleflight via `tokio::sync::Mutex` par `server_name` pour les refreshes concurrents. Un compte par MCP server en v0.1.0, multi-comptes reporté. Plan 4.2j en 6 phases.
+
+[Détail → docs/adr/ADR-095-mcp-oauth-orchestrator-end-to-end.md](adr/ADR-095-mcp-oauth-orchestrator-end-to-end.md)
+
+## ADR-098 — Apollia AgentKit : decorator-first, agent unifié
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Refonte du SDK Python : suppression complète de la hiérarchie `BaseReActAgent` (676 LOC) / `WorkerAgent` (125 LOC) / `ConversationalAgent` (126 LOC) / `OrchestratedAgent` (103 LOC) — soit 1 030 LOC d'héritage défensif (`getattr`, `try/except`, doubles dispatchers). Une seule classe décorée `@agent(name, version, …)` + décorateurs additifs de méthode `@skill`, `@on_message`, `@orchestrated`. ReAct devient une utility runtime (`ctx.react(...)`) plutôt qu'une classe parente. Constat business : un worker multi-skill passe de ~1 100 LOC à ~150 LOC sur le portage cible. Composition libre (un agent = N skills + on_message + orchestrated dans la même classe), introspection statique au load (alimente `apollia inspect` ADR-110), tests Python = `pytest` standard. Breaking change total sans shim — assumé. Alternatives rejetées : conserver `BaseReActAgent` comme parent unique (ne résout rien), mixins composables (MRO piégeux), DSL YAML (trahit principe #3).
+
+[Détail → docs/adr/ADR-098-apollia-agentkit-decorator-first.md](adr/ADR-098-apollia-agentkit-decorator-first.md)
+
+## ADR-099 — Signature inference comme schéma I/O
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+La signature Python des handlers décorés (`@skill`, `@on_message`, `@orchestrated`) devient la **source unique** du schéma I/O des agents. Plus de `def manifest()` côté agent, plus de TypedDict obligatoire, plus de validation `payload.get(...)` manuelle. Le SDK introspecte `inspect.signature` + `typing.get_type_hints` au moment du `@agent`, génère le JSON Schema input/output, valide les payloads entrants côté boundary, et populate `__apollia_manifest__`. Types supportés sans config : `str`, `int`, `float`, `bool`, `bytes`, `list[T]`, `dict[str, T]`, `T | None`, `Literal[...]`, `Enum`, `datetime`, `Path`. Fallback `@dataclass` / `TypedDict` pour cas complexes (toujours stdlib). Docstring Google style → descriptions par champ. Mesure : ~700 LOC de validation payload supprimées sur les agents bundled. Alternatives rejetées : Pydantic (viole principe #2), JSON Schema dans docstring (fragile à parser), manifest TOML source de vérité (statu quo, mismatchs persistants).
+
+[Détail → docs/adr/ADR-099-sdk-signature-inference-schema.md](adr/ADR-099-sdk-signature-inference-schema.md)
+
+## ADR-100 — Exceptions typées au boundary, AIPResult interne
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+L'agent ne construit plus `AIPResult.completed/failed/input_required` (~340 occurrences dans le repo, ~210 LOC boilerplate × 5 workers = ~1 050 LOC dupliquées). Il **lève des exceptions typées** depuis `apollia.errors` : `DomainError(code, message, details)`, `PayloadError(field, message)`, `NeedHumanInput(prompt, context)`, `BudgetError`, `PermissionError`. Le SDK boundary (`_internal/dispatch.py`) trap ces exceptions au dispatch et formate l'`AIPResult` à la sortie. Retour normal de handler = `dict` métier ou `None` → enveloppé en `AIPResult.completed(data=...)`. Exceptions non-typées (ex. `KeyError`) → `DomainError("UNHANDLED", ...)` avec traceback loggé par `ctx.logger`. L'agent ne manipule plus jamais `AIPResult`. Cohérence avec FastAPI `HTTPException`. Alternatives rejetées : Result `Ok/Err` (verbeux en Python), sous-classer `AIPResult` (ne supprime aucune duplication), décorateur `@with_result` (déplace la magie).
+
+[Détail → docs/adr/ADR-100-sdk-exceptions-au-boundary.md](adr/ADR-100-sdk-exceptions-au-boundary.md)
+
+## ADR-101 — `ctx` exhaustif et typé via `Protocol`
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Le `ctx` injecté dans les agents Python est restructuré en **14 services nestés typés via `Protocol` PEP 544** : `ctx.llm`, `ctx.react`, `ctx.memory`, `ctx.profile`, `ctx.tools`, `ctx.a2a`, `ctx.datasources`, `ctx.templates`, `ctx.secrets`, `ctx.events`, `ctx.logger`, `ctx.budget`, `ctx.notify`, `ctx.stt`, `ctx.workspace`. Constat : la surface actuelle est plate (~25 méthodes au même niveau, dont `ctx.send`/`ctx.receive`/`ctx.a2a_invoke`/`ctx.delegate` en parallèle de `ctx.llm` nested), divergente entre stubs SDK et runtime Rust, et truffée de `getattr(ctx, "emit_X", lambda *a: None)` défensifs (cf. `react.py:_emit_safe`). Le Protocol devient l'**unique source de vérité** — le runtime Rust DOIT exposer les 14 services exactement, divergence = fail au load. `mypy --strict` passe sur un agent moyen post-migration. Mock testing trivial (structural typing). Alternatives rejetées : dict-like `ctx["llm"]` (zéro IDE), ABC héritage (force mock à hériter), `ctx` plat élargi (devient ingérable au-delà de 40 entrées).
+
+[Détail → docs/adr/ADR-101-sdk-ctx-protocol-exhaustif.md](adr/ADR-101-sdk-ctx-protocol-exhaustif.md)
+
+## ADR-102 — API A2A unifiée (`ctx.a2a`)
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Suppression des 3 APIs A2A concurrentes actuelles (`ctx.send`/`receive` mailbox, `ctx.delegate`, `ctx.a2a_invoke`/`a2a_discover`/`a2a_list_skills` éparpillés racine). Remplacement par un seul service `ctx.a2a` exposant 4 méthodes : `invoke(skill_id, **kwargs)`, `discover(skill_id) -> SkillDescriptor`, `list_skills(agent=None)`, `skill_as_tool(skill_id) -> ToolDescriptor`. `invoke()` se comporte en idiome caller — lève `DomainError("A2A_<CODE>", ...)` côté caller si le skill cible a échoué (cohérent avec ADR-100), retourne le dict métier sur succès. `skill_as_tool()` ouvre le pattern director ReAct ↔ workers (un director découvre dynamiquement les skills disponibles et les présente comme tools au LLM via `ctx.react(tools=[...])`). Alternatives rejetées : conserver 3 APIs en deprecation (pérennise confusion), callable unique `ctx.a2a(skill_id)` (perte de discover/list), objets typés `A2AClient(target_agent)` (re-couple director↔worker).
+
+[Détail → docs/adr/ADR-102-sdk-a2a-api-unifiee.md](adr/ADR-102-sdk-a2a-api-unifiee.md)
+
+## ADR-103 — Datasources YAML et templates Jinja2 accessibles au runtime
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Les datasources (YAML versionnés) et templates (Jinja2) existent dans le packaging des agents mais sont **invisibles au runtime Python** — les agents les lisent via `ctx.tools.invoke("file_read", ...)` puis parsent manuellement (avec `import yaml` qui contredit principe #2). Les templates Jinja2 sont cosmétiques (aucun agent ne s'en sert). Décision : exposer deux nouveaux services `ctx.datasources.get(name)` (cache LRU, parsing `serde_yaml` côté Rust) et `ctx.templates.render(name, **vars)` (rendu `minijinja` v2 ajouté au workspace, sandboxé). Gating manifest obligatoire via `@agent(datasources=("topics", ...), templates=("digest", ...))`. Fail-fast au load (YAML invalide ou datasource déclarée manquante = refus de démarrer). Boucle le pilier #3 / #1 du business model agent forge (livrables prestation = code + templates + datasources + règles + README). Alternatives rejetées : status quo `file_read` (ne résout rien), PyYAML+jinja2 Python (viole #2), chargement bloquant global (mémoire+gating cassé).
+
+[Détail → docs/adr/ADR-103-sdk-datasources-templates-runtime.md](adr/ADR-103-sdk-datasources-templates-runtime.md)
+
+## ADR-104 — API secrets read-only via gating manifest
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Nouveau service `ctx.secrets.get(key)` lecture-seule branché sur `ToolCredentialStore` (AES-256-GCM existant, ADR-082). Gating manifest obligatoire : `@agent(secrets=("brave_api_key", "openweather_api_key", ...))` — l'agent ne voit QUE les clés explicitement déclarées. Synchrone (<1ms keyring lookup). Pas d'écriture (config = `apollia tools config <key>=<value>` humain). Le store gagne un namespace : `tool:<id>:<key>` pour builtin Rust (existant), `agent:<id>:<key>` pour Python (nouveau). UI desktop "Settings → Outils" affiche les deux sections. **Tokens OAuth (Gmail/Calendar/Drive) explicitement reportés v1.1** — l'agent ne reçoit JAMAIS un `access_token` brut en v1.0 ; il passe par les connecteurs natifs (`ctx.tools.invoke("gmail.list", ...)`) qui refresh en interne (ADR-090). Restriction volontaire alignée avec trust model ADR-083. Alternatives rejetées : tous secrets sans gating (casse trust model), secrets dans manifest TOML (mélange code/config).
+
+[Détail → docs/adr/ADR-104-sdk-secrets-read-only-gating.md](adr/ADR-104-sdk-secrets-read-only-gating.md)
+
+## ADR-105 — Events publics typés (`ctx.events`)
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Sortie du pattern défensif actuel `getattr(ctx, "emit_thought", lambda *a: None)` (cf. `sdk/apollia/agents/react.py:187` `_emit_safe`). Service `ctx.events` typé via `Protocol`, exposant 8 méthodes explicites : `emit_token(delta)`, `emit_thought(text, step)`, `emit_action(name, args, step)`, `emit_observation(result, step)`, `emit_retry(step, reason, count)`, `emit_action_parse_error(step, raw, fatal)`, `emit_progress(message, ratio)`, `emit_warning(code, message, details)`. Tous synchrones non-async (mpsc::send côté Rust). No-op gracieux si non-branché (testing) — `NullEventsService` injecté. Ajoute 4 events absents en v0.4.0 (`action`, `observation`, `progress`, `warning`) — directement utiles au builder mode "plus transparent que Claude.ai" (cf. mémoire `project_sprint42_frontend`). Pas d'event custom inventable côté agent (passer par `ctx.logger.info`). Liste fermée à 8 events ; ajout = mineur SemVer SDK. Alternatives rejetées : conserver getattr défensif (zéro typage), pub/sub topic strings (abstraction inutile), single `emit(kind, **data)` générique (zéro autocomplete).
+
+[Détail → docs/adr/ADR-105-sdk-events-types-publics.md](adr/ADR-105-sdk-events-types-publics.md)
+
+## ADR-106 — Logging structuré via `ctx.logger`
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Remplacement de `ctx.log(level: str, message: str)` (level string propice aux typos, pas de structured fields, blob string opaque côté tracing Rust) par `ctx.logger`, un `logging.Logger` stdlib pré-configuré au nom hiérarchique `apollia.agent.<agent_name>`. Handler custom `ApolliaTracingHandler` (`logging.Handler`) qui convertit chaque `LogRecord` en `tracing::event!` côté Rust via PyO3, en préservant les `extra` fields stdlib comme champs tracing structurés. Naming hiérarchique permet le filtering CLI (`apollia logs --agent veille-ia`) et la config log-level par agent via `~/.apollia/config.toml`. Champs auto-ajoutés à chaque log : `agent_id`, `task_id`, `step_id`. `print()` agent capturé et redirigé vers `ctx.logger.info` avec préfixe `[stdout]` — migration sans perte des agents legacy. Stdlib only (principe #2). Alternatives rejetées : conserver `ctx.log` + `extra` (signature custom à enseigner), wrapper opinionné `ctx.logger.info(message, **fields)` (réinvente stdlib mal), OpenTelemetry Python (viole #2).
+
+[Détail → docs/adr/ADR-106-sdk-logger-structure.md](adr/ADR-106-sdk-logger-structure.md)
+
+## ADR-107 — `@agent` instancie et expose `agent` au module
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Le décorateur `@agent(...)` instancie automatiquement la classe décorée et expose l'instance comme attribut `agent` du module (`module.agent = cls()`). L'auteur n'écrit plus `agent = MyClass()` à la fin du fichier (boilerplate présent dans 100 % des agents bundled, source de bugs silencieux quand oublié). Le contrat runtime `getattr(module, "agent")` du bridge PyO3 (ADR-014) est **strictement préservé** — seul le mécanisme de production de l'attribut change. Règles : (1) une seule classe `@agent` par module (RuntimeError si double), (2) `__init__` sans arguments obligatoires (sinon fail-fast au load), (3) le décorateur retourne la classe (pas l'instance), permettant `worker_for_test = MyWorker()` en test sans collision, (4) imports absolus toujours obligatoires (cf. mémoire `feedback_apollia_python_imports`). Alternatives rejetées : statu quo explicite (boilerplate redondant), retourner l'instance (casse isinstance), macro `apollia.run_as_main()` (pire que ligne actuelle).
+
+[Détail → docs/adr/ADR-107-sdk-auto-module-instance.md](adr/ADR-107-sdk-auto-module-instance.md)
+
+## ADR-108 — Suppression de la mailbox A2A `ctx.send/receive`
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Suppression sans remplacement des méthodes `ctx.send(to_agent, message)` et `ctx.receive(timeout)` (fire-and-forget mailbox introduite sprint 22). Audit : aucun agent bundled ne les utilise (`grep -r "ctx\.send\|ctx\.receive" agents/` = 0 résultats), aucun test SDK, aucune doc book/wiki, sémantique floue (push vs poll ? TTL ? persistance ?), conflit conceptuel avec `ctx.a2a.invoke` (ADR-102). `ctx.a2a.invoke` couvre 100 % des cas synchrones inter-agents. Usages asynchrones fire-and-forget reportés à v2.0 sous forme d'un vrai event bus spec'd (si demande émerge — aucun signal aujourd'hui). Suppression bridge PyO3 (`apollia-aip/src/context.rs`), suppression stub (`sdk/apollia/stubs/context.py:155-179`), suppression acteur mailbox côté runtime si présent. Pas de shim, pas de deprecation window. Alternatives rejetées : conserver+documenter (zone confusion pérennisée), renommer en `ctx.a2a.notify` (réintroduit notion mailbox non-spec'd), alias deprecated (sémantique différente d'invoke).
+
+[Détail → docs/adr/ADR-108-sdk-mailbox-a2a-suppression.md](adr/ADR-108-sdk-mailbox-a2a-suppression.md)
+
+## ADR-109 — `AIPResult` devient interne au SDK
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+`AIPResult` n'est plus injecté magiquement dans `run.__globals__` par le bridge Rust (const `AIP_TYPES_PY` ~70 LOC dans `crates/apollia-aip/src/bridge.rs:41-110` + injection `~30 LOC` à chaque `call_run()` ligne 295-310, supprimées). Le SDK Python construit le résultat **côté Python** (`sdk/apollia/_internal/aip_result.py` + `_internal/dispatch.py`) à partir du return value du handler (= `AIPResult.completed(data)`) ou de l'exception trappée (`DomainError` → `failed`, `NeedHumanInput` → `input_required`, autres → `failed("UNHANDLED")` + log traceback via `ctx.logger`). Le shape JSON reste strictement aligné avec `apollia_core::AIPResult` côté Rust (round-trip testé). `AIPResult` n'est pas importable depuis `apollia.*` — l'agent ne le voit jamais. Cohérent avec ADR-100 (exceptions au boundary). Élimine les ~340 occurrences `AIPResult.X` et les `# noqa` associés. Alternatives rejetées : alias importable (maintient deux façons), conserver injection sans usage agent (code mort dans bridge), `AIPResult` sealed/Final documenté "interne" (demi-mesure).
+
+[Détail → docs/adr/ADR-109-sdk-aip-result-interne.md](adr/ADR-109-sdk-aip-result-interne.md)
+
+## ADR-110 — Commande `apollia inspect <agent.py>`
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Nouvelle commande CLI `apollia inspect <chemin_agent>` qui charge le module Python en isolation (sans démarrer bridge Rust ni runtime), introspecte `agent.__apollia_manifest__` (généré par `@agent` ADR-098/107), et affiche un rapport complet : manifest, skills (id + description + JSON Schema input/output issu de l'inférence ADR-099), packages requis, datasources/templates/secrets déclarés vs configurés/présents (ADR-103/104), permissions tools croisées avec catalogue, warnings et erreurs. Validation systématique : unicité skill_id, signatures inférables, YAML datasources parsable, templates Jinja2 présents, secrets configurés dans le store local. Codes retour : `0` OK, `1` inspection error, `2` arg/file error. Output `--json` pour pipelines/IDE/Tauri. Feedback < 1s (vs cycle ~5-10s "install + start + invoke"). Use cases : pre-commit hook, CI (`.github/workflows`), dev quotidien builder, UI `Install Package Dialog`. Matérialisation directe du principe #4 fail-fast au niveau ergonomique. Alternatives rejetées : validation au boot runtime seulement (statu quo), outil externe `apollia-lint` séparé (duplique), UI desktop only (ne sert pas CI).
+
+[Détail → docs/adr/ADR-110-apollia-inspect-cli.md](adr/ADR-110-apollia-inspect-cli.md)
+
+## ADR-111 — Vision API typée + memory export/import
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Deux capabilities runtime existantes non exposées proprement côté SDK Python. (1) **Vision** : TypedDicts publics `LlmMessage`, `MessageContent`, `TextContent`, `ImageContent` ajoutés dans `apollia.types.llm` ; helpers `text(s)`, `image_from_path(path)`, `image_from_bytes(data, mime)`, `image_from_url(url)`. Routing automatique côté `apollia-llm` vers Anthropic vision / OpenAI gpt-4o / Vertex Gemini selon le provider. **Local llama-cpp text-only** (cf. mémoire `project_local_llm_engine`) — `ctx.llm.complete()` lève `DomainError("VISION_UNSUPPORTED")` au boundary si `ImageContent` détecté en mode local. (2) **Memory export/import** : `ctx.memory.export() -> dict` JSON-sérialisable + `ctx.memory.import_data(data)`, bouclant ADR-066 jamais branchée côté SDK. Round-trip testé. Cas d'usage : tests d'agent avec fixtures, checkpoint long-running, migration agent v1→v2. Format strictement aligné ADR-066 v1 (schema_version: 1). Alternatives rejetées : Pydantic vision (viole #2), dataclasses vision (sérialisation manuelle JSON), reporter memory v1.1 (laisse ADR-066 pendant), `import_data` sans `export` (asymétrique).
+
+[Détail → docs/adr/ADR-111-sdk-vision-typage-memory-io.md](adr/ADR-111-sdk-vision-typage-memory-io.md)
+
+## ADR-112 — Suppression `LlmProxy.stream()` legacy, renommage `stream_complete` → `stream`
+
+**Date :** 2026-05-19 — **Statut :** Accepté
+
+Trois nettoyages ciblés sur `ctx.llm` et la boucle ReAct. (1) **Suppression** de `LlmProxy.stream()` legacy (buffered, retourne `list[str]`, plus utilisé par aucun agent bundled, docstring `stubs/llm.py:101` recommande déjà `stream_complete`). (2) **Renommage** de `stream_complete()` → `stream()` (la version moderne async iterator devient le nom canonique, cohérent avec LangChain / OpenAI SDK). Surface finale `ctx.llm` : `complete()`, `stream()`, `embed()` — 3 méthodes nommées idéalement. (3) **Suppression** de l'auto-rewrite des actions shorthand dans la boucle ReAct (`{"action": "tool_name"}` ré-écrit silencieusement en `{"action": "tool_call", "tool": "tool_name", "args": {}}`). Le shorthand devient une `ActionParseError` claire, émise via `ctx.events.emit_action_parse_error(step, raw, fatal=True)` (ADR-105). Bugs de prompt mis à nu (l'auteur voit qu'il doit renforcer son prompt au lieu que le SDK masque). ~50 LOC totales supprimées. Cohérence frameworks modernes. Alternatives rejetées : garder les deux comme aliases (confusion pérennisée), conserver rewrite avec warning (ignoré par défaut), config `strict_action_parsing` (option = friction).
+
+[Détail → docs/adr/ADR-112-sdk-stream-cleanup-rename.md](adr/ADR-112-sdk-stream-cleanup-rename.md)
+
 ---
 
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
