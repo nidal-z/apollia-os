@@ -14,6 +14,7 @@ use pyo3::types::PyDict;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_memory::episodic::EpisodicMemory;
+use apollia_memory::export::{export_namespace, import_namespace, ImportMode, MemoryExport};
 use apollia_memory::injection_tracker::{global_record, preview, InjectedEntry};
 use apollia_memory::manager::{MemoryAccess, MemoryManager};
 use apollia_memory::procedural::ProceduralMemory;
@@ -403,6 +404,78 @@ impl MemoryInterface {
 
             result.map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             Ok(Python::with_gil(|py| py.None()))
+        })
+    }
+
+    /// Exporte l'intégralité de la mémoire de l'agent (épisodique + sémantique
+    /// + procédurale) sous forme de dict JSON-sérialisable.
+    ///
+    /// L'export ne couvre **que** le namespace privé de l'agent appelant —
+    /// les namespaces partagés (read-only) ne sont pas inclus. La structure
+    /// retournée correspond à [`apollia_memory::export::MemoryExport`] avec
+    /// `schema_version = 1` (alias `format_version` pour compat) :
+    ///
+    /// ```python
+    /// dump = await ctx.memory.export()
+    /// # dump == {
+    /// #     "schema_version": 1,
+    /// #     "namespace": "my-agent",
+    /// #     "exported_at": "2026-05-19T10:00:00Z",
+    /// #     "episodic": [...],
+    /// #     "semantic": [...],
+    /// #     "procedural": [...],
+    /// # }
+    /// ```
+    fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let dump = tokio::task::spawn_blocking(move || export_inner(&manager, &namespace))
+                .await
+                .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            Python::with_gil(|py| json_value_to_py(py, &dump))
+        })
+    }
+
+    /// Importe un dump produit par [`MemoryInterface::export`] dans le
+    /// namespace privé de l'agent.
+    ///
+    /// `data` doit être un dict respectant le schéma `format_version = 1`
+    /// (ou son alias `schema_version`). Par défaut, le mode est `merge` :
+    /// les entrées dont l'`id` existe déjà sont ignorées (`INSERT OR IGNORE`).
+    /// Passe `replace=True` pour vider le namespace avant l'import.
+    ///
+    /// Retourne le nombre d'entrées effectivement importées.
+    #[pyo3(signature = (data, replace = false))]
+    fn import_data<'py>(
+        &self,
+        py: Python<'py>,
+        data: PyObject,
+        replace: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        // Convert PyObject -> serde_json::Value synchronously (needs GIL).
+        let dump_json = pyany_to_json(py, &data)?;
+
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+        let mode = if replace {
+            ImportMode::Replace
+        } else {
+            ImportMode::Merge
+        };
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let count = tokio::task::spawn_blocking(move || {
+                import_inner(&manager, &namespace, dump_json, mode)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            Python::with_gil(|py| Ok(count.into_pyobject(py).unwrap().into_any().unbind()))
         })
     }
 }
@@ -803,6 +876,110 @@ fn procedure_entry_to_json(entry: apollia_memory::procedural::ProcedureEntry) ->
         "last_used_at": entry.last_used_at,
         "created_at": entry.created_at,
     })
+}
+
+/// Exports the agent's private namespace as a JSON-serializable dict.
+///
+/// Wraps [`apollia_memory::export::export_namespace`] and tags the dump
+/// with the alias `schema_version` (alongside `format_version`) so the
+/// Python SDK can refer to either key going forward.
+fn export_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+) -> Result<serde_json::Value, MemoryInterfaceError> {
+    let mgr = lock(manager)?;
+    // Only the agent's primary namespace may be exported through this surface.
+    if mgr.access_level(namespace) != Some(MemoryAccess::ReadWrite) {
+        return Err(MemoryInterfaceError::NoNamespace);
+    }
+    let base_dir = mgr.base_dir().to_path_buf();
+    // Drop the lock before touching disk — export_namespace opens its own
+    // store handle (read-only flow) and could deadlock if we held the manager.
+    drop(mgr);
+
+    let export = export_namespace(&base_dir, namespace)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    let mut value = serde_json::to_value(&export)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+    if let Some(obj) = value.as_object_mut() {
+        // Surface a canonical `schema_version` alias — the SDK Protocol uses
+        // this name in its docstrings.
+        obj.insert(
+            "schema_version".to_string(),
+            serde_json::Value::from(export.format_version),
+        );
+    }
+    Ok(value)
+}
+
+/// Imports a previously-exported dump into the agent's private namespace.
+fn import_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+    data: serde_json::Value,
+    mode: ImportMode,
+) -> Result<usize, MemoryInterfaceError> {
+    let mgr = lock(manager)?;
+    check_write_access(&mgr, namespace)?;
+    let base_dir = mgr.base_dir().to_path_buf();
+    drop(mgr);
+
+    // Be lenient about the format_version / schema_version alias.
+    let mut value = data;
+    if let Some(obj) = value.as_object_mut() {
+        if !obj.contains_key("format_version") {
+            if let Some(v) = obj.remove("schema_version") {
+                obj.insert("format_version".to_string(), v);
+            }
+        }
+        // Default to current namespace if the payload doesn't carry one — an
+        // agent re-importing its own dump shouldn't need to remember.
+        obj.entry("namespace".to_string())
+            .or_insert_with(|| serde_json::Value::String(namespace.to_string()));
+        obj.entry("exported_at".to_string())
+            .or_insert_with(|| serde_json::Value::String(String::new()));
+        for key in ["episodic", "semantic", "procedural"] {
+            obj.entry(key.to_string())
+                .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+        }
+    }
+
+    let export: MemoryExport = serde_json::from_value(value)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(format!("invalid dump: {e}")))?;
+
+    import_namespace(&base_dir, namespace, &export, mode)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
+}
+
+/// Converts a `serde_json::Value` to a Python object via `json.loads`.
+fn json_value_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
+    let json_str = serde_json::to_string(value)
+        .map_err(|e| PyRuntimeError::new_err(format!("serialize: {e}")))?;
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+    let obj: PyObject = json_mod
+        .call_method1("loads", (json_str,))
+        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+        .unbind();
+    Ok(obj)
+}
+
+/// Converts an arbitrary Python object to a `serde_json::Value` by round-tripping
+/// through `json.dumps` — accepts dicts, lists, primitives transparently.
+fn pyany_to_json(py: Python<'_>, obj: &PyObject) -> PyResult<serde_json::Value> {
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+    let bound = obj.bind(py);
+    let json_str: String = json_mod
+        .call_method1("dumps", (bound,))
+        .map_err(|e| PyRuntimeError::new_err(format!("json.dumps: {e}")))?
+        .extract()
+        .map_err(|e| PyRuntimeError::new_err(format!("extract: {e}")))?;
+    serde_json::from_str(&json_str)
+        .map_err(|e| PyRuntimeError::new_err(format!("json parse: {e}")))
 }
 
 /// Converts a Python dict to a `serde_json::Value`.
@@ -1440,6 +1617,172 @@ mod tests {
 
         // THEN the record succeeds (expiry is set)
         assert!(id.is_ok(), "record with expires_in should succeed");
+    }
+
+    // LOT 9 — export() round-trips all entry types as JSON
+    #[test]
+    fn test_export_round_trips_entries() {
+        // GIVEN a namespace seeded with episodic + semantic entries
+        let (iface, _dir) = setup_interface("agent-export");
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.name",
+            "Nidal",
+            Some("onboarding"),
+            Some(0.9),
+        )
+        .expect("remember");
+        record_inner(
+            &iface.manager,
+            &iface.namespace,
+            &iface.agent_id,
+            "Welcome event",
+            0.7,
+            None,
+            None,
+            None,
+        )
+        .expect("record");
+
+        // WHEN export_inner is called
+        let dump = export_inner(&iface.manager, &iface.namespace).expect("export");
+
+        // THEN the dump exposes the schema alias and both entry buckets
+        assert_eq!(dump["format_version"], 1);
+        assert_eq!(dump["schema_version"], 1);
+        assert_eq!(dump["namespace"], "agent-export");
+        assert_eq!(dump["episodic"].as_array().expect("episodic").len(), 1);
+        assert_eq!(dump["semantic"].as_array().expect("semantic").len(), 1);
+        assert_eq!(dump["procedural"].as_array().expect("procedural").len(), 0);
+    }
+
+    // LOT 9 — import_data(replace=True) restores into an empty namespace
+    #[test]
+    fn test_export_then_import_replace_round_trip() {
+        // GIVEN namespace A with one semantic + one episodic entry, dumped
+        let (src, src_dir) = setup_interface("agent-src");
+        remember_inner(
+            &src.manager,
+            &src.namespace,
+            "k.budget",
+            "15000",
+            Some("crm"),
+            Some(0.8),
+        )
+        .expect("remember src");
+        record_inner(
+            &src.manager,
+            &src.namespace,
+            &src.agent_id,
+            "Initial signal",
+            0.6,
+            None,
+            None,
+            None,
+        )
+        .expect("record src");
+        let dump = export_inner(&src.manager, &src.namespace).expect("export");
+
+        // WHEN we import the dump into an empty target namespace with Replace
+        // (using the same agent identity to keep write access).
+        let dest_base = src_dir.path().to_path_buf();
+        let manager =
+            MemoryManager::new(&dest_base, Some("agent-dest".to_string()), vec![]);
+        let dest = MemoryInterface::new(
+            manager,
+            "agent-dest".to_string(),
+            "test-agent".to_string(),
+        )
+        .expect("dest iface");
+
+        let imported = import_inner(&dest.manager, &dest.namespace, dump, ImportMode::Replace)
+            .expect("import");
+
+        // THEN both entries are restored and recall sees the semantic value
+        assert_eq!(imported, 2, "expected 2 entries imported");
+        let value = recall_inner(&dest.manager, &dest.namespace, "k.budget")
+            .expect("recall after import");
+        assert_eq!(value, Some("15000".to_string()));
+    }
+
+    // LOT 9 — import_data without replace keeps existing entries intact (merge)
+    #[test]
+    fn test_import_data_merge_does_not_overwrite() {
+        // GIVEN namespace with an existing entry and a dump from another agent
+        let (iface, _dir) = setup_interface("agent-merge");
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.role",
+            "operator",
+            Some("local"),
+            Some(0.9),
+        )
+        .expect("seed");
+
+        // Craft a minimal dump that would overwrite (same key) — INSERT OR
+        // IGNORE on `id` means the same primary key collides only when the
+        // entry id is identical, so we forge a fresh id but same key.
+        let dump = serde_json::json!({
+            "format_version": 1,
+            "namespace": "agent-merge",
+            "exported_at": "2026-05-19T00:00:00Z",
+            "episodic": [],
+            "semantic": [{
+                "id": "imported-1",
+                "key": "user.role",
+                "value": "\"intruder\"",
+                "source": "external",
+                "confidence": 0.1,
+                "created_at": "2026-05-19T00:00:00Z",
+                "updated_at": "2026-05-19T00:00:00Z",
+            }],
+            "procedural": [],
+        });
+
+        // WHEN we merge — semantic_memories has UNIQUE(namespace, key), so the
+        // imported row is silently ignored and the original survives.
+        let imported =
+            import_inner(&iface.manager, &iface.namespace, dump, ImportMode::Merge)
+                .expect("import");
+
+        // THEN nothing is overwritten and recall still returns the original.
+        assert_eq!(imported, 0, "merge must not insert colliding rows");
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.role")
+            .expect("recall");
+        assert_eq!(value, Some("operator".to_string()));
+    }
+
+    // LOT 9 — accept the `schema_version` alias in addition to `format_version`
+    #[test]
+    fn test_import_accepts_schema_version_alias() {
+        // GIVEN a dump that only carries `schema_version` (SDK-facing alias)
+        let (iface, _dir) = setup_interface("agent-alias");
+        let dump = serde_json::json!({
+            "schema_version": 1,
+            "episodic": [],
+            "semantic": [{
+                "id": "alias-1",
+                "key": "from.alias",
+                "value": "\"ok\"",
+                "source": null,
+                "confidence": 1.0,
+                "created_at": "2026-05-19T00:00:00Z",
+                "updated_at": "2026-05-19T00:00:00Z",
+            }],
+            "procedural": [],
+        });
+
+        // WHEN imported
+        let imported = import_inner(&iface.manager, &iface.namespace, dump, ImportMode::Merge)
+            .expect("import alias");
+
+        // THEN the row landed despite the missing `format_version` key
+        assert_eq!(imported, 1);
+        let value = recall_inner(&iface.manager, &iface.namespace, "from.alias")
+            .expect("recall");
+        assert_eq!(value, Some("ok".to_string()));
     }
 }
 

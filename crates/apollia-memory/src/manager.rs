@@ -328,6 +328,20 @@ impl MemoryManager {
         }
     }
 
+    /// Répertoire racine où vivent les fichiers `.db` du manager.
+    ///
+    /// Exposé pour permettre aux composants externes (notamment le bridge
+    /// PyO3) de déléguer à [`crate::export`] sans réouvrir un store eux-mêmes.
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
+    /// Namespace privé (lecture/écriture) du manager, ou `None` si l'agent
+    /// n'a pas de mémoire configurée.
+    pub fn primary_namespace(&self) -> Option<&str> {
+        self.primary_namespace.as_deref()
+    }
+
     /// Construit le chemin du fichier `.db` pour un namespace.
     fn db_path(&self, namespace: &str) -> PathBuf {
         self.base_dir.join(format!("{namespace}.db"))

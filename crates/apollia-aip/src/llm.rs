@@ -90,10 +90,10 @@ pub struct PyLlmResponse {
 ///     {"role": "user",      "content": "Résume en 3 points."},
 /// ])
 ///
-/// # Cas 3 — Streaming (retourne list[str])
-/// chunks = await ctx.llm.stream([{"role": "user", "content": "..."}])
-/// for chunk in chunks:
+/// # Cas 3 — Streaming (async iterator, ADR-112)
+/// async for chunk in await ctx.llm.stream([{"role": "user", "content": "..."}]):
 ///     print(chunk)
+/// # Use ctx.llm.stream_buffered(...) (deprecated) to get a list[str] instead.
 ///
 /// # Cas 4 — Boucle ReAct automatique
 /// result = await ctx.llm.run_tools(
@@ -328,23 +328,20 @@ impl LlmProxy {
         })
     }
 
-    /// Appel LLM en mode streaming — retourne une liste de chunks texte.
+    /// Buffered streaming — collects all chunks server-side and returns a
+    /// `list[str]`. Kept for backward compat ; the new canonical streaming
+    /// API is [`Self::stream`] (async iterator) per ADR-112.
     ///
-    /// MVP : collecte tous les chunks du stream Rust et les retourne comme `list[str]`.
-    /// Fallback : si le backend ne supporte pas le streaming nativement,
-    /// appelle `complete()` et retourne le contenu complet comme liste à un seul élément
-    /// sans lever d'erreur.
-    ///
-    /// Retourne un awaitable Python qui résout en `list[str]`.
-    ///
-    /// # Exemple Python
-    /// ```python
-    /// chunks = await ctx.llm.stream([{"role": "user", "content": "..."}])
-    /// for chunk in chunks:
-    ///     await ctx.emit.text(chunk)
-    /// ```
+    /// Fallback : if the backend does not support streaming, falls back to
+    /// `complete()` and returns the content as a single-element list.
+    #[deprecated(
+        note = "ctx.llm.stream() now returns an async iterator (ADR-112). \
+                Use `async for chunk in await ctx.llm.stream(messages)` instead. \
+                If you really need a buffered list, call `stream_buffered`."
+    )]
+    #[allow(deprecated)]
     #[pyo3(signature = (messages, backend = None))]
-    fn stream<'py>(
+    fn stream_buffered<'py>(
         &self,
         py: Python<'py>,
         messages: Vec<PyObject>,
@@ -467,23 +464,24 @@ impl LlmProxy {
         })
     }
 
-    /// Appel LLM en mode streaming — retourne un async iterator de chunks texte.
+    /// Streaming LLM call — returns an async iterator yielding text chunks.
     ///
-    /// Contrairement à `stream()` (qui collecte tous les chunks et renvoie
-    /// une `list[str]`), cette méthode renvoie un `PyTokenStream` qui
-    /// implémente le protocole d'itération asynchrone Python (`__aiter__`
-    /// + `__anext__`). Chaque token est yieldé dès qu'il arrive du
-    /// backend, ce qui permet d'émettre des events `ChatToken` en temps
-    /// réel côté agent.
+    /// Canonical streaming surface per ADR-112. Returns a [`PyTokenStream`]
+    /// implementing the async iteration protocol (`__aiter__` / `__anext__`).
+    /// Each chunk is yielded as soon as it arrives from the backend so the
+    /// agent can emit real-time `ChatToken` events.
     ///
-    /// # Exemple Python
+    /// Backends that cannot stream natively fall back to a single
+    /// `complete()` call yielded as one chunk.
+    ///
+    /// # Example
     /// ```python
-    /// async for chunk in ctx.llm.stream_complete(messages):
+    /// async for chunk in await ctx.llm.stream(messages):
     ///     buffer += chunk
     ///     await ctx.emit_token(chunk)  # route to frontend
     /// ```
     #[pyo3(signature = (messages, backend = None))]
-    fn stream_complete<'py>(
+    fn stream<'py>(
         &self,
         py: Python<'py>,
         messages: Vec<PyObject>,
@@ -578,6 +576,22 @@ impl LlmProxy {
             })
         })
     }
+
+    /// Deprecated alias for [`Self::stream`] — kept for backward compat with
+    /// agents written against the previous bridge. Will be removed once the
+    /// legacy `BaseReActAgent` is dropped (LOT 13).
+    #[deprecated(note = "Use `stream()` directly (ADR-112). \
+                          `stream_complete` is kept as a transitional alias.")]
+    #[allow(deprecated)]
+    #[pyo3(signature = (messages, backend = None))]
+    fn stream_complete<'py>(
+        &self,
+        py: Python<'py>,
+        messages: Vec<PyObject>,
+        backend: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.stream(py, messages, backend)
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -653,7 +667,19 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
     messages
 }
 
-/// Convertit un dict Python `{"role": "...", "content": "..."}` en `ChatMessage`.
+/// Convertit un dict Python `{"role": "...", "content": ...}` en `ChatMessage`.
+///
+/// `content` peut être :
+/// - une `str` (fast path texte) ;
+/// - une `list[dict]` de blocs typés (ADR-111 vision typing) — chaque bloc est
+///   soit `{"type": "text", "text": "..."}`, soit
+///   `{"type": "image", "source": {"type": "base64"|"url", ...}}`.
+///   Les blocs texte sont concaténés (jointure par `\n\n`). Les blocs image
+///   sont annotés en `[image: <media_type|url>]` car aucun backend LLM
+///   accessible via `LlmProxy` ne supporte la vision aujourd'hui
+///   (llama-cpp-2 = text-only — cf. mémoire `project_local_llm_engine`).
+///   Le shape JSON est conservé tel que reçu pour qu'un futur backend cloud
+///   vision puisse être branché sans casser l'API.
 ///
 /// Retourne `PyValueError` si `role` est absent ou ne correspond à aucun rôle connu
 /// (`system` / `user` / `assistant` / `tool`).
@@ -666,11 +692,18 @@ fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResult<ChatMessa
         .extract()
         .map_err(|e| PyValueError::new_err(format!("'role' must be a str: {e}")))?;
 
-    let content_str: String = bound
+    let content_obj = bound
         .get_item("content")
-        .map_err(|_| PyValueError::new_err("message dict missing 'content' key"))?
-        .extract()
-        .map_err(|e| PyValueError::new_err(format!("'content' must be a str: {e}")))?;
+        .map_err(|_| PyValueError::new_err("message dict missing 'content' key"))?;
+
+    // Fast path: plain string content.
+    let content_str: String = match content_obj.extract::<String>() {
+        Ok(s) => s,
+        Err(_) => {
+            // Slow path: list[MessageContent] — flatten to text representation.
+            flatten_multimodal_content(py, &content_obj)?
+        }
+    };
 
     let role = match role_str.as_str() {
         "system" => Role::System,
@@ -689,6 +722,102 @@ fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResult<ChatMessa
         content: MessageContent::Text(content_str),
         cache_control: None,
     })
+}
+
+/// Flattens a list of multimodal content blocks (TextContent / ImageContent)
+/// to a textual representation suitable for text-only backends.
+///
+/// - `{"type": "text", "text": "..."}` ⇒ raw text fragment.
+/// - `{"type": "image", "source": {...}}` ⇒ `[image: <descriptor>]` marker
+///   where descriptor is the `media_type` for base64 sources or the truncated
+///   URL for URL sources.
+///
+/// Returns `PyValueError` if a block is malformed (missing `type`, unknown
+/// kind, or non-iterable input).
+fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyResult<String> {
+    use pyo3::types::PyList;
+
+    if !content.is_instance_of::<PyList>() {
+        return Err(PyValueError::new_err(
+            "'content' must be either a str or a list of content blocks",
+        ));
+    }
+    let list = content.downcast::<PyList>().map_err(|e| {
+        PyValueError::new_err(format!("'content' is not a valid list: {e}"))
+    })?;
+
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+
+    let mut fragments: Vec<String> = Vec::with_capacity(list.len());
+    for item in list.iter() {
+        // Each block must be a dict with a 'type' key.
+        let type_str: String = item
+            .get_item("type")
+            .map_err(|_| PyValueError::new_err("content block missing 'type' key"))?
+            .extract()
+            .map_err(|e| PyValueError::new_err(format!("'type' must be a str: {e}")))?;
+
+        match type_str.as_str() {
+            "text" => {
+                let text: String = item
+                    .get_item("text")
+                    .map_err(|_| PyValueError::new_err("text block missing 'text' key"))?
+                    .extract()
+                    .map_err(|e| PyValueError::new_err(format!("'text' must be a str: {e}")))?;
+                fragments.push(text);
+            }
+            "image" => {
+                // Pull a short descriptor from `source` for the placeholder. The
+                // full JSON is also captured (truncated) so a future vision-capable
+                // backend can reconstruct the payload if we expose a richer
+                // MessageContent variant later.
+                let source = item.get_item("source").map_err(|_| {
+                    PyValueError::new_err("image block missing 'source' key")
+                })?;
+                let descriptor = source
+                    .get_item("media_type")
+                    .ok()
+                    .and_then(|v| v.extract::<String>().ok())
+                    .or_else(|| {
+                        source
+                            .get_item("url")
+                            .ok()
+                            .and_then(|v| v.extract::<String>().ok())
+                            .map(|u| truncate(&u, 80))
+                    })
+                    .unwrap_or_else(|| "unknown".to_string());
+                fragments.push(format!("[image: {descriptor}]"));
+                // Tracing — let operators discover that an image was sent to a
+                // text-only backend so they can switch to a cloud vision model.
+                tracing::warn!(
+                    media = %descriptor,
+                    "vision content received by LlmProxy — current backends are text-only, \
+                     image was flattened to a placeholder"
+                );
+                // Drop the dumped JSON if we ever need it for debugging.
+                let _ = json_mod;
+            }
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown content block type '{other}' — expected 'text' or 'image'"
+                )));
+            }
+        }
+    }
+
+    Ok(fragments.join("\n\n"))
+}
+
+/// Truncates a string to at most `max_chars` characters with an ellipsis.
+fn truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max_chars).collect();
+    out.push('…');
+    out
 }
 
 /// Convertit un dict Python `{"name": "...", "description": "...", "parameters": {...}}`
@@ -846,6 +975,86 @@ mod tests {
             let result = py_dict_to_tool_spec(py, &dict.into());
             // THEN
             assert!(result.is_err());
+        });
+    }
+
+    /// LOT 9 — multi-modal content list with a text block is accepted and flattened.
+    #[test]
+    fn test_py_dict_to_chat_message_multimodal_text_only() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            // GIVEN a message whose `content` is a list[TextContent]
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("role", "user").unwrap();
+            let text_block = pyo3::types::PyDict::new(py);
+            text_block.set_item("type", "text").unwrap();
+            text_block.set_item("text", "describe").unwrap();
+            let parts = pyo3::types::PyList::new(py, &[text_block]).unwrap();
+            dict.set_item("content", parts).unwrap();
+
+            // WHEN converted
+            let msg = py_dict_to_chat_message(py, &dict.into()).unwrap();
+
+            // THEN the text fragment survives intact
+            assert_eq!(msg.role, Role::User);
+            assert!(matches!(msg.content, MessageContent::Text(ref t) if t == "describe"));
+        });
+    }
+
+    /// LOT 9 — image content blocks are flattened to a placeholder.
+    #[test]
+    fn test_py_dict_to_chat_message_multimodal_with_image() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            // GIVEN a message with [text, image_base64]
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("role", "user").unwrap();
+
+            let text_block = pyo3::types::PyDict::new(py);
+            text_block.set_item("type", "text").unwrap();
+            text_block.set_item("text", "what is in this picture?").unwrap();
+
+            let source = pyo3::types::PyDict::new(py);
+            source.set_item("type", "base64").unwrap();
+            source.set_item("media_type", "image/png").unwrap();
+            source.set_item("data", "AAAA").unwrap();
+            let image_block = pyo3::types::PyDict::new(py);
+            image_block.set_item("type", "image").unwrap();
+            image_block.set_item("source", source).unwrap();
+
+            let parts = pyo3::types::PyList::new(py, &[text_block, image_block]).unwrap();
+            dict.set_item("content", parts).unwrap();
+
+            // WHEN converted
+            let msg = py_dict_to_chat_message(py, &dict.into()).unwrap();
+
+            // THEN the image is annotated as a placeholder alongside the text
+            assert_eq!(msg.role, Role::User);
+            let text = match msg.content {
+                MessageContent::Text(t) => t,
+                _ => panic!("expected text content"),
+            };
+            assert!(text.contains("what is in this picture?"));
+            assert!(text.contains("[image: image/png]"));
+        });
+    }
+
+    /// LOT 9 — unknown block type raises PyValueError.
+    #[test]
+    fn test_py_dict_to_chat_message_unknown_block_type() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("role", "user").unwrap();
+            let bogus = pyo3::types::PyDict::new(py);
+            bogus.set_item("type", "video").unwrap();
+            let parts = pyo3::types::PyList::new(py, &[bogus]).unwrap();
+            dict.set_item("content", parts).unwrap();
+
+            let result = py_dict_to_chat_message(py, &dict.into());
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(err.to_string().contains("unknown content block type"));
         });
     }
 

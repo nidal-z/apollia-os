@@ -110,3 +110,41 @@ def test_image_from_path_rejects_non_image(tmp_path: Path) -> None:
     file_path.write_text("hello")
     with pytest.raises(ValueError, match="Cannot determine image MIME type"):
         image_from_path(str(file_path))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# LOT 9 — vision content passes through MockLlmProxy end-to-end
+# ──────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_accepts_multimodal_messages() -> None:
+    """An agent that sends an ImageContent block through ``ctx.llm.complete``
+    must reach the proxy unchanged — the mock records the full message list,
+    including the typed image block, so the agent author can assert the wiring.
+    """
+    from apollia.testing.mocks import MockLlmProxy
+
+    llm = MockLlmProxy(responses=[{"content": "I see a sunset"}])
+    msg = {
+        "role": "user",
+        "content": [
+            text("describe the image"),
+            image_from_url("https://example.com/sunset.png"),
+        ],
+    }
+
+    response = await llm.complete([msg])
+
+    # The mock records the prompt verbatim — the image dict survives.
+    assert llm.call_count == 1
+    recorded = llm.prompts[0]
+    assert isinstance(recorded, list)
+    assert recorded[0]["role"] == "user"
+    content = recorded[0]["content"]
+    assert isinstance(content, list)
+    assert content[0] == {"type": "text", "text": "describe the image"}
+    assert content[1]["type"] == "image"
+    assert content[1]["source"]["type"] == "url"
+    # And the queued response made it back.
+    assert response.content == "I see a sunset"

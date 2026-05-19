@@ -1,6 +1,10 @@
 """Parsing and formatting utilities for Apollia agents."""
 
-from apollia.utils.a2a import extract_a2a_payload
+# Re-export the A2A helper from its canonical (private) location so that
+# touching `apollia.utils` does not fire the deprecation warning that
+# `apollia.utils.a2a` raises on import. Legacy agents that explicitly do
+# `from apollia.utils.a2a import ...` still see the warning.
+from apollia._internal.a2a_utils import extract_a2a_payload
 from apollia.utils.assertion import (
     AssertionSpec,
     Citation,
