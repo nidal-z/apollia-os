@@ -28,7 +28,7 @@ import datetime
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
@@ -77,16 +77,28 @@ class DocxWorker:
     @skill(
         "docx.read",
         description=(
-            "Lit un .docx et retourne JSON structuré : blocs ordonnés, "
-            "métadonnées de section, hyperlinks, styles utilisés."
+            "Read a .docx and return structured JSON: ordered blocks, "
+            "section metadata, hyperlinks, and used styles."
         ),
+        examples=[
+            {"path": "/path/to/document.docx", "include_runs": False},
+        ],
     )
     async def read_docx(
         self,
-        path: str,
-        include_runs: bool = False,
-        include_styles: bool = True,
-        max_blocks: int = 50_000,
+        path: Annotated[str, "Filesystem path to the source .docx file."],
+        include_runs: Annotated[
+            bool,
+            "Include per-run formatting (bold/italic/font/color) inside paragraphs. Larger payload.",
+        ] = False,
+        include_styles: Annotated[
+            bool,
+            "Include the list of paragraph/run styles used in the document.",
+        ] = True,
+        max_blocks: Annotated[
+            int,
+            "Hard cap on top-level blocks returned (truncates with truncated=true).",
+        ] = 50_000,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Lecture structurée."""
@@ -102,17 +114,71 @@ class DocxWorker:
     @skill(
         "docx.write",
         description=(
-            "Crée un .docx multi-section avec styles avancés (named_styles, "
-            "blocks paragraph/heading/table/list/image/page_break, headers/footers)."
+            "Create a multi-section .docx from a structured spec (sections, "
+            "ordered blocks, named styles, headers/footers, page setup)."
         ),
+        examples=[
+            {
+                "output_path": "/tmp/report.docx",
+                "sections": [
+                    {
+                        "paper_size": "A4",
+                        "orientation": "portrait",
+                        "blocks": [
+                            {"type": "heading", "text": "Quarterly Report", "level": 1},
+                            {"type": "paragraph", "text": "Executive summary..."},
+                            {
+                                "type": "table",
+                                "rows": [
+                                    ["Product", "Q1", "Q2"],
+                                    ["Widget", "100", "120"],
+                                ],
+                            },
+                            {"type": "page_break"},
+                        ],
+                    },
+                ],
+                "named_styles": {
+                    "emphasis": {"font": {"bold": True, "color": "#1F4E78"}},
+                },
+            },
+        ],
     )
     async def write_docx(
         self,
-        output_path: str,
-        sections: list[dict[str, Any]],
-        named_styles: dict[str, Any] | None = None,
-        document_setup: dict[str, Any] | None = None,
-        overwrite: bool = False,
+        output_path: Annotated[str, "Filesystem path of the .docx to create."],
+        sections: Annotated[
+            list[dict[str, Any]],
+            (
+                "Ordered list of section specs. Each section dict supports: "
+                "paper_size ('A4' | 'Letter' | 'Legal' | 'A3' | 'A5')?, "
+                "orientation ('portrait' | 'landscape')?, margins_cm {top, bottom, left, right}?, "
+                "header_text (str)?, footer_text (str)?, "
+                "blocks (list[Block], required). "
+                "Block = {type: 'paragraph' | 'heading' | 'table' | 'list' | 'image' | 'page_break', ...}. "
+                "paragraph: {text | runs[{text, font?}], alignment?, style?}. "
+                "heading: {text, level: 1-9, style?}. "
+                "table: {rows: list[list[str]], column_widths_cm?, style?}. "
+                "list: {items: list[str], list_type: 'bullet' | 'number', style?}. "
+                "image: {path, width_cm?, height_cm?, alignment?}."
+            ),
+        ],
+        named_styles: Annotated[
+            dict[str, Any] | None,
+            (
+                "Mapping {style_id: StyleSpec} referenced via block.style. "
+                "StyleSpec keys: font {name?, size?, bold?, italic?, underline?, color?}, "
+                "paragraph {alignment?, line_spacing?, space_before?, space_after?}."
+            ),
+        ] = None,
+        document_setup: Annotated[
+            dict[str, Any] | None,
+            (
+                "Global document metadata/setup: title (str)?, author (str)?, subject (str)?, "
+                "default_font {name?, size?}?."
+            ),
+        ] = None,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Crée un .docx."""
@@ -129,17 +195,45 @@ class DocxWorker:
     @skill(
         "docx.append_section",
         description=(
-            "Ajoute des blocs à un .docx existant. Préserve styles, "
-            "headers/footers, sections existantes."
+            "Append blocks to an existing .docx without touching its prior "
+            "content, styles, headers, footers, or sections."
         ),
+        examples=[
+            {
+                "path": "/tmp/report.docx",
+                "blocks": [
+                    {"type": "heading", "text": "Appendix", "level": 1},
+                    {"type": "paragraph", "text": "Additional details follow..."},
+                ],
+                "section_break_before": True,
+            },
+        ],
     )
     async def append_section(
         self,
-        path: str,
-        blocks: list[dict[str, Any]],
-        named_styles: dict[str, Any] | None = None,
-        section_break_before: bool = False,
-        new_section_setup: dict[str, Any] | None = None,
+        path: Annotated[str, "Filesystem path to the existing .docx file."],
+        blocks: Annotated[
+            list[dict[str, Any]],
+            (
+                "Ordered list of blocks to append. Same Block schema as docx.write: "
+                "{type: 'paragraph' | 'heading' | 'table' | 'list' | 'image' | 'page_break', ...}."
+            ),
+        ],
+        named_styles: Annotated[
+            dict[str, Any] | None,
+            "Mapping {style_id: StyleSpec} referenced via block.style — same shape as docx.write.named_styles.",
+        ] = None,
+        section_break_before: Annotated[
+            bool,
+            "Insert a new section break before appending the blocks.",
+        ] = False,
+        new_section_setup: Annotated[
+            dict[str, Any] | None,
+            (
+                "Page setup of the new section when section_break_before=true: "
+                "{paper_size?, orientation?, margins_cm?, header_text?, footer_text?}."
+            ),
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Ajoute des blocs à un .docx."""
@@ -156,14 +250,20 @@ class DocxWorker:
     @skill(
         "docx.extract_tables",
         description=(
-            "Extraction ciblée des tables. Plus rapide que docx.read quand "
-            "le caller veut juste les tables."
+            "Extract only the tables from a .docx. Faster than docx.read "
+            "when the caller doesn't need paragraphs or styles."
         ),
+        examples=[
+            {"path": "/path/to/document.docx"},
+        ],
     )
     async def extract_tables(
         self,
-        path: str,
-        include_headers: bool = True,
+        path: Annotated[str, "Filesystem path to the source .docx file."],
+        include_headers: Annotated[
+            bool,
+            "Expose the first row of each table as 'headers' for convenience.",
+        ] = True,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Extraction tables."""
@@ -172,17 +272,38 @@ class DocxWorker:
     @skill(
         "docx.render_from_template",
         description=(
-            "Rend un template .docx (placeholders Jinja2 via docxtpl) "
-            "en injectant un contexte. strict_undefined par défaut."
+            "Render a .docx template containing Jinja2 placeholders via "
+            "docxtpl, injecting the provided context. Strict mode by default."
         ),
+        examples=[
+            {
+                "template_path": "/path/to/invoice_template.docx",
+                "output_path": "/tmp/invoice_42.docx",
+                "context": {
+                    "client_name": "Acme Corp",
+                    "invoice_number": "INV-2026-042",
+                    "total": 1250.00,
+                    "items": [
+                        {"description": "Consulting", "amount": 1000.00},
+                        {"description": "Support", "amount": 250.00},
+                    ],
+                },
+            },
+        ],
     )
     async def render_from_template(
         self,
-        template_path: str,
-        output_path: str,
-        context: dict[str, Any],
-        strict_undefined: bool = True,
-        overwrite: bool = False,
+        template_path: Annotated[str, "Filesystem path to the source .docx template with Jinja2 placeholders."],
+        output_path: Annotated[str, "Filesystem path of the rendered .docx to create."],
+        context: Annotated[
+            dict[str, Any],
+            "Jinja2 context: arbitrary keys consumed by the template. Values can be strings, numbers, lists, nested dicts.",
+        ],
+        strict_undefined: Annotated[
+            bool,
+            "When true, missing placeholders raise an error instead of rendering as empty.",
+        ] = True,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Rendu Jinja2 .docx."""

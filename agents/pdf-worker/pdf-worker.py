@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
@@ -45,16 +45,31 @@ class PdfWorker:
     @skill(
         "pdf.read_text",
         description=(
-            "Extrait le texte d'un PDF page par page avec metadata. "
-            "Page range 1-based. Cap 100k chars/page."
+            "Extract text from a PDF page-by-page with optional metadata. "
+            "Page numbers are 1-based; text is capped per page."
         ),
+        examples=[
+            {
+                "path": "/path/to/document.pdf",
+                "page_range": "1-3,5",
+            },
+        ],
     )
     async def read_text(
         self,
-        path: str,
-        page_range: str | None = None,
-        max_chars_per_page: int = 100_000,
-        include_metadata: bool = True,
+        path: Annotated[str, "Filesystem path to the source .pdf file."],
+        page_range: Annotated[
+            str | None,
+            "1-based page selection, e.g. '1-5,7,10-12'. Omit to read all pages.",
+        ] = None,
+        max_chars_per_page: Annotated[
+            int,
+            "Maximum characters returned per page (truncates and sets truncated=true).",
+        ] = 100_000,
+        include_metadata: Annotated[
+            bool,
+            "Include PDF metadata (title, author, producer, ...) in the response.",
+        ] = True,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Texte PDF, page par page."""
@@ -113,16 +128,39 @@ class PdfWorker:
     @skill(
         "pdf.read_tables",
         description=(
-            "Extrait les tables d'un PDF via pdfplumber. table_settings "
-            "configurable (vertical/horizontal strategy)."
+            "Extract tables from a PDF via pdfplumber. Table detection "
+            "strategies are configurable via table_settings."
         ),
+        examples=[
+            {
+                "path": "/path/to/report.pdf",
+                "page_range": "2-4",
+                "table_settings": {
+                    "vertical_strategy": "lines",
+                    "horizontal_strategy": "lines",
+                },
+            },
+        ],
     )
     async def read_tables(
         self,
-        path: str,
-        page_range: str | None = None,
-        table_settings: dict[str, Any] | None = None,
-        include_headers: bool = True,
+        path: Annotated[str, "Filesystem path to the source .pdf file."],
+        page_range: Annotated[
+            str | None,
+            "1-based page selection, e.g. '1-5,7'. Omit to scan every page.",
+        ] = None,
+        table_settings: Annotated[
+            dict[str, Any] | None,
+            (
+                "pdfplumber detection options. Common keys: "
+                "vertical_strategy ('lines' | 'text'), horizontal_strategy ('lines' | 'text'), "
+                "snap_tolerance (number), edge_min_length (number)."
+            ),
+        ] = None,
+        include_headers: Annotated[
+            bool,
+            "When true, exposes the first row of each table as 'headers' for convenience.",
+        ] = True,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Tables d'un PDF via pdfplumber."""
@@ -198,13 +236,16 @@ class PdfWorker:
     @skill(
         "pdf.read_forms",
         description=(
-            "Extrait les champs AcroForm (text, checkbox, radio, dropdown, "
-            "listbox, signature). Refuse XFA forms."
+            "Extract AcroForm fields (text, checkbox, radio, dropdown, "
+            "listbox, signature). XFA forms are rejected."
         ),
+        examples=[
+            {"path": "/path/to/form.pdf"},
+        ],
     )
     async def read_forms(
         self,
-        path: str,
+        path: Annotated[str, "Filesystem path to the source .pdf file."],
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Lit les champs AcroForm d'un PDF."""
@@ -290,22 +331,45 @@ class PdfWorker:
     @skill(
         "pdf.render_from_markdown",
         description=(
-            "Génère un PDF depuis Markdown (markdown → HTML → reportlab) "
-            "avec page_size, orientation, margins, metadata."
+            "Render a Markdown source into a PDF (Markdown → HTML → reportlab). "
+            "Supports page size, orientation, custom margins, and PDF metadata."
         ),
+        examples=[
+            {
+                "output_path": "/tmp/report.pdf",
+                "markdown": "# Report\n\nFirst paragraph.\n\n- bullet 1\n- bullet 2\n",
+                "page_size": "A4",
+                "title": "Quarterly Report",
+            },
+        ],
     )
     async def render_from_markdown(
         self,
-        output_path: str,
-        markdown: str | None = None,
-        markdown_path: str | None = None,
-        page_size: str = "A4",
-        orientation: str = "portrait",
-        margins_cm: dict[str, Any] | None = None,
-        title: str | None = None,
-        author: str | None = None,
-        subject: str | None = None,
-        overwrite: bool = False,
+        output_path: Annotated[str, "Filesystem path of the .pdf to create."],
+        markdown: Annotated[
+            str | None,
+            "Inline Markdown source. Provide exactly one of markdown or markdown_path.",
+        ] = None,
+        markdown_path: Annotated[
+            str | None,
+            "Path to a .md file. Provide exactly one of markdown or markdown_path.",
+        ] = None,
+        page_size: Annotated[
+            str,
+            "Page size: 'A4' (default) | 'Letter' | 'Legal' | 'A3' | 'A5'.",
+        ] = "A4",
+        orientation: Annotated[
+            str,
+            "Page orientation: 'portrait' (default) | 'landscape'.",
+        ] = "portrait",
+        margins_cm: Annotated[
+            dict[str, Any] | None,
+            "Page margins in cm as {top, bottom, left, right} numbers. Missing keys use defaults.",
+        ] = None,
+        title: Annotated[str | None, "PDF metadata title."] = None,
+        author: Annotated[str | None, "PDF metadata author."] = None,
+        subject: Annotated[str | None, "PDF metadata subject."] = None,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Markdown → PDF."""
@@ -405,15 +469,29 @@ class PdfWorker:
     @skill(
         "pdf.merge",
         description=(
-            "Concatène N PDFs (≥2). Préserve metadata depuis le PDF désigné."
+            "Concatenate ≥2 PDF files into one. Metadata is copied from the "
+            "PDF designated by metadata_from (index into paths)."
         ),
+        examples=[
+            {
+                "paths": ["/tmp/part1.pdf", "/tmp/part2.pdf"],
+                "output_path": "/tmp/merged.pdf",
+                "metadata_from": 0,
+            },
+        ],
     )
     async def merge(
         self,
-        paths: list[str],
-        output_path: str,
-        overwrite: bool = False,
-        metadata_from: int = 0,
+        paths: Annotated[
+            list[str],
+            "Ordered list of PDF paths to concatenate (length >= 2).",
+        ],
+        output_path: Annotated[str, "Filesystem path of the merged .pdf to create."],
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
+        metadata_from: Annotated[
+            int,
+            "0-based index into paths whose metadata is preserved in the merged PDF.",
+        ] = 0,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Concatène N PDFs."""
@@ -492,16 +570,30 @@ class PdfWorker:
     @skill(
         "pdf.split",
         description=(
-            "Découpe un PDF par plages ou page-par-page. Nommage zero-padded "
-            "ou via 'name' du range."
+            "Split a PDF into multiple files. Omit 'ranges' to split "
+            "page-by-page (zero-padded naming); otherwise pass named ranges."
         ),
+        examples=[
+            {
+                "path": "/tmp/full.pdf",
+                "output_dir": "/tmp/parts",
+                "ranges": [
+                    {"name": "intro", "pages": "1-3"},
+                    {"name": "body", "pages": "4-10"},
+                    {"name": "appendix", "pages": "11-12"},
+                ],
+            },
+        ],
     )
     async def split(
         self,
-        path: str,
-        output_dir: str,
-        ranges: list[dict[str, Any]] | None = None,
-        overwrite: bool = False,
+        path: Annotated[str, "Filesystem path to the source .pdf file."],
+        output_dir: Annotated[str, "Directory where the split parts are written (created if missing)."],
+        ranges: Annotated[
+            list[dict[str, Any]] | None,
+            "Named ranges: list of {name: str (output stem), pages: str (1-based, e.g. '1-3,7')}. Omit for page-by-page split.",
+        ] = None,
+        overwrite: Annotated[bool, "Allow overwriting existing output files."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Découpe un PDF."""

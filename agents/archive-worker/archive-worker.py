@@ -20,7 +20,7 @@ import fnmatch
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
@@ -48,14 +48,20 @@ class ArchiveWorker:
     @skill(
         "archive.list",
         description=(
-            "Liste le contenu d'une archive sans extraction. Retourne path, "
-            "size, mtime, is_dir, is_symlink pour chaque entrée."
+            "List the contents of an archive without extracting. Returns "
+            "{path, size, mtime, is_dir, is_symlink} per entry."
         ),
+        examples=[
+            {"archive_path": "/path/to/bundle.zip"},
+        ],
     )
     async def list_archive(
         self,
-        archive_path: str,
-        archive_format: str | None = None,
+        archive_path: Annotated[str, "Filesystem path to the archive file."],
+        archive_format: Annotated[
+            str | None,
+            "Force the format: 'zip' | 'tar' | 'tar.gz' | 'tar.bz2' | 'tar.xz'. Omit to infer from extension.",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Liste le contenu d'une archive."""
@@ -97,18 +103,37 @@ class ArchiveWorker:
     @skill(
         "archive.extract",
         description=(
-            "Extrait une archive avec garde-fous : path traversal, quota anti "
-            "zip-bomb, symlinks (opt-in). Filtre glob optionnel."
+            "Extract an archive safely with built-in guards: path traversal, "
+            "anti zip-bomb quota, opt-in symlinks. Optional glob filter."
         ),
+        examples=[
+            {
+                "archive_path": "/path/to/bundle.zip",
+                "target_dir": "/tmp/unpacked",
+                "glob_filter": "*.txt",
+            },
+        ],
     )
     async def extract_archive(
         self,
-        archive_path: str,
-        target_dir: str,
-        glob_filter: str | None = None,
-        max_uncompressed_bytes: int = DEFAULT_MAX_UNCOMPRESSED,
-        allow_symlinks: bool = False,
-        archive_format: str | None = None,
+        archive_path: Annotated[str, "Filesystem path to the archive file."],
+        target_dir: Annotated[str, "Directory where the archive is unpacked (created if missing)."],
+        glob_filter: Annotated[
+            str | None,
+            "fnmatch pattern applied to entry names (e.g. '*.csv', 'docs/*'). Omit to extract everything.",
+        ] = None,
+        max_uncompressed_bytes: Annotated[
+            int,
+            "Total uncompressed size cap (anti zip-bomb). Entries exceeding the quota are skipped.",
+        ] = DEFAULT_MAX_UNCOMPRESSED,
+        allow_symlinks: Annotated[
+            bool,
+            "Allow extracting symlinks/hardlinks. Disabled by default for safety.",
+        ] = False,
+        archive_format: Annotated[
+            str | None,
+            "Force the format: 'zip' | 'tar' | 'tar.gz' | 'tar.bz2' | 'tar.xz'. Omit to infer from extension.",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Extrait une archive en toute sécurité."""
@@ -187,15 +212,37 @@ class ArchiveWorker:
 
     @skill(
         "archive.create",
-        description="Crée une archive depuis fichiers/dossiers sources.",
+        description=(
+            "Create an archive from source files and/or directories. "
+            "Directories are added recursively."
+        ),
+        examples=[
+            {
+                "output_path": "/tmp/bundle.zip",
+                "archive_format": "zip",
+                "sources": ["/path/to/dir", "/path/to/file.txt"],
+            },
+        ],
     )
     async def create_archive(
         self,
-        output_path: str,
-        archive_format: str,
-        sources: list[str],
-        base_dir: str | None = None,
-        compression_level: int | None = None,
+        output_path: Annotated[str, "Filesystem path of the archive to create."],
+        archive_format: Annotated[
+            str,
+            "Archive format: 'zip' | 'tar' | 'tar.gz' | 'tar.bz2' | 'tar.xz'.",
+        ],
+        sources: Annotated[
+            list[str],
+            "List of file or directory paths to include. Directories are added recursively.",
+        ],
+        base_dir: Annotated[
+            str | None,
+            "Base directory used to compute archive-relative paths. Defaults to the common parent of sources.",
+        ] = None,
+        compression_level: Annotated[
+            int | None,
+            "Compression level (0-9 for zip / gz / bz2). Default 6 for zip, library default otherwise.",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Crée une archive."""
@@ -273,18 +320,37 @@ class ArchiveWorker:
     @skill(
         "archive.read_file",
         description=(
-            "Lit un fichier précis depuis une archive sans tout extraire. "
-            "Mode text (UTF-8) ou binary (base64). Cap par défaut 10 MB."
+            "Read a single file from an archive without extracting everything. "
+            "text mode returns UTF-8 string; binary mode returns base64."
         ),
+        examples=[
+            {
+                "archive_path": "/path/to/bundle.zip",
+                "entry_path": "docs/README.md",
+                "mode": "text",
+            },
+        ],
     )
     async def read_file(
         self,
-        archive_path: str,
-        entry_path: str,
-        mode: str = "text",
-        encoding: str = "utf-8",
-        max_bytes: int = DEFAULT_MAX_READ_BYTES,
-        archive_format: str | None = None,
+        archive_path: Annotated[str, "Filesystem path to the archive file."],
+        entry_path: Annotated[str, "Path of the file inside the archive (use archive.list to discover entries)."],
+        mode: Annotated[
+            str,
+            "'text' (decode as UTF-8 string) | 'binary' (return base64-encoded bytes).",
+        ] = "text",
+        encoding: Annotated[
+            str,
+            "Text encoding when mode='text' (default 'utf-8'). Ignored in binary mode.",
+        ] = "utf-8",
+        max_bytes: Annotated[
+            int,
+            "Maximum bytes read before raising TOO_LARGE. Default 10 MiB.",
+        ] = DEFAULT_MAX_READ_BYTES,
+        archive_format: Annotated[
+            str | None,
+            "Force the format: 'zip' | 'tar' | 'tar.gz' | 'tar.bz2' | 'tar.xz'. Omit to infer from extension.",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Lit un fichier interne à l'archive."""

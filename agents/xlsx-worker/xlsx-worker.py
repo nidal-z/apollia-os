@@ -20,7 +20,7 @@ from __future__ import annotations
 import datetime
 import json
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
@@ -72,18 +72,34 @@ class XlsxWorker:
     @skill(
         "xlsx.read",
         description=(
-            "Lit un fichier .xlsx et retourne JSON structuré (feuilles, "
-            "lignes typées, merged ranges, freeze panes). Mode 'values' ou 'formulas'."
+            "Read an .xlsx file and return structured JSON (sheets, typed "
+            "rows, merged ranges, freeze panes). Choose values or formulas."
         ),
+        examples=[
+            {
+                "path": "/path/to/data.xlsx",
+                "sheet_names": ["Q1", "Q2"],
+                "read_mode": "values",
+            },
+        ],
     )
     async def read_xlsx(
         self,
-        path: str,
-        sheet_names: list[str] | None = None,
-        read_mode: str = "values",
-        max_rows: int = 100_000,
-        max_cols: int = 1_000,
-        include_types: bool = False,
+        path: Annotated[str, "Filesystem path to the source .xlsx file."],
+        sheet_names: Annotated[
+            list[str] | None,
+            "Restrict reading to these sheet names. Omit to read every sheet.",
+        ] = None,
+        read_mode: Annotated[
+            str,
+            "'values' (computed cell values) | 'formulas' (raw formula strings).",
+        ] = "values",
+        max_rows: Annotated[int, "Hard cap on rows returned per sheet (truncates with truncated=true)."] = 100_000,
+        max_cols: Annotated[int, "Hard cap on columns returned per sheet."] = 1_000,
+        include_types: Annotated[
+            bool,
+            "Wrap each cell as {value, type} where type is 'int' | 'float' | 'str' | 'bool' | 'datetime' | 'formula'.",
+        ] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Lecture brute."""
@@ -101,19 +117,39 @@ class XlsxWorker:
     @skill(
         "xlsx.read_as_dataframe",
         description=(
-            "Lit un .xlsx en pandas.DataFrame, infère les dtypes, retourne "
-            "les records JSON."
+            "Read an .xlsx as a pandas DataFrame, infer dtypes, and return "
+            "JSON records (one dict per row)."
         ),
+        examples=[
+            {
+                "path": "/path/to/data.xlsx",
+                "sheet_name": "Sales",
+                "header_row": 0,
+                "dtypes_hint": {"order_id": "int", "total": "float"},
+            },
+        ],
     )
     async def read_as_dataframe(
         self,
-        path: str,
-        sheet_name: str | int | None = None,
-        header_row: int | None = 0,
-        skiprows: int = 0,
-        nrows: int | None = None,
-        dtypes_hint: dict[str, str] | None = None,
-        na_values: list[Any] | None = None,
+        path: Annotated[str, "Filesystem path to the source .xlsx file."],
+        sheet_name: Annotated[
+            str | int | None,
+            "Sheet name (str) or 0-based index (int). Omit to read the first sheet.",
+        ] = None,
+        header_row: Annotated[
+            int | None,
+            "0-based row index used as column headers. Pass null/None to skip header detection.",
+        ] = 0,
+        skiprows: Annotated[int, "Number of rows to skip at the top before header_row."] = 0,
+        nrows: Annotated[int | None, "Maximum number of data rows to return."] = None,
+        dtypes_hint: Annotated[
+            dict[str, str] | None,
+            "Per-column dtype hints {column_name: 'int' | 'float' | 'str' | 'bool' | 'datetime'}.",
+        ] = None,
+        na_values: Annotated[
+            list[Any] | None,
+            "Additional values to treat as NaN (e.g. ['N/A', '-', '#NULL!']).",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Lecture pandas."""
@@ -132,16 +168,55 @@ class XlsxWorker:
     @skill(
         "xlsx.write",
         description=(
-            "Crée un .xlsx multi-sheet avec styles avancés, conditional "
-            "formatting, freeze panes, auto-filter."
+            "Create a multi-sheet .xlsx with optional named styles, "
+            "conditional formatting, freeze panes, and auto-filter."
         ),
+        examples=[
+            {
+                "output_path": "/tmp/report.xlsx",
+                "sheets": [
+                    {
+                        "name": "Sales",
+                        "headers": ["Product", "Q1", "Q2"],
+                        "rows": [
+                            ["Widget", 100, 120],
+                            ["Gadget", 80, 95],
+                        ],
+                        "freeze": {"row": 1, "col": 0},
+                        "auto_filter": True,
+                    },
+                ],
+                "named_styles": {
+                    "header": {
+                        "font": {"bold": True, "color": "#FFFFFF"},
+                        "fill": {"color": "#1F4E78"},
+                    },
+                },
+            },
+        ],
     )
     async def write_xlsx(
         self,
-        output_path: str,
-        sheets: list[dict[str, Any]],
-        named_styles: dict[str, Any] | None = None,
-        overwrite: bool = False,
+        output_path: Annotated[str, "Filesystem path of the .xlsx to create."],
+        sheets: Annotated[
+            list[dict[str, Any]],
+            (
+                "Per-sheet specs. Each dict supports: name (str, required), headers (list[str]?), "
+                "rows (list[list[Any]], required), column_widths ({col_letter: width})?, "
+                "row_heights ({row_num: height})?, freeze {row, col}?, auto_filter (bool)?, "
+                "styles_apply [{style, range | cell_ref}]?, conditional_formatting [...]?"
+            ),
+        ],
+        named_styles: Annotated[
+            dict[str, Any] | None,
+            (
+                "Mapping {style_id: StyleSpec} reused via sheets[*].styles_apply. "
+                "StyleSpec keys: font {name?, size?, bold?, italic?, underline?, color?}, "
+                "fill {color, pattern?}, border {top/bottom/left/right: {style, color}}, "
+                "alignment {horizontal?, vertical?, wrap_text?}, number_format (str)."
+            ),
+        ] = None,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Écriture multi-sheet."""
@@ -157,14 +232,31 @@ class XlsxWorker:
     @skill(
         "xlsx.append_rows",
         description=(
-            "Ajoute des lignes à une feuille existante sans toucher au reste."
+            "Append rows to an existing sheet without modifying any other "
+            "cell, formula, style, or merged range."
         ),
+        examples=[
+            {
+                "path": "/tmp/report.xlsx",
+                "sheet_name": "Sales",
+                "rows": [
+                    ["Widget Pro", 150, 175],
+                    ["Gadget Plus", 110, 130],
+                ],
+            },
+        ],
     )
     async def append_rows(
         self,
-        path: str,
-        rows: list[list[Any]],
-        sheet_name: str | None = None,
+        path: Annotated[str, "Filesystem path to the existing .xlsx file."],
+        rows: Annotated[
+            list[list[Any]],
+            "List of rows; each row is a list of cell values (str/int/float/bool/None/ISO datetime).",
+        ],
+        sheet_name: Annotated[
+            str | None,
+            "Target sheet name. Omit to append to the first sheet.",
+        ] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Ajout de lignes."""
@@ -173,15 +265,29 @@ class XlsxWorker:
     @skill(
         "xlsx.update_cells",
         description=(
-            "Patch ciblé cellule par cellule (A1 notation). Préserve les "
-            "formules des cellules non touchées."
+            "Patch specific cells (A1 notation) in an existing sheet. "
+            "Untouched cells keep their values, formulas, and styles."
         ),
+        examples=[
+            {
+                "path": "/tmp/report.xlsx",
+                "sheet_name": "Sales",
+                "updates": [
+                    {"cell_ref": "B2", "value": 200},
+                    {"cell_ref": "C2", "value": 215},
+                    {"cell_ref": "D5", "value": "=B5+C5"},
+                ],
+            },
+        ],
     )
     async def update_cells(
         self,
-        path: str,
-        sheet_name: str,
-        updates: list[dict[str, Any]],
+        path: Annotated[str, "Filesystem path to the existing .xlsx file."],
+        sheet_name: Annotated[str, "Target sheet name (must exist)."],
+        updates: Annotated[
+            list[dict[str, Any]],
+            "List of {cell_ref: A1-style string (e.g. 'B2'), value: any cell value (formula strings start with '=')}.",
+        ],
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Patch ciblé."""

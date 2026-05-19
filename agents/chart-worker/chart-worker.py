@@ -28,7 +28,7 @@ import io
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 # Headless rendering — must happen BEFORE importing pyplot. matplotlib
 # itself is an optional runtime dep (declared in the agent.toml packages
@@ -87,32 +87,70 @@ class ChartWorker:
     @skill(
         "chart.bar",
         description=(
-            "Bar chart PNG/SVG (vertical/horizontal, grouped/stacked) "
-            "depuis une liste de series."
+            "Generate a bar chart (PNG/SVG) from data series. Each series "
+            "produces one colored bar group; categories label the X axis."
         ),
+        examples=[
+            {
+                "series": [
+                    {"name": "Q1", "data": [10, 20, 30]},
+                    {"name": "Q2", "data": [15, 25, 35]},
+                ],
+                "categories": ["Product A", "Product B", "Product C"],
+                "title": "Quarterly Sales",
+                "output_path": "/tmp/sales.png",
+            },
+        ],
     )
     async def bar(
         self,
-        series: list[dict[str, Any]],
-        output_path: str | None = None,
-        output_mode: str = "file",
-        format: str | None = None,
-        title: str | None = None,
-        xlabel: str | None = None,
-        ylabel: str | None = None,
+        series: Annotated[
+            list[dict[str, Any]],
+            "List of {name: str, data: list[number] | list[{x, y}], color?: '#RRGGBB'} dicts — one per bar group.",
+        ],
+        output_path: Annotated[
+            str | None,
+            "Filesystem path to write the chart. Required when output_mode='file'.",
+        ] = None,
+        output_mode: Annotated[
+            str,
+            "'file' (writes to output_path) | 'base64' (returns inline in response).",
+        ] = "file",
+        format: Annotated[
+            str | None,
+            "'png' (default) | 'svg'. Inferred from output_path extension when omitted.",
+        ] = None,
+        title: Annotated[str | None, "Chart title shown at the top."] = None,
+        xlabel: Annotated[str | None, "X axis label."] = None,
+        ylabel: Annotated[str | None, "Y axis label."] = None,
         width_inches: float = 10.0,
         height_inches: float = 6.0,
         dpi: int = 150,
-        theme: str = "default",
+        theme: Annotated[
+            str,
+            "Visual theme: 'default' | 'dark' | 'minimal'.",
+        ] = "default",
         legend: bool = True,
         grid: bool = True,
-        overwrite: bool = False,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         font_size: int = 11,
         title_font_size: int = 14,
-        categories: list[Any] | None = None,
-        orientation: str = "vertical",
-        bar_style: str = "grouped",
-        value_labels: bool = False,
+        categories: Annotated[
+            list[Any] | None,
+            "X-axis category labels (one per index in series[*].data when data is list[number]).",
+        ] = None,
+        orientation: Annotated[
+            str,
+            "'vertical' (bars upward, default) | 'horizontal' (bars rightward).",
+        ] = "vertical",
+        bar_style: Annotated[
+            str,
+            "'grouped' (default, side-by-side) | 'stacked' (cumulative).",
+        ] = "grouped",
+        value_labels: Annotated[
+            bool,
+            "Display numeric value labels on top of each bar.",
+        ] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Bar chart."""
@@ -126,30 +164,66 @@ class ChartWorker:
     @skill(
         "chart.line",
         description=(
-            "Line chart PNG/SVG. Axes datetime/number/category, markers, line styles."
+            "Generate a line chart (PNG/SVG). Supports datetime, numeric, "
+            "or categorical X axes, markers, dashed/dotted styles."
         ),
+        examples=[
+            {
+                "series": [
+                    {
+                        "name": "Revenue",
+                        "data": [
+                            {"x": "2026-01-01", "y": 100},
+                            {"x": "2026-02-01", "y": 130},
+                            {"x": "2026-03-01", "y": 175},
+                        ],
+                    },
+                ],
+                "x_type": "datetime",
+                "title": "Monthly Revenue",
+                "output_path": "/tmp/revenue.png",
+            },
+        ],
     )
     async def line(
         self,
-        series: list[dict[str, Any]],
-        output_path: str | None = None,
-        output_mode: str = "file",
-        format: str | None = None,
-        title: str | None = None,
-        xlabel: str | None = None,
-        ylabel: str | None = None,
+        series: Annotated[
+            list[dict[str, Any]],
+            "List of {name: str, data: list[{x, y}], color?, line_style?, line_width?, marker?} dicts. data points are {x, y} objects.",
+        ],
+        output_path: Annotated[
+            str | None,
+            "Filesystem path to write the chart. Required when output_mode='file'.",
+        ] = None,
+        output_mode: Annotated[
+            str,
+            "'file' (writes to output_path) | 'base64' (returns inline in response).",
+        ] = "file",
+        format: Annotated[
+            str | None,
+            "'png' (default) | 'svg'. Inferred from output_path extension when omitted.",
+        ] = None,
+        title: Annotated[str | None, "Chart title shown at the top."] = None,
+        xlabel: Annotated[str | None, "X axis label."] = None,
+        ylabel: Annotated[str | None, "Y axis label."] = None,
         width_inches: float = 10.0,
         height_inches: float = 6.0,
         dpi: int = 150,
-        theme: str = "default",
+        theme: Annotated[
+            str,
+            "Visual theme: 'default' | 'dark' | 'minimal'.",
+        ] = "default",
         legend: bool = True,
         grid: bool = True,
-        overwrite: bool = False,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         font_size: int = 11,
         title_font_size: int = 14,
-        x_type: str = "auto",
-        y_log_scale: bool = False,
-        area_fill: bool = False,
+        x_type: Annotated[
+            str,
+            "X-axis interpretation: 'auto' (detect) | 'number' | 'datetime' (ISO 8601) | 'category'.",
+        ] = "auto",
+        y_log_scale: Annotated[bool, "Use logarithmic scale on Y axis."] = False,
+        area_fill: Annotated[bool, "Fill the area below each line with translucent color."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Line chart."""
@@ -163,34 +237,71 @@ class ChartWorker:
     @skill(
         "chart.pie",
         description=(
-            "Pie ou donut chart PNG/SVG. Explode, show_percent, hole_size, start_angle."
+            "Generate a pie or donut chart (PNG/SVG). Supports explode, "
+            "percent/value labels, donut hole sizing, custom start angle."
         ),
+        examples=[
+            {
+                "data": [
+                    {"label": "Chrome", "value": 65.2},
+                    {"label": "Safari", "value": 18.7},
+                    {"label": "Firefox", "value": 8.5},
+                    {"label": "Other", "value": 7.6},
+                ],
+                "title": "Browser Market Share",
+                "output_path": "/tmp/browsers.png",
+            },
+        ],
     )
     async def pie(
         self,
-        data: list[dict[str, Any]],
-        output_path: str | None = None,
-        output_mode: str = "file",
-        format: str | None = None,
-        title: str | None = None,
-        xlabel: str | None = None,
-        ylabel: str | None = None,
+        data: Annotated[
+            list[dict[str, Any]],
+            "List of {label: str, value: number >= 0} dicts. Sum of values must be > 0.",
+        ],
+        output_path: Annotated[
+            str | None,
+            "Filesystem path to write the chart. Required when output_mode='file'.",
+        ] = None,
+        output_mode: Annotated[
+            str,
+            "'file' (writes to output_path) | 'base64' (returns inline in response).",
+        ] = "file",
+        format: Annotated[
+            str | None,
+            "'png' (default) | 'svg'. Inferred from output_path extension when omitted.",
+        ] = None,
+        title: Annotated[str | None, "Chart title shown at the top."] = None,
+        xlabel: Annotated[str | None, "X axis label (rarely used on pies)."] = None,
+        ylabel: Annotated[str | None, "Y axis label (rarely used on pies)."] = None,
         width_inches: float = 10.0,
         height_inches: float = 6.0,
         dpi: int = 150,
-        theme: str = "default",
+        theme: Annotated[
+            str,
+            "Visual theme: 'default' | 'dark' | 'minimal'.",
+        ] = "default",
         legend: bool = True,
         grid: bool = True,
-        overwrite: bool = False,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         font_size: int = 11,
         title_font_size: int = 14,
-        donut: bool = False,
-        hole_size: float | None = None,
-        colors: list[str] | None = None,
-        show_percent: bool = True,
-        show_values: bool = False,
-        explode: list[float] | None = None,
-        start_angle: float = 90.0,
+        donut: Annotated[bool, "Render as a donut (hollow center) instead of full pie."] = False,
+        hole_size: Annotated[
+            float | None,
+            "Donut hole radius in [0.0, 0.9]. Default 0.4 when donut=True.",
+        ] = None,
+        colors: Annotated[
+            list[str] | None,
+            "Hex color list ('#RRGGBB') — must match len(data) when provided.",
+        ] = None,
+        show_percent: Annotated[bool, "Annotate each slice with its percentage."] = True,
+        show_values: Annotated[bool, "Annotate each slice with its raw value."] = False,
+        explode: Annotated[
+            list[float] | None,
+            "Per-slice radial offset (0.0 flush, 0.1 typical pull-out). Length must match data.",
+        ] = None,
+        start_angle: Annotated[float, "Rotation of the first slice in degrees (90 = top)."] = 90.0,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Pie / donut chart."""
@@ -207,32 +318,69 @@ class ChartWorker:
     @skill(
         "chart.scatter",
         description=(
-            "Scatter / bubble chart PNG/SVG. Régression linéaire optionnelle (R² annoté)."
+            "Generate a scatter or bubble chart (PNG/SVG). Per-point sizing "
+            "via data[i].size; optional linear regression with R² annotated."
         ),
+        examples=[
+            {
+                "series": [
+                    {
+                        "name": "Sample A",
+                        "data": [
+                            {"x": 1.0, "y": 2.1},
+                            {"x": 2.0, "y": 4.3},
+                            {"x": 3.0, "y": 5.9},
+                            {"x": 4.0, "y": 8.2},
+                        ],
+                    },
+                ],
+                "regression": True,
+                "title": "Correlation",
+                "output_path": "/tmp/scatter.png",
+            },
+        ],
     )
     async def scatter(
         self,
-        series: list[dict[str, Any]],
-        output_path: str | None = None,
-        output_mode: str = "file",
-        format: str | None = None,
-        title: str | None = None,
-        xlabel: str | None = None,
-        ylabel: str | None = None,
+        series: Annotated[
+            list[dict[str, Any]],
+            "List of {name: str, data: list[{x, y, size?}], color?, marker_style?} dicts. size overrides marker_size per point.",
+        ],
+        output_path: Annotated[
+            str | None,
+            "Filesystem path to write the chart. Required when output_mode='file'.",
+        ] = None,
+        output_mode: Annotated[
+            str,
+            "'file' (writes to output_path) | 'base64' (returns inline in response).",
+        ] = "file",
+        format: Annotated[
+            str | None,
+            "'png' (default) | 'svg'. Inferred from output_path extension when omitted.",
+        ] = None,
+        title: Annotated[str | None, "Chart title shown at the top."] = None,
+        xlabel: Annotated[str | None, "X axis label."] = None,
+        ylabel: Annotated[str | None, "Y axis label."] = None,
         width_inches: float = 10.0,
         height_inches: float = 6.0,
         dpi: int = 150,
-        theme: str = "default",
+        theme: Annotated[
+            str,
+            "Visual theme: 'default' | 'dark' | 'minimal'.",
+        ] = "default",
         legend: bool = True,
         grid: bool = True,
-        overwrite: bool = False,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         font_size: int = 11,
         title_font_size: int = 14,
-        x_type: str = "number",
-        y_type: str = "number",
-        regression: bool = False,
-        marker_size: float = 50.0,
-        alpha: float = 0.7,
+        x_type: Annotated[str, "X-axis: 'number' (default) | 'datetime' (ISO 8601)."] = "number",
+        y_type: Annotated[str, "Y-axis: 'number' (default) | 'datetime' (ISO 8601)."] = "number",
+        regression: Annotated[
+            bool,
+            "Overlay a least-squares linear fit and annotate R² (numeric axes only).",
+        ] = False,
+        marker_size: Annotated[float, "Default marker area in points² (overridden by data[i].size)."] = 50.0,
+        alpha: Annotated[float, "Marker opacity in [0.0, 1.0]."] = 0.7,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Scatter / bubble chart."""
@@ -246,36 +394,78 @@ class ChartWorker:
     @skill(
         "chart.heatmap",
         description=(
-            "Heatmap depuis matrice numérique. 8 colormaps, show_values overlay."
+            "Generate a heatmap (PNG/SVG) from a 2D numeric matrix. Supports "
+            "8 colormaps, optional value overlay, colorbar."
         ),
+        examples=[
+            {
+                "matrix": [
+                    [1.0, 0.8, 0.3],
+                    [0.8, 1.0, 0.5],
+                    [0.3, 0.5, 1.0],
+                ],
+                "row_labels": ["A", "B", "C"],
+                "col_labels": ["A", "B", "C"],
+                "show_values": True,
+                "title": "Correlation Matrix",
+                "output_path": "/tmp/heatmap.png",
+            },
+        ],
     )
     async def heatmap(
         self,
-        matrix: list[list[float]],
-        output_path: str | None = None,
-        output_mode: str = "file",
-        format: str | None = None,
-        title: str | None = None,
-        xlabel: str | None = None,
-        ylabel: str | None = None,
+        matrix: Annotated[
+            list[list[float]],
+            "2D matrix of numbers (rows × cols). All rows must have the same length; no NaN/Inf.",
+        ],
+        output_path: Annotated[
+            str | None,
+            "Filesystem path to write the chart. Required when output_mode='file'.",
+        ] = None,
+        output_mode: Annotated[
+            str,
+            "'file' (writes to output_path) | 'base64' (returns inline in response).",
+        ] = "file",
+        format: Annotated[
+            str | None,
+            "'png' (default) | 'svg'. Inferred from output_path extension when omitted.",
+        ] = None,
+        title: Annotated[str | None, "Chart title shown at the top."] = None,
+        xlabel: Annotated[str | None, "X axis label."] = None,
+        ylabel: Annotated[str | None, "Y axis label."] = None,
         width_inches: float = 10.0,
         height_inches: float = 6.0,
         dpi: int = 150,
-        theme: str = "default",
+        theme: Annotated[
+            str,
+            "Visual theme: 'default' | 'dark' | 'minimal'.",
+        ] = "default",
         legend: bool = True,
         grid: bool = True,
-        overwrite: bool = False,
+        overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         font_size: int = 11,
         title_font_size: int = 14,
-        row_labels: list[str] | None = None,
-        col_labels: list[str] | None = None,
-        colormap: str = "viridis",
-        vmin: float | None = None,
-        vmax: float | None = None,
-        show_values: bool = False,
-        value_format: str = "{:.2f}",
-        colorbar: bool = True,
-        colorbar_label: str | None = None,
+        row_labels: Annotated[
+            list[str] | None,
+            "Y-axis row labels — length must equal matrix row count.",
+        ] = None,
+        col_labels: Annotated[
+            list[str] | None,
+            "X-axis column labels — length must equal matrix column count.",
+        ] = None,
+        colormap: Annotated[
+            str,
+            "Matplotlib colormap: 'viridis' | 'plasma' | 'magma' | 'inferno' | 'Blues' | 'Reds' | 'Greens' | 'RdBu'.",
+        ] = "viridis",
+        vmin: Annotated[float | None, "Lower bound for colormap normalization (default: matrix min)."] = None,
+        vmax: Annotated[float | None, "Upper bound for colormap normalization (default: matrix max)."] = None,
+        show_values: Annotated[bool, "Overlay each cell with its formatted numeric value."] = False,
+        value_format: Annotated[
+            str,
+            "Python format spec applied to each cell value (e.g. '{:.2f}', '{:.0%}').",
+        ] = "{:.2f}",
+        colorbar: Annotated[bool, "Display the colorbar legend on the right."] = True,
+        colorbar_label: Annotated[str | None, "Optional label rendered alongside the colorbar."] = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Heatmap."""
