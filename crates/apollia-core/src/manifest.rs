@@ -196,6 +196,25 @@ pub struct AgentManifest {
     /// utilisateur (ex. `onboarding-agent`).
     #[serde(default)]
     pub user_memory_write: bool,
+
+    /// Noms logiques des datasources YAML déclarées via `@agent(datasources=...)`.
+    ///
+    /// Chaque nom doit correspondre à un fichier `<agent_dir>/datasources/<name>.yaml`.
+    /// Le runtime charge ces fichiers au boot et les expose via `ctx.datasources.get(name)`.
+    /// Une datasource non déclarée déclenche `FileNotFoundError` côté Python
+    /// même si le fichier existe sur disque (principe least-privilege, ADR-103).
+    /// Vide par défaut — agents sans datasources.
+    #[serde(default)]
+    pub datasources: Vec<String>,
+
+    /// Noms logiques des templates Jinja2 déclarés via `@agent(templates=...)`.
+    ///
+    /// Chaque nom doit correspondre à un fichier `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`.
+    /// Le runtime compile ces templates au boot et les expose via
+    /// `ctx.templates.render(name, **context)` (ADR-103).
+    /// Vide par défaut — agents sans templates.
+    #[serde(default)]
+    pub templates: Vec<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -261,6 +280,8 @@ mod tests {
             setup_notes: None,
             agent_class: None,
             user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -300,6 +321,8 @@ mod tests {
             setup_notes: None,
             agent_class: None,
             user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -444,6 +467,8 @@ mod tests {
             setup_notes: None,
             agent_class: None,
             user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

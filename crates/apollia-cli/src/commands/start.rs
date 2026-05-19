@@ -305,6 +305,12 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             )
         };
 
+        // ADR-103 (LOT 5) — directory containing the agent .py, used to
+        // resolve datasources/ and templates/ files relative to the agent.
+        let agent_dir = agent_path.parent().map(Path::to_path_buf);
+        let datasources_declared = manifest.datasources.clone();
+        let templates_declared = manifest.templates.clone();
+
         let ctx: PyObject = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
                 llm_router,
@@ -324,6 +330,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 manifest.user_memory_write, // user_memory_writable — manifest-controlled
             )
             .with_profile(profile_interface)
+            // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+            .with_datasources(datasources_declared, agent_dir.as_deref())
+            .with_templates(templates_declared, agent_dir.as_deref())
             // ADR-088 — relier le contexte à la task pour que ctx.log()
             // étiquette les RuntimeEvent::AgentLog persistés.
             .with_task_id(task.task_id.clone());
@@ -494,6 +503,15 @@ struct AIPProductionBackend {
     a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
+    /// Datasources déclarées au manifest (`manifest.datasources`). Vide quand
+    /// l'agent n'en déclare pas (ADR-103, LOT 5).
+    datasources_declared: Vec<String>,
+    /// Templates Jinja2 déclarés au manifest (`manifest.templates`). Vide
+    /// quand l'agent n'en déclare pas (ADR-103, LOT 5).
+    templates_declared: Vec<String>,
+    /// Répertoire racine de l'agent — utilisé pour résoudre
+    /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
+    agent_dir: Option<PathBuf>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -515,6 +533,9 @@ impl Clone for AIPProductionBackend {
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
             user_memory_write: self.user_memory_write,
+            datasources_declared: self.datasources_declared.clone(),
+            templates_declared: self.templates_declared.clone(),
+            agent_dir: self.agent_dir.clone(),
         }
     }
 }
@@ -548,6 +569,13 @@ struct BridgeRunner {
     tools_config: apollia_core::ToolsConfig,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     user_memory_write: bool,
+    /// Datasources déclarées au manifest (ADR-103, LOT 5).
+    datasources_declared: Vec<String>,
+    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    templates_declared: Vec<String>,
+    /// Répertoire racine de l'agent — résolution `datasources/` et
+    /// `templates/` (ADR-103, LOT 5).
+    agent_dir: Option<PathBuf>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -569,6 +597,9 @@ impl AgentRunner for BridgeRunner {
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
         let user_memory_write = self.user_memory_write;
+        let datasources_declared = self.datasources_declared.clone();
+        let templates_declared = self.templates_declared.clone();
+        let agent_dir = self.agent_dir.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -690,6 +721,9 @@ impl AgentRunner for BridgeRunner {
                     user_memory_write, // user_memory_writable — manifest-controlled
                 )
                 .with_profile(profile_interface)
+                // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+                .with_datasources(datasources_declared, agent_dir.as_deref())
+                .with_templates(templates_declared, agent_dir.as_deref())
                 // ADR-088 — task_id pour étiqueter ctx.log() côté trace.
                 .with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
@@ -722,6 +756,9 @@ impl ExecutionBackend for AIPProductionBackend {
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
             user_memory_write: self.user_memory_write,
+            datasources_declared: self.datasources_declared.clone(),
+            templates_declared: self.templates_declared.clone(),
+            agent_dir: self.agent_dir.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -833,6 +870,12 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let supports_a2a = validated.manifest.supports_a2a;
             let user_memory_write = validated.manifest.user_memory_write;
+            // ADR-103 (LOT 5) — capture datasources/templates declarations +
+            // the agent's package directory so the BridgeRunner can build
+            // ctx.datasources / ctx.templates on every call_run.
+            let datasources_declared = validated.manifest.datasources.clone();
+            let templates_declared = validated.manifest.templates.clone();
+            let agent_dir = agent_path.parent().map(Path::to_path_buf);
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -851,6 +894,9 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 a2a_invoker,
                 tools_config: self.tools_config.clone(),
                 user_memory_write,
+                datasources_declared,
+                templates_declared,
+                agent_dir,
             })
         })();
 

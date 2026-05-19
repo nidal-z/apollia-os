@@ -1368,28 +1368,50 @@ impl RuntimeContext {
         self
     }
 
-    // ── LOT 4 — Builders pour les nouvelles surfaces nestées ────────────
-    /// Branche l'interface datasources sur le contexte (LOT 4/5).
+    // ── LOT 4/5 — Builders pour les nouvelles surfaces nestées ──────────
+    /// Branche l'interface datasources sur le contexte (LOT 5 — ADR-103).
     ///
-    /// Remplace la version par défaut (liste vide). Doit être appelé après
-    /// [`new_with_llm`](RuntimeContext::new_with_llm) par le bridge runtime
-    /// une fois le manifest lu et les fichiers YAML chargés.
+    /// Construit une [`crate::datasources::DatasourcesInterface`] gating sur
+    /// `declared` (typiquement `manifest.datasources`). Si `agent_dir` est
+    /// `Some`, charge immédiatement les fichiers
+    /// `<agent_dir>/datasources/<name>.yaml` dans le cache interne — c'est ce
+    /// chemin qui est emprunté par la production. Pour les tests, passer
+    /// `None` laisse le cache vide (toute lecture renverra
+    /// `FileNotFoundError("not found on disk")`).
+    ///
+    /// Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
     pub fn with_datasources(
         mut self,
-        ds: crate::datasources::DatasourcesInterface,
+        declared: Vec<String>,
+        agent_dir: Option<&std::path::Path>,
     ) -> Self {
+        let mut iface = crate::datasources::DatasourcesInterface::new(declared);
+        if let Some(dir) = agent_dir {
+            let _ = iface.load_from_dir(dir);
+        }
         self.datasources_iface =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, ds).ok());
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
         self
     }
 
-    /// Branche l'interface templates Jinja2 sur le contexte (LOT 4/5).
+    /// Branche l'interface templates Jinja2 sur le contexte (LOT 5 — ADR-103).
+    ///
+    /// Construit une [`crate::templates::TemplatesInterface`] gating sur
+    /// `declared` (typiquement `manifest.templates`). Si `agent_dir` est
+    /// `Some`, compile immédiatement les templates Jinja depuis
+    /// `<agent_dir>/templates/<name>.{j2,jinja2,jinja}`. Pour les tests, passer
+    /// `None` laisse l'environnement minijinja vide.
     pub fn with_templates(
         mut self,
-        tp: crate::templates::TemplatesInterface,
+        declared: Vec<String>,
+        agent_dir: Option<&std::path::Path>,
     ) -> Self {
+        let mut iface = crate::templates::TemplatesInterface::new(declared);
+        if let Some(dir) = agent_dir {
+            let _ = iface.load_from_dir(dir);
+        }
         self.templates_iface =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, tp).ok());
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
         self
     }
 
@@ -2323,6 +2345,86 @@ mod runtime_context_tests {
         count.store(7, Ordering::Relaxed);
         assert_eq!(view.steps_remaining(), 0);
     }
+
+    /// LOT 5 (ADR-103) — end-to-end builder test.
+    /// `with_datasources(declared, Some(dir))` charge réellement le YAML
+    /// depuis disque et `ctx.datasources` expose la valeur à Python.
+    #[test]
+    fn test_with_datasources_loads_from_real_dir() {
+        // GIVEN a temp agent_dir with datasources/items.yaml
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let ds_dir = tmp.path().join("datasources");
+        std::fs::create_dir_all(&ds_dir).expect("mkdir");
+        std::fs::write(ds_dir.join("items.yaml"), "- one\n- two\n- three\n")
+            .expect("write yaml");
+
+        // WHEN we build a RuntimeContext via the builder
+        let ctx = RuntimeContext::for_test()
+            .with_datasources(vec!["items".to_string()], Some(tmp.path()));
+
+        // THEN ctx.datasources exposes the parsed list to Python
+        pyo3::Python::with_gil(|py| {
+            let ds_obj = ctx.datasources(py);
+            assert!(!ds_obj.is_none(py), "ctx.datasources should not be None");
+            let bound = ds_obj.bind(py);
+            let result = bound
+                .call_method1("get", ("items",))
+                .expect("get should succeed");
+            let len: usize = result
+                .call_method0("__len__")
+                .expect("len")
+                .extract()
+                .expect("usize");
+            assert_eq!(len, 3, "should have 3 entries");
+        });
+    }
+
+    /// LOT 5 (ADR-103) — `with_templates(declared, Some(dir))` charge réellement
+    /// les templates Jinja2 et le rendu fonctionne avec un dict Python.
+    #[test]
+    fn test_with_templates_renders_from_real_dir() {
+        // GIVEN a temp agent_dir with templates/greeting.j2
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let tpl_dir = tmp.path().join("templates");
+        std::fs::create_dir_all(&tpl_dir).expect("mkdir");
+        std::fs::write(tpl_dir.join("greeting.j2"), "Hello {{ who }}!")
+            .expect("write template");
+
+        // WHEN we build a RuntimeContext via the builder
+        let ctx = RuntimeContext::for_test()
+            .with_templates(vec!["greeting".to_string()], Some(tmp.path()));
+
+        // THEN ctx.templates.render returns the rendered string
+        pyo3::Python::with_gil(|py| {
+            let tpl_obj = ctx.templates(py);
+            assert!(!tpl_obj.is_none(py), "ctx.templates should not be None");
+            let bound = tpl_obj.bind(py);
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("who", "world").expect("set who");
+            let rendered: String = bound
+                .call_method("render", ("greeting",), Some(&kwargs))
+                .expect("render should succeed")
+                .extract()
+                .expect("string");
+            assert_eq!(rendered, "Hello world!");
+        });
+    }
+
+    /// LOT 5 (ADR-103) — `with_datasources(declared, None)` n'effectue aucun
+    /// I/O ; toute lecture renvoie `FileNotFoundError("not found on disk")`.
+    #[test]
+    fn test_with_datasources_no_dir_keeps_empty_cache() {
+        let ctx = RuntimeContext::for_test()
+            .with_datasources(vec!["foo".to_string()], None);
+        pyo3::Python::with_gil(|py| {
+            let ds_obj = ctx.datasources(py);
+            let bound = ds_obj.bind(py);
+            let err = bound
+                .call_method1("get", ("foo",))
+                .expect_err("should raise FileNotFoundError when no dir provided");
+            assert!(err.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>(py));
+        });
+    }
 }
 
 #[cfg(test)]
@@ -2805,6 +2907,8 @@ mod tool_proxy_a2a_tests {
             setup_notes: None,
             agent_class: None,
             user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
         }
     }
 

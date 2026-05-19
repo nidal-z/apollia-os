@@ -240,6 +240,101 @@ mod tests {
         });
     }
 
+    /// LOT 5 — Vérifie le chemin de production : `load_from_dir` lit un vrai
+    /// fichier `.j2` depuis `<agent_dir>/templates/<name>.j2` et le rend
+    /// correctement avec un contexte Python.
+    #[test]
+    fn test_load_from_dir_compiles_real_jinja() {
+        // GIVEN a temp agent_dir containing templates/report.j2
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let tpl_dir = tmp.path().join("templates");
+        std::fs::create_dir_all(&tpl_dir).expect("mkdir templates");
+        std::fs::write(
+            tpl_dir.join("report.j2"),
+            "Total: {{ count }} ({{ status }})",
+        )
+        .expect("write template");
+
+        // WHEN we load via the production path
+        let mut iface = TemplatesInterface::new(vec!["report".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        // THEN the template was compiled
+        assert_eq!(loaded, 1);
+        assert!(iface.has("report"));
+
+        // AND it renders with a Python context
+        Python::with_gil(|py| {
+            let ctx = PyDict::new(py);
+            ctx.set_item("count", 42).expect("set count");
+            ctx.set_item("status", "ok").expect("set status");
+            let rendered = iface
+                .render(py, "report", Some(&ctx))
+                .expect("render should succeed after load_from_dir");
+            assert_eq!(rendered, "Total: 42 (ok)");
+        });
+    }
+
+    /// LOT 5 — Vérifie les fallbacks d'extension `.jinja2` et `.jinja`.
+    #[test]
+    fn test_load_from_dir_extension_fallbacks() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let tpl_dir = tmp.path().join("templates");
+        std::fs::create_dir_all(&tpl_dir).expect("mkdir");
+        std::fs::write(tpl_dir.join("a.jinja2"), "A={{ v }}").expect("a");
+        std::fs::write(tpl_dir.join("b.jinja"), "B={{ v }}").expect("b");
+
+        let mut iface = TemplatesInterface::new(vec!["a".to_string(), "b".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        assert_eq!(loaded, 2);
+        assert!(iface.has("a"));
+        assert!(iface.has("b"));
+    }
+
+    /// LOT 5 — Un template manquant n'empêche pas la compilation des autres.
+    #[test]
+    fn test_load_from_dir_missing_template_is_non_fatal() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let tpl_dir = tmp.path().join("templates");
+        std::fs::create_dir_all(&tpl_dir).expect("mkdir");
+        std::fs::write(tpl_dir.join("present.j2"), "ok").expect("write");
+
+        let mut iface = TemplatesInterface::new(vec![
+            "present".to_string(),
+            "missing".to_string(),
+        ]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        assert_eq!(loaded, 1);
+        assert!(iface.has("present"));
+        assert!(!iface.has("missing"));
+
+        // missing template raises FileNotFoundError on render
+        Python::with_gil(|py| {
+            let err = iface
+                .render(py, "missing", None)
+                .expect_err("missing template should raise");
+            assert!(err.is_instance_of::<PyFileNotFoundError>(py));
+        });
+    }
+
+    /// LOT 5 — Un template syntactically invalide est ignoré (warn!), pas un crash.
+    #[test]
+    fn test_load_from_dir_invalid_template_is_non_fatal() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let tpl_dir = tmp.path().join("templates");
+        std::fs::create_dir_all(&tpl_dir).expect("mkdir");
+        // `{% if` not closed => compile error
+        std::fs::write(tpl_dir.join("broken.j2"), "{% if x").expect("write");
+
+        let mut iface = TemplatesInterface::new(vec!["broken".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        assert_eq!(loaded, 0);
+        assert!(!iface.has("broken"));
+    }
+
     #[test]
     fn test_has() {
         let mut t = TemplatesInterface::new(vec!["foo".to_string()]);

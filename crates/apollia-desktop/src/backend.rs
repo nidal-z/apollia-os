@@ -201,6 +201,13 @@ struct AIPProductionBackend {
     /// Operator-supplied tools configuration (`[tools]` section of apollia.toml).
     /// Drives `web_search`, `web_read`, `http_allowlist`, and statically-disabled tools.
     tools_config: ToolsConfig,
+    /// Datasources YAML déclarées au manifest (ADR-103, LOT 5).
+    datasources_declared: Vec<String>,
+    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    templates_declared: Vec<String>,
+    /// Répertoire racine de l'agent — utilisé pour résoudre
+    /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
+    agent_dir: Option<PathBuf>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -224,6 +231,9 @@ impl Clone for AIPProductionBackend {
             a2a_invoker: self.a2a_invoker.clone(),
             mailbox: self.mailbox.clone(),
             tools_config: self.tools_config.clone(),
+            datasources_declared: self.datasources_declared.clone(),
+            templates_declared: self.templates_declared.clone(),
+            agent_dir: self.agent_dir.clone(),
         }
     }
 }
@@ -263,6 +273,13 @@ struct BridgeRunner {
     user_context: Option<std::collections::HashMap<String, Vec<(String, String)>>>,
     /// Operator-supplied tools configuration (`[tools]` apollia.toml).
     tools_config: ToolsConfig,
+    /// Datasources YAML déclarées au manifest (ADR-103, LOT 5).
+    datasources_declared: Vec<String>,
+    /// Templates Jinja2 déclarés au manifest (ADR-103, LOT 5).
+    templates_declared: Vec<String>,
+    /// Répertoire racine de l'agent — résolution `datasources/` et
+    /// `templates/` (ADR-103, LOT 5).
+    agent_dir: Option<PathBuf>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -288,6 +305,9 @@ impl AgentRunner for BridgeRunner {
         let mailbox = self.mailbox.clone();
         let user_context = self.user_context.clone();
         let tools_config = self.tools_config.clone();
+        let datasources_declared = self.datasources_declared.clone();
+        let templates_declared = self.templates_declared.clone();
+        let agent_dir = self.agent_dir.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -475,6 +495,10 @@ impl AgentRunner for BridgeRunner {
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }
+                // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
+                ctx = ctx
+                    .with_datasources(datasources_declared, agent_dir.as_deref())
+                    .with_templates(templates_declared, agent_dir.as_deref());
                 // ADR-088 — relier le contexte à la task pour que ctx.log()
                 // étiquette correctement les RuntimeEvent::AgentLog persistés.
                 ctx = ctx.with_task_id(task.task_id.clone());
@@ -516,6 +540,9 @@ impl ExecutionBackend for AIPProductionBackend {
             // here. Chat Agent mode populates this through ChatAgentRunner.
             user_context: None,
             tools_config: self.tools_config.clone(),
+            datasources_declared: self.datasources_declared.clone(),
+            templates_declared: self.templates_declared.clone(),
+            agent_dir: self.agent_dir.clone(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -635,6 +662,11 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let user_memory_write = validated.manifest.user_memory_write;
             let supports_a2a = validated.manifest.supports_a2a;
+            // ADR-103 (LOT 5) — capture les déclarations + le dossier de
+            // l'agent pour brancher ctx.datasources / ctx.templates.
+            let datasources_declared = validated.manifest.datasources.clone();
+            let templates_declared = validated.manifest.templates.clone();
+            let agent_dir = agent_path.parent().map(Path::to_path_buf);
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -655,6 +687,9 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 a2a_invoker,
                 mailbox,
                 tools_config,
+                datasources_declared,
+                templates_declared,
+                agent_dir,
             })
         })();
 
@@ -758,6 +793,10 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         let memory_namespace = validated.manifest.memory_namespace.clone();
         let user_memory_write = validated.manifest.user_memory_write;
         let supports_a2a = validated.manifest.supports_a2a;
+        // ADR-103 (LOT 5) — capture datasources/templates + dossier de l'agent.
+        let datasources_declared = validated.manifest.datasources.clone();
+        let templates_declared = validated.manifest.templates.clone();
+        let agent_dir = install_path.parent().map(Path::to_path_buf);
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
         // 3. Resolve OnceLock handles
@@ -835,6 +874,9 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             mailbox,
             user_context,
             tools_config,
+            datasources_declared,
+            templates_declared,
+            agent_dir,
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

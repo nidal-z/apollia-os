@@ -256,6 +256,103 @@ mod tests {
         assert!(!ds.has("unknown"));
     }
 
+    /// LOT 5 — Vérifie le chemin de production : `load_from_dir` lit un vrai
+    /// fichier YAML depuis `<agent_dir>/datasources/<name>.yaml` et l'expose
+    /// au runtime Python via `get()`.
+    #[test]
+    fn test_load_from_dir_parses_real_yaml() {
+        // GIVEN a temp agent_dir containing datasources/competitors.yaml
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let ds_dir = tmp.path().join("datasources");
+        std::fs::create_dir_all(&ds_dir).expect("mkdir datasources");
+        std::fs::write(
+            ds_dir.join("competitors.yaml"),
+            "- name: OpenAI\n  rank: 1\n- name: Anthropic\n  rank: 2\n",
+        )
+        .expect("write yaml");
+
+        // WHEN we load via the production path
+        let mut iface = DatasourcesInterface::new(vec!["competitors".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        // THEN one datasource was loaded
+        assert_eq!(loaded, 1);
+        assert!(iface.has("competitors"));
+
+        // AND Python sees a list of two dicts
+        Python::with_gil(|py| {
+            let obj = iface
+                .get(py, "competitors")
+                .expect("get should succeed after load_from_dir");
+            let len: usize = obj
+                .bind(py)
+                .call_method0("__len__")
+                .expect("len")
+                .extract()
+                .expect("usize");
+            assert_eq!(len, 2);
+        });
+    }
+
+    /// LOT 5 — Vérifie le fallback `.yml` quand `.yaml` est absent.
+    #[test]
+    fn test_load_from_dir_yml_fallback() {
+        // GIVEN datasources/config.yml (not .yaml)
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let ds_dir = tmp.path().join("datasources");
+        std::fs::create_dir_all(&ds_dir).expect("mkdir");
+        std::fs::write(ds_dir.join("config.yml"), "enabled: true\n").expect("write");
+
+        // WHEN we load
+        let mut iface = DatasourcesInterface::new(vec!["config".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        // THEN the .yml file was picked up
+        assert_eq!(loaded, 1);
+        assert!(iface.has("config"));
+    }
+
+    /// LOT 5 — Vérifie qu'une datasource manquante n'empêche pas le chargement
+    /// des autres (logging warn! mais pas d'échec global, conforme à
+    /// l'ADR-103 et au commentaire de `load_from_dir`).
+    #[test]
+    fn test_load_from_dir_missing_file_is_non_fatal() {
+        // GIVEN datasources/present.yaml exists, declared also includes "missing"
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let ds_dir = tmp.path().join("datasources");
+        std::fs::create_dir_all(&ds_dir).expect("mkdir");
+        std::fs::write(ds_dir.join("present.yaml"), "value: 42\n").expect("write");
+
+        // WHEN we load both
+        let mut iface = DatasourcesInterface::new(vec![
+            "present".to_string(),
+            "missing".to_string(),
+        ]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        // THEN only present was loaded — no panic on missing
+        assert_eq!(loaded, 1);
+        assert!(iface.has("present"));
+        assert!(!iface.has("missing"));
+    }
+
+    /// LOT 5 — Un YAML malformé est ignoré (warn!), pas un crash de boot.
+    #[test]
+    fn test_load_from_dir_invalid_yaml_is_non_fatal() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let ds_dir = tmp.path().join("datasources");
+        std::fs::create_dir_all(&ds_dir).expect("mkdir");
+        // Tabulation au début d'un mapping = YAML invalide.
+        std::fs::write(ds_dir.join("broken.yaml"), "\t- not\n  valid").expect("write");
+
+        let mut iface = DatasourcesInterface::new(vec!["broken".to_string()]);
+        let loaded = iface.load_from_dir(tmp.path());
+
+        // load_from_dir doesn't propagate the parse error, just logs it.
+        assert_eq!(loaded, 0);
+        assert!(!iface.has("broken"));
+    }
+
     #[test]
     fn test_get_returns_python_object_via_json_loads() {
         // GIVEN a declared datasource with a parsed YAML value
