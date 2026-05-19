@@ -56,30 +56,45 @@ pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 /// `RiskLevel::Medium` or higher suspend the tool call and wait for user approval
 /// via `HitlFilesystemModal` in the desktop UI.
 pub struct NativeChatToolInvoker {
-    /// Sandbox root for file operations — set per session, never global.
+    // ADR-096 Phase 4 — the fields below used to back the hardcoded
+    // `invoke_*` fast path. With the convergence, all tools (including
+    // HITL-sensitive ones) flow through `fallback_dispatcher` and the
+    // executors carry their own per-session context. The fields are
+    // retained for backward compatibility with existing builder methods
+    // (`with_hitl_support`, `with_ask_user_support`, …); their values are
+    // ignored by `invoke()`. Will be removed in a follow-up refactor.
+    #[allow(dead_code)]
     sandbox_root: std::path::PathBuf,
     /// Original workspace path for risk classification (may differ from sandbox_root
     /// when sandbox_root has been resolved via fallback).
     workspace_path: Option<std::path::PathBuf>,
     /// EventBus sender for emitting `HitlFilesystemRequired` events.
+    #[allow(dead_code)]
     event_bus: Option<crate::eventbus::EventBusSender>,
     /// Pending filesystem HITL approvals store.
+    #[allow(dead_code)]
     pending_fs: Option<super::types::PendingFilesystemApprovals>,
     /// Session-level filesystem allow rules (shared Arc, not persisted).
+    #[allow(dead_code)]
     fs_allow_rules: Option<std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>>,
     /// Session identifier for HITL events.
+    #[allow(dead_code)]
     session_id: Option<String>,
     /// Filesystem risk configuration (path lists for system/credential paths).
+    #[allow(dead_code)]
     risk_config: apollia_core::FilesystemRiskConfig,
     /// Pending user input registry for the `ask_user` tool.
+    #[allow(dead_code)]
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
-    /// MCP manager handle — when present, tools named `mcp:<server>/<tool>` are
-    /// routed through this handle's `call_tool` instead of returning the
-    /// `unknown tool` error path. Without this, the chat-libre LLM can see
-    /// MCP tools in its tool list (registered in `tool_registry`) but every
-    /// invocation fails because the hardcoded `match` in `invoke()` only
-    /// knows the native tool names.
-    mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Generic fallback for any tool that isn't in the hardcoded native
+    /// match. When present, MCP + connector + future-tool calls are all
+    /// resolved through a single [`ToolDispatcher`] wrapped in
+    /// [`apollia_tools::dispatcher_invoker::DispatcherToolInvoker`], or
+    /// any provider-specific [`ToolInvoker`] (e.g.
+    /// `GoogleChatToolInvoker`). This is the convergence path that
+    /// replaces the per-family special-case fields previously bolted on
+    /// the invoker (cf. ADR-098).
+    fallback_dispatcher: Option<Arc<dyn ToolInvoker>>,
 }
 
 impl NativeChatToolInvoker {
@@ -103,7 +118,7 @@ impl NativeChatToolInvoker {
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
             pending_user_inputs: None,
-            mcp_handle: None,
+            fallback_dispatcher: None,
         }
     }
 
@@ -125,18 +140,18 @@ impl NativeChatToolInvoker {
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
             pending_user_inputs: None,
-            mcp_handle: None,
+            fallback_dispatcher: None,
         }
     }
 
-    /// Attach an [`McpClientManagerHandle`] so the invoker can route
-    /// `mcp:<server>/<tool>` tool calls through the manager instead of
-    /// returning `unknown tool`.
-    pub fn with_mcp_handle(
-        mut self,
-        handle: apollia_mcp::manager::McpClientManagerHandle,
-    ) -> Self {
-        self.mcp_handle = Some(handle);
+    /// Attach a generic fallback dispatcher that handles any tool not
+    /// covered by the hardcoded native fast path. The fast path stays in
+    /// place (Chat Libre keeps inline HITL filesystem semantics for
+    /// `file_write` / `file_edit` etc.); the fallback is consulted only
+    /// for unknown names — so MCP, connector, and future-provider tools
+    /// flow through it uniformly without per-family special cases.
+    pub fn with_fallback_dispatcher(mut self, invoker: Arc<dyn ToolInvoker>) -> Self {
+        self.fallback_dispatcher = Some(invoker);
         self
     }
 
@@ -183,6 +198,9 @@ impl NativeChatToolInvoker {
     /// Returns `Ok(())` if the operation can proceed (Safe/Low risk or already approved).
     /// Returns `Err(String)` with a human-readable reason if denied.
     /// Awaits user decision if the operation is Medium or above and not in allow rules.
+    ///
+    /// ADR-096 Phase 4 — superseded by [`crate::chat::native_wrappers::HitlFilesystemGuard`].
+    #[allow(dead_code)]
     async fn check_fs_hitl(
         &self,
         op: apollia_tools::FilesystemOp,
@@ -266,6 +284,7 @@ impl NativeChatToolInvoker {
     }
 
     /// Execute `bash_executor` with the given JSON arguments.
+    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(BashExecutor)
     async fn invoke_bash(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
 
@@ -298,18 +317,13 @@ impl NativeChatToolInvoker {
         .to_string())
     }
 
-    /// Execute `file_read` with the given JSON arguments.
-    async fn invoke_file_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_read::{FileRead, FileReadInput};
-
-        let tool = FileRead::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
-        let input: FileReadInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("file_read: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
+    // `file_read` migrated to the shared ToolDispatcher (ADR-096 Phase 2) —
+    // the executor is registered by `chat::manager::resolve_workspace_for_session`
+    // and reached via `fallback_dispatcher`. No HITL inline → safe to leave
+    // the dispatcher's permission engine in charge.
 
     /// Execute `file_write` with the given JSON arguments.
+    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(FileWrite)
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
         use apollia_tools::FilesystemOp;
@@ -355,18 +369,10 @@ impl NativeChatToolInvoker {
         Ok(serde_json::json!({"written": true}).to_string())
     }
 
-    /// Execute `file_list` with the given JSON arguments.
-    async fn invoke_file_list(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_list::{FileList, FileListInput};
-
-        let tool = FileList::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
-        let input: FileListInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("file_list: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
+    // `file_list` migrated — see Phase 2 ADR-096. Reached via fallback dispatcher.
 
     /// Execute `file_edit` with the given JSON arguments.
+    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(FileEdit)
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
         use apollia_tools::FilesystemOp;
@@ -402,32 +408,14 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    /// Execute `file_glob` with the given JSON arguments.
-    async fn invoke_file_glob(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_glob::{FileGlob, FileGlobInput};
-
-        let tool = FileGlob::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
-        let input: FileGlobInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("file_glob: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
-
-    /// Execute `file_grep` with the given JSON arguments.
-    async fn invoke_file_grep(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_grep::{FileGrep, FileGrepInput};
-
-        let tool = FileGrep::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
-        let input: FileGrepInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("file_grep: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
+    // `file_glob` + `file_grep` migrated — see Phase 2 ADR-096.
+    // Both reached via fallback dispatcher.
 
     /// Execute `http_fetch` with the given JSON arguments.
     ///
     /// In libre chat mode, the URL's hostname is dynamically added to the allowlist
     /// since the user explicitly enabled this tool and tool calls are HITL-approved.
+    #[allow(dead_code)] // ADR-096 P4 — replaced by DynamicAllowlistHttpFetch
     async fn invoke_http_fetch(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::http_fetch::{HttpFetch, HttpFetchInput};
 
@@ -447,6 +435,7 @@ impl NativeChatToolInvoker {
     /// Runs Python code in a dedicated `chat-libre` virtualenv at
     /// `~/.apollia/venvs/chat-libre/venv/`. The venv is lazily created on first
     /// invocation — no packages are pre-installed (the LLM can only use stdlib).
+    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(PythonExecutor)
     async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
@@ -492,6 +481,7 @@ impl NativeChatToolInvoker {
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
     /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
     /// — agents have their own namespaced databases.
+    #[allow(dead_code)] // ADR-096 P4 — dispatcher MemorySearchTool with per-session namespace
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
@@ -507,24 +497,13 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
-    /// Execute `notebook_read` with the given JSON arguments.
-    ///
-    /// Reads and formats the cells of a Jupyter `.ipynb` notebook for LLM consumption.
-    /// Only nbformat v4 is supported.
-    async fn invoke_notebook_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::notebook_read::{NotebookRead, NotebookReadInput};
-
-        let tool = NotebookRead::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
-        let input: NotebookReadInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("notebook_read: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
+    // `notebook_read` migrated — see Phase 2 ADR-096.
 
     /// Execute `notebook_edit` with the given JSON arguments.
     ///
     /// Applies a sequence of atomic cell operations to a Jupyter `.ipynb` notebook,
     /// writing the modified notebook back to disk. Only nbformat v4 is supported.
+    #[allow(dead_code)] // ADR-096 P4 — replaced by HitlFilesystemGuard(NotebookEdit)
     async fn invoke_notebook_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::notebook_edit::{NotebookEdit, NotebookEditInput};
 
@@ -539,6 +518,7 @@ impl NativeChatToolInvoker {
     ///
     /// Posts the questions to the [`PendingUserInputs`] registry and blocks until
     /// the UI delivers the answers through the oneshot channel.
+    #[allow(dead_code)] // ADR-096 P4 — AskUserExecutor in dispatcher with session_id
     async fn invoke_ask_user(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::ask_user::AskUserExecutor;
 
@@ -558,37 +538,11 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&result).map_err(|e| format!("ask_user serialization: {e}"))
     }
 
-    /// Execute `web_search` with the given JSON arguments (ADR-072).
-    ///
-    /// Builds a fresh [`WebSearch`] with the standard backend priority: Brave
-    /// first if `BRAVE_SEARCH_API_KEY` is set, DuckDuckGo always as the
-    /// zero-config fallback. Per-invocation construction is fine — both
-    /// backends are stateless HTTP clients.
-    #[cfg(feature = "web-search")]
-    async fn invoke_web_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::web_search::{WebSearch, WebSearchInput};
-
-        let tool = WebSearch::with_default_backends();
-        let input: WebSearchInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("web_search: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
-
-    /// Execute `web_read` with the given JSON arguments (ADR-072).
-    ///
-    /// SSRF guard (no loopback / private / link-local / `.local` etc.) is
-    /// enforced inside `WebRead::run` before any network I/O.
-    #[cfg(feature = "web-read")]
-    async fn invoke_web_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::web_read::{WebRead, WebReadInput};
-
-        let tool = WebRead::new();
-        let input: WebReadInput = serde_json::from_value(arguments.clone())
-            .map_err(|e| format!("web_read: invalid arguments: {e}"))?;
-        let output = tool.run(input).await.map_err(|e| e.to_string())?;
-        serde_json::to_string(&output).map_err(|e| e.to_string())
-    }
+    // `web_search` + `web_read` migrated to the shared ToolDispatcher in
+    // ADR-096 Phase 3 — see `chat::manager::resolve_workspace_for_session`
+    // for the executor wiring. The dispatcher reads the operator's Brave
+    // key + `apollia.toml` web cfg, so Chat Libre, Agent mode and Triggers
+    // now share the same backend priority and SSRF settings.
 }
 
 #[async_trait::async_trait]
@@ -598,69 +552,18 @@ impl ToolInvoker for NativeChatToolInvoker {
         tool_name: &str,
         arguments: &serde_json::Value,
     ) -> Result<String, String> {
-        // MCP tools follow `mcp:<server>/<tool>`. Route them through the MCP
-        // manager before reaching the native-tool match below; otherwise the
-        // hardcoded match falls through to "unknown tool" and the chat-libre
-        // LLM sees every MCP invocation fail.
-        if let Some(handle) = self.mcp_handle.as_ref() {
-            if let Some((server, tool)) =
-                apollia_mcp::executor::McpToolExecutor::parse_tool_name(tool_name)
-            {
-                let args = if arguments.is_null() {
-                    None
-                } else {
-                    Some(arguments.clone())
-                };
-                let result = handle
-                    .call_tool(server, tool, args)
-                    .await
-                    .map_err(|e| format!("mcp tool '{tool_name}' failed: {e}"))?;
-                // ToolCallResult.content is a list of typed chunks; collect
-                // their text parts into a single string for the LLM.
-                let collected: Vec<String> = result
-                    .content
-                    .into_iter()
-                    .filter_map(|c| match c {
-                        apollia_mcp::protocol::ToolCallContent::Text { text } => Some(text),
-                        apollia_mcp::protocol::ToolCallContent::Image { mime_type, .. } => {
-                            Some(format!("<{mime_type} image data omitted>"))
-                        }
-                        apollia_mcp::protocol::ToolCallContent::Resource { resource } => {
-                            Some(serde_json::to_string(&resource).unwrap_or_default())
-                        }
-                    })
-                    .collect();
-                let mut joined = collected.join("\n");
-                if result.is_error.unwrap_or(false) {
-                    joined = format!("(mcp server reported error)\n{joined}");
-                }
-                return Ok(joined);
-            }
-        } else if tool_name.starts_with("mcp:") {
-            return Err(format!(
-                "mcp tool '{tool_name}' could not be routed — the MCP manager is not attached to this chat invoker"
-            ));
-        }
-
-        match tool_name {
-            "bash_executor" => self.invoke_bash(arguments).await,
-            "file_read" => self.invoke_file_read(arguments).await,
-            "file_write" => self.invoke_file_write(arguments).await,
-            "file_list" => self.invoke_file_list(arguments).await,
-            "file_edit" => self.invoke_file_edit(arguments).await,
-            "file_glob" => self.invoke_file_glob(arguments).await,
-            "file_grep" => self.invoke_file_grep(arguments).await,
-            "http_fetch" => self.invoke_http_fetch(arguments).await,
-            "python_executor" => self.invoke_python(arguments).await,
-            "memory_search" => self.invoke_memory_search(arguments).await,
-            "notebook_read" => self.invoke_notebook_read(arguments).await,
-            "notebook_edit" => self.invoke_notebook_edit(arguments).await,
-            "ask_user" => self.invoke_ask_user(arguments).await,
-            #[cfg(feature = "web-search")]
-            "web_search" => self.invoke_web_search(arguments).await,
-            #[cfg(feature = "web-read")]
-            "web_read" => self.invoke_web_read(arguments).await,
-            other => Err(format!("unknown tool: {other}")),
+        // ADR-096 Phase 4 — full convergence. Every native goes through
+        // the `fallback_dispatcher`: HITL-sensitive ones wrapped in
+        // `HitlFilesystemGuard`, `http_fetch` via `DynamicAllowlistHttpFetch`,
+        // everything else as stock executors. No fast path, no special
+        // cases, single permission engine + audit trail path across
+        // Chat Libre / Chat Agent / Triggers.
+        match self.fallback_dispatcher.as_ref() {
+            Some(invoker) => invoker.invoke(tool_name, arguments).await,
+            None => Err(format!(
+                "unknown tool: {tool_name} \
+                 (no dispatcher attached — invoker built outside chat manager)"
+            )),
         }
     }
 }
@@ -703,6 +606,42 @@ différente plutôt que de relancer la même commande.
 chemin, identifiant). Si une information requise est absente, demande-la explicitement à \
 l'utilisateur avant d'appeler l'outil. Utiliser un placeholder comme `YOUR_API_KEY` ou \
 `<TOKEN>` dans un appel réel est interdit.
+6. **Résolution d'identifiants par nom** : quand l'utilisateur référence un fichier, document, \
+feuille, présentation ou dossier par son **titre** sans fournir d'ID, **NE DEMANDE PAS l'ID** — \
+recherche-le toi-même via un outil de listing approprié (`gdrive.find_by_name` pour Google Drive, \
+ou son équivalent), puis enchaîne l'opération demandée. Demander un ID alphanumérique à un \
+utilisateur est une mauvaise expérience que tu dois éviter.
+7. **Jamais de succès hallucinés** : tu ne dois JAMAIS prétendre qu'une opération a réussi sans \
+avoir vu un résultat d'outil explicitement positif dans l'historique de la conversation. Si ton \
+dernier appel d'outil a échoué, n'a pas répondu, ou si tu n'arrives plus à formuler un tool call \
+valide après plusieurs tentatives : annonce clairement à l'utilisateur que l'opération n'a pas \
+abouti, explique brièvement ce qui a été tenté, et arrête-toi. Reformuler le même appel en boucle \
+sans nouveau résultat est interdit.
+8. **Découverte des noms d'onglets Sheets** : pour Google Sheets, le **titre du spreadsheet** \
+(visible en haut) ≠ le **titre d'un onglet** (l'onglet par défaut s'appelle souvent `Sheet1`, mais \
+en français Google le nomme `Feuille 1`). Les paramètres `range` (`gsheets.read_values`, \
+`gsheets.update_values`, `gsheets.append_values`) attendent le **nom de l'onglet**, pas du \
+spreadsheet. Quand le nom contient un espace, encadre-le de guillemets simples : \
+`'Feuille 1'!A1:C1`. Si tu n'es pas certain du nom de l'onglet, appelle `gsheets.list_sheets` \
+avant d'écrire.
+
+## Pattern d'enchaînement obligatoire — Google par titre
+
+Quand l'utilisateur référence un asset Google par son **titre** (jamais par un ID alphanumérique), \
+tu DOIS enchaîner SANS DEMANDE INTERMÉDIAIRE :
+
+> Utilisateur : « lis la plage A1:C1 de la feuille Apollia Test »
+>
+> 1. `gdrive.find_by_name(name=\"Apollia Test\", mime_type_filter=\"spreadsheet\")` → récupère \
+spreadsheet_id depuis `matches[0].id`.
+> 2. `gsheets.list_sheets(spreadsheet_id=<id>)` → récupère le titre de l'onglet par défaut.
+> 3. `gsheets.read_values(spreadsheet_id=<id>, range=\"'<onglet>'!A1:C1\")`.
+> 4. Réponse à l'utilisateur avec le contenu.
+
+Même pattern pour `gdocs.*` (`gdrive.find_by_name(mime_type_filter=\"document\")` puis \
+`gdocs.read_text` / `gdocs.append_text`), `gslides.*` (`mime_type_filter=\"presentation\"`), \
+et tout autre asset Google identifié par titre. **Demander l'ID alphanumérique à \
+l'utilisateur est un échec — tu as les outils pour le résoudre seul.**
 ";
 
 /// Response produced by a complete chat exchange.
@@ -788,27 +727,12 @@ impl BuiltInChatAgent {
 
     /// Build the effective system prompt with optional user memory injection.
     ///
-    /// When user memory is available and non-empty, appends a `User Context`
-    /// section to the base prompt. The block is purely informational — the LLM
-    /// decides what to do with it.
+    /// Prepends the authoritative temporal/environment block (ADR-096 Step 0)
+    /// at the **top** of the prompt so the LLM treats current date + time +
+    /// timezone as ground truth, not as one fact among its priors. Then
+    /// appends the user persona block when configured.
     pub fn build_system_prompt(&self, base_prompt: &str) -> String {
-        let mut prompt = base_prompt.to_string();
-
-        // Inject platform context so the LLM knows the user's environment.
-        let home = std::env::var("HOME").unwrap_or_default();
-        let now = chrono::Local::now();
-        prompt.push_str(&format!(
-            "\n\n## System Environment\n- Date/heure : {datetime}\n- OS: {os}\n- Architecture: {arch}\n- Home directory: {home}\n- Working directory: {cwd}",
-            datetime = now.format("%A %d %B %Y, %H:%M %Z"),
-            os = std::env::consts::OS,
-            arch = std::env::consts::ARCH,
-            home = home,
-            cwd = self.workspace_path
-                .as_deref()
-                .map(|p| p.display().to_string())
-                .or_else(|| std::env::current_dir().map(|p| p.display().to_string()).ok())
-                .unwrap_or_else(|| "unknown".into()),
-        ));
+        let mut prompt = apollia_core::temporal_context::prepend_temporal_context(base_prompt);
 
         if let Some(ref repo_mutex) = self.user_memory {
             match repo_mutex.lock() {
@@ -2809,8 +2733,11 @@ mod tests {
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
 
-        // THEN the prompt contains the user persona block
-        assert!(prompt.starts_with("Base prompt."));
+        // THEN the prompt opens with the authoritative environment block
+        // (ADR-096 Step 0 — temporal context now leads the prompt) and
+        // still carries the base prompt + user persona section.
+        assert!(prompt.starts_with("## CURRENT ENVIRONMENT"));
+        assert!(prompt.contains("Base prompt."));
         assert!(prompt.contains("## User Persona"));
         assert!(prompt.contains("francais"));
         assert!(prompt.contains("markdown"));

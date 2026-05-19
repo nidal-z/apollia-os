@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Spinner } from "$lib/components/ui/progress";
   import type {
+    McpConnectionTestResponse,
     McpConnectionTestResultView,
     McpServerConfigInput,
   } from "$lib/types";
@@ -98,12 +99,23 @@
     testError = null;
     attemptCount += 1;
     try {
-      const result = await invoke<McpConnectionTestResultView>(
+      const response = await invoke<McpConnectionTestResponse>(
         "test_mcp_connection",
         { config },
       );
-      testResult = result;
-      onsuccess(result);
+      if (response.kind === "success") {
+        // Strip the discriminant — `onsuccess` consumers expect the legacy
+        // success shape verbatim.
+        const { kind: _kind, ...result } = response;
+        void _kind;
+        testResult = result;
+        onsuccess(result);
+      } else {
+        // oauth_required at test time means the static-token path failed
+        // authentication. Phase 5 will surface a "Sign in" CTA inline; for
+        // now report it as an error directing the user back to the Auth step.
+        testError = $t("integrations.wizard.test_err.oauth_required");
+      }
     } catch (err: unknown) {
       testError = err instanceof Error ? err.message : String(err);
     } finally {

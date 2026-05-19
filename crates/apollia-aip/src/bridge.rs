@@ -87,12 +87,20 @@ class AIPResult:
         }
 
     @classmethod
-    def failed(cls, code, message):
-        """Résultat d'échec avec code et message structurés."""
+    def failed(cls, code, message, details=None):
+        """Résultat d'échec avec code, message, et détails structurés optionnels.
+
+        ``details`` (dict optionnel) accompagne le code d'erreur pour permettre
+        au caller de programmer une réaction structurée (ex : field manquant,
+        valeurs attendues). Doit être JSON-sérialisable.
+        """
+        error = {"code": code, "message": message}
+        if details is not None:
+            error["details"] = details
         return {
             "status": "failed",
             "output": [],
-            "error": {"code": code, "message": message},
+            "error": error,
         }
 "#;
 

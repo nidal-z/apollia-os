@@ -1,8 +1,11 @@
 //! Local OAuth2 callback HTTP server (RFC 6749 §3.1.2).
 //!
-//! Binds an ephemeral TCP port on localhost, serves a single `/callback`
-//! route, validates the `state` parameter (CSRF protection), and returns
-//! the authorization code to the caller via a channel.
+//! Binds an ephemeral TCP port on localhost, serves the OAuth callback at
+//! both `/callback` and `/oauth/callback` (ADR-095 §5 — unified router so
+//! the same listener serves the connector flows on `/callback` and the
+//! MCP HTTP OAuth flow which advertises `/oauth/callback` in its CIMD),
+//! validates the `state` parameter (CSRF protection), and returns the
+//! authorization code to the caller via a channel.
 
 use std::sync::{Arc, Mutex};
 
@@ -80,39 +83,42 @@ pub async fn wait_for_callback(
 
     let expected = expected_state.to_string();
 
-    let app = Router::new().route(
-        "/callback",
-        get({
-            let result_cell = result_cell.clone();
-            let shutdown_cell = shutdown_cell.clone();
-            move |Query(params): Query<CallbackParams>| {
-                let result_cell = result_cell.clone();
-                let shutdown_cell = shutdown_cell.clone();
-                let expected = expected.clone();
-                async move {
-                    let result = resolve_callback(&params, &expected);
-                    let html = if result.is_ok() {
-                        SUCCESS_HTML
-                    } else {
-                        ERROR_HTML
-                    };
+    // Build a handler that captures the result + triggers shutdown, then
+    // register it on both `/callback` (connector flows) and `/oauth/callback`
+    // (MCP HTTP OAuth, per CIMD `redirect_uris`). Same semantics for both —
+    // the path only differs because the MCP spec mandates the longer form.
+    let result_cell_for_handler = result_cell.clone();
+    let shutdown_cell_for_handler = shutdown_cell.clone();
+    let handler = move |Query(params): Query<CallbackParams>| {
+        let result_cell = result_cell_for_handler.clone();
+        let shutdown_cell = shutdown_cell_for_handler.clone();
+        let expected = expected.clone();
+        async move {
+            let result = resolve_callback(&params, &expected);
+            let html = if result.is_ok() {
+                SUCCESS_HTML
+            } else {
+                ERROR_HTML
+            };
 
-                    if let Ok(mut guard) = result_cell.lock() {
-                        if let Some(tx) = guard.take() {
-                            let _ = tx.send(result);
-                        }
-                    }
-                    if let Ok(mut guard) = shutdown_cell.lock() {
-                        if let Some(sd) = guard.take() {
-                            let _ = sd.send(());
-                        }
-                    }
-
-                    Html(html)
+            if let Ok(mut guard) = result_cell.lock() {
+                if let Some(tx) = guard.take() {
+                    let _ = tx.send(result);
                 }
             }
-        }),
-    );
+            if let Ok(mut guard) = shutdown_cell.lock() {
+                if let Some(sd) = guard.take() {
+                    let _ = sd.send(());
+                }
+            }
+
+            Html(html)
+        }
+    };
+
+    let app = Router::new()
+        .route("/callback", get(handler.clone()))
+        .route("/oauth/callback", get(handler));
 
     let server = axum::serve(listener, app).with_graceful_shutdown(async move {
         let _ = shutdown_rx.await;
@@ -194,6 +200,23 @@ mod tests {
         };
         let result = resolve_callback(&params, "abc123");
         assert_eq!(result.unwrap(), "auth_code_value");
+    }
+
+    #[tokio::test]
+    async fn test_oauth_callback_path_serves_same_handler() {
+        // GIVEN a callback server expecting state "abc123"
+        let (listener, port) = bind_ephemeral_port().await.expect("bind should succeed");
+        let server_task = tokio::spawn(wait_for_callback(listener, "abc123"));
+
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // WHEN the MCP-style callback arrives at /oauth/callback (not /callback)
+        let url = format!("http://127.0.0.1:{port}/oauth/callback?code=mycode&state=abc123");
+        let _ = reqwest::get(&url).await;
+
+        // THEN the code is captured exactly like on /callback
+        let result = server_task.await.expect("task should not panic");
+        assert_eq!(result.unwrap(), "mycode");
     }
 
     #[tokio::test]

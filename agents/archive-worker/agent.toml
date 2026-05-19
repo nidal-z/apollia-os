@@ -1,0 +1,53 @@
+# agent.toml — archive-worker v0.1.0
+#
+# Worker Apollia OS standalone, distribuable seul.
+# Installation : apollia agent install ./archive-worker
+
+[package]
+name        = "archive-worker"
+version     = "0.1.0"
+description = "Manipulation d'archives (.zip, .tar, .tar.gz, .tar.bz2, .tar.xz) : lister, extraire, créer, lire un fichier interne — 100 % stdlib, zéro dépendance externe."
+author      = "Apollia OS"
+license     = "MIT"
+
+[[agents]]
+name                    = "archive-worker"
+entry                   = "archive-worker.py"
+role                    = "worker"
+agent_type              = "user"
+execution_mode          = "direct"
+supports_a2a            = true
+max_concurrent_tasks    = 2
+tools_required          = []
+dangerous_tools_allowed = false
+packages                = []
+tags                    = ["archive", "zip", "tar", "compression", "extract", "worker"]
+step_budget             = { max_steps = 1, max_tool_calls = 5, wall_clock_secs = 300 }
+
+[[agents.skills]]
+id           = "archive.list"
+name         = "List archive contents"
+description  = "Liste le contenu d'une archive (.zip, .tar, .tar.gz, .tar.bz2, .tar.xz) sans extraction. Retourne path, size, mtime, is_dir, is_symlink pour chaque entrée."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "archive.extract"
+name         = "Extract archive safely"
+description  = "Extrait une archive dans un dossier cible avec garde-fous : path traversal, zip bomb (quota uncompressed configurable), symlinks (opt-in). Filtre glob optionnel."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "archive.create"
+name         = "Create archive"
+description  = "Crée une archive (.zip, .tar, .tar.gz, .tar.bz2, .tar.xz) depuis une liste de fichiers/dossiers. Compression configurable."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "archive.read-file"
+name         = "Read single file from archive"
+description  = "Lit un fichier précis depuis une archive sans tout extraire. Mode 'text' (UTF-8) ou 'binary' (base64). Cap par défaut 10 MB, configurable."
+input_modes  = ["text"]
+output_modes = ["text"]

@@ -19,6 +19,8 @@
   import UpdateChecker from "./UpdateChecker.svelte";
   import { addToast } from "$lib/components/ui/toast";
   import { systemInfoStore, cliStatusStore, configStore, settingsLoaders } from "$lib/stores/settings";
+  import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
+  import SettingsToggle from "../../components/settings/SettingsToggle.svelte";
   import type { CliStatus } from "$lib/types";
 
   let cliActionLoading = $state(false);
@@ -179,6 +181,23 @@
         {$systemInfoStore.error}
       </div>
     {/if}
+
+    <Card class="rounded-lg p-4" data-testid="agent-install-section">
+      <h3 class="mb-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+        {$t("settings.system.agent_install_section_title")}
+      </h3>
+      <p class="mb-3 text-xs text-muted-foreground leading-relaxed">
+        {$t("settings.system.agent_install_section_desc")}
+      </p>
+      <SettingsToggle
+        id="auto-install-python-deps"
+        label={$t("settings.system.auto_install_python_deps_label")}
+        description={$t("settings.system.auto_install_python_deps_desc")}
+        checked={$agentInstallPrefs.autoInstallPythonDeps}
+        onChange={setAutoInstallPythonDeps}
+        data-testid="auto-install-python-deps-toggle"
+      />
+    </Card>
 
     <UpdateChecker />
 

@@ -1,6 +1,39 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ─── Figma — remote MCP awaiting Catalog approval (2026-05-18) ──────────────
+//
+// Figma's `https://mcp.figma.com/mcp` endpoint is gated to a private MCP
+// Catalog whitelist (Claude.ai, Cursor, Windsurf, ...). Apollia has applied
+// for inclusion via the waitlist at https://figma.com/mcp-catalog. Until
+// approval, the curated `com.figma/mcp` entry points to the LOCAL Dev Mode
+// MCP server (127.0.0.1:3845/mcp, no auth — identity provided by the
+// running Figma Desktop session).
+//
+// Once Figma whitelists Apollia, restore the remote enrichment by replacing
+// the local block in `enrichments.json` with the snippet below (and re-add
+// `oauth_pre_registered_client_id_env` in `ConnectorEnrichment` consumers
+// — already present in the struct, no schema change needed):
+//
+// ```json
+// {
+//   "package_identifier": "com.figma/mcp",
+//   "registry_names": ["com.figma/mcp"],
+//   "operator_label": { "en": "Figma", "fr": "Figma" },
+//   "description": { "en": "Figma cloud MCP (OAuth)", "fr": "MCP cloud Figma (OAuth)" },
+//   "category": "design",
+//   "icon_name": "figma",
+//   "trust_level": "verified_official",
+//   "auth_help_url": "https://www.figma.com/developers/apps",
+//   "auth_help_i18n_key": "integrations.connectors.figma.auth_help_remote",
+//   "default_requires_approval": false,
+//   "remote_url": "https://mcp.figma.com/mcp",
+//   "remote_transport": "streamable-http",
+//   "oauth_pre_registered_client_id_env": "APOLLIA_FIGMA_CLIENT_ID",
+//   "cost_model": { "kind": "free" }
+// }
+// ```
+
 /// UI-friendly metadata for a popular MCP server.
 ///
 /// Complements the MCP Registry response with translated labels, category,
@@ -24,6 +57,13 @@ pub struct ConnectorEnrichment {
     pub auth_help_url: Option<String>,
     /// Per-locale guidance shown on the auth step of the wizard.
     pub auth_help_text: Option<HashMap<String, String>>,
+    /// i18n key to render on the auth step instead of `auth_help_text`.
+    /// Resolved by the wizard via `$t(key)` against the bundled FR/EN catalogs,
+    /// which lets us localise long explanatory blocks without bloating the
+    /// embedded enrichments JSON. Falls back to `auth_help_text`, then to a
+    /// generic default when both are absent.
+    #[serde(default)]
+    pub auth_help_i18n_key: Option<String>,
     /// Default value for the `requires_approval` flag on the created server.
     pub default_requires_approval: bool,
     /// Short description shown in the catalogue for synthetic entries.
@@ -46,6 +86,16 @@ pub struct ConnectorEnrichment {
     /// stdio `command` (with the conventional `-y` prefix for `npx`).
     #[serde(default)]
     pub package_runtime_hint: Option<String>,
+    /// Name of the env var that holds a pre-registered OAuth client id for
+    /// this connector — e.g. `"APOLLIA_FIGMA_CLIENT_ID"`.
+    ///
+    /// Required only for AS that support neither RFC 7591 DCR nor CIMD
+    /// (Apollia must be manually registered at the provider's dev portal).
+    /// When set, the wizard resolves the env var via the
+    /// `mcp_oauth_resolve_client_id` IPC and injects the value into
+    /// `mcp_oauth_login` — bypassing CIMD/DCR discovery for this provider.
+    #[serde(default)]
+    pub oauth_pre_registered_client_id_env: Option<String>,
     /// Environment variable names required by this package (for synthetic entries).
     #[serde(default)]
     pub package_env_vars: Vec<EnrichmentEnvVar>,

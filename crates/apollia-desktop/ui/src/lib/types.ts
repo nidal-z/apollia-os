@@ -1415,7 +1415,16 @@ export interface ConnectorEnrichmentView {
   trust_level: TrustLevel;
   auth_help_url: string | null;
   auth_help_text: string | null;
+  /** Optional i18n key resolved by the wizard via `$t(key)`. When set, it
+   *  takes precedence over `auth_help_text` and lets us ship long localised
+   *  explanations in the bundled FR/EN catalogs instead of inline strings. */
+  auth_help_i18n_key: string | null;
   default_requires_approval: boolean;
+  /** Env var name carrying a pre-registered OAuth client id for AS that
+   *  don't support CIMD or anonymous DCR (Figma). The wizard resolves the
+   *  env var via `mcp_oauth_resolve_client_id` and passes the value to
+   *  `mcp_oauth_login`. ADR-095 follow-up (2026-05-17). */
+  oauth_pre_registered_client_id_env: string | null;
 }
 
 /** Result of testing an MCP server connection without persisting a session. */
@@ -1424,6 +1433,33 @@ export interface McpConnectionTestResultView {
   protocol_version: string;
   tools: McpToolSummaryView[];
   test_duration_ms: number;
+}
+
+/**
+ * Tagged envelope returned by `test_mcp_connection` (ADR-095 Phase 4).
+ *
+ * The wizard dispatches its Auth step UI on `kind`:
+ * - `success` → list tools, allow continue.
+ * - `oauth_required` → switch to "Sign in with <provider>" mode and call
+ *   `mcp_oauth_login` once the user clicks.
+ */
+export type McpConnectionTestResponse =
+  | ({ kind: "success" } & McpConnectionTestResultView)
+  | { kind: "oauth_required"; www_authenticate: string };
+
+/** Discovery payload returned by `mcp_oauth_discover` (ADR-095 Phase 4). */
+export interface McpOAuthDiscoveryResult {
+  as_url: string;
+  scopes_supported: string[];
+  scope_descriptions: Record<string, string>;
+  registration_supported: boolean;
+}
+
+/** Sign-in outcome returned by `mcp_oauth_login` (ADR-095 Phase 4). */
+export interface McpOAuthAccount {
+  sub: string | null;
+  email: string | null;
+  scopes: string[];
 }
 
 /** Input payload for adding a new MCP server via `add_mcp_server`. */

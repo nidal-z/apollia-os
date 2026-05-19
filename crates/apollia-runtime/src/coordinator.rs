@@ -224,8 +224,30 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             };
             // For Err results, surface the error string as output_text so
             // the UI can display it instead of showing an empty result panel.
+            // For Ok(failed), include the worker's error code/message/details
+            // in the output text so the A2A invoker / UI can surface the
+            // actual failure reason instead of a generic "worker reported
+            // failure" string.
             let output = match &result {
-                Ok(aip_result) => Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty()),
+                Ok(aip_result) => {
+                    if aip_result.status == TaskStatus::Failed {
+                        let err_text = aip_result
+                            .error
+                            .as_ref()
+                            .map(|e| {
+                                let details_str = e
+                                    .details
+                                    .as_ref()
+                                    .map(|d| format!(" details={d}"))
+                                    .unwrap_or_default();
+                                format!("[{}] {}{}", e.code, e.message, details_str)
+                            })
+                            .unwrap_or_else(|| "(worker failed without error details)".to_string());
+                        Some(err_text)
+                    } else {
+                        Some(aip_result_to_text(aip_result)).filter(|s| !s.is_empty())
+                    }
+                }
                 Err(e) => Some(e.to_string()),
             };
 

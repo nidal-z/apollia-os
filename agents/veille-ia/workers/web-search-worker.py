@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from apollia.agents import AIPResult, WorkerAgent
+from apollia.utils.a2a import extract_a2a_payload
 
 SYSTEM_PROMPT: str = """\
 Tu es web-search-worker, un agent spécialisé dans la recherche web et l'extraction \
@@ -183,11 +184,7 @@ class WebSearchWorker(WorkerAgent):
 
     async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
         """Execute the search-and-extract task."""
-        payload = (
-            task.get("input", {})
-            if isinstance(task.get("input"), dict)
-            else {}
-        )
+        payload = extract_a2a_payload(task)
 
         queries: list[str] = payload.get("queries", [])
         axis: str = payload.get("axis", "tech")

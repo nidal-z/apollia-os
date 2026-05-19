@@ -20,8 +20,11 @@
 pub mod auth_manager;
 pub mod callback;
 pub mod connector_providers;
+pub mod drive_prefs;
 pub mod error;
 pub mod mcp_oauth;
+pub mod mcp_oauth_orchestrator;
+pub mod mcp_token_store;
 pub mod multi_account;
 pub mod oauth_clients_file;
 pub mod pkce;
@@ -41,6 +44,13 @@ pub use mcp_oauth::{
     AuthorizationServerMetadata, ClientIdMetadataDocument, DcrRequest, DcrResponse,
     McpDiscoveryClient, ProtectedResourceMetadata, WwwAuthenticate, APOLLIA_CIMD,
     APOLLIA_CIMD_URL,
+};
+pub use mcp_oauth_orchestrator::{
+    ensure_fresh_token, negotiate_token, McpOAuthError, NegotiateRequest,
+};
+pub use mcp_token_store::{
+    delete_mcp_token, extract_identity_claims, load_mcp_token, save_mcp_token, JwtIdentityClaims,
+    StoredMcpToken, MCP_OAUTH_SERVICE,
 };
 pub use multi_account::{AccountId, MultiAccountStorage};
 pub use secret_storage::{

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { get } from "svelte/store";
   import type { PackagePreview, InstallPackageResponse, TriggerConfigOverride, TriggerPreview } from "$lib/types";
   import { previewPackage, installPackage } from "$lib/stores/agentPackages";
+  import { agentInstallPrefs } from "$lib/stores/agentInstallPrefs";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { Dialog } from "$lib/components/ui/dialog";
@@ -30,7 +32,7 @@
 
   let { open, onclose, oninstalled }: Props = $props();
 
-  type Step = "pick" | "preview" | "configure" | "installing" | "done";
+  type Step = "pick" | "preview" | "deps-confirm" | "configure" | "installing" | "done";
 
   let step = $state<Step>("pick");
   let selectedPath = $state<string | null>(null);
@@ -39,6 +41,7 @@
   let previewError = $state<string | null>(null);
   let installError = $state<string | null>(null);
   let installResult = $state<InstallPackageResponse | null>(null);
+  let depsConfirmed = $state(false);
 
   // Webhook config state: map from trigger id → secret value
   let webhookSecrets = $state<Record<string, string>>({});
@@ -59,6 +62,7 @@
     installResult = null;
     webhookSecrets = {};
     copiedId = null;
+    depsConfirmed = false;
   }
 
   function handleClose() {
@@ -93,7 +97,32 @@
     }
   }
 
+  const hasPipDeps = $derived((preview?.pip_packages?.length ?? 0) > 0);
+  const willShowDepsConfirm = $derived(
+    hasPipDeps && !depsConfirmed && !$agentInstallPrefs.autoInstallPythonDeps,
+  );
+
   function proceedFromPreview() {
+    // Si l'utilisateur a activé l'auto-install dans Settings → System,
+    // on saute l'étape de confirmation des deps et on transmet directement
+    // depsConfirmed=true au backend.
+    const autoInstall = get(agentInstallPrefs).autoInstallPythonDeps;
+    if (hasPipDeps && autoInstall) {
+      depsConfirmed = true;
+    }
+
+    // Order: deps confirmation (sauf si auto-install ON) → webhook config → install.
+    if (hasPipDeps && !depsConfirmed) {
+      step = "deps-confirm";
+    } else if (needsConfig) {
+      step = "configure";
+    } else {
+      handleInstall();
+    }
+  }
+
+  function confirmDepsAndProceed() {
+    depsConfirmed = true;
     if (needsConfig) {
       step = "configure";
     } else {
@@ -112,12 +141,23 @@
     );
 
     try {
-      installResult = await installPackage(selectedPath, triggerConfigs);
+      installResult = await installPackage(selectedPath, triggerConfigs, depsConfirmed);
       step = "done";
       oninstalled(installResult!);
     } catch (e) {
-      installError = String(e);
-      step = needsConfig ? "configure" : "preview";
+      const err = String(e);
+      // Si le backend exige une confirmation explicite (race / stale state /
+      // auto-install désactivé entre temps), on bounce vers la nouvelle étape.
+      const autoInstall = get(agentInstallPrefs).autoInstallPythonDeps;
+      if (err.includes("DEPS_CONFIRMATION_REQUIRED") && !autoInstall) {
+        installError = null;
+        step = "deps-confirm";
+      } else {
+        installError = err;
+        // Revenir à l'étape utile la plus proche pour permettre une nouvelle
+        // tentative sans tout recommencer.
+        step = needsConfig ? "configure" : "preview";
+      }
     }
   }
 
@@ -273,11 +313,25 @@
 
       <!-- pip packages -->
       {#if preview.pip_packages.length > 0}
-        <div class="flex gap-2 text-xs text-muted-foreground">
-          <span class="flex items-center gap-1">
-            <Package2 size={10} />
-            {preview.pip_packages.length} dépendance{preview.pip_packages.length > 1 ? "s" : ""} pip
-          </span>
+        <div>
+          <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5 flex items-center gap-1">
+            <Package2 size={10} />Dépendances Python ({preview.pip_packages.length})
+          </h4>
+          {#if $agentInstallPrefs.autoInstallPythonDeps}
+            <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-primary">
+              <p class="leading-relaxed">
+                {preview.pip_packages.length} dépendance{preview.pip_packages.length > 1 ? "s" : ""} pip seront installée{preview.pip_packages.length > 1 ? "s" : ""} automatiquement
+                (auto-install activé dans Réglages → Système).
+              </p>
+            </div>
+          {:else}
+            <div class="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <p class="leading-relaxed">
+                Ce package nécessite l'installation de {preview.pip_packages.length} dépendance{preview.pip_packages.length > 1 ? "s" : ""} Python via pip.
+                <span class="font-medium">Une étape de confirmation suivra</span> avant tout téléchargement.
+              </p>
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -291,8 +345,63 @@
       <div class="flex gap-2 pt-1">
         <Button variant="outline" onclick={reset} class="flex-1">← Changer</Button>
         <Button onclick={proceedFromPreview} class="flex-1 gap-1.5" disabled={!preview.valid}>
-          {needsConfig ? "Configurer →" : "Installer"}
-          {#if needsConfig}<Settings size={13} />{/if}
+          {willShowDepsConfirm ? "Continuer →" : needsConfig ? "Configurer →" : "Installer"}
+          {#if needsConfig && !willShowDepsConfirm}<Settings size={13} />{/if}
+        </Button>
+      </div>
+    </div>
+
+  <!-- ── Step: deps-confirm (pip packages confirmation) ─────────────────── -->
+  {:else if step === "deps-confirm" && preview}
+    <div class="py-2 space-y-4">
+      <div class="flex items-center gap-2 text-sm font-medium">
+        <Package2 size={15} class="text-primary" />
+        Confirmation des dépendances Python
+      </div>
+
+      <div class="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed space-y-1.5">
+        <p>
+          L'installation de <span class="font-medium">{preview.name}</span> va télécharger
+          <span class="font-medium">{preview.pip_packages.length} package{preview.pip_packages.length > 1 ? "s" : ""} Python</span>
+          depuis PyPI dans <code class="text-[10px] bg-amber-500/10 px-1 rounded font-mono">~/.apollia/venvs/</code>.
+        </p>
+        <p class="text-amber-600/80 dark:text-amber-400/80">
+          Aucune installation ne sera effectuée sans votre confirmation.
+        </p>
+      </div>
+
+      <!-- List of packages -->
+      <div>
+        <h4 class="text-[10px] font-medium uppercase text-muted-foreground tracking-wide mb-1.5">
+          Packages à installer
+        </h4>
+        <div class="rounded-lg border border-border/60 bg-muted/20 max-h-48 overflow-y-auto">
+          {#each preview.pip_packages as pkg (pkg)}
+            <div class="flex items-center gap-2 px-2.5 py-1.5 text-xs font-mono border-b border-border/40 last:border-0">
+              <Package2 size={10} class="text-muted-foreground shrink-0" />
+              <span class="truncate">{pkg}</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+      <p class="text-[10px] text-muted-foreground leading-relaxed">
+        Les packages sont installés dans un venv isolé par agent. Pas d'impact sur votre Python système.
+        Pour vérifier la provenance, consultez <a href="https://pypi.org" class="underline">pypi.org</a>.
+      </p>
+
+      {#if installError}
+        <div class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <AlertTriangle size={13} class="mt-0.5 shrink-0" />
+          <span>{installError}</span>
+        </div>
+      {/if}
+
+      <div class="flex gap-2 pt-1">
+        <Button variant="outline" onclick={() => (step = "preview")} class="flex-1">← Retour</Button>
+        <Button onclick={confirmDepsAndProceed} class="flex-1 gap-1.5">
+          <CheckCircle2 size={13} />
+          Confirmer et {needsConfig ? "continuer" : "installer"}
         </Button>
       </div>
     </div>
@@ -405,7 +514,13 @@
         <Package size={28} class="text-primary/60" />
       </div>
       <p class="text-sm font-medium">Installation en cours…</p>
-      <p class="text-xs text-muted-foreground">Copie des fichiers et injection des triggers</p>
+      <p class="text-xs text-muted-foreground">
+        {#if hasPipDeps}
+          Téléchargement des dépendances pip et duck-typing
+        {:else}
+          Copie des fichiers et injection des triggers
+        {/if}
+      </p>
     </div>
 
   <!-- ── Step: done ─────────────────────────────────────────────────────── -->

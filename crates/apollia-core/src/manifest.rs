@@ -213,6 +213,17 @@ pub struct AgentSkill {
     pub input_modes: Vec<String>,
     /// Modes de sortie supportés (ex: ["text", "file"]).
     pub output_modes: Vec<String>,
+    /// Schéma des champs attendus dans la payload A2A.
+    ///
+    /// Format Apollia (custom, plus simple à écrire côté Python que JSON Schema
+    /// complet) : `{ "<field>": { "type": "...", "description": "...",
+    /// "required": true|false } }`. Converti côté runtime en JSON Schema
+    /// canonique au moment d'exposer le skill au LLM (cf.
+    /// `crates/apollia-runtime/src/chat/a2a_tools.rs`). `None` = pas de
+    /// contrat publié (le caller doit deviner — anti-pattern, gate Phase E
+    /// de `apollia-worker-forge`).
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 #[cfg(test)]

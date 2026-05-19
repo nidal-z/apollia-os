@@ -70,11 +70,30 @@ struct AIPAgentLoader;
 
 impl AgentLoader for AIPAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        let module = apollia_aip::loader::load_agent_module(path).map_err(|e| e.to_string())?;
+        let extras = venv_site_packages_for_path(path);
+        let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
+            .map_err(|e| e.to_string())?;
         let validated =
             apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
         Ok(validated.manifest)
     }
+}
+
+/// Compute the per-agent venv's site-packages from the agent's `.py` path.
+/// Convention : agent name == `.py` file stem.
+fn venv_site_packages_for_path(agent_py_path: &Path) -> Vec<PathBuf> {
+    let agent_name = match agent_py_path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    venv_site_packages_for_name(agent_name)
+}
+
+/// Compute the per-agent venv's site-packages from the agent name.
+fn venv_site_packages_for_name(agent_name: &str) -> Vec<PathBuf> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let base = PathBuf::from(home).join(".apollia").join("venvs");
+    apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -107,6 +126,15 @@ struct AIPChatAgentRunner {
     /// `supervisor.start()` so the native dispatcher can wire
     /// `AskUserExecutor` to the chat HITL loop.
     pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
+    /// Agent registry — required to build A2A delegate + invoker so chat-agent
+    /// Python agents get the same A2A capabilities as task-mode agents.
+    agent_registry: Arc<std::sync::OnceLock<apollia_runtime::registry::AgentRegistryHandle>>,
+    /// Task router — required to build the A2A delegate.
+    task_router: Arc<
+        std::sync::OnceLock<
+            apollia_runtime::router::TaskRouterHandle<apollia_runtime::coordinator::DynBackend>,
+        >,
+    >,
     /// Base data directory (e.g. `~/.apollia/`).
     data_dir: PathBuf,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
@@ -119,9 +147,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
     async fn run_agent(&self, agent_name: &str, task: AIPTask) -> Result<AIPResult, String> {
         let agent_path = self.data_dir.join("agents").join(agent_name);
 
-        // Load and validate agent via PyO3
-        let module =
-            apollia_aip::loader::load_agent_module(&agent_path).map_err(|e| e.to_string())?;
+        // Load and validate agent via PyO3. Inject per-agent venv site-packages
+        // so top-level imports of pip-installed packages resolve correctly.
+        let extras = venv_site_packages_for_name(agent_name);
+        let module = apollia_aip::loader::load_agent_module_with_sys_paths(&agent_path, &extras)
+            .map_err(|e| e.to_string())?;
         let validated =
             apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
         let manifest = validated.manifest.clone();
@@ -177,9 +207,53 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             ),
         }));
 
+        // Build A2A delegate + invoker so chat-agent Python agents can call
+        // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
+        // with task-mode (triggers/API) — fixes the previous "not available in
+        // chat mode" gap.
+        let (a2a_delegate, a2a_invoker) =
+            match (self.agent_registry.get().cloned(), self.task_router.get().cloned()) {
+                (Some(registry), Some(router)) => {
+                    let delegate = apollia_runtime::a2a::make_delegate_fn(
+                        registry.clone(),
+                        router.clone(),
+                        event_bus.clone(),
+                        apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
+                    );
+                    let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
+                        registry,
+                        router,
+                        event_bus.clone(),
+                        apollia_core::A2AConfig::default(),
+                    ));
+                    (Some(delegate), Some(invoker))
+                }
+                _ => {
+                    tracing::warn!(
+                        agent = %agent_name,
+                        "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
+                    );
+                    (None, None)
+                }
+            };
+
+        // Augment allowed_tools with live A2A virtual skills so the ToolProxy
+        // accepts `a2a:*` calls (the registry filter would otherwise reject them).
+        let mut allowed_tools = allowed_tools;
+        if let Some(ref invoker) = a2a_invoker {
+            let descriptors = apollia_runtime::a2a::A2AToolsProvider::new(Arc::clone(invoker))
+                .build_tool_descriptors()
+                .await;
+            for desc in descriptors {
+                if !allowed_tools.iter().any(|n| n == &desc.name) {
+                    allowed_tools.push(desc.name);
+                }
+            }
+        }
+
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
-            (Some(registry), Some(audit)) => Some(
-                ToolProxy::new(
+            (Some(registry), Some(audit)) => {
+                let proxy = ToolProxy::new(
                     registry.clone(),
                     audit.clone(),
                     Arc::new(DispatcherExecutor::new(dispatcher)),
@@ -188,8 +262,14 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                     task.task_id.clone(),
                 )
                 // ADR-088 — instrumentation tool_call_* (Lot 2).
-                .with_event_bus(event_bus.clone()),
-            ),
+                .with_event_bus(event_bus.clone());
+                let proxy = if let Some(ref invoker) = a2a_invoker {
+                    proxy.with_a2a(Arc::clone(invoker), 0, None)
+                } else {
+                    proxy
+                };
+                Some(proxy)
+            }
             _ => None,
         };
         let memory_interface: Option<MemoryInterface> =
@@ -239,8 +319,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string(),
                 supports_a2a,
                 user_context,
-                None,  // a2a_delegate — chat runner does not participate in A2A delegation
-                None,  // a2a_invoker — not available in chat mode
+                a2a_delegate,
+                a2a_invoker,
                 manifest.user_memory_write, // user_memory_writable — manifest-controlled
             )
             .with_profile(profile_interface)
@@ -742,8 +822,11 @@ impl AgentBackendFactory for ProductionBackendFactory {
         };
 
         let result: Result<AIPProductionBackend, String> = (|| {
+            // Inject per-agent venv site-packages so top-level imports resolve.
+            let extras = venv_site_packages_for_name(&manifest.name);
             let module =
-                apollia_aip::loader::load_agent_module(agent_path).map_err(|e| e.to_string())?;
+                apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
+                    .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
@@ -948,6 +1031,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let runtime_config = runtime_file_config.unwrap_or_default();
     let hitl_config = hitl_file_config.unwrap_or_default();
+    let tools_config = tools_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -976,6 +1060,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
                 .filter(|p| p.exists());
             from_exe.or(from_cwd)
         },
+        tools_config: tools_config.clone(),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -1011,8 +1096,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
         Arc::new(std::sync::OnceLock::new());
 
-    let tools_config = tools_file_config.unwrap_or_default();
-
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
         llm_router: llm_router_lock.clone(),
@@ -1034,6 +1117,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             audit_trail: audit_trail_lock.clone(),
             user_memory: user_memory_lock.clone(),
             pending_user_inputs: pending_user_inputs_lock.clone(),
+            agent_registry: registry_lock.clone(),
+            task_router: router_lock.clone(),
             data_dir: data_dir_for_chat,
             tools_config,
         }));

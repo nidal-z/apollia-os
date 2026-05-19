@@ -24,6 +24,9 @@
   } from "$lib/tour/FirstConnectionTour";
   import FirstConnectionTourRunner from "./FirstConnectionTourRunner.svelte";
   import type {
+    McpConnectionTestResponse,
+    McpOAuthAccount,
+    McpOAuthDiscoveryResult,
     McpServerConfigInput,
     RegistryEnvVarView,
     RegistryServerView,
@@ -76,6 +79,36 @@
   let finalizeError = $state<string | null>(null);
   let showFirstTour = $state(false);
 
+  // ── Auth-step probe + OAuth state (ADR-095 Phase 5) ────────────────────────
+  // When the user enters the Auth step on a `remote` connector, we probe the
+  // server (no auth) once to detect whether it needs OAuth, a static token,
+  // or nothing. The result drives which UI branch the step renders.
+  //
+  // `probeMode` lifecycle:
+  //   "idle"        — not yet probed (initial state / probe disabled).
+  //   "probing"     — request in flight, render a spinner.
+  //   "none"        — server returned 200, no auth required (Figma local etc.).
+  //   "static"      — server returned a non-OAuth 4xx, keep legacy token UX.
+  //   "oauth"       — server returned 401 + OAuth discovery succeeded.
+  //   "probe_error" — transport / discovery failed; the user can still try the
+  //                   static-token path if the catalog declared headers.
+  type ProbeMode = "idle" | "probing" | "none" | "static" | "oauth" | "probe_error";
+  let probeMode = $state<ProbeMode>("idle");
+  let probeError = $state<string | null>(null);
+  let oauthWwwAuthenticate = $state<string | null>(null);
+  let oauthDiscovery = $state<McpOAuthDiscoveryResult | null>(null);
+  let oauthSelectedScopes = $state<string[]>([]);
+  let oauthAccount = $state<McpOAuthAccount | null>(null);
+  let oauthSigningIn = $state(false);
+  let oauthSigninError = $state<string | null>(null);
+  /** Pre-registered OAuth client id resolved from `oauth_pre_registered_client_id_env`.
+   *  `null` when the catalog enrichment didn't declare one (CIMD/DCR path).
+   *  `""` when declared but env var unset (surface a guidance error before
+   *  even opening the browser). */
+  let oauthClientIdOverride = $state<string | null>(null);
+  let oauthSavingClientId = $state(false);
+  let oauthSaveClientIdError = $state<string | null>(null);
+
   $effect(() => {
     if (open) {
       currentStepIndex = 0;
@@ -85,6 +118,17 @@
       testSucceeded = false;
       testBypassed = false;
       finalizeError = null;
+      probeMode = "idle";
+      probeError = null;
+      oauthWwwAuthenticate = null;
+      oauthDiscovery = null;
+      oauthSelectedScopes = [];
+      oauthAccount = null;
+      oauthSigningIn = false;
+      oauthSigninError = null;
+      oauthClientIdOverride = null;
+      oauthSavingClientId = false;
+      oauthSaveClientIdError = null;
       // Pre-check disclaimer if current version is already accepted.
       void isDisclaimerVersionAccepted().then((v) => {
         disclaimerVersionOk = v;
@@ -117,6 +161,25 @@
       isRequired: h.isRequired,
       isSecret: h.isSecret,
     }));
+  });
+
+  /** True when the remote MCP URL resolves to a loopback host (127.0.0.1,
+   *  localhost, ::1). Used to surface the "Local application required" card
+   *  for connectors whose server is hosted by a desktop app on the user's
+   *  machine (Figma Dev Mode today, future similar integrations). */
+  const isLocalLoopbackRemote = $derived.by((): boolean => {
+    if (connectionMode !== "remote" || !remote) return false;
+    try {
+      const u = new URL(remote.url);
+      return (
+        u.hostname === "127.0.0.1" ||
+        u.hostname === "localhost" ||
+        u.hostname === "[::1]" ||
+        u.hostname === "::1"
+      );
+    } catch {
+      return false;
+    }
   });
 
   const authEnvVars = $derived.by((): RegistryEnvVarView[] => {
@@ -170,8 +233,32 @@
   const currentStep = $derived(steps[currentStepIndex]);
   const totalSteps = steps.length;
 
-  // Required-field completion for the auth step: every required var must have a value.
+  // Auth-step completion gate. Branches mirror `probeMode` so the wizard
+  // accepts the right kind of completion per server type.
   const authComplete = $derived.by((): boolean => {
+    if (connectionMode === "remote") {
+      switch (probeMode) {
+        case "probing":
+          return false;
+        case "none":
+          // Local-loopback / no-auth — user just needs to have read the
+          // help text; advancing is always allowed once the probe returned.
+          return true;
+        case "oauth":
+          // OAuth — must have completed the sign-in dance.
+          return oauthAccount !== null;
+        case "static":
+        case "probe_error":
+        case "idle": {
+          // Fall back to the legacy required-field check so a user can still
+          // paste a token manually if the probe failed but the catalog
+          // declared headers.
+          const required = authEnvVars.filter((v) => v.isRequired);
+          return required.every((v) => (envValues[v.name] ?? "").trim() !== "");
+        }
+      }
+    }
+    // Package (stdio) mode keeps the original args + required-env check.
     const required = authEnvVars.filter((v) => v.isRequired);
     const envOk = required.every((v) => (envValues[v.name] ?? "").trim() !== "");
     return envOk && argsComplete;
@@ -259,11 +346,31 @@
     const safeName = sanitizeServerName(nameSource);
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
-      for (const header of remote.headers) {
-        env[header.name] =
-          header.isSecret && !forTest
-            ? `\${APOLLIA_SECRET:${header.name}}`
-            : (envValues[header.name] ?? "");
+      if (probeMode === "oauth" && oauthAccount) {
+        // OAuth flow completed (Phase 5). The token lives in the keyring under
+        // `mcp_oauth:{server_name}`; the transport injects it dynamically at
+        // each request via `${APOLLIA_OAUTH}` (resolved + Bearer-prefixed by
+        // `apollia-mcp::config::resolve_single_var`).
+        //
+        // Catalog headers other than `Authorization` (rare) are still passed
+        // through as static placeholders so a server that requires both a
+        // Bearer + an extra static header keeps working.
+        env["Authorization"] = "${APOLLIA_OAUTH}";
+        for (const header of remote.headers) {
+          if (header.name.toLowerCase() === "authorization") continue;
+          env[header.name] =
+            header.isSecret && !forTest
+              ? `\${APOLLIA_SECRET:${header.name}}`
+              : (envValues[header.name] ?? "");
+        }
+      } else {
+        // Legacy / static-token path — operator pasted a value into the form.
+        for (const header of remote.headers) {
+          env[header.name] =
+            header.isSecret && !forTest
+              ? `\${APOLLIA_SECRET:${header.name}}`
+              : (envValues[header.name] ?? "");
+        }
       }
       return {
         name: safeName,
@@ -337,6 +444,194 @@
   function handleArgChange(index: number, value: string): void {
     argValues = { ...argValues, [index]: value };
   }
+
+  // ── Probe + OAuth discovery (ADR-095 Phase 5) ──────────────────────────────
+
+  /** Build a no-auth probe config for the Auth step pre-flight. Only meaningful
+   *  for remote connectors — package mode (stdio) needs its env to spawn at all,
+   *  so we skip probing there and stay on the legacy field-based UX. */
+  function buildProbeConfig(): McpServerConfigInput | null {
+    if (connectionMode !== "remote" || !remote) return null;
+    return {
+      name: sanitizeServerName(
+        server.enrichment?.operator_label ?? server.title ?? server.name,
+      ),
+      url: remote.url,
+      transport: remote.type,
+      env: {},
+      requires_approval: false,
+      tags: [],
+    };
+  }
+
+  /** Run a one-shot connection probe and route the wizard to the right Auth
+   *  step branch. Triggered once when the user reaches the Auth step. */
+  async function runAuthProbe(): Promise<void> {
+    if (connectionMode !== "remote") {
+      probeMode = "idle";
+      return;
+    }
+    const probeConfig = buildProbeConfig();
+    if (!probeConfig) {
+      probeMode = "idle";
+      return;
+    }
+    probeMode = "probing";
+    probeError = null;
+    try {
+      const response = await invoke<McpConnectionTestResponse>(
+        "test_mcp_connection",
+        { config: probeConfig },
+      );
+      if (response.kind === "success") {
+        probeMode = "none";
+      } else if (response.kind === "oauth_required") {
+        oauthWwwAuthenticate = response.www_authenticate;
+        await runOAuthDiscovery();
+      } else {
+        probeMode = "probe_error";
+      }
+    } catch (err: unknown) {
+      // Probe transport errors — fall back to the legacy static-token UX so
+      // the user can still try a manual token (catalog may declare headers).
+      probeMode = remoteHeadersAsEnvVars.length > 0 ? "static" : "probe_error";
+      probeError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function runOAuthDiscovery(): Promise<void> {
+    if (!remote) return;
+    try {
+      const result = await invoke<McpOAuthDiscoveryResult>("mcp_oauth_discover", {
+        url: remote.url,
+        wwwAuthenticate: oauthWwwAuthenticate,
+      });
+      oauthDiscovery = result;
+
+      // ADR-095 follow-up: when the enrichment declares a pre-registered
+      // OAuth client id env var, resolve it now so we can surface a
+      // guidance error BEFORE the user clicks "Sign in" (saves a wasted
+      // browser round-trip for AS that don't support CIMD/DCR — Figma).
+      const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
+      if (envVar) {
+        const resolved = await invoke<string | null>(
+          "mcp_oauth_resolve_client_id",
+          { envVar },
+        );
+        oauthClientIdOverride = resolved ?? "";
+      } else {
+        oauthClientIdOverride = null;
+      }
+
+      // Scope selection depends on the auth path:
+      // - Generic CIMD/DCR (no override): PRM-published scopes are valid at
+      //   the AS, default them all checked per ADR-095 user decision.
+      // - Pre-registered override (Figma): scopes are fixed at the dev
+      //   portal where the user created the OAuth app. Sending the PRM
+      //   scopes (`mcp:connect` in Figma's case) to the standard OAuth
+      //   authorize endpoint produces "Invalid scope" errors. Pass an
+      //   empty list so the orchestrator omits `scope=` entirely; the AS
+      //   then grants the scopes configured at registration time.
+      const usingPreRegisteredApp =
+        envVar !== null && envVar !== undefined && oauthClientIdOverride !== "";
+      oauthSelectedScopes = usingPreRegisteredApp
+        ? []
+        : [...result.scopes_supported];
+
+      probeMode = "oauth";
+    } catch (err: unknown) {
+      // Discovery failure: fall back to static-token UX if the catalog
+      // declared headers, otherwise surface a clear error.
+      probeMode = remoteHeadersAsEnvVars.length > 0 ? "static" : "probe_error";
+      probeError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Persist a user-entered OAuth client id to the keychain via IPC.
+   *  Triggered from the input field shown in the Auth step when the
+   *  connector's enrichment declares `oauth_pre_registered_client_id_env`
+   *  and none of {runtime env var, prior keychain entry, build-time const}
+   *  resolved a value. Subsequent calls to `mcp_oauth_resolve_client_id`
+   *  return this value transparently (priority 2). */
+  async function saveOAuthClientId(value: string): Promise<void> {
+    const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
+    if (!envVar) return;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      oauthSaveClientIdError = "Le Client ID est vide.";
+      return;
+    }
+    oauthSavingClientId = true;
+    oauthSaveClientIdError = null;
+    try {
+      await invoke("mcp_oauth_store_client_id", {
+        envVar,
+        value: trimmed,
+      });
+      oauthClientIdOverride = trimmed;
+      // Mirror runOAuthDiscovery's pre-registered branch: once the user
+      // supplies a pre-registered client_id, scopes are baked at the
+      // provider's dev portal — sending PRM-published placeholders
+      // (`mcp:connect` on Figma) to the AS produces "Invalid scope".
+      // Empty list ⇒ orchestrator omits `scope=` from the authorize URL.
+      oauthSelectedScopes = [];
+    } catch (err: unknown) {
+      oauthSaveClientIdError = err instanceof Error ? err.message : String(err);
+    } finally {
+      oauthSavingClientId = false;
+    }
+  }
+
+  function toggleOAuthScope(scope: string): void {
+    if (oauthSelectedScopes.includes(scope)) {
+      oauthSelectedScopes = oauthSelectedScopes.filter((s) => s !== scope);
+    } else {
+      oauthSelectedScopes = [...oauthSelectedScopes, scope];
+    }
+  }
+
+  async function startOAuthSignin(): Promise<void> {
+    if (!remote) return;
+    // Guard: AS requires manual registration AND we have no client id → bail
+    // with a clear guidance error rather than open the browser to a "client
+    // doesn't exist" page (the Figma case before this fix).
+    const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
+    if (envVar && (oauthClientIdOverride === null || oauthClientIdOverride === "")) {
+      // Defensive — build-time injection (option_env!) should normally
+      // populate this for end users. We only reach here in dev builds where
+      // the build var wasn't set AND the operator hasn't exported the
+      // runtime var either. The help_text card above documents the
+      // registration procedure.
+      oauthSigninError = `Ce connecteur n'est pas encore configuré dans ce build d'Apollia. Voir l'aide ci-dessus.`;
+      return;
+    }
+    oauthSigningIn = true;
+    oauthSigninError = null;
+    try {
+      const account = await invoke<McpOAuthAccount>("mcp_oauth_login", {
+        serverName: sanitizeServerName(
+          server.enrichment?.operator_label ?? server.title ?? server.name,
+        ),
+        serverUrl: remote.url,
+        wwwAuthenticate: oauthWwwAuthenticate,
+        scopes: oauthSelectedScopes,
+        clientId: oauthClientIdOverride,
+      });
+      oauthAccount = account;
+    } catch (err: unknown) {
+      oauthSigninError = err instanceof Error ? err.message : String(err);
+    } finally {
+      oauthSigningIn = false;
+    }
+  }
+
+  // Trigger the probe automatically when the user reaches the Auth step.
+  // Runs once per opening; the probe state is reset in the `$effect(open)` block.
+  $effect(() => {
+    if (open && currentStep === "auth" && probeMode === "idle") {
+      void runAuthProbe();
+    }
+  });
 
   function handleTestSuccess(): void {
     testSucceeded = true;
@@ -444,6 +739,29 @@
         packageArgs={userPackageArgs}
         argValues={argValues}
         onArgChange={handleArgChange}
+        localLoopback={isLocalLoopbackRemote}
+        probeMode={probeMode}
+        probeError={probeError}
+        oauthDiscovery={oauthDiscovery}
+        oauthSelectedScopes={oauthSelectedScopes}
+        oauthAccount={oauthAccount}
+        oauthSigningIn={oauthSigningIn}
+        oauthSigninError={oauthSigninError}
+        oauthClientIdMissing={
+          (server.enrichment?.oauth_pre_registered_client_id_env ?? null) !== null
+          && (oauthClientIdOverride === null || oauthClientIdOverride === "")
+        }
+        oauthUsingPreRegisteredApp={
+          (server.enrichment?.oauth_pre_registered_client_id_env ?? null) !== null
+          && oauthClientIdOverride !== null
+          && oauthClientIdOverride !== ""
+        }
+        oauthClientIdEnvVar={server.enrichment?.oauth_pre_registered_client_id_env ?? null}
+        oauthSavingClientId={oauthSavingClientId}
+        oauthSaveClientIdError={oauthSaveClientIdError}
+        onOAuthSaveClientId={saveOAuthClientId}
+        onOAuthToggleScope={toggleOAuthScope}
+        onOAuthSignin={startOAuthSignin}
       />
     {:else if currentStep === "test"}
       {#if testConfig}

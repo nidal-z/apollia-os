@@ -14,6 +14,7 @@ pub mod analyzers;
 pub mod api;
 pub mod chat;
 pub mod commands;
+pub mod connectors_bridge;
 pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;

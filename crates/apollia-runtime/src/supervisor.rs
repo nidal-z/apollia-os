@@ -118,6 +118,14 @@ pub struct SupervisorConfig {
     /// automatiquement les agents déclarés dans `manifest.json`.
     /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré silencieusement.
     pub bundled_agents_path: Option<std::path::PathBuf>,
+
+    /// Configuration des outils natifs (section `[tools]` de `apollia.toml`).
+    ///
+    /// Propagée par `EmbeddedConfig::apply_toml` → `SupervisorConfig` → `RuntimeHandle`.
+    /// Permet aux agent runners (factory + chat) d'appliquer `web_search`,
+    /// `web_read`, `http_allowlist` et `disabled` lors de la construction
+    /// du `NativeDispatcherConfig`. Défaut : [`apollia_core::ToolsConfig::default()`].
+    pub tools_config: apollia_core::ToolsConfig,
 }
 
 impl SupervisorConfig {
@@ -469,7 +477,27 @@ impl Supervisor {
                 warn!(error = %e, "failed to register native tool");
             }
         }
-        info!("Supervisor: ToolRegistry ready (native tools registered)");
+        // Phase 3b: register connector tool descriptors (Google Workspace,
+        // future Microsoft 365). Descriptors are static — they make the LLM
+        // aware of the tools regardless of whether a Google account is
+        // actually connected. The matching executors are wired in by the
+        // desktop dispatcher builder, which has access to the AuthManager.
+        let connector_descriptor_count =
+            crate::connectors_bridge::all_connector_descriptors().len();
+        for descriptor in crate::connectors_bridge::all_connector_descriptors() {
+            let tool_name = descriptor.name.clone();
+            if let Err(e) = tool_registry_handle.register(descriptor).await {
+                warn!(
+                    error = %e,
+                    tool = %tool_name,
+                    "failed to register connector tool descriptor"
+                );
+            }
+        }
+        info!(
+            connector_tools = connector_descriptor_count,
+            "Supervisor: ToolRegistry ready (native + connector tools registered)"
+        );
 
         // Phase 3b: MCP Client Manager — reads server list from mcp.db (SQLite).
         //
@@ -542,11 +570,15 @@ impl Supervisor {
                             tools = total_tools,
                             "MCP Phase 3b complete"
                         );
-                        // Start MCP config watcher for hot reload when mcp.toml exists.
-                        apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
-                            mcp_config_path.clone(),
-                            handle.clone(),
-                        );
+                        // Start MCP config watcher only when the legacy mcp.toml exists.
+                        // Config is now stored in mcp.db (SQLite) — mcp.toml is a
+                        // deprecated migration path kept for back-compat.
+                        if mcp_config_path.exists() {
+                            apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
+                                mcp_config_path.clone(),
+                                handle.clone(),
+                            );
+                        }
                         Some(handle)
                     }
                     Err(e) => {
@@ -973,6 +1005,17 @@ impl Supervisor {
                 }),
                 project_repository.clone(),
                 mcp_handle.clone(),
+                // ADR-096 Phase 3 — feed the chat dispatcher the same global
+                // config the Agent-mode dispatcher uses. Native tools needing
+                // app-level config (web_search Brave key, web_read SSRF
+                // settings, http_fetch allowlist, memory_search base dir,
+                // permission_rule_* governance.db) become available across
+                // Chat Libre now too.
+                Some(std::sync::Arc::new(crate::chat::ChatToolsConfig {
+                    data_dir: self.config.data_dir.clone(),
+                    brave_api_key: None, // resolved lazily by web_search when missing
+                    tools_config: self.config.tools_config.clone(),
+                })),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");
@@ -1822,6 +1865,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         (config, temp_dir)
     }
@@ -1930,15 +1974,20 @@ mod tests {
         // ToolRegistryHandle: can list (native tools should be registered).
         // Count mirrors native_tool_descriptors() — 16 baseline (13 historical
         // + 3 permission_rule_* added by ADR-086) + web-search + web-read
-        // when those features are compiled in (ADR-072).
-        let expected =
-            16 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+        // when those features are compiled in (ADR-072), plus the connector
+        // tool descriptors registered at Phase 3b (ADR-096 convergence —
+        // Google ops today, Microsoft to come).
+        let connector_count = crate::connectors_bridge::all_connector_descriptors().len();
+        let expected = 16
+            + cfg!(feature = "web-search") as usize
+            + cfg!(feature = "web-read") as usize
+            + connector_count;
         let tools = handles.tool_registry_handle.list().await;
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
             expected,
-            "expected {expected} native tools to be auto-registered"
+            "expected {expected} native + connector tools to be auto-registered"
         );
 
         // TaskRouterHandle: is clone
@@ -1995,6 +2044,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2144,6 +2194,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2256,6 +2307,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2317,6 +2369,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2389,6 +2442,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2635,6 +2689,7 @@ mod tests {
             agent_repository: None,
             package_repository: None,
             bundled_agents_path: None,
+            tools_config: apollia_core::ToolsConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 

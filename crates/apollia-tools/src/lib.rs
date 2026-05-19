@@ -23,6 +23,7 @@ pub mod agent_repository;
 pub mod audit;
 pub mod chat_libre_config;
 pub mod descriptor;
+pub mod dispatcher_invoker;
 pub mod executor;
 pub mod file_path_extractor;
 pub mod governance_db;

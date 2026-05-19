@@ -127,6 +127,10 @@ pub struct AuthorizationServerMetadata {
     /// Issuer URL.
     #[serde(default)]
     pub issuer: Option<String>,
+    /// Non-standard but widely-adopted (MCP spec) flag: the AS accepts CIMD
+    /// URLs as `client_id`. When `true`, Apollia skips DCR entirely.
+    #[serde(default)]
+    pub client_id_metadata_document_supported: Option<bool>,
 }
 
 impl AuthorizationServerMetadata {
@@ -221,9 +225,9 @@ pub const APOLLIA_CIMD: ClientIdMetadataDocument = ClientIdMetadataDocument {
     client_name: "Apollia OS",
     client_uri: "https://apollia.fr",
     redirect_uris: &["http://127.0.0.1/oauth/callback"],
-    logo_uri: "https://apollia.fr/assets/icon-512.png",
-    tos_uri: "https://apollia.fr/legal/terms",
-    policy_uri: "https://apollia.fr/legal/privacy",
+    logo_uri: "https://apollia.fr/icon-512.png",
+    tos_uri: "https://apollia.fr/mentions-legales",
+    policy_uri: "https://apollia.fr/confidentialite",
     software_id: "io.apollia.os",
     software_version: env!("CARGO_PKG_VERSION"),
     token_endpoint_auth_method: "none",
@@ -442,6 +446,7 @@ mod tests {
             code_challenge_methods_supported: vec!["plain".into(), "S256".into()],
             revocation_endpoint: None,
             issuer: None,
+            client_id_metadata_document_supported: None,
         };
         assert!(meta.supports_pkce_s256());
     }
@@ -455,6 +460,7 @@ mod tests {
             code_challenge_methods_supported: vec!["plain".into()],
             revocation_endpoint: None,
             issuer: None,
+            client_id_metadata_document_supported: None,
         };
         assert!(!meta.supports_pkce_s256());
     }

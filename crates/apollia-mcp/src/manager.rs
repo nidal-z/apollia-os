@@ -14,7 +14,7 @@ use apollia_tools::descriptor::{McpTransport, ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
 use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
-use crate::config::McpServerConfig;
+use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::protocol::ToolCallResult;
 use crate::session::{McpSession, McpSessionError};
 
@@ -246,7 +246,7 @@ impl McpClientManagerHandle {
             let requires_approval = config.requires_approval;
             let tags = config.tags.clone();
 
-            match McpSession::start(config, None).await {
+            match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
                 Ok(session) => {
                     tracing::info!(
                         server = %server_name,
@@ -721,7 +721,7 @@ impl McpClientManager {
             });
         }
 
-        let session = McpSession::start(config, None).await?;
+        let session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
         tracing::info!(
             server = %name,
             tools = session.tools().len(),
@@ -776,7 +776,7 @@ impl McpClientManager {
 
         old_session.shutdown().await;
 
-        let new_session = match McpSession::start(config, None).await {
+        let new_session = match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
             Ok(s) => s,
             Err(e) => {
                 self.reloading.remove(name);
@@ -834,7 +834,7 @@ impl McpClientManager {
         config: McpServerConfig,
     ) -> Result<McpConnectionTestResult, McpSessionError> {
         let start = std::time::Instant::now();
-        let session = McpSession::start(config, None).await?;
+        let session = McpSession::start(config, Some(&DefaultMcpSecretResolver)).await?;
         let tools: Vec<McpToolSummary> = session
             .tools()
             .iter()
@@ -950,7 +950,7 @@ impl McpClientManager {
                         Some(old_session) => {
                             let config = old_session.config().clone();
                             old_session.shutdown().await;
-                            match McpSession::start(config, None).await {
+                            match McpSession::start(config, Some(&DefaultMcpSecretResolver)).await {
                                 Ok(new_session) => {
                                     let status = build_status(&server_name, &new_session);
                                     self.sessions.insert(server_name, new_session);

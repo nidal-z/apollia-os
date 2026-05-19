@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use apollia_aip::package_loader::{load_package, validate_manifest};
+use apollia_aip::package_loader::{load_manifest_only, validate_manifest, AgentPackage};
 use apollia_core::events::RuntimeEvent;
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::embedded::RuntimeHandle;
@@ -205,11 +205,9 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
     let triggers = parse_trigger_previews(&toml_str);
     let trigger_count = triggers.len();
 
-    let pip_packages = manifest
-        .pip
-        .as_ref()
-        .map(|p| p.packages.clone())
-        .unwrap_or_default();
+    // Aggregate pip packages from both [pip] top-level AND per-agent [[agents]].packages.
+    // Both placements are supported; per-agent is the apollia-worker-forge convention.
+    let pip_packages = manifest.all_pip_packages();
 
     let agents = manifest
         .agents
@@ -236,100 +234,139 @@ pub async fn preview_agent_package(path: String) -> Result<PackagePreview, Strin
 }
 
 /// Installe un package depuis un chemin local.
+///
+/// Flow (ordre strict) :
+/// 1. Parse `agent.toml` (sync, sans PyO3)
+/// 2. Si packages pip déclarés ET `deps_confirmed = false` → renvoie l'erreur
+///    `DEPS_CONFIRMATION_REQUIRED:<n>:<list>` que le frontend parse pour
+///    afficher un dialog de confirmation explicite.
+/// 3. Copie le dossier vers `~/.apollia/agents/packages/<name>/`
+/// 4. Pour chaque agent : crée son venv (`~/.apollia/venvs/<agent>/venv/`),
+///    `pip install` ses packages, puis duck-type le `.py` avec le
+///    `site-packages` du venv injecté dans `sys.path`.
+/// 5. Sur la moindre erreur en étape 3-4 : **rollback** complet (suppression
+///    `install_root` + tous les venvs créés).
+/// 6. Sauvegarde DB + injection des triggers (inchangé).
 #[tauri::command]
 pub async fn install_agent_package(
     path: String,
     trigger_configs: Vec<TriggerConfigOverride>,
+    deps_confirmed: bool,
     pkg_repo_state: State<'_, Arc<Mutex<PackageRepository>>>,
     agent_repo_state: State<'_, Arc<Mutex<AgentRepository>>>,
-    agent_loader: State<'_, Arc<dyn AgentLoader>>,
+    _agent_loader: State<'_, Arc<dyn AgentLoader>>,
     runtime: State<'_, RuntimeHandle>,
 ) -> Result<InstallPackageResponse, String> {
     let root = PathBuf::from(&path);
     let data_dir = apollia_data_dir();
 
-    // Validate + duck-type in blocking thread (PyO3 operations).
-    let root_clone = root.clone();
-    let pkg = tokio::task::spawn_blocking(move || load_package(&root_clone))
-        .await
-        .map_err(|e| format!("spawn error: {e}"))?
-        .map_err(|e| format!("package validation failed: {e}"))?;
+    // ── Step 1: parse manifest only (no PyO3, no venv) ─────────────────────
+    let pkg: AgentPackage = {
+        let root_clone = root.clone();
+        tokio::task::spawn_blocking(move || load_manifest_only(&root_clone))
+            .await
+            .map_err(|e| format!("spawn error: {e}"))?
+            .map_err(|e| format!("manifest validation failed: {e}"))?
+    };
+
+    let aggregate_pkgs = pkg.manifest.all_pip_packages();
+
+    // ── Step 2: confirmation requise pour les deps pip ─────────────────────
+    if !aggregate_pkgs.is_empty() && !deps_confirmed {
+        return Err(format!(
+            "DEPS_CONFIRMATION_REQUIRED:{}:{}",
+            aggregate_pkgs.len(),
+            aggregate_pkgs.join(",")
+        ));
+    }
 
     let pkg_name = pkg.manifest.package.name.clone();
     let pkg_version = pkg.manifest.package.version.clone();
     let install_root = data_dir.join("agents").join("packages").join(&pkg_name);
+    let venvs_root = data_dir.join("venvs");
 
-    // Copy directory.
+    // ── Step 3: copy directory ─────────────────────────────────────────────
     copy_dir_all(&root, &install_root).map_err(|e| format!("failed to copy package: {e}"))?;
 
-    let now = chrono::Utc::now().to_rfc3339();
-    let mut agent_count = 0;
+    // Track everything we created so we can roll back on failure.
+    let mut created_venvs: Vec<PathBuf> = Vec::new();
 
-    // Parse each agent's Python manifest from the freshly copied install path.
-    // Without this we'd store a stub manifest (memory_namespace=None,
-    // tools_required=[], …) and the UI would never see the real per-agent
-    // metadata until the agent is started. The PyO3 calls must run in a
-    // blocking thread.
-    let loader: Arc<dyn AgentLoader> = Arc::clone(&agent_loader);
-    let install_root_for_parse = install_root.clone();
-    let root_for_parse = root.clone();
-    let entries_for_parse: Vec<(String, PathBuf)> = pkg
+    // Build the per-agent install plan (name, installed .py path, pip pkgs).
+    let install_plan: Vec<(String, PathBuf, Vec<String>)> = pkg
         .agents
         .iter()
         .map(|entry| {
             let rel = entry.entry.strip_prefix(&root).unwrap_or(&entry.entry);
-            (entry.name.clone(), install_root_for_parse.join(rel))
+            let installed_py = install_root.join(rel);
+            let pkgs = pkg.manifest.agent_pip_packages(&entry.name);
+            (entry.name.clone(), installed_py, pkgs)
         })
         .collect();
-    let parsed_manifests = tokio::task::spawn_blocking(move || {
-        let mut out: Vec<(String, PathBuf, apollia_core::AgentManifest)> =
-            Vec::with_capacity(entries_for_parse.len());
-        for (name, path) in entries_for_parse {
-            match loader.load_and_validate(&path) {
-                Ok(manifest) => out.push((name, path, manifest)),
-                // Best-effort: if parsing fails for one agent (rare — load_package
-                // already duck-typed the source), fall back to a stub manifest
-                // so the install still succeeds. The agent's Memory tab will
-                // simply show "no namespace declared" until the agent loads.
-                Err(_) => {
-                    let stub = apollia_core::AgentManifest {
-                        name: name.clone(),
-                        version: String::new(),
-                        description: String::new(),
-                        tools_required: vec![],
-                        tools_optional: vec![],
-                        supports_streaming: false,
-                        supports_a2a: false,
-                        memory_namespace: None,
-                        shared_memory_namespaces: vec![],
-                        max_concurrent_tasks: 1,
-                        step_budget: None,
-                        network_allowlist: None,
-                        dangerous_tools_allowed: false,
-                        tags: vec![],
-                        skills: vec![],
-                        execution_mode: "auto".to_string(),
-                        system_prompt: None,
-                        tools_requiring_approval: vec![],
-                        llm_backend: None,
-                        packages: vec![],
-                        memory_config: None,
-                        agent_type: None,
-                        examples: vec![],
-                        limitations: vec![],
-                        setup_notes: None,
-                        agent_class: None,
-                        user_memory_write: false,
-                    };
-                    out.push((name, path, stub));
-                }
+
+    // ── Step 4: venv + duck-type per agent. On failure, rollback. ──────────
+    let parsed_result: Result<Vec<(String, PathBuf, apollia_core::AgentManifest)>, String> = async {
+        let mut parsed: Vec<(String, PathBuf, apollia_core::AgentManifest)> =
+            Vec::with_capacity(install_plan.len());
+
+        for (agent_name, installed_py, agent_pkgs) in install_plan {
+            // 4a: pip install in the agent's venv (if any packages declared).
+            if !agent_pkgs.is_empty() {
+                let executor =
+                    apollia_tools::tools::python_executor::PythonExecutor::new(&agent_name, &venvs_root)
+                        .map_err(|e| {
+                            format!("VENV_CREATE_FAILED for '{}': {}", agent_name, e)
+                        })?;
+                executor
+                    .setup_venv(&agent_pkgs)
+                    .await
+                    .map_err(|e| format!("PIP_INSTALL_FAILED for '{}': {}", agent_name, e))?;
+                created_venvs.push(venvs_root.join(&agent_name));
             }
+
+            // 4b: compute venv site-packages directories for sys.path injection.
+            let venv_path = venvs_root.join(&agent_name).join("venv");
+            let venv_site_packages = find_venv_site_packages(&venv_path);
+
+            // 4c: duck-type the agent + extract its Python manifest in one PyO3 call.
+            let py_path_for_blk = installed_py.clone();
+            let name_for_blk = agent_name.clone();
+            let manifest_res = tokio::task::spawn_blocking(move || {
+                load_agent_manifest_with_sys_paths(&py_path_for_blk, &venv_site_packages)
+            })
+            .await
+            .map_err(|e| format!("spawn error: {e}"))?;
+
+            let manifest = match manifest_res {
+                Ok(m) => m,
+                Err(e) => {
+                    return Err(format!(
+                        "duck-typing failed for '{}': {}",
+                        name_for_blk, e
+                    ));
+                }
+            };
+
+            parsed.push((agent_name, installed_py, manifest));
         }
-        out
-    })
-    .await
-    .map_err(|e| format!("spawn error: {e}"))?;
-    let _ = root_for_parse; // keep `root` alive in this scope — used below
+
+        Ok(parsed)
+    }
+    .await;
+
+    // ── Step 5: rollback on failure ────────────────────────────────────────
+    let parsed_manifests = match parsed_result {
+        Ok(p) => p,
+        Err(err) => {
+            let _ = std::fs::remove_dir_all(&install_root);
+            for venv in &created_venvs {
+                let _ = std::fs::remove_dir_all(venv);
+            }
+            return Err(err);
+        }
+    };
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut agent_count = 0;
 
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
@@ -604,6 +641,46 @@ pub async fn uninstall_agent_package(
 fn apollia_data_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia")
+}
+
+/// Locate the `site-packages` directory(ies) of a per-agent virtualenv.
+///
+/// Delegates to the canonical helper in `apollia-tools` so install-flow,
+/// runtime backend (`backend.rs`) and CLI (`commands/start.rs`) all read
+/// the same venv layout.
+fn find_venv_site_packages(venv_path: &Path) -> Vec<PathBuf> {
+    // The canonical helper takes (base, agent_name) and reconstructs
+    // `<base>/<agent_name>/venv/`. We already have the resolved venv path,
+    // so derive (base, agent_name) by walking up two parents.
+    let venv_dir = match venv_path.parent() {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    let base = match venv_dir.parent() {
+        Some(p) => p,
+        None => return Vec::new(),
+    };
+    let agent_name = match venv_dir.file_name().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    apollia_tools::tools::python_executor::agent_venv_site_packages(base, agent_name)
+}
+
+/// Load + validate an agent's Python module with extra sys.path entries
+/// (typically the venv's `site-packages`). Returns the parsed AgentManifest.
+///
+/// Combines duck-typing and manifest extraction in a single PyO3 import to
+/// avoid loading the module twice.
+fn load_agent_manifest_with_sys_paths(
+    py_path: &Path,
+    extra_sys_paths: &[PathBuf],
+) -> Result<apollia_core::AgentManifest, String> {
+    let module = apollia_aip::loader::load_agent_module_with_sys_paths(py_path, extra_sys_paths)
+        .map_err(|e| e.to_string())?;
+    let validated =
+        apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+    Ok(validated.manifest)
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {

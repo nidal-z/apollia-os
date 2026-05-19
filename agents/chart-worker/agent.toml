@@ -1,0 +1,60 @@
+# agent.toml — chart-worker v0.1.0
+#
+# Worker Apollia OS standalone, distribuable seul.
+# Installation : apollia agent install ./chart-worker
+
+[package]
+name        = "chart-worker"
+version     = "0.1.0"
+description = "Génération de charts (PNG/SVG) depuis JSON : bar, line, pie, scatter, heatmap. Styles avancés (3 thèmes), régression linéaire, mode file ou base64."
+author      = "Apollia OS"
+license     = "MIT"
+
+[[agents]]
+name                    = "chart-worker"
+entry                   = "chart-worker.py"
+role                    = "worker"
+agent_type              = "user"
+execution_mode          = "direct"
+supports_a2a            = true
+max_concurrent_tasks    = 2
+tools_required          = []
+dangerous_tools_allowed = false
+packages                = ["matplotlib==3.9.2"]
+tags                    = ["chart", "dataviz", "matplotlib", "png", "svg", "worker"]
+step_budget             = { max_steps = 1, max_tool_calls = 5, wall_clock_secs = 300 }
+
+[[agents.skills]]
+id           = "chart.bar"
+name         = "Bar chart"
+description  = "Génère un bar chart PNG/SVG (vertical ou horizontal, grouped ou stacked) depuis une liste de series. Value labels optionnels, 3 thèmes intégrés."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "chart.line"
+name         = "Line chart"
+description  = "Génère un line chart PNG/SVG (single ou multi-series). Axes datetime/number/category, markers, line styles, y_log_scale, area_fill optionnels."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "chart.pie"
+name         = "Pie / donut chart"
+description  = "Génère un pie ou donut chart PNG/SVG. Explode par slice, show_percent, hole_size, start_angle, colors personnalisables."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "chart.scatter"
+name         = "Scatter / bubble chart"
+description  = "Génère un scatter ou bubble chart PNG/SVG. Régression linéaire optionnelle (R² annoté), marker_style configurable, axes number ou datetime."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "chart.heatmap"
+name         = "Heatmap matrix"
+description  = "Génère une heatmap PNG/SVG depuis une matrice numérique. 8 colormaps whitelistées, show_values overlay, vmin/vmax explicites, colorbar configurable."
+input_modes  = ["text"]
+output_modes = ["text"]

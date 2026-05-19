@@ -7,16 +7,78 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Abstracts secret retrieval so that `apollia-mcp` does not depend on any
+/// Default service slot for MCP static secrets in the OS keychain.
+///
+/// Kept in sync with the desktop-side `apollia_desktop::mcp::SecretStore`
+/// which writes under the same service when the wizard calls
+/// `store_mcp_secret`. The constant lives here so the
+/// [`DefaultMcpSecretResolver`] can read from the same slot without
+/// duplicating the literal.
+pub const MCP_STATIC_SECRET_SERVICE: &str = "apollia-mcp";
+
+/// Canonical secret resolver wired into every `McpSession::start` call.
+///
+/// Stateless ZST — instantiate as `&DefaultMcpSecretResolver` anywhere a
+/// `&dyn SecretResolver` is expected. Bridges both placeholder kinds to
+/// their concrete storage layer:
+/// - `${APOLLIA_SECRET:KEY}` → OS keychain via
+///   [`apollia_auth::select_secret_store`] at service [`MCP_STATIC_SECRET_SERVICE`].
+/// - `${APOLLIA_OAUTH}` → [`apollia_auth::ensure_fresh_token`], which
+///   transparently refreshes tokens with the singleflight lock.
+///
+/// Removes the need for each caller to plumb its own resolver — there is
+/// exactly one production code path now (ADR-095 follow-up 2026-05-17).
+pub struct DefaultMcpSecretResolver;
+
+#[async_trait::async_trait]
+impl SecretResolver for DefaultMcpSecretResolver {
+    fn get_secret(&self, key: &str) -> Result<String, String> {
+        let store = apollia_auth::select_secret_store()
+            .map_err(|e| format!("secret store unavailable: {e}"))?;
+        store
+            .get(MCP_STATIC_SECRET_SERVICE, key)
+            .map_err(|e| format!("keychain read failed: {e}"))?
+            .ok_or_else(|| format!("secret not found: {key}"))
+    }
+
+    async fn resolve_oauth_bearer(&self, server_name: &str) -> Result<String, String> {
+        let store = apollia_auth::select_secret_store()
+            .map_err(|e| format!("secret store unavailable: {e}"))?;
+        apollia_auth::ensure_fresh_token(server_name, &*store)
+            .await
+            .map_err(|e| format!("{e}"))
+    }
+}
+
+/// Trait for resolving secrets referenced by `${APOLLIA_SECRET:KEY}` placeholders
+/// in env values. Decouples the config layer from the runtime's
 /// specific keychain implementation.
 ///
 /// Implementors provide access to secrets keyed by the format
-/// `"{server_name}:{env_var}"` (e.g. `"notion:NOTION_API_KEY"`).
+/// `"{server_name}:{env_var}"` (e.g. `"notion:NOTION_API_KEY"`) and,
+/// optionally, an asynchronous resolver for MCP HTTP OAuth bearer tokens
+/// (ADR-095 Phase 3). The OAuth path has a default implementation that
+/// returns an explicit "not configured" error so headless / CLI minimal
+/// builds without an orchestrator don't need to plumb it.
+#[async_trait::async_trait]
 pub trait SecretResolver: Send + Sync {
-    /// Retrieve the secret for `key`.
+    /// Retrieve the static secret for `key`.
     ///
     /// Returns `Ok(value)` when the secret is present, or `Err(message)`
     /// when it cannot be retrieved (not found, backend unavailable, etc.).
     fn get_secret(&self, key: &str) -> Result<String, String>;
+
+    /// Resolve the current OAuth access token for `server_name` and return
+    /// the value to inject as an `Authorization` header (already
+    /// `Bearer`-prefixed).
+    ///
+    /// The default implementation returns a clear error so callers without
+    /// an OAuth orchestrator (e.g. minimal CLI builds) surface a
+    /// guidance-bearing error rather than panicking.
+    async fn resolve_oauth_bearer(&self, server_name: &str) -> Result<String, String> {
+        let _ = server_name;
+        Err("MCP OAuth bearer resolver is not configured in this runtime".to_string())
+    }
 }
 
 /// Top-level MCP configuration loaded from `~/.apollia/mcp.toml`.
@@ -298,25 +360,26 @@ impl McpServerConfig {
     /// Resolve `${VAR}` placeholders in every env value.
     ///
     /// Plain `${VAR}` placeholders are resolved from the system environment.
-    /// Placeholders prefixed with `APOLLIA_SECRET:` (e.g. `${APOLLIA_SECRET:MY_KEY}`)
-    /// are resolved from the supplied `secret_store` using the keychain key
-    /// `"{server_name}:{MY_KEY}"`.
+    /// `${APOLLIA_SECRET:MY_KEY}` placeholders are resolved from the supplied
+    /// `secret_store` using the keychain key `"{server_name}:{MY_KEY}"`.
+    /// `${APOLLIA_OAUTH}` placeholders trigger an MCP HTTP OAuth bearer
+    /// lookup via [`SecretResolver::resolve_oauth_bearer`] (ADR-095) and
+    /// expand to the full `"Bearer …"` header value.
     ///
     /// Returns a new map with all placeholders replaced by their resolved values.
     /// Returns [`McpConfigError::UnresolvedEnvVar`] if any placeholder cannot be
-    /// resolved, including when `secret_store` is `None` for an `APOLLIA_SECRET:`
-    /// placeholder.
-    pub fn resolve_env(
+    /// resolved, including when `secret_store` is `None` for a placeholder that
+    /// requires it.
+    pub async fn resolve_env(
         &self,
         secret_store: Option<&dyn SecretResolver>,
     ) -> Result<HashMap<String, String>, McpConfigError> {
-        self.env
-            .iter()
-            .map(|(key, value)| {
-                let resolved = resolve_placeholders(value, &self.name, secret_store)?;
-                Ok((key.clone(), resolved))
-            })
-            .collect()
+        let mut out = HashMap::with_capacity(self.env.len());
+        for (key, value) in &self.env {
+            let resolved = resolve_placeholders(value, &self.name, secret_store).await?;
+            out.insert(key.clone(), resolved);
+        }
+        Ok(out)
     }
 }
 
@@ -352,9 +415,10 @@ fn looks_like_package_identifier(command: &str) -> bool {
     cmd.contains('/')
 }
 
-/// Replace all `${VAR}` occurrences in `value`, dispatching to either the system
-/// environment or the secret store depending on the `APOLLIA_SECRET:` prefix.
-fn resolve_placeholders(
+/// Replace all `${VAR}` occurrences in `value`, dispatching to either the
+/// system environment, the static secret store (`APOLLIA_SECRET:` prefix), or
+/// the MCP OAuth bearer resolver (`APOLLIA_OAUTH`, ADR-095).
+async fn resolve_placeholders(
     value: &str,
     server_name: &str,
     secret_store: Option<&dyn SecretResolver>,
@@ -377,7 +441,7 @@ fn resolve_placeholders(
         let var_name = &remaining[..end];
         remaining = &remaining[end + 1..];
 
-        let var_value = resolve_single_var(server_name, var_name, secret_store)?;
+        let var_value = resolve_single_var(server_name, var_name, secret_store).await?;
         result.push_str(&var_value);
     }
 
@@ -388,36 +452,57 @@ fn resolve_placeholders(
 
 /// Resolve a single variable reference extracted from a `${…}` placeholder.
 ///
-/// When `var_name` starts with `APOLLIA_SECRET:`, the remainder is used as the
-/// secret key and the value is fetched from `secret_store` using the composite
-/// key `"{server_name}:{secret_key}"`. When `secret_store` is `None` the call
-/// fails immediately with [`McpConfigError::UnresolvedEnvVar`].
+/// Dispatch precedence:
+/// - `APOLLIA_OAUTH` — exact match, no suffix. Resolves the current MCP HTTP
+///   OAuth bearer for this server via
+///   [`SecretResolver::resolve_oauth_bearer`] and expands to the full
+///   `"Bearer …"` header value (ADR-095 §3).
+/// - `APOLLIA_SECRET:KEY` — static secret keyed by `"{server_name}:{KEY}"`.
+/// - anything else — resolved from the process environment via
+///   [`std::env::var`].
 ///
-/// All other variable names are resolved from the process environment via
-/// [`std::env::var`].
-fn resolve_single_var(
+/// `secret_store` is required for both OAuth and static-secret resolution;
+/// absent store + secret/oauth placeholder ⇒ [`McpConfigError::UnresolvedEnvVar`].
+async fn resolve_single_var(
     server_name: &str,
     var_name: &str,
     secret_store: Option<&dyn SecretResolver>,
 ) -> Result<String, McpConfigError> {
+    if var_name == "APOLLIA_OAUTH" {
+        let store = secret_store.ok_or_else(|| McpConfigError::UnresolvedEnvVar {
+            server: server_name.to_string(),
+            var: var_name.to_string(),
+        })?;
+        let token = store
+            .resolve_oauth_bearer(server_name)
+            .await
+            .map_err(|_| McpConfigError::UnresolvedEnvVar {
+                server: server_name.to_string(),
+                var: var_name.to_string(),
+            })?;
+        // MCP HTTP OAuth always issues Bearer tokens (spec MUST). Prefix here
+        // so the placeholder is foolproof in the user-facing config — the
+        // operator writes `Authorization = "${APOLLIA_OAUTH}"`, not
+        // `"Bearer ${APOLLIA_OAUTH}"`.
+        return Ok(format!("Bearer {}", token));
+    }
     if let Some(secret_key) = var_name.strip_prefix("APOLLIA_SECRET:") {
         let store = secret_store.ok_or_else(|| McpConfigError::UnresolvedEnvVar {
             server: server_name.to_string(),
             var: var_name.to_string(),
         })?;
         let key = format!("{}:{}", server_name, secret_key);
-        store
+        return store
             .get_secret(&key)
             .map_err(|_| McpConfigError::UnresolvedEnvVar {
                 server: server_name.to_string(),
                 var: var_name.to_string(),
-            })
-    } else {
-        std::env::var(var_name).map_err(|_| McpConfigError::UnresolvedEnvVar {
-            server: server_name.to_string(),
-            var: var_name.to_string(),
-        })
+            });
     }
+    std::env::var(var_name).map_err(|_| McpConfigError::UnresolvedEnvVar {
+        server: server_name.to_string(),
+        var: var_name.to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -504,8 +589,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_resolve_env_interpolates_variable() {
+    #[tokio::test]
+    async fn test_resolve_env_interpolates_variable() {
         // GIVEN an env map containing ${TEST_MCP_KEY_327} and that variable set in the process env
         std::env::set_var("TEST_MCP_KEY_327", "secret123");
         let config = McpServerConfig {
@@ -521,14 +606,14 @@ mod tests {
             tags: vec![],
         };
         // WHEN
-        let resolved = config.resolve_env(None).unwrap();
+        let resolved = config.resolve_env(None).await.unwrap();
         // THEN
         assert_eq!(resolved["API_KEY"], "secret123");
         std::env::remove_var("TEST_MCP_KEY_327");
     }
 
-    #[test]
-    fn test_unresolved_env_var_fails() {
+    #[tokio::test]
+    async fn test_unresolved_env_var_fails() {
         // GIVEN an env map referencing a variable absent from the process environment
         std::env::remove_var("TOTALLY_MISSING_VAR_327");
         let config = McpServerConfig {
@@ -545,7 +630,7 @@ mod tests {
         };
         // WHEN / THEN
         assert!(matches!(
-            config.resolve_env(None),
+            config.resolve_env(None).await,
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
     }
@@ -572,8 +657,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_partial_interpolation_with_surrounding_text() {
+    #[tokio::test]
+    async fn test_partial_interpolation_with_surrounding_text() {
         // GIVEN a value that mixes literal text and a placeholder
         std::env::set_var("TEST_MCP_HOST_327", "localhost");
         let config = McpServerConfig {
@@ -592,7 +677,7 @@ mod tests {
             tags: vec![],
         };
         // WHEN
-        let resolved = config.resolve_env(None).unwrap();
+        let resolved = config.resolve_env(None).await.unwrap();
         // THEN
         assert_eq!(resolved["BASE_URL"], "http://localhost:8080");
         std::env::remove_var("TEST_MCP_HOST_327");
@@ -738,12 +823,23 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl SecretResolver for MockSecretStore {
         fn get_secret(&self, key: &str) -> Result<String, String> {
             self.secrets
                 .get(key)
                 .cloned()
                 .ok_or_else(|| format!("not found: {key}"))
+        }
+
+        async fn resolve_oauth_bearer(&self, server_name: &str) -> Result<String, String> {
+            // Mock supports OAuth lookups via a synthetic "oauth:{server_name}" key
+            // so tests can exercise the placeholder without spinning up an AS.
+            let key = format!("oauth:{}", server_name);
+            self.secrets
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| format!("no oauth token for {server_name}"))
         }
     }
 
@@ -762,8 +858,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_resolve_apollia_secret_from_store() {
+    #[tokio::test]
+    async fn test_resolve_apollia_secret_from_store() {
         // GIVEN env = { KEY = "${APOLLIA_SECRET:MY_KEY}" } and a store holding "notion:MY_KEY"
         let store = MockSecretStore::with(&[("notion:MY_KEY", "tok_abc123")]);
         let config = server_with_env(
@@ -771,13 +867,13 @@ mod tests {
             HashMap::from([("KEY".to_string(), "${APOLLIA_SECRET:MY_KEY}".to_string())]),
         );
         // WHEN
-        let resolved = config.resolve_env(Some(&store)).unwrap();
+        let resolved = config.resolve_env(Some(&store)).await.unwrap();
         // THEN the keyring value is injected
         assert_eq!(resolved["KEY"], "tok_abc123");
     }
 
-    #[test]
-    fn test_resolve_normal_env_var_unchanged() {
+    #[tokio::test]
+    async fn test_resolve_normal_env_var_unchanged() {
         // GIVEN env = { KEY = "${HOME}" } and no secret store
         let config = server_with_env(
             "test",
@@ -785,13 +881,13 @@ mod tests {
         );
         let home = std::env::var("HOME").unwrap_or_default();
         // WHEN
-        let resolved = config.resolve_env(None).unwrap();
+        let resolved = config.resolve_env(None).await.unwrap();
         // THEN the system env var is returned as before
         assert_eq!(resolved["KEY"], home);
     }
 
-    #[test]
-    fn test_missing_secret_returns_unresolved_error() {
+    #[tokio::test]
+    async fn test_missing_secret_returns_unresolved_error() {
         // GIVEN env = { KEY = "${APOLLIA_SECRET:MISSING}" } and a store without that key
         let store = MockSecretStore::with(&[]);
         let config = server_with_env(
@@ -800,13 +896,13 @@ mod tests {
         );
         // WHEN / THEN
         assert!(matches!(
-            config.resolve_env(Some(&store)),
+            config.resolve_env(Some(&store)).await,
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
     }
 
-    #[test]
-    fn test_coexistence_secret_and_env_var() {
+    #[tokio::test]
+    async fn test_coexistence_secret_and_env_var() {
         // GIVEN env = { A = "${APOLLIA_SECRET:X}", B = "${HOME}" }
         let store = MockSecretStore::with(&[("svc:X", "from_keychain")]);
         let config = server_with_env(
@@ -818,14 +914,14 @@ mod tests {
         );
         let home = std::env::var("HOME").unwrap_or_default();
         // WHEN
-        let resolved = config.resolve_env(Some(&store)).unwrap();
+        let resolved = config.resolve_env(Some(&store)).await.unwrap();
         // THEN A comes from the keyring and B from the system environment
         assert_eq!(resolved["A"], "from_keychain");
         assert_eq!(resolved["B"], home);
     }
 
-    #[test]
-    fn test_apollia_secret_without_store_returns_error() {
+    #[tokio::test]
+    async fn test_apollia_secret_without_store_returns_error() {
         // GIVEN env = { KEY = "${APOLLIA_SECRET:X}" } and secret_store = None
         let config = server_with_env(
             "svc",
@@ -833,9 +929,96 @@ mod tests {
         );
         // WHEN / THEN
         assert!(matches!(
-            config.resolve_env(None),
+            config.resolve_env(None).await,
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
+    }
+
+    // ── ${APOLLIA_OAUTH} dispatch (ADR-095 Phase 3) ──────────────────────────
+
+    #[tokio::test]
+    async fn test_apollia_oauth_resolves_with_bearer_prefix() {
+        // GIVEN env = { Authorization = "${APOLLIA_OAUTH}" } and a store with a
+        // canned OAuth token for the server.
+        let store = MockSecretStore::with(&[("oauth:linear", "at-12345")]);
+        let config = server_with_env(
+            "linear",
+            HashMap::from([(
+                "Authorization".to_string(),
+                "${APOLLIA_OAUTH}".to_string(),
+            )]),
+        );
+        // WHEN
+        let resolved = config.resolve_env(Some(&store)).await.unwrap();
+        // THEN the placeholder expands to the full `Bearer …` header value —
+        // the user writes only `${APOLLIA_OAUTH}`, no manual "Bearer " prefix.
+        assert_eq!(resolved["Authorization"], "Bearer at-12345");
+    }
+
+    #[tokio::test]
+    async fn test_apollia_oauth_returns_unresolved_when_no_store() {
+        // GIVEN env = { Authorization = "${APOLLIA_OAUTH}" } and no store
+        let config = server_with_env(
+            "linear",
+            HashMap::from([(
+                "Authorization".to_string(),
+                "${APOLLIA_OAUTH}".to_string(),
+            )]),
+        );
+        // WHEN / THEN — clear error, no panic
+        assert!(matches!(
+            config.resolve_env(None).await,
+            Err(McpConfigError::UnresolvedEnvVar { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_apollia_oauth_returns_unresolved_when_no_token() {
+        // GIVEN env = { Authorization = "${APOLLIA_OAUTH}" } and a store
+        // without any oauth entry for this server
+        let store = MockSecretStore::with(&[]);
+        let config = server_with_env(
+            "linear",
+            HashMap::from([(
+                "Authorization".to_string(),
+                "${APOLLIA_OAUTH}".to_string(),
+            )]),
+        );
+        // WHEN / THEN
+        assert!(matches!(
+            config.resolve_env(Some(&store)).await,
+            Err(McpConfigError::UnresolvedEnvVar { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_default_oauth_resolver_returns_error() {
+        // GIVEN a SecretResolver implementor that does NOT override
+        // resolve_oauth_bearer — it must fall back to the default impl which
+        // returns "not configured" so the runtime fails fast rather than
+        // silently leaving the header literal.
+        struct OnlyStatic;
+        #[async_trait::async_trait]
+        impl SecretResolver for OnlyStatic {
+            fn get_secret(&self, _key: &str) -> Result<String, String> {
+                Err("unused".into())
+            }
+            // No resolve_oauth_bearer override — default impl in play.
+        }
+        let store = OnlyStatic;
+        let config = server_with_env(
+            "anyserver",
+            HashMap::from([(
+                "Authorization".to_string(),
+                "${APOLLIA_OAUTH}".to_string(),
+            )]),
+        );
+        // WHEN / THEN
+        let err = config.resolve_env(Some(&store)).await.unwrap_err();
+        match err {
+            McpConfigError::UnresolvedEnvVar { var, .. } => assert_eq!(var, "APOLLIA_OAUTH"),
+            other => panic!("expected UnresolvedEnvVar, got {other:?}"),
+        }
     }
 
     #[test]

@@ -42,6 +42,24 @@ pub enum GoogleScope {
     /// itself OR that the user has explicitly opened with the app. Apollia uses
     /// this to back the Drive Workspace pattern (folder `Apollia/<agent>/`).
     DriveWorkspace,
+    /// Google Sheets read+write (`spreadsheets`). Non-sensitive, free.
+    /// Restricted to sheets the app creates or the user pickers — same
+    /// pattern as `drive.file`.
+    SheetsReadWrite,
+    /// Google Docs read+write (`documents`). Non-sensitive, free. Same
+    /// `drive.file`-style scoping.
+    DocsReadWrite,
+    /// Google Slides read+write (`presentations`). Non-sensitive, free.
+    SlidesReadWrite,
+    /// Google Forms read+write (`forms.body`). Non-sensitive, free.
+    /// Limited to forms the app creates or the user opens with it.
+    FormsReadWrite,
+    /// Google Tasks full access (`tasks`). Non-sensitive, free.
+    /// Covers all of the user's task lists — no per-resource gate exists.
+    Tasks,
+    /// YouTube read-only (`youtube.readonly`). Non-sensitive, free.
+    /// Search, video metadata, channel listings.
+    YouTubeReadOnly,
     /// OpenID Connect identity scope.
     OpenId,
     /// User email scope (returned by userinfo).
@@ -59,6 +77,12 @@ impl GoogleScope {
             Self::CalendarRead => "https://www.googleapis.com/auth/calendar.readonly",
             Self::CalendarWrite => "https://www.googleapis.com/auth/calendar.events",
             Self::DriveWorkspace => "https://www.googleapis.com/auth/drive.file",
+            Self::SheetsReadWrite => "https://www.googleapis.com/auth/spreadsheets",
+            Self::DocsReadWrite => "https://www.googleapis.com/auth/documents",
+            Self::SlidesReadWrite => "https://www.googleapis.com/auth/presentations",
+            Self::FormsReadWrite => "https://www.googleapis.com/auth/forms.body",
+            Self::Tasks => "https://www.googleapis.com/auth/tasks",
+            Self::YouTubeReadOnly => "https://www.googleapis.com/auth/youtube.readonly",
             Self::OpenId => "openid",
             Self::Email => "email",
             Self::Profile => "profile",
@@ -158,6 +182,17 @@ impl ConnectorProvider {
         }
     }
 
+    /// Environment variable that overrides the compiled-in OAuth client secret.
+    /// Only meaningful for Google (Installed App type requires a secret at
+    /// the token endpoint, see `ProviderConfig::client_secret`). Microsoft
+    /// public clients leave this empty.
+    pub const fn client_secret_env_var(self) -> &'static str {
+        match self {
+            Self::Google => "APOLLIA_GOOGLE_CLIENT_SECRET",
+            Self::Microsoft => "APOLLIA_MICROSOFT_CLIENT_SECRET",
+        }
+    }
+
     /// Compiled-in default OAuth client ID shipped with Apollia.
     ///
     /// Apollia is a public OAuth client (PKCE — no client secret), so it is
@@ -175,6 +210,37 @@ impl ConnectorProvider {
             // surfaces an explicit error pointing at OAUTH-CLIENT-IDS.md.
             Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_ID")),
             Self::Microsoft => env_or_empty(option_env!("APOLLIA_BUILD_MICROSOFT_CLIENT_ID")),
+        }
+    }
+
+    /// Compiled-in default OAuth client secret. Returns an empty string for
+    /// Microsoft (public client, no secret per spec) and the build-time
+    /// constant for Google (Installed App requires a secret per Google's
+    /// non-standard implementation). Replaced at release build time.
+    pub const fn default_client_secret(self) -> &'static str {
+        match self {
+            Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_CLIENT_SECRET")),
+            Self::Microsoft => "",
+        }
+    }
+
+    /// Runtime env var that overrides the compiled-in Google API key.
+    /// Google-only — used by Google Picker. Microsoft picker equivalent
+    /// (OneDrive File Picker) would follow the same pattern when added.
+    pub const fn api_key_env_var(self) -> &'static str {
+        match self {
+            Self::Google => "APOLLIA_GOOGLE_API_KEY",
+            Self::Microsoft => "APOLLIA_MICROSOFT_API_KEY",
+        }
+    }
+
+    /// Compiled-in default Google API key shipped with Apollia (Picker
+    /// requires it alongside the OAuth token). Replaced at release build
+    /// time. Microsoft returns empty for now.
+    pub const fn default_api_key(self) -> &'static str {
+        match self {
+            Self::Google => env_or_empty(option_env!("APOLLIA_BUILD_GOOGLE_API_KEY")),
+            Self::Microsoft => "",
         }
     }
 
@@ -203,6 +269,49 @@ impl ConnectorProvider {
             return Some(v);
         }
         let compiled = self.default_client_id();
+        if compiled.is_empty() {
+            None
+        } else {
+            Some(compiled.to_owned())
+        }
+    }
+
+    /// Resolve the effective Google API key at runtime — same 3-source
+    /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
+    /// `None` is the normal case for Microsoft and for any dev build that
+    /// hasn't been provisioned with a key. The Picker UI surfaces a clear
+    /// "API key missing" error to direct the operator to Settings.
+    pub fn resolve_api_key(self) -> Option<String> {
+        if let Ok(v) = std::env::var(self.api_key_env_var()) {
+            if !v.is_empty() {
+                return Some(v);
+            }
+        }
+        if let Some(v) = crate::oauth_clients_file::lookup_api_key(self.id()) {
+            return Some(v);
+        }
+        let compiled = self.default_api_key();
+        if compiled.is_empty() {
+            None
+        } else {
+            Some(compiled.to_owned())
+        }
+    }
+
+    /// Resolve the effective OAuth client secret at runtime — same 3-source
+    /// priority chain as [`resolve_client_id`](Self::resolve_client_id).
+    /// Returns `None` when no source provides a secret (the normal case for
+    /// Microsoft — spec-compliant public clients don't carry one).
+    pub fn resolve_client_secret(self) -> Option<String> {
+        if let Ok(v) = std::env::var(self.client_secret_env_var()) {
+            if !v.is_empty() {
+                return Some(v);
+            }
+        }
+        if let Some(v) = crate::oauth_clients_file::lookup_client_secret(self.id()) {
+            return Some(v);
+        }
+        let compiled = self.default_client_secret();
         if compiled.is_empty() {
             None
         } else {
@@ -238,6 +347,7 @@ pub fn build_google_provider(scopes: &[GoogleScope]) -> ProviderConfig {
         auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
         token_url: "https://oauth2.googleapis.com/token",
         client_id: ConnectorProvider::Google.resolve_client_id().unwrap_or_default(),
+        client_secret: ConnectorProvider::Google.resolve_client_secret(),
         scopes: all_scopes,
     }
 }
@@ -283,6 +393,9 @@ pub fn build_microsoft_provider_for_tenant(
         client_id: ConnectorProvider::Microsoft
             .resolve_client_id()
             .unwrap_or_default(),
+        // Spec-compliant public client — no secret. resolve_client_secret
+        // returns None unless someone explicitly forced one via env var (rare).
+        client_secret: ConnectorProvider::Microsoft.resolve_client_secret(),
         scopes: all_scopes,
     }
 }

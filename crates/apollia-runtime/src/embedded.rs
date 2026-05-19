@@ -106,6 +106,12 @@ pub struct RuntimeHandle {
     /// construire un `McpToolExecutor` par tool MCP enregistré et l'injecter
     /// dans le ToolDispatcher de l'agent.
     pub mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Configuration des outils natifs (web_search, web_read, disabled, http_allowlist).
+    ///
+    /// Issue de la section `[tools]` de `apollia.toml` (ou défaut si absent).
+    /// Consommée par les agent runners pour configurer le `NativeDispatcherConfig`
+    /// et le merge des outils désactivés statiquement.
+    pub tools_config: apollia_core::ToolsConfig,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -175,6 +181,12 @@ pub struct EmbeddedConfig {
     /// Correspond à la section `[a2a]` dans `apollia.toml`.
     /// Peuplé par [`EmbeddedConfig::apply_toml`].
     pub a2a_config: A2AConfig,
+
+    /// Configuration des outils natifs (web_search, web_read, disabled).
+    ///
+    /// Correspond à la section `[tools]` dans `apollia.toml`.
+    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    pub tools_config: apollia_core::ToolsConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -198,6 +210,7 @@ impl Default for EmbeddedConfig {
             runtime_config: RuntimeConfig::default(),
             hitl_config: HitlConfig::default(),
             a2a_config: A2AConfig::default(),
+            tools_config: apollia_core::ToolsConfig::default(),
         }
     }
 }
@@ -216,6 +229,7 @@ impl EmbeddedConfig {
             hitl: Option<HitlConfig>,
             a2a: Option<A2AConfig>,
             api: Option<apollia_core::ApiConfig>,
+            tools: Option<apollia_core::ToolsConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
@@ -234,6 +248,9 @@ impl EmbeddedConfig {
             if let Some(api) = s.api {
                 // Update socket_path from [api].unix_socket when explicitly configured.
                 self.socket_path = api.unix_socket;
+            }
+            if let Some(tc) = s.tools {
+                self.tools_config = tc;
             }
         }
 
@@ -308,6 +325,7 @@ pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedEr
 async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError> {
     let tcp_port = config.tcp_port;
 
+    let tools_config = config.tools_config.clone();
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
@@ -325,6 +343,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         agent_repository: config.agent_repository,
         package_repository: None,
         bundled_agents_path: config.bundled_agents_path,
+        tools_config: tools_config.clone(),
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -360,6 +379,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         stt_repository: handles.stt_repository,
         project_repository: handles.project_repository,
         mcp_handle: handles.mcp_handle,
+        tools_config,
         api_port: tcp_port,
     })
 }

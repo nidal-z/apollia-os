@@ -307,6 +307,9 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
     AIPTask {
         task_id: uuid::Uuid::new_v4().to_string(),
         context_id: session.id.clone(),
+        // Pas de skill_id : invocation en mode chat conversationnel, pas une
+        // délégation A2A vers un skill ciblé.
+        skill_id: None,
         project_id: session.project_id.clone(),
         input: AIPInput {
             parts: vec![AIPPart::Text(TextPart {

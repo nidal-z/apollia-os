@@ -162,6 +162,9 @@ pub struct A2ASkillInfo {
     pub input_modes: Vec<String>,
     /// Modes de sortie supportés (ex: `["text", "file"]`).
     pub output_modes: Vec<String>,
+    /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Carte de découverte d'un agent A2A.
@@ -194,6 +197,11 @@ pub struct SkillListing {
     pub skill_name: String,
     /// Description du skill.
     pub description: String,
+    /// Schéma Apollia des champs de payload (cf. `AgentSkill::input_schema`).
+    /// Utilisé par `generate_a2a_tool_specs` pour exposer le contrat réel
+    /// du worker au LLM (au lieu d'un schéma générique).
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
@@ -686,6 +694,7 @@ impl A2AInvoker {
                     agent_name: card.name.clone(),
                     skill_name: s.name.clone(),
                     description: s.description.clone(),
+                    input_schema: s.input_schema.clone(),
                 })
             })
             .collect();
@@ -810,6 +819,7 @@ fn to_agent_card(entry: &AgentEntry) -> A2AAgentCard {
             description: s.description.clone(),
             input_modes: s.input_modes.clone(),
             output_modes: s.output_modes.clone(),
+            input_schema: s.input_schema.clone(),
         })
         .collect();
 
@@ -865,6 +875,7 @@ mod tests {
                 description: String::new(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
+                input_schema: None,
             })
             .collect();
 
@@ -1029,6 +1040,7 @@ mod tests {
             agent_name: "excel-worker".to_string(),
             skill_name: "Read Excel".to_string(),
             description: "Reads an Excel file".to_string(),
+            input_schema: None,
         };
         // WHEN / THEN serializes correctly
         let json = serde_json::to_string(&listing).expect("serialization failed");
@@ -1101,6 +1113,7 @@ mod tests {
                 description: "Reads Excel data".to_string(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["data".to_string()],
+                input_schema: None,
             }],
             tags: vec!["excel".to_string()],
         };
@@ -1476,6 +1489,7 @@ mod a2a_guard_tests {
                 description: String::new(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
+                input_schema: None,
             })
             .collect();
 

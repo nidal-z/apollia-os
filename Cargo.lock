@@ -335,6 +335,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "uuid",
  "wiremock",
 ]
 
@@ -343,6 +344,7 @@ name = "apollia-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "regex",
  "rusqlite",
  "serde",
@@ -375,6 +377,7 @@ dependencies = [
  "apollia-workspace",
  "arboard",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "dashmap",
  "dirs 5.0.1",
@@ -398,6 +401,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-notification",
+ "tauri-plugin-opener",
  "tauri-plugin-updater",
  "tempfile",
  "thiserror 2.0.18",
@@ -475,6 +479,7 @@ dependencies = [
 name = "apollia-mcp"
 version = "0.1.0"
 dependencies = [
+ "apollia-auth",
  "apollia-core",
  "apollia-tools",
  "async-trait",
@@ -581,6 +586,8 @@ dependencies = [
 name = "apollia-runtime"
 version = "0.1.0"
 dependencies = [
+ "apollia-auth",
+ "apollia-connectors",
  "apollia-core",
  "apollia-llm",
  "apollia-mcp",
@@ -594,6 +601,7 @@ dependencies = [
  "apollia-workspace",
  "async-trait",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "constant_time_eq",
  "dirs 5.0.1",
@@ -4834,6 +4842,7 @@ version = "5.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43bb73a7fa3799b198970490a51174027ba0d4ec504b03cd08caf513d40024bc"
 dependencies = [
+ "dunce",
  "is-wsl",
  "libc",
  "pathdiff",
@@ -7297,6 +7306,28 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "url",
+]
+
+[[package]]
+name = "tauri-plugin-opener"
+version = "2.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17e1bea14edce6b793a04e2417e3fd924b9bc4faae83cdee7d714156cceeed29"
+dependencies = [
+ "dunce",
+ "glob",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "open",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+ "url",
+ "windows 0.61.3",
+ "zbus",
 ]
 
 [[package]]

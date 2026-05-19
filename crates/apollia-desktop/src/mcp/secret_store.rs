@@ -109,13 +109,33 @@ impl Default for SecretStore {
     }
 }
 
+#[async_trait::async_trait]
 impl SecretResolver for SecretStore {
-    /// Retrieve a secret from the OS keychain by its composite key.
+    /// Retrieve a static secret from the OS keychain by its composite key.
     ///
     /// Returns `Ok(value)` when found, or `Err(message)` for any keychain
     /// error including [`SecretStoreError::NotFound`].
     fn get_secret(&self, key: &str) -> Result<String, String> {
         self.retrieve(key).map_err(|e| e.to_string())
+    }
+
+    /// Resolve the current MCP HTTP OAuth bearer for `server_name` via the
+    /// `apollia-auth` orchestrator (ADR-095 Phase 4 wiring).
+    ///
+    /// Returns the raw access token — `apollia-mcp::config::resolve_single_var`
+    /// adds the `"Bearer "` prefix at substitution time so this method stays
+    /// representation-agnostic (future-proof against DPoP, SEP-1932).
+    ///
+    /// The OAuth token store lives in a dedicated keychain namespace
+    /// (`apollia-mcp-oauth` per [`apollia_auth::MCP_OAUTH_SERVICE`]) — separate
+    /// from this struct's `apollia-mcp` namespace for static secrets, so the
+    /// two domains never collide.
+    async fn resolve_oauth_bearer(&self, server_name: &str) -> Result<String, String> {
+        let store = apollia_auth::select_secret_store()
+            .map_err(|e| format!("secret store unavailable: {e}"))?;
+        apollia_auth::ensure_fresh_token(server_name, &*store)
+            .await
+            .map_err(|e| format!("{e}"))
     }
 }
 

@@ -214,8 +214,17 @@ impl LlmProxy {
         let bus = self.event_bus.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            // Inject the authoritative current-date / system block at the
+            // top of the system message so the LLM never falls back to its
+            // training cutoff for "today"-type queries. Mirrors what
+            // Chat Libre's `build_system_prompt` does (ADR-096 Step 0).
+            let system_with_context =
+                apollia_core::temporal_context::prepend_temporal_context(&system);
             let req = CompletionRequest {
-                messages: vec![ChatMessage::system(system), ChatMessage::user(user)],
+                messages: vec![
+                    ChatMessage::system(system_with_context),
+                    ChatMessage::user(user),
+                ],
                 ..Default::default()
             };
             let resp = router
@@ -289,8 +298,13 @@ impl LlmProxy {
         let bus = self.event_bus.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            // Same temporal-context injection as `chat()`. If the first
+            // message is a system message, prepend the block to its text.
+            // Otherwise insert a fresh system message at index 0. Keeps
+            // multi-turn agent calls grounded on the real wall clock.
+            let messages = inject_temporal_context_into_messages(chat_messages);
             let req = CompletionRequest {
-                messages: chat_messages,
+                messages,
                 ..Default::default()
             };
             let resp = router
@@ -602,6 +616,42 @@ impl PyTokenStream {
 // ─────────────────────────────────────────────
 // Fonctions de conversion privées
 // ─────────────────────────────────────────────
+
+/// Inject the authoritative temporal/environment block into a multi-turn
+/// message list. If the first message is a `system` role, prepend the block
+/// to its text. Otherwise insert a brand-new `system` message at index 0.
+///
+/// Keeps Python agents on the real wall clock for "today"/"now"/relative
+/// dates without requiring the agent author to remember anything (ADR-096
+/// Step 0).
+fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<ChatMessage> {
+    use apollia_llm::types::{MessageContent, Role};
+
+    let is_first_system = messages
+        .first()
+        .map(|m| matches!(m.role, Role::System))
+        .unwrap_or(false);
+
+    if is_first_system {
+        if let Some(first) = messages.first_mut() {
+            if let MessageContent::Text(ref text) = first.content {
+                let merged =
+                    apollia_core::temporal_context::prepend_temporal_context(text);
+                first.content = MessageContent::Text(merged);
+            }
+            // Non-text system content (rare) — leave untouched and prepend
+            // a fresh system block ahead of it as a safety net.
+        }
+    } else {
+        messages.insert(
+            0,
+            ChatMessage::system(
+                apollia_core::temporal_context::temporal_context_block(),
+            ),
+        );
+    }
+    messages
+}
 
 /// Convertit un dict Python `{"role": "...", "content": "..."}` en `ChatMessage`.
 ///

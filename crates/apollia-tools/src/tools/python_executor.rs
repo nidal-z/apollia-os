@@ -89,6 +89,42 @@ pub enum PythonExecutorError {
     TempFileFailed(String),
 }
 
+/// Locate the `site-packages` directories of an agent's per-package venv.
+///
+/// Convention : the venv lives at `<venv_base_dir>/<agent_name>/venv/`.
+/// On Unix : `lib/python<X.Y>/site-packages` (we glob `lib/*/site-packages`).
+/// On Windows : `Lib/site-packages`.
+///
+/// Returns an empty vec if the venv does not exist — the caller should
+/// treat that as "no extra sys.path needed" (agent declares no pip packages).
+///
+/// This helper is canonical and shared by all callers that need to inject
+/// the agent's venv into PyO3's `sys.path` before importing the Python
+/// module (agent runtime backends, validation flows, CLI commands).
+pub fn agent_venv_site_packages(venv_base_dir: &Path, agent_name: &str) -> Vec<PathBuf> {
+    let venv_path = venv_base_dir.join(agent_name).join("venv");
+    if !venv_path.is_dir() {
+        return Vec::new();
+    }
+    let mut candidates = Vec::new();
+    let lib = venv_path.join("lib");
+    if lib.is_dir() {
+        if let Ok(entries) = std::fs::read_dir(&lib) {
+            for entry in entries.flatten() {
+                let sp = entry.path().join("site-packages");
+                if sp.is_dir() {
+                    candidates.push(sp);
+                }
+            }
+        }
+    }
+    let win_lib = venv_path.join("Lib").join("site-packages");
+    if win_lib.is_dir() {
+        candidates.push(win_lib);
+    }
+    candidates
+}
+
 impl PythonExecutor {
     /// Creates a `PythonExecutor` for the given agent.
     ///

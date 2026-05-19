@@ -386,6 +386,7 @@ mod tests {
                 description: String::new(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
+                input_schema: None,
             })
             .collect();
         AgentManifest {

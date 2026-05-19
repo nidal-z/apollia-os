@@ -31,22 +31,44 @@ impl StoredToken {
 
 // ─── Internal response shape ──────────────────────────────────────────────────
 
+/// Token endpoint response (RFC 6749 §5.1 success + §5.2 error). All fields
+/// are optional so the same struct deserialises both success and error
+/// payloads — Google / Microsoft return `{"error":"…","error_description":"…"}`
+/// with HTTP 400 when something goes wrong, which previously failed to parse
+/// because `access_token` was required and absent. `into_stored` then enforces
+/// the success-vs-error distinction with a clear, surfaced message.
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
-    access_token: String,
+    #[serde(default)]
+    access_token: Option<String>,
     expires_in: Option<u64>,
     refresh_token: Option<String>,
     scope: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
+    error_uri: Option<String>,
 }
 
 impl TokenResponse {
     fn into_stored(self, previous_refresh: Option<&str>) -> Result<StoredToken, AuthError> {
         if let Some(err) = self.error {
             let desc = self.error_description.unwrap_or_default();
-            return Err(AuthError::TokenExchangeFailed(format!("{err}: {desc}")));
+            let uri = self
+                .error_uri
+                .map(|u| format!(" — see {u}"))
+                .unwrap_or_default();
+            return Err(AuthError::TokenExchangeFailed(format!(
+                "{err}: {desc}{uri}"
+            )));
         }
+
+        let access_token = self.access_token.ok_or_else(|| {
+            AuthError::TokenExchangeFailed(
+                "token endpoint returned neither `access_token` nor `error` — \
+                 unrecognised provider response"
+                    .into(),
+            )
+        })?;
 
         let expires_at = self
             .expires_in
@@ -63,12 +85,33 @@ impl TokenResponse {
             .or_else(|| previous_refresh.map(str::to_owned));
 
         Ok(StoredToken {
-            access_token: self.access_token,
+            access_token,
             refresh_token,
             expires_at,
             scopes,
         })
     }
+}
+
+/// Parse a `TokenResponse` from `response`, surfacing the raw body when
+/// deserialisation fails so misconfigured providers (wrong client type, HTML
+/// error pages from reverse proxies, etc.) are diagnosable. Without this, the
+/// caller used to see only the generic `error decoding response body` from
+/// `reqwest`, hiding the actual error.
+async fn parse_token_response(response: reqwest::Response) -> Result<TokenResponse, AuthError> {
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| AuthError::HttpError(e.to_string()))?;
+
+    serde_json::from_str::<TokenResponse>(&body).map_err(|e| {
+        let preview = body.chars().take(500).collect::<String>();
+        AuthError::TokenExchangeFailed(format!(
+            "HTTP {status}: failed to parse token endpoint response ({e}). \
+             Body preview: {preview}"
+        ))
+    })
 }
 
 // ─── Exchange ─────────────────────────────────────────────────────────────────
@@ -80,13 +123,19 @@ pub async fn exchange_code(
     code: &str,
 ) -> Result<StoredToken, AuthError> {
     let client = reqwest::Client::new();
-    let params = [
+    let mut params: Vec<(&str, &str)> = vec![
         ("grant_type", "authorization_code"),
         ("code", code),
         ("code_verifier", flow.code_verifier.as_str()),
         ("redirect_uri", flow.redirect_uri.as_str()),
         ("client_id", provider.client_id.as_str()),
     ];
+    // Append the client_secret when the provider config carries one. Google's
+    // Installed App type requires it at the token endpoint (non-standard) —
+    // Microsoft and other spec-compliant public clients leave this `None`.
+    if let Some(secret) = provider.client_secret.as_deref() {
+        params.push(("client_secret", secret));
+    }
 
     let response = client
         .post(provider.token_url)
@@ -95,10 +144,7 @@ pub async fn exchange_code(
         .await
         .map_err(|e| AuthError::HttpError(e.to_string()))?;
 
-    let token_resp: TokenResponse = response
-        .json()
-        .await
-        .map_err(|e| AuthError::TokenExchangeFailed(e.to_string()))?;
+    let token_resp = parse_token_response(response).await?;
 
     token_resp.into_stored(None)
 }
@@ -118,11 +164,14 @@ pub async fn refresh_token(
         .ok_or(AuthError::NoRefreshToken)?;
 
     let client = reqwest::Client::new();
-    let params = [
+    let mut params: Vec<(&str, &str)> = vec![
         ("grant_type", "refresh_token"),
         ("refresh_token", refresh),
         ("client_id", provider.client_id.as_str()),
     ];
+    if let Some(secret) = provider.client_secret.as_deref() {
+        params.push(("client_secret", secret));
+    }
 
     let response = client
         .post(provider.token_url)
@@ -131,10 +180,7 @@ pub async fn refresh_token(
         .await
         .map_err(|e| AuthError::HttpError(e.to_string()))?;
 
-    let token_resp: TokenResponse = response
-        .json()
-        .await
-        .map_err(|e| AuthError::TokenExchangeFailed(e.to_string()))?;
+    let token_resp = parse_token_response(response).await?;
 
     token_resp.into_stored(stored.refresh_token.as_deref())
 }
@@ -171,6 +217,51 @@ mod tests {
         // WHEN
         // THEN is_expired returns false
         assert!(!token.is_expired());
+    }
+
+    #[test]
+    fn test_token_response_surfaces_provider_error() {
+        // GIVEN a Google-style error payload (no access_token, error + description set)
+        let body = r#"{"error":"invalid_grant","error_description":"Bad Request","error_uri":"https://tools.ietf.org/html/rfc6749#section-5.2"}"#;
+        let parsed: TokenResponse = serde_json::from_str(body).expect("parse error payload");
+
+        // WHEN we convert to StoredToken
+        let result = parsed.into_stored(None);
+
+        // THEN we get a TokenExchangeFailed with the provider's exact message
+        match result {
+            Err(AuthError::TokenExchangeFailed(msg)) => {
+                assert!(msg.contains("invalid_grant"), "got: {msg}");
+                assert!(msg.contains("Bad Request"), "got: {msg}");
+            }
+            other => panic!("expected TokenExchangeFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_token_response_rejects_missing_access_token_and_error() {
+        // GIVEN a malformed payload (neither access_token nor error)
+        let body = r#"{"some_unknown_field":"oops"}"#;
+        let parsed: TokenResponse = serde_json::from_str(body).expect("parse blob");
+
+        // WHEN into_stored is called
+        let result = parsed.into_stored(None);
+
+        // THEN we surface a clear failure rather than panicking on the missing field
+        assert!(matches!(result, Err(AuthError::TokenExchangeFailed(_))));
+    }
+
+    #[test]
+    fn test_token_response_success_path_still_works() {
+        // GIVEN a valid Google success payload
+        let body = r#"{"access_token":"ya29.xyz","expires_in":3599,"refresh_token":"1//rt","scope":"https://www.googleapis.com/auth/gmail.send","token_type":"Bearer"}"#;
+        let parsed: TokenResponse = serde_json::from_str(body).expect("parse success");
+
+        let stored = parsed.into_stored(None).expect("into_stored");
+        assert_eq!(stored.access_token, "ya29.xyz");
+        assert_eq!(stored.refresh_token.as_deref(), Some("1//rt"));
+        assert_eq!(stored.scopes, vec!["https://www.googleapis.com/auth/gmail.send"]);
+        assert!(stored.expires_at.is_some());
     }
 
     #[test]

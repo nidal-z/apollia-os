@@ -341,16 +341,20 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     // 3. S'abonner à l'EventBus avant de soumettre (évite une race condition).
     let mut event_rx = event_bus.subscribe();
 
-    // 4. Construire l'input AIP depuis le payload JSON.
+    // 4. Construire l'input AIP depuis le payload JSON. Le `skill_id` est
+    //    propagé séparément via `AIPTask.skill_id` (cf. submit_with_chain
+    //    plus bas) — les workers multi-skills le lisent via
+    //    `apollia.utils.a2a.extract_skill_id(task)`.
     let input = AIPInput {
         parts: vec![AIPPart::Data(DataPart {
             data: input_payload,
         })],
     };
 
-    // 5. Soumettre la tâche via le TaskRouter avec la chaîne étendue.
+    // 5. Soumettre la tâche via le TaskRouter avec la chaîne étendue et le
+    //    skill_id ciblé — propagé jusqu'à `AIPTask.skill_id` côté Python.
     let task_id = router
-        .submit_with_chain(&agent_id, input, child_chain)
+        .submit_with_chain(&agent_id, input, Some(skill_id.to_string()), child_chain)
         .await
         .map_err(|e| match e {
         SubmitError::ActorDead => A2aError::RouterDead,
@@ -375,9 +379,14 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                     return if success {
                         Ok(output.unwrap_or_default())
                     } else {
-                        Err(A2aError::WorkerFailed {
-                            reason: "worker agent reported failure".to_string(),
-                        })
+                        // The coordinator embeds the worker's structured error
+                        // (`[CODE] message details={...}`) in `output` when the
+                        // result is `Failed`. Surface it to the caller instead
+                        // of a generic message so debugging is possible.
+                        let reason = output
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or_else(|| "worker agent reported failure".to_string());
+                        Err(A2aError::WorkerFailed { reason })
                     };
                 }
                 Ok(RuntimeEvent::TaskCanceled {
@@ -444,6 +453,7 @@ mod tests {
                 description: String::new(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
+                input_schema: None,
             })
             .collect();
 

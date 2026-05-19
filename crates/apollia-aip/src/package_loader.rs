@@ -75,6 +75,10 @@ pub struct AgentEntry {
     pub name: String,
     pub entry: String,
     pub role: String,
+    /// Per-agent pip packages. Combined with the top-level `[pip].packages`
+    /// list at install time. Pins are recommended (`pkg==X.Y.Z`).
+    #[serde(default)]
+    pub packages: Vec<String>,
 }
 
 /// Section `[tools]`.
@@ -156,16 +160,87 @@ pub struct AgentPackage {
 // API publique
 // ─────────────────────────────────────────────────────────────────────────────
 
+impl PackageManifest {
+    /// Returns the union of pip packages declared in the top-level `[pip]`
+    /// section and in any `[[agents]].packages` field, deduplicated while
+    /// preserving first-seen order.
+    pub fn all_pip_packages(&self) -> Vec<String> {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut out: Vec<String> = Vec::new();
+        if let Some(pip) = &self.pip {
+            for p in &pip.packages {
+                if seen.insert(p.clone()) {
+                    out.push(p.clone());
+                }
+            }
+        }
+        for agent in &self.agents {
+            for p in &agent.packages {
+                if seen.insert(p.clone()) {
+                    out.push(p.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// Returns the pip packages relevant for a specific agent: top-level
+    /// `[pip].packages` plus that agent's own `packages` list (dedup, order
+    /// preserved). Returns an empty vec if the agent name is unknown.
+    pub fn agent_pip_packages(&self, agent_name: &str) -> Vec<String> {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut out: Vec<String> = Vec::new();
+        if let Some(pip) = &self.pip {
+            for p in &pip.packages {
+                if seen.insert(p.clone()) {
+                    out.push(p.clone());
+                }
+            }
+        }
+        if let Some(agent) = self.agents.iter().find(|a| a.name == agent_name) {
+            for p in &agent.packages {
+                if seen.insert(p.clone()) {
+                    out.push(p.clone());
+                }
+            }
+        }
+        out
+    }
+}
+
 /// Charge et valide un package depuis son dossier racine.
 ///
 /// 1. Lit et parse `agent.toml`
 /// 2. Valide les invariants du manifeste (noms uniques, triggers valides)
 /// 3. Duck-type chaque `.py` déclaré via [`load_agent_module`]
 ///
+/// **Note** : ce flow ne crée pas de venv. Si un agent déclare des packages
+/// pip et les importe au top-level, le duck-typing échouera. Pour le flow
+/// d'installation production, utiliser [`load_manifest_only`] puis appeler
+/// [`duck_type_agent`] avec le chemin du `site-packages` du venv créé.
+///
 /// # Errors
 ///
 /// Retourne une erreur dès la première violation détectée (Principe #4 — Fail fast).
 pub fn load_package(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
+    let pkg = load_manifest_only(root)?;
+    for entry in &pkg.agents {
+        load_agent_module(&entry.entry).map_err(|e: AIPLoaderError| {
+            PackageLoaderError::DuckTypingFailed {
+                name: entry.name.clone(),
+                reason: e.to_string(),
+            }
+        })?;
+    }
+    Ok(pkg)
+}
+
+/// Parse et valide le manifeste **sans** duck-typer les `.py`.
+///
+/// Étape pure (pas de PyO3, pas de venv) utilisée par le flow d'install
+/// pour décider s'il faut créer un venv et installer des deps pip avant de
+/// duck-typer les modules.
+pub fn load_manifest_only(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
     let toml_path = root.join("agent.toml");
     if !toml_path.exists() {
         return Err(PackageLoaderError::ManifestNotFound(
@@ -190,13 +265,6 @@ pub fn load_package(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
             });
         }
 
-        load_agent_module(&abs_path).map_err(|e: AIPLoaderError| {
-            PackageLoaderError::DuckTypingFailed {
-                name: entry.name.clone(),
-                reason: e.to_string(),
-            }
-        })?;
-
         agents.push(LoadedAgentEntry {
             name: entry.name.clone(),
             entry: abs_path,
@@ -210,6 +278,27 @@ pub fn load_package(root: &Path) -> Result<AgentPackage, PackageLoaderError> {
         root_path: root.to_path_buf(),
         agents,
     })
+}
+
+/// Duck-type un seul fichier `.py` d'agent, avec des chemins additionnels
+/// injectés dans `sys.path` (par ex. le `site-packages` d'un venv).
+///
+/// Utilisé par le flow d'install après création du venv pour valider qu'un
+/// agent peut être importé avec ses packages pip installés.
+pub fn duck_type_agent(
+    path: &Path,
+    extra_sys_paths: &[PathBuf],
+) -> Result<(), PackageLoaderError> {
+    crate::loader::load_agent_module_with_sys_paths(path, extra_sys_paths).map(|_| ()).map_err(
+        |e: AIPLoaderError| PackageLoaderError::DuckTypingFailed {
+            name: path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            reason: e.to_string(),
+        },
+    )
 }
 
 /// Valide les invariants du manifeste sans charger les `.py`.
@@ -277,10 +366,11 @@ impl serde::Serialize for PackageMeta {
 impl serde::Serialize for AgentEntry {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("AgentEntry", 3)?;
+        let mut s = serializer.serialize_struct("AgentEntry", 4)?;
         s.serialize_field("name", &self.name)?;
         s.serialize_field("entry", &self.entry)?;
         s.serialize_field("role", &self.role)?;
+        s.serialize_field("packages", &self.packages)?;
         s.end()
     }
 }

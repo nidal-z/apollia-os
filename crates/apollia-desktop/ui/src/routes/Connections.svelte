@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import {
     Plus,
@@ -29,6 +30,7 @@
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
+    McpConnectionTestResponse,
     McpServerDetailView,
     McpServerStatusView,
     RegistryServerView,
@@ -37,6 +39,7 @@
     isDisclaimerAccepted,
   } from "../components/integrations/McpDisclaimerDialog.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
+  import { navigateToSettings } from "$lib/router";
   import ConnectionStatusIndicator from "../components/integrations/ConnectionStatusIndicator.svelte";
   import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import { rankSuggestions } from "../components/connections/ConnectionSuggestions.svelte";
@@ -88,7 +91,7 @@
   let selection = $state<Selection>(null);
   let sidebarFilter = $state("");
 
-  type NativeTab = "accounts" | "settings";
+  type NativeTab = "accounts" | "capabilities" | "settings";
   type McpTab = "overview" | "tools" | "settings";
   let nativeTab = $state<NativeTab>("accounts");
   let mcpTab = $state<McpTab>("overview");
@@ -164,6 +167,260 @@
       nativeTab = "accounts";
     }
   });
+
+  /** Capability matrix shown on the "Ce qu'Apollia peut faire" tab. Reads
+   *  i18n keys (so FR/EN are surfaced through the user's locale) and groups
+   *  operations by service. The booleans below mirror the actual scope set
+   *  exposed in `connector_providers.rs` for v0.1.0 — keep both in sync. */
+  interface CapabilityEntry {
+    labelKey: string;
+    detailKey?: string;
+    supported: boolean;
+  }
+  interface CapabilityGroup {
+    key: string;
+    entries: CapabilityEntry[];
+  }
+  function capabilityGroupsFor(providerId: ProviderId): CapabilityGroup[] {
+    if (providerId === "google") {
+      return [
+        {
+          key: "gmail",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gmail_send",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gmail_compose",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gmail_list_drafts",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gmail_delete_draft",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gmail_read_inbox",
+              detailKey: "connections.capabilities.entries.gmail_read_inbox_detail",
+              supported: false,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gmail_search",
+              detailKey: "connections.capabilities.entries.gmail_read_inbox_detail",
+              supported: false,
+            },
+          ],
+        },
+        {
+          key: "gcal",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gcal_list",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gcal_get",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gcal_create",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gcal_update",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gcal_delete",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "gdrive",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gdrive_workspace_list",
+              detailKey:
+                "connections.capabilities.entries.gdrive_workspace_detail",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_workspace_read",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_workspace_write",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_workspace_share",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_picker",
+              detailKey:
+                "connections.capabilities.entries.gdrive_picker_detail",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_full",
+              detailKey: "connections.capabilities.entries.gdrive_full_detail",
+              supported: false,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdrive_write_anywhere",
+              detailKey:
+                "connections.capabilities.entries.gdrive_write_anywhere_detail",
+              supported: false,
+            },
+          ],
+        },
+        {
+          key: "gsheets",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gsheets_create",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gsheets_read_values",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gsheets_write_values",
+              detailKey: "connections.capabilities.entries.gsheets_detail",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "gdocs",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gdocs_create",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdocs_read_text",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gdocs_append_text",
+              detailKey: "connections.capabilities.entries.gdocs_detail",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "gslides",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gslides_create",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gslides_append_slide",
+              detailKey: "connections.capabilities.entries.gslides_detail",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "gtasks",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gtasks_list",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gtasks_create",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gtasks_complete",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.gtasks_delete",
+              detailKey: "connections.capabilities.entries.gtasks_detail",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "gforms",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.gforms_create",
+              detailKey: "connections.capabilities.entries.gforms_detail",
+              supported: true,
+            },
+          ],
+        },
+        {
+          key: "youtube",
+          entries: [
+            {
+              labelKey: "connections.capabilities.entries.youtube_search",
+              supported: true,
+            },
+            {
+              labelKey: "connections.capabilities.entries.youtube_video_details",
+              detailKey: "connections.capabilities.entries.youtube_detail",
+              supported: true,
+            },
+          ],
+        },
+      ];
+    }
+    // Microsoft — wired the same way; capability list mirrors connector_providers.rs.
+    return [
+      {
+        key: "outlook_mail",
+        entries: [
+          {
+            labelKey: "connections.capabilities.entries.outlook_send",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_read",
+            supported: true,
+          },
+        ],
+      },
+      {
+        key: "outlook_calendar",
+        entries: [
+          {
+            labelKey: "connections.capabilities.entries.outlook_cal_read",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.outlook_cal_write",
+            supported: true,
+          },
+        ],
+      },
+      {
+        key: "onedrive",
+        entries: [
+          {
+            labelKey: "connections.capabilities.entries.onedrive_read",
+            supported: true,
+          },
+          {
+            labelKey: "connections.capabilities.entries.onedrive_write",
+            supported: true,
+          },
+        ],
+      },
+    ];
+  }
 
   async function handleApprovalChange(newLevel: ApprovalLevel): Promise<void> {
     if (!mcpDetail || selection?.kind !== "mcp") return;
@@ -292,7 +549,24 @@
   let oauthDialogState = $state<string | null>(null);
   let oauthDialogPastedCode = $state("");
   let oauthDialogError = $state<string | null>(null);
+  /** True when the error returned by `oauth_start_flow` is
+   *  `oauth_client_not_configured` — surface a CTA toward Settings → Integrations
+   *  instead of the generic error message. */
+  let oauthDialogErrorIsMissingClient = $state(false);
   let oauthDialogBusy = $state(false);
+  /** True while the dialog is waiting for the loopback to fire after the
+   *  browser was opened. Drives the "captured automatically" spinner. */
+  let oauthDialogAwaitingCallback = $state(false);
+  /** Cleanup handles for the Tauri event listeners registered during a flow. */
+  let oauthDialogUnlistenFns: UnlistenFn[] = [];
+  /** Post-OAuth Drive folder step (Google only). Drives the second screen
+   *  of the wizard where the user picks the Drive root path Apollia will
+   *  use for this account. Empty string keeps the legacy `Apollia` default. */
+  let oauthDialogStep = $state<"auth" | "drive_folder">("auth");
+  let oauthDialogConnectedAccountId = $state<string | null>(null);
+  let oauthDialogDriveFolderDraft = $state("");
+  let oauthDialogDriveFolderSaving = $state(false);
+  let oauthDialogDriveFolderError = $state<string | null>(null);
 
   async function refreshNativeStatus() {
     nativeLoading = true;
@@ -317,7 +591,7 @@
       return "Profil souveraineté « local-only » : connecteurs cloud désactivés.";
     }
     if (anyE.kind === "oauth_client_not_configured") {
-      return "Client OAuth non configuré dans ce build. Voir docs/internal/release/OAUTH-CLIENT-IDS.md.";
+      return "Identifiant OAuth manquant — ouvrez Réglages → Intégrations pour le coller.";
     }
     if (anyE.kind && anyE.detail) {
       return `${anyE.kind}: ${anyE.detail}`;
@@ -327,13 +601,40 @@
     return String(e);
   }
 
+  /** Tear down any registered Tauri listeners — called when the dialog closes
+   *  or before starting a new flow so we don't leak handlers across attempts. */
+  async function clearOauthListeners(): Promise<void> {
+    const fns = oauthDialogUnlistenFns;
+    oauthDialogUnlistenFns = [];
+    for (const fn of fns) {
+      try {
+        fn();
+      } catch {
+        // best-effort cleanup
+      }
+    }
+  }
+
+  function closeOauthDialog(): void {
+    oauthDialogOpen = false;
+    oauthDialogAwaitingCallback = false;
+    void clearOauthListeners();
+  }
+
   async function startNativeConnect(provider: ProviderId) {
+    await clearOauthListeners();
     oauthDialogProvider = provider;
     oauthDialogAuthUrl = null;
     oauthDialogState = null;
     oauthDialogPastedCode = "";
     oauthDialogError = null;
+    oauthDialogErrorIsMissingClient = false;
     oauthDialogBusy = true;
+    oauthDialogAwaitingCallback = false;
+    oauthDialogStep = "auth";
+    oauthDialogConnectedAccountId = null;
+    oauthDialogDriveFolderDraft = "";
+    oauthDialogDriveFolderError = null;
     oauthDialogOpen = true;
     try {
       // Default scopes mirror connector_providers.rs defaults — let the
@@ -365,13 +666,52 @@
       });
       oauthDialogAuthUrl = start.auth_url;
       oauthDialogState = start.state;
-      // Open the system browser on the auth URL.
-      window.open(start.auth_url, "_blank");
+      oauthDialogAwaitingCallback = true;
+
+      // Register listeners for the loopback callback BEFORE opening the
+      // browser so we never race the redirect. Filter by `state` so concurrent
+      // OAuth flows (unlikely, but possible) don't cross-talk.
+      const expectedState = start.state;
+      const codeUnlisten = await listen<{ state: string; code: string }>(
+        "oauth://code-ready",
+        (event) => {
+          if (event.payload?.state !== expectedState) return;
+          oauthDialogPastedCode = event.payload.code;
+          oauthDialogAwaitingCallback = false;
+          void completeNativeFlow();
+        },
+      );
+      const errUnlisten = await listen<{ state: string; error: string }>(
+        "oauth://error",
+        (event) => {
+          if (event.payload?.state !== expectedState) return;
+          oauthDialogAwaitingCallback = false;
+          oauthDialogError = event.payload.error;
+        },
+      );
+      oauthDialogUnlistenFns = [codeUnlisten, errUnlisten];
+
+      // The backend opens the system browser via tauri-plugin-opener (more
+      // reliable than `window.open` from the Tauri webview, which is blocked
+      // by sandboxing on some platforms). No-op here — the link is still
+      // surfaced in the dialog as a manual fallback.
     } catch (e) {
-      oauthDialogError = formatTauriError(e);
+      const formatted = formatTauriError(e);
+      oauthDialogError = formatted;
+      oauthDialogErrorIsMissingClient = isMissingClientError(e);
     } finally {
       oauthDialogBusy = false;
     }
+  }
+
+  function isMissingClientError(e: unknown): boolean {
+    const anyE = e as { kind?: string } | null;
+    return anyE?.kind === "oauth_client_not_configured";
+  }
+
+  function openSettingsIntegrations(): void {
+    closeOauthDialog();
+    navigateToSettings("integrations");
   }
 
   async function completeNativeFlow() {
@@ -379,17 +719,59 @@
     oauthDialogBusy = true;
     oauthDialogError = null;
     try {
-      await invoke("oauth_complete_flow", {
+      const result = await invoke<{
+        provider: string;
+        account_id: string;
+        granted_scopes: string[];
+      }>("oauth_complete_flow", {
         state: oauthDialogState,
         code: oauthDialogPastedCode.trim(),
       });
-      oauthDialogOpen = false;
       await refreshNativeStatus();
+      if (result.provider === "google") {
+        // Google-specific second step: ask the user where in their Drive
+        // they want agents to operate. Skipping this leaves the default
+        // "Apollia" folder, which is fine for most users.
+        oauthDialogConnectedAccountId = result.account_id;
+        oauthDialogDriveFolderDraft = "Apollia";
+        oauthDialogStep = "drive_folder";
+      } else {
+        closeOauthDialog();
+      }
     } catch (e) {
       oauthDialogError = formatTauriError(e);
     } finally {
       oauthDialogBusy = false;
     }
+  }
+
+  /** Save the Drive folder the user picked in step 2 of the Google wizard.
+   *  Always proceed past this step on success; an empty value clears any
+   *  override and the agent falls back to the default `Apollia` folder. */
+  async function saveDriveFolderAndFinish(): Promise<void> {
+    if (!oauthDialogConnectedAccountId) {
+      closeOauthDialog();
+      return;
+    }
+    oauthDialogDriveFolderSaving = true;
+    oauthDialogDriveFolderError = null;
+    try {
+      await invoke("oauth_set_drive_folder", {
+        accountId: oauthDialogConnectedAccountId,
+        folderPath: oauthDialogDriveFolderDraft.trim(),
+      });
+      closeOauthDialog();
+    } catch (e) {
+      oauthDialogDriveFolderError = formatTauriError(e);
+    } finally {
+      oauthDialogDriveFolderSaving = false;
+    }
+  }
+
+  function skipDriveFolderStep(): void {
+    // User declined to customise → keep the legacy default (no override
+    // written to disk). Close the dialog cleanly.
+    closeOauthDialog();
   }
 
   async function disconnectNative(account: OauthAccountInfo) {
@@ -928,11 +1310,20 @@
     if (!config) return;
     customBusy = true;
     try {
-      const result = await invoke<{ tools: { local_name: string }[] }>(
+      const response = await invoke<McpConnectionTestResponse>(
         "test_mcp_connection",
         { config },
       );
-      customTestResult = `${result.tools.length} outil(s) détecté(s).`;
+      if (response.kind === "success") {
+        customTestResult = `${response.tools.length} outil(s) détecté(s).`;
+      } else {
+        // oauth_required → custom-form path. The user is supposed to pre-fill
+        // env headers themselves here; we surface OAuth as an error pointing
+        // them at the catalog wizard which will gain the proper button in
+        // Phase 5.
+        customError =
+          "Ce serveur exige une authentification OAuth. Installez-le depuis le catalogue plutôt que via le formulaire personnalisé.";
+      }
     } catch (e) {
       customError = formatTauriError(e);
     } finally {
@@ -1172,6 +1563,7 @@
             activeTab={nativeTab}
             items={[
               { key: "accounts", label: "Comptes", count: accounts.length },
+              { key: "capabilities", label: "Ce qu'Apollia peut faire" },
               { key: "settings", label: "Paramètres" },
             ]}
             ontabchange={(k) => (nativeTab = k as NativeTab)}
@@ -1215,6 +1607,55 @@
                 {/each}
               </Card>
             {/if}
+          {:else if nativeTab === "capabilities"}
+            <div class="space-y-4 max-w-3xl" data-testid="native-capabilities">
+              <!-- Frame the user-facing reality up front: v0.1.0 Apollia uses
+                   only free-tier OAuth scopes (no CASA audit), so some Gmail
+                   and Drive verbs are intentionally out of reach. Surface this
+                   clearly so the operator does not waste time asking the
+                   agent to read inbox / list whole Drive — neither will work. -->
+              <Card class="p-[14px_16px] border-primary/30 bg-primary/5">
+                <div class="text-[10px] font-medium uppercase tracking-wider text-primary/80 mb-2">
+                  {$t("connections.capabilities.scope_policy_title")}
+                </div>
+                <p class="text-[12.5px] text-foreground/85 leading-[1.5]">
+                  {$t(`connections.capabilities.scope_policy_body_${connector.id}`)}
+                </p>
+              </Card>
+
+              {#each capabilityGroupsFor(connector.id) as group (group.key)}
+                <Card class="p-[14px_16px]">
+                  <div class="text-[11px] font-semibold text-foreground mb-2 flex items-center gap-2">
+                    <span>{$t(`connections.capabilities.group_${group.key}`)}</span>
+                  </div>
+                  <ul class="space-y-1.5">
+                    {#each group.entries as entry}
+                      <li class="flex items-start gap-2.5 text-[12.5px]">
+                        <span class="mt-[3px] inline-flex h-3.5 w-3.5 items-center justify-center rounded-full {entry.supported ? 'bg-success/20 text-success' : 'bg-destructive/15 text-destructive'} shrink-0">
+                          {entry.supported ? "✓" : "✕"}
+                        </span>
+                        <div class="flex-1">
+                          <div class="text-foreground/90">
+                            {$t(entry.labelKey)}
+                          </div>
+                          {#if entry.detailKey}
+                            <div class="text-[11px] text-muted-foreground mt-0.5">
+                              {$t(entry.detailKey)}
+                            </div>
+                          {/if}
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                </Card>
+              {/each}
+
+              <Card class="p-[14px_16px] bg-muted/30">
+                <p class="text-[11.5px] text-muted-foreground leading-[1.55]">
+                  {$t("connections.capabilities.expert_mode_hint")}
+                </p>
+              </Card>
+            </div>
           {:else if nativeTab === "settings"}
             <div class="space-y-4 max-w-2xl">
               <Card class="p-[14px_16px]">
@@ -1509,48 +1950,152 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
     <div class="w-full max-w-md rounded-xl bg-surface-1 border border-border p-5 space-y-3">
       <h2 class="text-lg font-semibold">
-        Connecter {oauthDialogProvider === "google" ? "Google Workspace" : "Microsoft 365"}
+        {#if oauthDialogStep === "drive_folder"}
+          Dossier Google Drive
+        {:else}
+          Connecter {oauthDialogProvider === "google" ? "Google Workspace" : "Microsoft 365"}
+        {/if}
       </h2>
 
-      {#if oauthDialogBusy && !oauthDialogAuthUrl}
+      {#if oauthDialogStep === "drive_folder"}
+        <!-- Step 2 (Google only): pick the Drive root path Apollia agents
+             will read/write inside. With the free-tier `drive.file` scope
+             Apollia cannot list existing folders for selection — the user
+             types the path and Apollia creates each missing segment. -->
+        <div class="space-y-3" data-testid="oauth-dialog-drive-folder">
+          <p class="text-sm text-muted-foreground leading-[1.5]">
+            Apollia ne pourra voir, lire et écrire QUE dans le dossier que
+            vous indiquez ici (scope <code>drive.file</code>, gratuit, sans
+            audit CASA). Vos autres fichiers Drive lui resteront invisibles.
+            Le dossier est créé automatiquement à la première écriture s'il
+            n'existe pas encore. Modifiable plus tard via Réglages →
+            Intégrations.
+          </p>
+          <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
+            Pour permettre à vos agents d'accéder à tout votre Drive, il
+            faut passer en <strong>Mode Expert</strong> (votre propre app
+            Google Cloud avec les scopes étendus) — voir Réglages →
+            Intégrations après la connexion.
+          </p>
+          <label class="block text-xs font-medium text-foreground">
+            Chemin du dossier (séparé par <code>/</code>)
+            <Input
+              type="text"
+              class="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm font-mono"
+              placeholder="Apollia"
+              bind:value={oauthDialogDriveFolderDraft}
+              disabled={oauthDialogDriveFolderSaving}
+              autocomplete="off"
+              data-testid="oauth-drive-folder-input"
+            />
+          </label>
+          <p class="text-[11px] text-muted-foreground leading-[1.4]">
+            Exemples : <code>Apollia</code> (défaut), <code>Documents/Apollia</code>,
+            <code>Travail/IA</code>. Vide = garder le défaut <code>Apollia</code>.
+            Modifiable plus tard dans Réglages → Intégrations.
+          </p>
+          {#if oauthDialogDriveFolderError}
+            <p class="text-xs text-destructive" data-testid="oauth-drive-folder-error">
+              {oauthDialogDriveFolderError}
+            </p>
+          {/if}
+        </div>
+      {:else if oauthDialogErrorIsMissingClient}
+        <!-- Specific error: no client_id resolved. Send the user straight to
+             Settings → Integrations rather than show a raw error string. -->
+        <div class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 space-y-2">
+          <p class="text-sm font-medium text-foreground">
+            Identifiant OAuth manquant
+          </p>
+          <p class="text-xs text-muted-foreground leading-[1.5]">
+            Ce build d'Apollia n'embarque pas de <code>client_id</code> pour
+            {oauthDialogProvider === "google" ? "Google" : "Microsoft"}.
+            Ouvrez Réglages → Intégrations pour coller le vôtre (créé dans la
+            console {oauthDialogProvider === "google" ? "Google Cloud" : "Azure / Entra ID"}).
+            Aucune variable d'environnement n'est nécessaire.
+          </p>
+        </div>
+      {:else if oauthDialogBusy && !oauthDialogAuthUrl}
         <p class="text-sm text-muted-foreground">Préparation du flow OAuth…</p>
       {:else if oauthDialogError && !oauthDialogAuthUrl}
         <p class="text-sm text-destructive">{oauthDialogError}</p>
       {:else if oauthDialogAuthUrl}
         <p class="text-sm text-muted-foreground">
           Une fenêtre navigateur s'est ouverte sur le consentement
-          {oauthDialogProvider === "google" ? "Google" : "Microsoft"}. Validez
-          les permissions, puis collez ici le code d'autorisation retourné.
+          {oauthDialogProvider === "google" ? "Google" : "Microsoft"}.
+          Validez les permissions — Apollia récupère le code automatiquement
+          dès le retour du navigateur.
         </p>
+
+        {#if oauthDialogAwaitingCallback}
+          <div class="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+            <Spinner size={14} />
+            <span class="text-xs text-muted-foreground">
+              En attente du retour {oauthDialogProvider === "google" ? "Google" : "Microsoft"}…
+            </span>
+          </div>
+        {/if}
+
         <p class="text-xs text-muted-foreground">
-          Si la fenêtre ne s'est pas ouverte : <a
+          Si la fenêtre ne s'est pas ouverte :
+          <a
             class="underline"
             href={oauthDialogAuthUrl}
             target="_blank"
             rel="noopener noreferrer">ouvrir l'URL manuellement</a
           >.
         </p>
-        <Input
-          type="text"
-          class="font-mono"
-          placeholder={$t("connections.custom_mcp.code_placeholder")}
-          bind:value={oauthDialogPastedCode}
-          disabled={oauthDialogBusy}
-        />
+
+        <details class="text-xs">
+          <summary class="cursor-pointer text-muted-foreground">
+            Le retour automatique n'a pas fonctionné ? Coller le code manuellement
+          </summary>
+          <div class="mt-2 space-y-2">
+            <p class="text-[11px] text-muted-foreground">
+              Récupérez le paramètre <code>code=</code> dans la barre d'URL du
+              navigateur après consentement, puis collez-le ici.
+            </p>
+            <Input
+              type="text"
+              class="font-mono"
+              placeholder={$t("connections.custom_mcp.code_placeholder")}
+              bind:value={oauthDialogPastedCode}
+              disabled={oauthDialogBusy}
+            />
+          </div>
+        </details>
         {#if oauthDialogError}
           <p class="text-xs text-destructive">{oauthDialogError}</p>
         {/if}
       {/if}
 
       <div class="flex justify-end gap-2 pt-1">
-        <Button variant="outline" size="sm" onclick={() => (oauthDialogOpen = false)}>{$t("common.cancel")}</Button>
-        {#if oauthDialogAuthUrl}
-          <Button variant="primary-solid" size="sm"
-            onclick={completeNativeFlow}
-            disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
-          >
-            {oauthDialogBusy ? $t("common.finalizing") : $t("common.finalize")}
+        {#if oauthDialogStep === "drive_folder"}
+          <Button variant="ghost" size="sm" onclick={skipDriveFolderStep}
+            disabled={oauthDialogDriveFolderSaving}>
+            Garder le défaut
           </Button>
+          <Button variant="primary-solid" size="sm"
+            onclick={saveDriveFolderAndFinish}
+            disabled={oauthDialogDriveFolderSaving}
+            data-testid="oauth-drive-folder-save"
+          >
+            {oauthDialogDriveFolderSaving ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+        {:else}
+          <Button variant="outline" size="sm" onclick={closeOauthDialog}>{$t("common.cancel")}</Button>
+          {#if oauthDialogErrorIsMissingClient}
+            <Button variant="primary-solid" size="sm" onclick={openSettingsIntegrations}>
+              Ouvrir Réglages → Intégrations
+            </Button>
+          {:else if oauthDialogAuthUrl}
+            <Button variant="primary-solid" size="sm"
+              onclick={completeNativeFlow}
+              disabled={oauthDialogBusy || oauthDialogPastedCode.trim().length === 0}
+            >
+              {oauthDialogBusy ? $t("common.finalizing") : $t("common.finalize")}
+            </Button>
+          {/if}
         {/if}
       </div>
     </div>

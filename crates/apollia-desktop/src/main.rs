@@ -9,6 +9,7 @@
 mod backend;
 mod bundled_agents;
 mod commands;
+mod connectors_bridge;
 mod events;
 pub mod mcp;
 mod project_context;
@@ -17,11 +18,16 @@ pub mod tray;
 
 use std::sync::Arc;
 
-use apollia_core::{PendingApprovals, SttConfigRepository};
+use apollia_core::{PendingApprovals, SttConfigRepository, ToolsConfig};
 use apollia_llm::LlmRouter;
+use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
+use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 use apollia_runtime::eventbus::EventBusSender;
+use apollia_runtime::mailbox::AgentMailboxHandle;
+use apollia_runtime::registry::AgentRegistryHandle;
+use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use mcp::McpRegistryClient;
@@ -178,6 +184,24 @@ fn main() {
     // McpToolExecutor per registered MCP tool into the agent's dispatcher.
     let mcp_handle_lock: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>> =
         Arc::new(std::sync::OnceLock::new());
+    // Agent registry + task router — required to build A2A delegate/invoker so
+    // task-mode (triggers) and chat-agent flows can call `ctx.a2a_invoke(...)`
+    // and discover virtual `a2a:*` tools, on parity with Chat Libre.
+    let agent_registry_lock: Arc<std::sync::OnceLock<AgentRegistryHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    let task_router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
+        Arc::new(std::sync::OnceLock::new());
+    // Inter-agent mailbox — exposed as `ctx.mailbox` in Python agents.
+    let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    // Global user memory — used by Chat Agent runner to build `ctx.user_context`.
+    let user_memory_lock: Arc<
+        std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    > = Arc::new(std::sync::OnceLock::new());
+    // Tools config (`[tools]` from apollia.toml) — drives web_search/web_read
+    // params and statically-disabled tools. Populated from RuntimeHandle.
+    let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -187,6 +211,10 @@ fn main() {
         pending_approvals: pending_approvals_lock.clone(),
         task_repository: task_repository_lock.clone(),
         mcp_handle: mcp_handle_lock.clone(),
+        agent_registry: agent_registry_lock.clone(),
+        task_router: task_router_lock.clone(),
+        mailbox_handle: mailbox_handle_lock.clone(),
+        tools_config: tools_config_lock.clone(),
     });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
@@ -236,6 +264,11 @@ fn main() {
                 task_repository: task_repository_lock.clone(),
                 pending_user_inputs: pending_user_inputs_lock.clone(),
                 mcp_handle: mcp_handle_lock.clone(),
+                agent_registry: agent_registry_lock.clone(),
+                task_router: task_router_lock.clone(),
+                mailbox_handle: mailbox_handle_lock.clone(),
+                user_memory: user_memory_lock.clone(),
+                tools_config: tools_config_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(error = %e, "failed to open agents.db for ChatAgentRunner — Chat Agent mode disabled");
@@ -295,6 +328,19 @@ fn main() {
     if let Some(mcp) = runtime_handle.mcp_handle.clone() {
         let _ = mcp_handle_lock.set(mcp);
     }
+    // A2A, mailbox, user_memory, tools_config — required for parity between
+    // Chat Libre, Chat Agent, and task-mode (triggers/manual fires/API tasks).
+    // Without these, Python agents in non-chat-libre flows lose `ctx.a2a_invoke`,
+    // `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
+    let _ = agent_registry_lock.set(runtime_handle.registry_handle.clone());
+    let _ = task_router_lock.set(runtime_handle.router_handle.clone());
+    if let Some(mailbox) = runtime_handle.mailbox_handle.clone() {
+        let _ = mailbox_handle_lock.set(mailbox);
+    }
+    if let Some(um) = runtime_handle.user_memory.clone() {
+        let _ = user_memory_lock.set(um);
+    }
+    let _ = tools_config_lock.set(runtime_handle.tools_config.clone());
 
     // Auto-load installed agents NOW — OnceLocks are populated so the
     // ProductionBackendFactory can create real backends.
@@ -427,6 +473,12 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // External URL opener — bridges the webview to the system browser for
+        // OAuth flows and outbound help/docs links (ADR-095 Phase 4 + 5).
+        // Tauri 2 disabled `window.open()` and `<a target="_blank">` by
+        // default; this plugin (+ the `opener:default` capability permission)
+        // is the canonical replacement.
+        .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
         .manage(agent_repo)
         .manage(pkg_repo)
@@ -599,6 +651,15 @@ fn main() {
             commands::integrations::oauth_get_status,
             commands::integrations::oauth_list_client_ids,
             commands::integrations::oauth_set_client_id,
+            commands::integrations::oauth_set_client_secret,
+            commands::integrations::oauth_list_drive_folders,
+            commands::integrations::oauth_set_drive_folder,
+            commands::integrations::oauth_reset_drive_folder,
+            commands::integrations::oauth_set_api_key,
+            commands::integrations::oauth_google_picker_session,
+            commands::integrations::oauth_list_picked_drive_folders,
+            commands::integrations::oauth_add_picked_drive_folder,
+            commands::integrations::oauth_remove_picked_drive_folder,
             commands::llm::list_llm_backends,
             commands::llm::create_llm_backend,
             commands::llm::update_llm_backend,
@@ -757,6 +818,11 @@ fn main() {
             commands::mcp::get_mcp_server_raw_config,
             commands::mcp::update_mcp_server_config,
             commands::mcp::test_mcp_connection,
+            commands::mcp::mcp_oauth_discover,
+            commands::mcp::mcp_oauth_resolve_client_id,
+            commands::mcp::mcp_oauth_store_client_id,
+            commands::mcp::mcp_oauth_clear_client_id,
+            commands::mcp::mcp_oauth_login,
             commands::mcp::restart_mcp_server,
             commands::mcp::fetch_mcp_registry,
             commands::mcp::fetch_mcp_curated,

@@ -17,6 +17,7 @@ from typing import Any
 
 from apollia.agents.react import AIPResult
 from apollia.agents.worker import WorkerAgent
+from apollia.utils.a2a import extract_a2a_payload
 from apollia.utils.parsing import extract_json
 
 
@@ -116,12 +117,9 @@ Article = {
         if ctx.llm is None:
             return AIPResult.failed("NO_LLM", "Backend LLM requis")
 
-        parts = task.get("input", {}).get("parts", [])
-        raw = next((p["text"] for p in parts if p.get("type") == "text"), "{}")
-        try:
-            payload = json.loads(raw) if raw.strip().startswith("{") else {"text": raw}
-        except json.JSONDecodeError:
-            return self.domain_error("invalid_payload", "Payload non parseable en JSON")
+        payload = extract_a2a_payload(task)
+        if not payload:
+            return self.domain_error("invalid_payload", "Payload A2A vide ou non parseable")
 
         articles_tech = payload.get("articles_tech", [])
         articles_competitive = payload.get("articles_competitive", [])

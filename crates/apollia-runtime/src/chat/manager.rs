@@ -31,6 +31,28 @@ use apollia_permissions::prefix_rule_engine::RuleAction;
 /// libre persistée dans `governance.db`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
+/// Subset of the runtime's native-tool config the chat dispatcher needs to
+/// instantiate config-dependent natives (web_search, web_read, http_fetch,
+/// memory_search, permission_rule_*). Cloned per session, then completed
+/// with per-session `sandbox_root` + `agent_id` inside
+/// [`resolve_workspace_for_session`].
+///
+/// Supervisor populates this once at boot from `apollia.toml` + `data_dir`.
+/// Phase 3 of ADR-096 — convergence of Chat Libre's native tool execution
+/// with Agent mode + Triggers.
+#[derive(Clone)]
+pub struct ChatToolsConfig {
+    /// Root data directory (`~/.apollia` typical) — used to derive
+    /// `governance_db_path`, `memory_base_dir`, and `venv_base_dir`.
+    pub data_dir: std::path::PathBuf,
+    /// Resolved Brave Search API key (read from `governance.db` credentials
+    /// or the `BRAVE_SEARCH_API_KEY` env var). `None` falls back to env var.
+    pub brave_api_key: Option<String>,
+    /// Native-tools subsection of `apollia.toml` (web cfg, http allowlist,
+    /// disabled list). Defaults are sensible when no file is loaded.
+    pub tools_config: apollia_core::ToolsConfig,
+}
+
 /// Snapshot d'une autorisation tool-level scope=session pour une session active.
 ///
 /// Renvoyé par `ChatHandle::list_session_authorizations` afin que le desktop
@@ -536,6 +558,10 @@ struct ChatSessionManager {
     /// chat-libre invocations of `mcp:<server>/<tool>` can be routed
     /// through the manager.
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Operator config bundled at supervisor boot (data dir, brave key,
+    /// tools_config) for the chat dispatcher. `None` in tests / minimal
+    /// runtimes — falls back to the Phase 2 minimal dispatcher.
+    chat_tools_config: Option<Arc<ChatToolsConfig>>,
     /// Map of pending `ask_user` entries, keyed by request_id.
     /// Populated by the background drain task, resolved by `ResolveUserInput`.
     pending_user_replies: HashMap<
@@ -1229,6 +1255,8 @@ impl ChatSessionManager {
 
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
+            let chat_tools_config_for_session = self.chat_tools_config.clone();
+            let session_id_str = session_id.to_string();
 
             // Capture HITL filesystem params for the invoker.
             let hitl_params = HitlInvokerParams {
@@ -1248,6 +1276,8 @@ impl ChatSessionManager {
                     Some(hitl_params),
                     Some(pending_user_inputs_for_session),
                     mcp_handle_for_session,
+                    chat_tools_config_for_session,
+                    &session_id_str,
                 )
                 .await
                 {
@@ -2288,6 +2318,8 @@ async fn resolve_workspace_for_session(
     hitl: Option<HitlInvokerParams>,
     pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
     mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+    chat_tools_config: Option<Arc<ChatToolsConfig>>,
+    session_id: &str,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let workspace_path = match project_id {
         None => {
@@ -2314,13 +2346,210 @@ async fn resolve_workspace_for_session(
             detail.workspace_path.map(std::path::PathBuf::from)
         }
     };
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path);
-    if let Some(pending) = pending_user_inputs {
+    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
+    if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending);
     }
+
+    // Convergence point (ADR-096 Phase 2): every tool outside the native
+    // hardcoded fast path — MCP, Google connectors, read-only natives,
+    // future providers — is resolved through a single `ToolDispatcher`.
+    // The dispatcher applies the same permission engine + audit trail as
+    // the Agent-mode pipeline. HITL-sensitive natives (file_write/edit,
+    // bash, python_executor, notebook_edit) stay in the fast path because
+    // their inline approval flow is not yet ported to events.
+    let mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>> = Vec::new();
+
+    // MCP executors — one per tool currently exposed by a connected server.
     if let Some(handle) = mcp_handle {
-        invoker = invoker.with_mcp_handle(handle);
+        for status in handle.status().await {
+            if !status.connected {
+                continue;
+            }
+            let Some(detail) = handle.server_detail(&status.name).await else {
+                continue;
+            };
+            for tool in detail.tools {
+                extra_executors.push(Box::new(apollia_mcp::executor::McpToolExecutor::new(
+                    handle.clone(),
+                    status.name.clone(),
+                    tool.local_name.clone(),
+                )));
+            }
+        }
     }
+
+    // SaaS connectors — Google today, Microsoft next.
+    extra_executors.extend(crate::connectors_bridge::build_google_executors());
+
+    let sandbox_root = workspace_path
+        .clone()
+        .unwrap_or_else(std::env::temp_dir);
+
+    // Phase 3 — when the supervisor handed us a `ChatToolsConfig`, build the
+    // full native dispatcher (same factory the Agent-mode + Triggers pipeline
+    // uses). This pulls in web_search, web_read, http_fetch, memory_search,
+    // permission_rule_* and ask_user with the operator's `apollia.toml` cfg.
+    // HITL-sensitive natives (bash, python_executor, file_write/edit,
+    // notebook_edit) stay disabled from the dispatcher so the fast path
+    // continues to drive their inline approval flow — that migration is
+    // tracked as Phase 4 (HITL → EventBus events).
+    let dispatcher = if let Some(cfg) = chat_tools_config.as_ref() {
+        // ADR-096 Phase 4 — full convergence. Every native flows through
+        // the dispatcher, including HITL-sensitive ones and `http_fetch`
+        // (dynamic allowlist). The fast path in `NativeChatToolInvoker`
+        // collapses to a single delegate-everything-to-fallback line.
+        //
+        // We disable the dispatcher's default versions of:
+        //   - file_write / file_edit / notebook_edit / bash / python →
+        //     re-added below wrapped in `HitlFilesystemGuard`.
+        //   - http_fetch → re-added as `DynamicAllowlistHttpFetch`.
+        //
+        // The remaining natives (file_read/list/glob/grep, notebook_read,
+        // web_search, web_read, memory_search, ask_user, permission_rule_*)
+        // are built untouched by `build_dispatcher_with`.
+        const WRAPPED_NATIVES: &[&str] = &[
+            "bash_executor",
+            "python_executor",
+            "file_write",
+            "file_edit",
+            "notebook_edit",
+            "http_fetch",
+        ];
+        let mut disabled = cfg.tools_config.disabled.clone();
+        for name in WRAPPED_NATIVES {
+            if !disabled.iter().any(|d| d == name) {
+                disabled.push((*name).to_string());
+            }
+        }
+
+        let native_cfg = apollia_tools::NativeDispatcherConfig {
+            sandbox_root: sandbox_root.clone(),
+            agent_id: format!("apollia:chat:{session_id}"),
+            venv_base_dir: cfg.data_dir.join("venvs"),
+            // Per-session memory namespace so `memory_search` reads/writes
+            // the chat session's own slice. Other namespaces could be added
+            // here as shared read-only later.
+            memory_namespace: Some(format!("apollia:chat:{session_id}")),
+            memory_shared_namespaces: Vec::new(),
+            memory_base_dir: cfg.data_dir.join("memory"),
+            // Native http_fetch uses None — the wrapper below provides
+            // dynamic allowlist behaviour preserving Chat Libre UX.
+            http_allowlist: None,
+            pending_user_inputs: pending_user_inputs.clone(),
+            disabled_tools: disabled,
+            brave_api_key: cfg.brave_api_key.clone(),
+            web_search_config: cfg.tools_config.web_search.clone(),
+            web_read_config: cfg.tools_config.web_read.clone(),
+            governance_db_path: Some(
+                cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME),
+            ),
+        };
+
+        // Wrap the HITL-sensitive natives with the approval-flow guard.
+        if let Some(p) = hitl.as_ref() {
+            let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
+                event_bus: p.event_bus.clone(),
+                pending_fs: p.pending_fs.clone(),
+                fs_allow_rules: p.fs_allow_rules.clone(),
+                session_id: p.session_id.clone(),
+                workspace_path: workspace_path.clone(),
+                sandbox_root: sandbox_root.clone(),
+                risk_config: p.risk_config.clone(),
+            };
+
+            let push_hitl = |execs: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+                             inner: Box<dyn apollia_tools::executor::ToolExecutor>,
+                             op: apollia_tools::FilesystemOp| {
+                execs.push(Box::new(
+                    crate::chat::native_wrappers::HitlFilesystemGuard::new(
+                        inner,
+                        op,
+                        hitl_ctx.clone(),
+                    ),
+                ));
+            };
+
+            if let Ok(t) =
+                apollia_tools::tools::file_write::FileWrite::new(sandbox_root.clone())
+            {
+                push_hitl(
+                    &mut extra_executors,
+                    Box::new(t),
+                    apollia_tools::FilesystemOp::Write,
+                );
+            }
+            if let Ok(t) =
+                apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.clone())
+            {
+                push_hitl(
+                    &mut extra_executors,
+                    Box::new(t),
+                    apollia_tools::FilesystemOp::Write,
+                );
+            }
+            if let Ok(t) =
+                apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.clone())
+            {
+                push_hitl(
+                    &mut extra_executors,
+                    Box::new(t),
+                    apollia_tools::FilesystemOp::Write,
+                );
+            }
+            push_hitl(
+                &mut extra_executors,
+                Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
+                apollia_tools::FilesystemOp::Write,
+            );
+            if let Ok(t) = apollia_tools::tools::python_executor::PythonExecutor::new(
+                &native_cfg.agent_id,
+                &native_cfg.venv_base_dir,
+            ) {
+                push_hitl(
+                    &mut extra_executors,
+                    Box::new(t),
+                    apollia_tools::FilesystemOp::Write,
+                );
+            }
+        }
+
+        // Dynamic-allowlist http_fetch (preserves the per-call host
+        // injection that the legacy fast path did).
+        extra_executors.push(Box::new(
+            crate::chat::native_wrappers::DynamicAllowlistHttpFetch::new(),
+        ));
+
+        std::sync::Arc::new(apollia_tools::build_dispatcher_with(
+            &native_cfg,
+            extra_executors,
+        ))
+    } else {
+        // Fallback (supervisor didn't pass cfg, e.g. tests): minimal
+        // dispatcher with just connector + MCP + read-only file natives —
+        // the Phase 2 behaviour.
+        if let Ok(t) = apollia_tools::tools::file_read::FileRead::new(sandbox_root.clone()) {
+            extra_executors.push(Box::new(t));
+        }
+        if let Ok(t) = apollia_tools::tools::file_list::FileList::new(sandbox_root.clone()) {
+            extra_executors.push(Box::new(t));
+        }
+        if let Ok(t) = apollia_tools::tools::file_glob::FileGlob::new(sandbox_root.clone()) {
+            extra_executors.push(Box::new(t));
+        }
+        if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.clone()) {
+            extra_executors.push(Box::new(t));
+        }
+        if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.clone()) {
+            extra_executors.push(Box::new(t));
+        }
+        std::sync::Arc::new(apollia_tools::executor::ToolDispatcher::new(
+            extra_executors,
+        ))
+    };
+    invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
+        apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(dispatcher),
+    ));
     if let Some(p) = hitl {
         Ok(invoker.with_hitl_support(
             p.session_id,
@@ -2391,6 +2620,12 @@ impl ChatSessionManagerHandle {
         project_context: Option<Arc<dyn ProjectContextProvider>>,
         project_repo: Option<Arc<ProjectRepository>>,
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
+        // ADR-096 Phase 3 — supervisor-built config so the chat dispatcher
+        // can include config-dependent natives (web_search, web_read,
+        // http_fetch, memory_search, permission_rule_*) alongside MCP +
+        // connectors. `None` keeps the Phase 2 behaviour (only read-only
+        // file tools in the dispatcher, the rest in the fast path).
+        chat_tools_config: Option<Arc<ChatToolsConfig>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -2426,6 +2661,7 @@ impl ChatSessionManagerHandle {
             project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
             mcp_handle,
+            chat_tools_config,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
         };
@@ -3118,6 +3354,7 @@ mod tests {
             None, // no project context in basic tests
             None, // no project repo in basic tests
             None, // no mcp handle in basic tests
+            None, // no chat tools config in basic tests
         )
         .expect("spawn manager")
     }
@@ -3261,6 +3498,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .expect("spawn");
 
@@ -3356,6 +3594,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             mcp_handle: None,
+            chat_tools_config: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3488,6 +3727,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             mcp_handle: None,
+            chat_tools_config: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3551,6 +3791,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             mcp_handle: None,
+            chat_tools_config: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,
@@ -3592,6 +3833,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             mcp_handle: None,
+            chat_tools_config: None,
             pending_user_replies: HashMap::new(),
             metrics: HashMap::new(),
             user_memory: None,

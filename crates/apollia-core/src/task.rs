@@ -13,6 +13,16 @@ pub struct AIPTask {
     pub task_id: String,
     /// Identifiant de contexte groupant les tâches liées (ex: session utilisateur).
     pub context_id: String,
+    /// Skill A2A invoqué (peuplé uniquement lors d'une délégation A2A — `None`
+    /// pour les exécutions racine, les tâches déclenchées par triggers, ou
+    /// l'invocation directe via la CLI / API REST sans skill ciblé).
+    ///
+    /// Les workers multi-skills lisent ce champ via
+    /// `apollia.utils.a2a.extract_skill_id(task)` pour dispatcher entre leurs
+    /// skills internes. Convention : full ID type `"chart.bar"` (pas seulement
+    /// le suffixe). Cf. ADR sur la propagation `skill_id` (2026-05-19).
+    #[serde(default)]
+    pub skill_id: Option<String>,
     /// Identifiant du projet auquel cette tâche est rattachée.
     ///
     /// `None` pour les sessions standalone. Utilisé par le runtime pour préfixer

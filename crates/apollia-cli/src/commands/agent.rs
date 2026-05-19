@@ -1371,7 +1371,20 @@ struct CliAgentLoader;
 
 impl AgentLoader for CliAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<apollia_core::AgentManifest, String> {
-        let module = apollia_aip::loader::load_agent_module(path).map_err(|e| e.to_string())?;
+        // Inject per-agent venv site-packages so top-level imports of
+        // pip-installed packages resolve during validation.
+        let agent_name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let venv_base = std::path::PathBuf::from(home).join(".apollia").join("venvs");
+        let extras = apollia_tools::tools::python_executor::agent_venv_site_packages(
+            &venv_base,
+            agent_name,
+        );
+        let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
+            .map_err(|e| e.to_string())?;
         let validated =
             apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
         Ok(validated.manifest)

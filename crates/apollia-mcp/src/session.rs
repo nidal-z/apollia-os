@@ -189,6 +189,19 @@ pub enum McpSessionError {
     /// Callers should retry the operation after a short delay.
     #[error("server '{server}' is currently being reloaded")]
     ServerReloading { server: String },
+
+    /// The remote MCP server returned HTTP 401 Unauthorized during the handshake
+    /// or a tool call. `www_authenticate` carries the verbatim
+    /// `WWW-Authenticate` header (RFC 6750), which orchestration layers parse
+    /// to drive the MCP HTTP OAuth 2.1 flow (ADR-095).
+    #[error("server '{server}' returned 401 Unauthorized; OAuth handshake required")]
+    Unauthorized {
+        /// MCP server name.
+        server: String,
+        /// `WWW-Authenticate` header value verbatim (empty when the server
+        /// omitted the header — unusual but technically allowed).
+        www_authenticate: String,
+    },
 }
 
 /// Build the human-readable `stderr_hint` suffix for handshake / call timeout
@@ -241,13 +254,13 @@ impl McpSession {
         config: McpServerConfig,
         secret_store: Option<&dyn SecretResolver>,
     ) -> Result<Self, McpSessionError> {
-        let resolved_env =
-            config
-                .resolve_env(secret_store)
-                .map_err(|e| McpSessionError::SpawnFailed {
-                    server: config.name.clone(),
-                    cause: e.to_string(),
-                })?;
+        let resolved_env = config
+            .resolve_env(secret_store)
+            .await
+            .map_err(|e| McpSessionError::SpawnFailed {
+                server: config.name.clone(),
+                cause: e.to_string(),
+            })?;
 
         let transport: Arc<dyn McpTransport> =
             Arc::from(create_transport(&config, resolved_env).map_err(|e| {
@@ -385,13 +398,21 @@ impl McpSession {
         let json = serde_json::to_string(&request)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
 
-        self.transport
-            .send(&json)
-            .await
-            .map_err(|e| McpSessionError::StdinClosed {
+        self.transport.send(&json).await.map_err(|e| match e {
+            // Preserve the WWW-Authenticate header structurally so the
+            // orchestration layer (Phase 4) can drive the MCP HTTP OAuth flow
+            // without re-parsing it out of a stringified error message.
+            crate::transport::TransportError::Unauthorized { www_authenticate } => {
+                McpSessionError::Unauthorized {
+                    server: self.config.name.clone(),
+                    www_authenticate,
+                }
+            }
+            other => McpSessionError::StdinClosed {
                 server: self.config.name.clone(),
-                cause: e.to_string(),
-            })?;
+                cause: other.to_string(),
+            },
+        })?;
 
         let duration = std::time::Duration::from_secs(timeout_secs);
 
@@ -685,6 +706,9 @@ fn spawn_dispatch_task(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Ok(line) = transport.recv().await {
+            if line.trim().is_empty() {
+                continue;
+            }
             match serde_json::from_str::<JsonRpcResponse>(&line) {
                 Ok(response) => {
                     if let Some(id) = response.id {

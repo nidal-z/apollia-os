@@ -94,12 +94,35 @@ impl HttpClient {
 
     /// Execute a request and return the raw response — useful for streaming
     /// downloads where the caller drives the body. The 401-refresh and 429
-    /// policies still apply.
+    /// policies still apply. Defaults to `Content-Type: application/json` when
+    /// a body is provided.
     pub async fn send_with_retries<F, Fut>(
         &self,
         method: Method,
         url: &str,
         body: Option<Vec<u8>>,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Response, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        self.send_with_retries_typed(method, url, body, None, bearer, refresh)
+            .await
+    }
+
+    /// Same as [`send_with_retries`] with an explicit `Content-Type` override.
+    /// When `content_type` is `Some`, it replaces the default
+    /// `application/json` applied to bodied requests. Drive's `uploadType=media`
+    /// PATCH needs the real upstream MIME (`text/plain`, `text/markdown`, …) so
+    /// Google doesn't auto-detect a wrong type from the bytes.
+    pub async fn send_with_retries_typed<F, Fut>(
+        &self,
+        method: Method,
+        url: &str,
+        body: Option<Vec<u8>>,
+        content_type: Option<&str>,
         bearer: &str,
         refresh: F,
     ) -> Result<Response, ConnectorError>
@@ -117,9 +140,8 @@ impl HttpClient {
                 .request(method.clone(), url)
                 .bearer_auth(&effective_bearer);
             if let Some(b) = &body {
-                req = req
-                    .header("Content-Type", "application/json")
-                    .body(b.clone());
+                let ct = content_type.unwrap_or("application/json");
+                req = req.header("Content-Type", ct).body(b.clone());
             }
 
             let result = req.send().await;
@@ -184,14 +206,14 @@ impl HttpClient {
             // 5xx — exponential backoff, retry.
             if status.is_server_error() {
                 if attempt >= MAX_RETRIES {
-                    let body = response
+                    let raw = response
                         .text()
                         .await
                         .unwrap_or_else(|_| "<unreadable>".into());
                     return Err(ConnectorError::Upstream {
                         provider: self.provider_id,
                         status: status.as_u16(),
-                        body: truncate(&body, 512),
+                        body: extract_error_message(&raw),
                     });
                 }
                 let wait = exponential_backoff(attempt);
@@ -207,14 +229,14 @@ impl HttpClient {
             }
 
             if !status.is_success() {
-                let body = response
+                let raw = response
                     .text()
                     .await
                     .unwrap_or_else(|_| "<unreadable>".into());
                 return Err(ConnectorError::Upstream {
                     provider: self.provider_id,
                     status: status.as_u16(),
-                    body: truncate(&body, 512),
+                    body: extract_error_message(&raw),
                 });
             }
 
@@ -283,6 +305,33 @@ fn retry_after_or_backoff(headers: &HeaderMap, attempt: u32) -> Duration {
         }
     }
     exponential_backoff(attempt)
+}
+
+/// Extract a human-readable error message from a Google-style error envelope.
+///
+/// Both Google (Drive, Sheets, Docs, etc.) and Microsoft Graph return errors
+/// shaped like:
+/// ```json
+/// {"error": {"code": 400, "message": "Unable to parse range: ..."}}
+/// ```
+/// Surfacing only `error.message` (truncated to 512 chars) keeps tool-call
+/// failure reports tight enough for the LLM to act on instead of drowning in
+/// the full HTML/JSON envelope. Falls back to a truncated raw body when the
+/// payload doesn't match the standard shape.
+fn extract_error_message(raw: &str) -> String {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+        if let Some(msg) = value
+            .get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(serde_json::Value::as_str)
+        {
+            return truncate(msg, 512);
+        }
+        if let Some(msg) = value.get("error_description").and_then(serde_json::Value::as_str) {
+            return truncate(msg, 512);
+        }
+    }
+    truncate(raw, 512)
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -435,6 +484,58 @@ mod tests {
     #[test]
     fn test_exponential_backoff_capped_at_max() {
         assert!(exponential_backoff(10) <= MAX_BACKOFF);
+    }
+
+    #[test]
+    fn test_extract_error_message_from_google_envelope() {
+        let raw = r#"{"error":{"code":400,"message":"Unable to parse range: Apollia Test!A1:C1","errors":[]}}"#;
+        assert_eq!(
+            extract_error_message(raw),
+            "Unable to parse range: Apollia Test!A1:C1"
+        );
+    }
+
+    #[test]
+    fn test_extract_error_message_from_oauth_envelope() {
+        let raw = r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#;
+        assert_eq!(
+            extract_error_message(raw),
+            "Token has been expired or revoked."
+        );
+    }
+
+    #[test]
+    fn test_extract_error_message_falls_back_to_raw() {
+        let raw = "<html>503 Service Unavailable</html>";
+        assert_eq!(extract_error_message(raw), raw);
+    }
+
+    #[tokio::test]
+    async fn test_send_with_retries_typed_overrides_content_type() {
+        // GIVEN a server that asserts Content-Type: text/plain
+        let server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path("/upload"))
+            .and(header("content-type", "text/plain"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = HttpClient::new("test").expect("client");
+        let url = format!("{}/upload", server.uri());
+
+        let _ = client
+            .send_with_retries_typed(
+                Method::PATCH,
+                &url,
+                Some(b"hello".to_vec()),
+                Some("text/plain"),
+                "tok",
+                || async { Ok::<_, ConnectorError>("never".into()) },
+            )
+            .await
+            .expect("patch ok");
     }
 
     #[test]

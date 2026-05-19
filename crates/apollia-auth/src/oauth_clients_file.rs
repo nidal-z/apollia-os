@@ -16,9 +16,11 @@
 //! ```toml
 //! [google]
 //! client_id = "1234.apps.googleusercontent.com"
+//! client_secret = "GOCSPX-…"   # required for Google Installed App type
 //!
 //! [microsoft]
 //! client_id = "00000000-0000-0000-0000-000000000000"
+//! # microsoft has no client_secret — public client per spec
 //! ```
 //!
 //! Missing keys, missing sections, an empty file, and a missing file are all
@@ -37,6 +39,17 @@ pub struct OAuthClientEntry {
     /// Override OAuth client ID for this provider. Empty/absent means "no override".
     #[serde(default)]
     pub client_id: String,
+    /// Override OAuth client secret for this provider. Empty/absent means
+    /// "no override". Required for Google's Installed App type — Microsoft
+    /// public clients leave this empty per spec.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub client_secret: String,
+    /// Public Google API key used by Google Picker (separate from the OAuth
+    /// client_id — Google requires both). Restricted to the Picker + Drive
+    /// APIs in the Google Cloud Console. Empty means "no override".
+    /// Microsoft entries leave this empty (Picker is Google-only).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub api_key: String,
 }
 
 /// On-disk shape of `~/.apollia/oauth-clients.toml`.
@@ -114,6 +127,49 @@ pub fn lookup_client_id_at(path: &std::path::Path, provider_id: &str) -> Option<
     }
 }
 
+/// Look up the client_secret override for a provider id, using the default path.
+pub fn lookup_client_secret(provider_id: &str) -> Option<String> {
+    let path = oauth_clients_path()?;
+    lookup_client_secret_at(&path, provider_id)
+}
+
+/// Look up the Google API key override for `provider_id`, using the
+/// default path. Only meaningful for Google (Picker).
+pub fn lookup_api_key(provider_id: &str) -> Option<String> {
+    let path = oauth_clients_path()?;
+    lookup_api_key_at(&path, provider_id)
+}
+
+/// Look up the API key at an explicit `path`.
+pub fn lookup_api_key_at(path: &std::path::Path, provider_id: &str) -> Option<String> {
+    let file = load_from(path).ok().flatten()?;
+    let value = match provider_id {
+        "google" => &file.google.api_key,
+        "microsoft" => &file.microsoft.api_key,
+        _ => return None,
+    };
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.clone())
+    }
+}
+
+/// Look up the client_secret override at an explicit `path`.
+pub fn lookup_client_secret_at(path: &std::path::Path, provider_id: &str) -> Option<String> {
+    let file = load_from(path).ok().flatten()?;
+    let value = match provider_id {
+        "google" => &file.google.client_secret,
+        "microsoft" => &file.microsoft.client_secret,
+        _ => return None,
+    };
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.clone())
+    }
+}
+
 /// Write or update the client_id override for a provider id at the default path.
 pub fn set_client_id(provider_id: &str, client_id: &str) -> Result<(), std::io::Error> {
     let path = oauth_clients_path().ok_or_else(|| {
@@ -134,6 +190,63 @@ pub fn set_client_id_at(
     provider_id: &str,
     client_id: &str,
 ) -> Result<(), std::io::Error> {
+    update_entry_at(path, provider_id, |entry| {
+        entry.client_id = client_id.to_string();
+    })
+}
+
+/// Write or update the client_secret override for a provider id, default path.
+pub fn set_client_secret(provider_id: &str, client_secret: &str) -> Result<(), std::io::Error> {
+    let path = oauth_clients_path().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "cannot determine $HOME directory",
+        )
+    })?;
+    set_client_secret_at(&path, provider_id, client_secret)
+}
+
+/// Write or update the client_secret override at an explicit `path`.
+pub fn set_client_secret_at(
+    path: &std::path::Path,
+    provider_id: &str,
+    client_secret: &str,
+) -> Result<(), std::io::Error> {
+    update_entry_at(path, provider_id, |entry| {
+        entry.client_secret = client_secret.to_string();
+    })
+}
+
+/// Write or update the Google API key for `provider_id`, default path.
+pub fn set_api_key(provider_id: &str, api_key: &str) -> Result<(), std::io::Error> {
+    let path = oauth_clients_path().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "cannot determine $HOME directory",
+        )
+    })?;
+    set_api_key_at(&path, provider_id, api_key)
+}
+
+/// Write or update the API key at an explicit `path`.
+pub fn set_api_key_at(
+    path: &std::path::Path,
+    provider_id: &str,
+    api_key: &str,
+) -> Result<(), std::io::Error> {
+    update_entry_at(path, provider_id, |entry| {
+        entry.api_key = api_key.to_string();
+    })
+}
+
+/// Shared writer used by `set_client_id_at` and `set_client_secret_at`.
+/// Mutates the per-provider entry in place, preserves the other provider's
+/// data, and applies 0o600 perms on Unix.
+fn update_entry_at(
+    path: &std::path::Path,
+    provider_id: &str,
+    mutate: impl FnOnce(&mut OAuthClientEntry),
+) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -149,7 +262,7 @@ pub fn set_client_id_at(
             ));
         }
     };
-    entry.client_id = client_id.to_string();
+    mutate(entry);
 
     let serialized = toml::to_string_pretty(&existing).map_err(|e| {
         std::io::Error::new(
@@ -235,6 +348,37 @@ mod tests {
         let (_dir, path) = tmp_path();
         let err = set_client_id_at(&path, "github", "x").unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn client_secret_round_trips_per_provider() {
+        let (_dir, path) = tmp_path();
+        set_client_id_at(&path, "google", "google-id-123").unwrap();
+        set_client_secret_at(&path, "google", "GOCSPX-secret").unwrap();
+
+        // Both fields readable, independent
+        assert_eq!(
+            lookup_client_id_at(&path, "google").as_deref(),
+            Some("google-id-123")
+        );
+        assert_eq!(
+            lookup_client_secret_at(&path, "google").as_deref(),
+            Some("GOCSPX-secret")
+        );
+
+        // Updating client_id alone preserves the secret
+        set_client_id_at(&path, "google", "google-id-456").unwrap();
+        assert_eq!(
+            lookup_client_secret_at(&path, "google").as_deref(),
+            Some("GOCSPX-secret")
+        );
+    }
+
+    #[test]
+    fn empty_client_secret_is_treated_as_no_override() {
+        let (_dir, path) = tmp_path();
+        set_client_secret_at(&path, "google", "").unwrap();
+        assert_eq!(lookup_client_secret_at(&path, "google"), None);
     }
 
     #[test]

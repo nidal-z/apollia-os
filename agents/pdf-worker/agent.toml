@@ -1,0 +1,67 @@
+# agent.toml — pdf-worker v0.1.0
+#
+# Worker Apollia OS standalone, distribuable seul.
+# Installation : apollia agent install ./pdf-worker
+
+[package]
+name        = "pdf-worker"
+version     = "0.1.0"
+description = "Manipulation de fichiers PDF : extraction (texte/tables/forms), génération (Markdown → PDF), merge et split par plages — préserve metadata, sous-ensemble Markdown riche."
+author      = "Apollia OS"
+license     = "MIT"
+
+[[agents]]
+name                    = "pdf-worker"
+entry                   = "pdf-worker.py"
+role                    = "worker"
+agent_type              = "user"
+execution_mode          = "direct"
+supports_a2a            = true
+max_concurrent_tasks    = 2
+tools_required          = []
+dangerous_tools_allowed = false
+packages                = ["pypdf==5.1.0", "pdfplumber==0.11.4", "reportlab==4.2.5", "markdown==3.7"]
+tags                    = ["pdf", "pypdf", "pdfplumber", "reportlab", "markdown", "worker"]
+step_budget             = { max_steps = 1, max_tool_calls = 5, wall_clock_secs = 300 }
+
+[[agents.skills]]
+id           = "pdf.read-text"
+name         = "Read text from PDF"
+description  = "Extrait le texte d'un PDF page par page avec metadata (title, author, dates). Page range syntax 1-based (ex: '1-5,7,10-12'). Cap par défaut 100k chars/page."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "pdf.read-tables"
+name         = "Read tables from PDF"
+description  = "Extrait les tables d'un PDF via pdfplumber (analyse layout). table_settings configurable (vertical/horizontal strategy, tolérances). Headers détectés sur 1ère ligne."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "pdf.read-forms"
+name         = "Read AcroForm fields from PDF"
+description  = "Extrait les champs AcroForm (text, checkbox, radio, dropdown, listbox, signature) avec valeurs, options, flags readonly/required. Refuse XFA forms Adobe LiveCycle."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "pdf.render-from-markdown"
+name         = "Render PDF from Markdown"
+description  = "Génère un PDF depuis du Markdown (markdown → HTML → reportlab Flowables) avec page_size, orientation, margins, metadata (title/author/subject). Sous-ensemble : headings h1-h6, paragraphes, bold/italic, lists imbriquées, tables, code blocks fenced, blockquotes, hr, links cliquables."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "pdf.merge"
+name         = "Merge multiple PDFs"
+description  = "Concatène N PDFs (≥2) en un seul. Préserve bookmarks/TOC en best-effort. Metadata copiées depuis le PDF désigné par metadata_from (défaut 0)."
+input_modes  = ["text"]
+output_modes = ["text"]
+
+[[agents.skills]]
+id           = "pdf.split"
+name         = "Split PDF by page ranges"
+description  = "Découpe un PDF par plages nommées (ex: '1-5', '10-20') ou page-par-page si ranges absent. Nommage zero-padded (page-001.pdf) ou via 'name' du range."
+input_modes  = ["text"]
+output_modes = ["text"]

@@ -52,6 +52,23 @@ pub enum AIPLoaderError {
 /// - [`AIPLoaderError::ImportFailed`] if Python execution fails
 /// - [`AIPLoaderError::NoAgentFound`] if the module has no `agent` attribute
 pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
+    load_agent_module_with_sys_paths(path, &[])
+}
+
+/// Like [`load_agent_module`], but inserts additional directories into
+/// `sys.path` before importing.
+///
+/// Used by the package installer to make the agent's per-package venv
+/// `site-packages` visible to the embedded Python interpreter — otherwise
+/// duck-typing fails with `ModuleNotFoundError` for any package the agent
+/// imports at top level (e.g. `matplotlib`, `openpyxl`).
+///
+/// Extra paths are inserted at the front of `sys.path`, but always behind the
+/// agent's own parent directory (so local imports still take priority).
+pub fn load_agent_module_with_sys_paths(
+    path: &Path,
+    extra_sys_paths: &[std::path::PathBuf],
+) -> Result<Py<PyAny>, AIPLoaderError> {
     // 1. Validate .py extension
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if extension != "py" {
@@ -79,14 +96,28 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
 
     // 5. Load via PyO3
     Python::with_gil(|py| {
-        // Add parent directory to sys.path
-        let parent = path.parent().unwrap_or(Path::new("."));
         let sys = py
             .import("sys")
             .map_err(|e| AIPLoaderError::PythonError(format!("failed to import sys: {e}")))?;
         let sys_path = sys
             .getattr("path")
             .map_err(|e| AIPLoaderError::PythonError(format!("failed to get sys.path: {e}")))?;
+
+        // Insert venv site-packages first. Iterate in reverse so the first
+        // element of `extra_sys_paths` ends up at the front of sys.path.
+        for extra in extra_sys_paths.iter().rev() {
+            sys_path
+                .call_method1("insert", (0, extra.to_string_lossy().as_ref()))
+                .map_err(|e| {
+                    AIPLoaderError::PythonError(format!(
+                        "failed to insert venv path into sys.path: {e}"
+                    ))
+                })?;
+        }
+
+        // Add parent directory to sys.path AFTER venv paths so it takes
+        // priority for local imports.
+        let parent = path.parent().unwrap_or(Path::new("."));
         sys_path
             .call_method1("insert", (0, parent.to_string_lossy().as_ref()))
             .map_err(|e| {

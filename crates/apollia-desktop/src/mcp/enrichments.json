@@ -286,22 +286,19 @@
   {
     "package_identifier": "com.figma/mcp",
     "registry_names": ["com.figma/mcp"],
-    "operator_label": { "en": "Figma", "fr": "Figma" },
+    "operator_label": { "en": "Figma (Dev Mode)", "fr": "Figma (Dev Mode)" },
     "description": {
-      "en": "Read Figma files via the official Figma Dev Mode MCP server (requires Figma Desktop running).",
-      "fr": "Lire les fichiers Figma via le serveur MCP officiel Dev Mode (Figma Desktop doit être lancé)."
+      "en": "Inspect Figma frames, components, variables and generate code via the Figma Desktop Dev Mode MCP server (runs locally on 127.0.0.1:3845, no auth).",
+      "fr": "Inspecter frames, composants, variables Figma et générer du code via le serveur MCP Dev Mode embarqué dans Figma Desktop (tourne en local sur 127.0.0.1:3845, sans authentification)."
     },
     "category": "design",
     "icon_name": "figma",
     "trust_level": "verified_official",
-    "auth_help_url": "https://developers.figma.com/docs/figma-mcp-server/local-server-installation/",
-    "auth_help_text": {
-      "en": "Open Figma Desktop → Preferences → enable Dev Mode MCP Server. The server then listens on http://127.0.0.1:3845/mcp without authentication (local-only binding). No token required.",
-      "fr": "Ouvrez Figma Desktop → Préférences → activez Dev Mode MCP Server. Le serveur écoute alors sur http://127.0.0.1:3845/mcp sans authentification (binding local). Aucun token requis."
-    },
+    "auth_help_url": "https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server",
+    "auth_help_i18n_key": "integrations.connectors.figma.auth_help",
     "default_requires_approval": false,
-    "remote_url": "http://127.0.0.1:3845/mcp",
-    "remote_transport": "streamable-http",
+    "remote_url": "http://127.0.0.1:3845/sse",
+    "remote_transport": "sse",
     "cost_model": { "kind": "free" }
   },
   {

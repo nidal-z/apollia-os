@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
+  import { ShieldCheck } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Card } from "$lib/components/ui/card";
   import { Button } from "$lib/components/ui/button";
@@ -50,6 +52,12 @@
   let callTimeoutDraft = $state(60);
   let envValuesDraft = $state<Record<string, string>>({}); // plain (non-secret) env values
   let secretRotateValues = $state<Record<string, string>>({}); // new secret material per key
+  /** Env keys whose value is `${APOLLIA_OAUTH}` — managed via the OAuth
+   *  orchestrator, not through static rotation (ADR-095 Phase 5). */
+  let oauthEnvHeaders = $state<string[]>([]);
+  let oauthReconnecting = $state(false);
+  let oauthReconnectError = $state<string | null>(null);
+  let oauthReconnectSuccess = $state(false);
 
   let saving = $state(false);
   let saveError = $state<string | null>(null);
@@ -92,6 +100,14 @@
     return /^\$\{APOLLIA_SECRET:.+\}$/.test(value);
   }
 
+  /** True when an env-map value is the dynamic OAuth placeholder. The token
+   *  itself lives in the keychain under `mcp_oauth:{server_name}`; the
+   *  transport resolves it through `apollia-auth::ensure_fresh_token` at each
+   *  request (ADR-095 Phases 2-4). */
+  function isOAuthPlaceholder(value: string): boolean {
+    return value === "${APOLLIA_OAUTH}";
+  }
+
   // ── Load raw config ──────────────────────────────────────────────────────────
 
   async function load(): Promise<void> {
@@ -108,11 +124,16 @@
       callTimeoutDraft = raw.call_timeout_secs;
 
       // Hydrate env drafts — plain values become editable, secrets stay as
-      // placeholders with a separate rotation field initialised empty.
+      // placeholders with a separate rotation field initialised empty, OAuth
+      // placeholders are surfaced separately so the operator can re-trigger
+      // the sign-in flow without seeing them as "static secrets".
       const next: Record<string, string> = {};
       const rot: Record<string, string> = {};
+      const oauthHeaders: string[] = [];
       for (const [k, v] of Object.entries(raw.env ?? {})) {
-        if (isSecretPlaceholder(v)) {
+        if (isOAuthPlaceholder(v)) {
+          oauthHeaders.push(k);
+        } else if (isSecretPlaceholder(v)) {
           rot[k] = "";
         } else {
           next[k] = v;
@@ -120,6 +141,7 @@
       }
       envValuesDraft = next;
       secretRotateValues = rot;
+      oauthEnvHeaders = oauthHeaders;
       saveError = null;
       saveOk = false;
     } catch (err: unknown) {
@@ -146,6 +168,32 @@
   );
   const plainEnvKeys = $derived(Object.keys(envValuesDraft).sort());
   const secretEnvKeys = $derived(Object.keys(secretRotateValues).sort());
+
+  // ── OAuth reconnect (ADR-095 Phase 5) ────────────────────────────────────────
+
+  /** Re-run the MCP OAuth flow for this server. Re-uses `mcp_oauth_login` —
+   *  idempotent at the orchestrator level: a fresh token simply overwrites the
+   *  one persisted under `mcp_oauth:{server_name}`. */
+  async function reconnectOAuth(): Promise<void> {
+    if (!raw || !remote) return;
+    oauthReconnecting = true;
+    oauthReconnectError = null;
+    oauthReconnectSuccess = false;
+    try {
+      await invoke("mcp_oauth_login", {
+        serverName: raw.name,
+        serverUrl: raw.url ?? "",
+        wwwAuthenticate: null,
+        scopes: [],
+      });
+      oauthReconnectSuccess = true;
+      onSaved?.();
+    } catch (err: unknown) {
+      oauthReconnectError = err instanceof Error ? err.message : String(err);
+    } finally {
+      oauthReconnecting = false;
+    }
+  }
 
   // ── Save ─────────────────────────────────────────────────────────────────────
 
@@ -359,6 +407,55 @@
           <span class="text-[10.5px] uppercase tracking-wide">Transport</span>
           <span class="font-mono">{raw.transport}</span>
         </div>
+      </Card>
+    {/if}
+
+    {#if oauthEnvHeaders.length > 0}
+      <!-- OAuth (ADR-095 Phase 5) — the token is managed by the orchestrator,
+           never exposed to the user. Surface its presence + offer a sign-in
+           refresh button so the operator can rotate without uninstalling. -->
+      <Card class="p-[14px_16px] space-y-2.5" data-testid="mcp-settings-oauth">
+        <div class="flex items-start gap-2">
+          <ShieldCheck size={18} class="mt-0.5 shrink-0 text-success" aria-hidden="true" />
+          <div class="flex-1 space-y-0.5">
+            <p class="text-sm font-medium text-foreground">
+              {$t("integrations.wizard.oauth_settings_connected")}
+            </p>
+            <p class="text-[11.5px] text-muted-foreground leading-[1.5]">
+              {#each oauthEnvHeaders as header (header)}
+                <span class="font-mono text-[11px]">{header}</span>
+                {' '}
+              {/each}
+              · ${'{APOLLIA_OAUTH}'}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2">
+          {#if oauthReconnectSuccess}
+            <span class="text-[11.5px] text-success" data-testid="mcp-settings-oauth-success">
+              ✓
+            </span>
+          {/if}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={reconnectOAuth}
+            disabled={oauthReconnecting || saving}
+            data-testid="mcp-settings-oauth-reconnect"
+          >
+            {#if oauthReconnecting}
+              <Spinner size={12} class="mr-1.5" />
+              {$t("integrations.wizard.oauth_signin_in_progress")}
+            {:else}
+              {$t("integrations.wizard.oauth_signin_reconnect")}
+            {/if}
+          </Button>
+        </div>
+        {#if oauthReconnectError}
+          <p class="text-[11.5px] text-destructive" data-testid="mcp-settings-oauth-error">
+            {oauthReconnectError}
+          </p>
+        {/if}
       </Card>
     {/if}
 

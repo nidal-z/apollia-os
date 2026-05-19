@@ -31,13 +31,22 @@ export async function previewPackage(path: string): Promise<PackagePreview> {
   return invoke<PackagePreview>("preview_agent_package", { path });
 }
 
+/**
+ * Installe un package depuis un chemin local.
+ *
+ * Si `depsConfirmed` est `false` et que le manifeste déclare des packages pip,
+ * le backend renvoie l'erreur `DEPS_CONFIRMATION_REQUIRED:<n>:<csv>` que
+ * l'UI doit parser pour afficher une étape de confirmation explicite.
+ */
 export async function installPackage(
   path: string,
   triggerConfigs: TriggerConfigOverride[] = [],
+  depsConfirmed: boolean = false,
 ): Promise<InstallPackageResponse> {
   const result = await invoke<InstallPackageResponse>("install_agent_package", {
     path,
     triggerConfigs,
+    depsConfirmed,
   });
   await refreshPackages();
   return result;

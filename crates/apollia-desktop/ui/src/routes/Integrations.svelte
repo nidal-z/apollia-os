@@ -18,6 +18,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { openExternalUrl } from "$lib/utils/externalLink";
   import { Input } from "$lib/components/ui/input";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Button } from "$lib/components/ui/button";
@@ -122,11 +123,13 @@
       });
       pendingState = start.state;
       pendingProvider = provider;
-      // Open the authorization URL in the system browser. apollia-auth's
-      // callback listener is already bound and will receive the code; the
-      // backend reconciles the state -> flow mapping in oauth_complete_flow
-      // once the renderer or the callback HTTP server calls it.
-      window.open(start.auth_url, "_blank");
+      // Open the authorization URL in the system browser via the Tauri
+      // opener plugin (`window.open` is a no-op in the Tauri 2 webview).
+      // apollia-auth's callback listener is already bound and will receive
+      // the code; the backend reconciles the state -> flow mapping in
+      // oauth_complete_flow once the renderer or the callback HTTP server
+      // calls it.
+      await openExternalUrl(start.auth_url);
     } catch (e) {
       errorMessage = formatError(e);
     } finally {

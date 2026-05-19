@@ -2631,6 +2631,7 @@ mod tool_proxy_a2a_tests {
                 description: "Reads Excel files".to_string(),
                 input_modes: vec!["text".to_string()],
                 output_modes: vec!["text".to_string()],
+                input_schema: None,
             }],
             execution_mode: "direct".to_string(),
             system_prompt: None,

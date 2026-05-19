@@ -10,6 +10,7 @@ pub mod agent_chat;
 pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
+pub mod native_wrappers;
 pub mod project_context;
 pub mod repository;
 pub mod summarizer;
@@ -25,8 +26,8 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::{
-    ChatSessionManagerHandle, PendingUserInputView, SessionAuthorizationView,
-    APOLLIA_CHAT_AGENT_ID,
+    ChatSessionManagerHandle, ChatToolsConfig, PendingUserInputView,
+    SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use project_context::DefaultProjectContextProvider;
 pub use repository::{

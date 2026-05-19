@@ -242,43 +242,76 @@ async fn remove_server<B: ExecutionBackend + Clone>(
     Ok(Json(serde_json::json!({"removed": name})))
 }
 
+/// Tagged response envelope for `POST /api/v1/mcp/servers/test`.
+///
+/// `Success` is the legacy success shape (kept JSON-compatible via flattening
+/// the existing fields). `OauthRequired` is the new branch (ADR-095 Phase 4)
+/// emitted when the server returns 401 with a `WWW-Authenticate` challenge —
+/// the desktop wizard uses this to switch from "paste a token" to
+/// "Sign in with <provider>" mode.
+#[derive(serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(crate) enum McpConnectionTestResponse {
+    Success {
+        #[serde(flatten)]
+        result: McpConnectionTestResult,
+    },
+    OauthRequired {
+        /// Verbatim `WWW-Authenticate` header captured from the 401.
+        /// Carries the `resource_metadata=` PRM URL when the server is
+        /// MCP-OAuth-conformant; the desktop discovers + drives the flow.
+        www_authenticate: String,
+    },
+}
+
 /// `POST /api/v1/mcp/servers/test` — Test a server configuration without persisting a session.
 ///
 /// Spawns an ephemeral process, performs the MCP initialize handshake and `tools/list`,
 /// captures the result, then immediately terminates the process. No session is stored
-/// and the tool registry is not modified. Works without an existing MCP manager,
-/// allowing use during first-time setup before any server is added.
-/// Returns `400 Bad Request` when the server cannot be reached or the handshake fails.
+/// and the tool registry is not modified.
+///
+/// Response shape:
+/// - `200 {"kind":"success", …}` — handshake succeeded, tools listed.
+/// - `200 {"kind":"oauth_required", "www_authenticate":"…"}` — server returned
+///   401, the desktop should drive the MCP HTTP OAuth flow before retrying.
+/// - `400 Bad Request` — other handshake failures (transport, JSON-RPC error,
+///   timeout, etc.).
 async fn test_connection(
     Json(config): Json<McpServerConfig>,
-) -> Result<Json<McpConnectionTestResult>, JsonError> {
+) -> Result<Json<McpConnectionTestResponse>, JsonError> {
     let start = Instant::now();
-    let session = McpSession::start(config, None)
-        .await
-        .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
-
-    let server_name = session.server_name().to_string();
-    let server_info_name = session.server_info().name.clone();
-    let tools: Vec<McpToolSummary> = session
-        .tools()
-        .iter()
-        .map(|t| McpToolSummary {
-            full_name: format!("test:{}/{}", server_name, t.name),
-            local_name: t.name.clone(),
-            description: t.description.clone(),
-            input_schema: t.input_schema.clone(),
-        })
-        .collect();
-    let test_duration_ms = start.elapsed().as_millis() as u64;
-
-    session.shutdown().await;
-
-    Ok(Json(McpConnectionTestResult {
-        server_info: server_info_name,
-        protocol_version: "2024-11-05".to_string(),
-        tools,
-        test_duration_ms,
-    }))
+    match McpSession::start(config, Some(&apollia_mcp::config::DefaultMcpSecretResolver)).await {
+        Ok(session) => {
+            let server_name = session.server_name().to_string();
+            let server_info_name = session.server_info().name.clone();
+            let tools: Vec<McpToolSummary> = session
+                .tools()
+                .iter()
+                .map(|t| McpToolSummary {
+                    full_name: format!("test:{}/{}", server_name, t.name),
+                    local_name: t.name.clone(),
+                    description: t.description.clone(),
+                    input_schema: t.input_schema.clone(),
+                })
+                .collect();
+            let test_duration_ms = start.elapsed().as_millis() as u64;
+            session.shutdown().await;
+            Ok(Json(McpConnectionTestResponse::Success {
+                result: McpConnectionTestResult {
+                    server_info: server_info_name,
+                    protocol_version: "2024-11-05".to_string(),
+                    tools,
+                    test_duration_ms,
+                },
+            }))
+        }
+        Err(apollia_mcp::session::McpSessionError::Unauthorized {
+            www_authenticate, ..
+        }) => Ok(Json(McpConnectionTestResponse::OauthRequired {
+            www_authenticate,
+        })),
+        Err(other) => Err(json_err(StatusCode::BAD_REQUEST, other)),
+    }
 }
 
 /// `PUT /api/v1/mcp/servers/:name/config` — Replace a server configuration and restart the session.

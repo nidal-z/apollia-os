@@ -13,6 +13,16 @@ pub struct ProviderConfig {
     pub token_url: &'static str,
     /// OAuth2 client identifier — read from the environment at runtime.
     pub client_id: String,
+    /// Optional OAuth client secret. Sent at the token endpoint when present.
+    ///
+    /// **Why optional**: Apollia is an OAuth 2.1 public client and uses PKCE,
+    /// which per spec replaces the client secret. **However** Google's
+    /// "Installed app" / "Desktop app" type requires sending a `client_secret`
+    /// at the token endpoint anyway — Google explicitly documents that this
+    /// secret "is obviously not treated as a secret" for native apps
+    /// (developers.google.com/identity/protocols/oauth2/native-app). Microsoft
+    /// public clients honour the spec and leave this empty.
+    pub client_secret: Option<String>,
     /// Requested OAuth2 scopes.
     pub scopes: Vec<&'static str>,
 }
@@ -35,6 +45,7 @@ pub fn get_provider(name: &str) -> Option<ProviderConfig> {
             auth_url: "https://api.anthropic.com/oauth/authorize",
             token_url: "https://api.anthropic.com/oauth/token",
             client_id: std::env::var("ANTHROPIC_CLIENT_ID").unwrap_or_default(),
+            client_secret: None,
             scopes: vec!["api"],
         }),
         "openai" => Some(ProviderConfig {
@@ -42,6 +53,7 @@ pub fn get_provider(name: &str) -> Option<ProviderConfig> {
             auth_url: "https://platform.openai.com/oauth/authorize",
             token_url: "https://platform.openai.com/oauth/token",
             client_id: std::env::var("OPENAI_CLIENT_ID").unwrap_or_default(),
+            client_secret: None,
             scopes: vec!["api"],
         }),
         "vertex" => Some(ProviderConfig {
@@ -49,6 +61,7 @@ pub fn get_provider(name: &str) -> Option<ProviderConfig> {
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
             token_url: "https://oauth2.googleapis.com/token",
             client_id: std::env::var("GOOGLE_CLIENT_ID").unwrap_or_default(),
+            client_secret: None,
             scopes: vec!["https://www.googleapis.com/auth/cloud-platform"],
         }),
         _ => None,

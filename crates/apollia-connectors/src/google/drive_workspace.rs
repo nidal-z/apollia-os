@@ -35,7 +35,11 @@ use crate::{error::ConnectorError, http::HttpClient};
 
 const DRIVE_BASE: &str = "https://www.googleapis.com/drive/v3";
 const UPLOAD_BASE: &str = "https://www.googleapis.com/upload/drive/v3";
-const ROOT_FOLDER_NAME: &str = "Apollia";
+/// Fallback root folder name used when callers don't pass an explicit
+/// `root_path` (legacy + default-on-empty behaviour). End-user installs
+/// resolve their preferred path via [`apollia_auth::drive_prefs`] and
+/// pass it down explicitly — this constant is the safety net.
+pub const DEFAULT_ROOT_FOLDER_NAME: &str = "Apollia";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
 
 // ─── Domain types ────────────────────────────────────────────────────────────
@@ -70,6 +74,9 @@ struct FileList {
 #[serde(rename_all = "camelCase")]
 struct FileCreatePayload<'a> {
     name: &'a str,
+    /// Empty Vec means "create at My Drive root". Drive's docs say omit the
+    /// `parents` field for that case, so we skip serialisation when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     parents: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mime_type: Option<&'a str>,
@@ -94,8 +101,12 @@ struct PermissionRequest<'a> {
 
 /// Drive Workspace client.
 ///
-/// All operations are scoped to `Drive/Apollia/<agent_slug>/`. The folder is
-/// resolved (or created) lazily on the first write.
+/// All operations are scoped to `<root_path>/<agent_slug>/` inside the
+/// user's Drive. `root_path` is user-configurable (per Google account,
+/// stored in `apollia_auth::drive_prefs`); it defaults to `Apollia`. The
+/// folder hierarchy is resolved lazily — segments missing on the user's
+/// Drive are created on first use (free-tier `drive.file` scope allows
+/// this because Apollia owns each folder it touches).
 #[derive(Clone)]
 pub struct DriveWorkspaceClient {
     http: HttpClient,
@@ -107,12 +118,18 @@ impl DriveWorkspaceClient {
         Self { http }
     }
 
-    /// Resolve (or create) the agent's workspace folder id.
+    /// Resolve (or create) the agent's workspace folder id given the
+    /// user-configured `root_path` (slash-separated, e.g.
+    /// `"Documents/Apollia"`) and `agent_slug`.
     ///
-    /// First locates the root `Apollia` folder, then the `<agent_slug>`
-    /// subfolder, creating each as needed.
+    /// **Semantics**:
+    /// - `root_path` non-empty (e.g. `"Documents/Apollia"`) → walk each
+    ///   segment, creating missing folders, then nest `agent_slug`.
+    /// - `root_path` empty string → user explicitly chose "My Drive root":
+    ///   place `agent_slug` directly under root, no intermediate folder.
     pub async fn ensure_agent_folder<F, Fut>(
         &self,
+        root_path: &str,
         agent_slug: &str,
         bearer: &str,
         mut refresh: F,
@@ -121,18 +138,98 @@ impl DriveWorkspaceClient {
         F: FnMut() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let root = self
-            .find_or_create_folder(ROOT_FOLDER_NAME, None, bearer, &mut refresh)
-            .await?;
+        let parent_id = self.ensure_path_folder_id(root_path, bearer, &mut refresh).await?;
         let agent = self
-            .find_or_create_folder(agent_slug, Some(&root), bearer, &mut refresh)
+            .find_or_create_folder(agent_slug, parent_id.as_deref(), bearer, &mut refresh)
             .await?;
         Ok(agent)
     }
 
-    /// List files in the agent's workspace folder.
+    /// Walk `root_path` segment by segment, creating each missing folder.
+    /// Returns the leaf folder id; `None` when `root_path` is empty (= the
+    /// user wants files directly under My Drive root, so callers pass
+    /// `None` as the parent in subsequent operations).
+    ///
+    /// Use this when you intend to **write** something inside the root.
+    /// For listings, prefer [`Self::find_path_folder_id`] which never
+    /// creates folders.
+    pub async fn ensure_path_folder_id<F, Fut>(
+        &self,
+        root_path: &str,
+        bearer: &str,
+        refresh: &mut F,
+    ) -> Result<Option<String>, ConnectorError>
+    where
+        F: FnMut() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let segments: Vec<&str> = root_path
+            .split('/')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let mut parent_id: Option<String> = None;
+        for segment in segments {
+            let next = self
+                .find_or_create_folder(segment, parent_id.as_deref(), bearer, refresh)
+                .await?;
+            parent_id = Some(next);
+        }
+        Ok(parent_id)
+    }
+
+    /// Read-only variant: walks `root_path` and returns the leaf folder id
+    /// **only if every segment exists**. Returns `None` when any segment
+    /// is missing OR when `root_path` is empty. Never creates a folder.
+    ///
+    /// Used by listing operations so we don't silently materialise an
+    /// empty `Apollia/` folder on a Drive that has none yet.
+    pub async fn find_path_folder_id<F, Fut>(
+        &self,
+        root_path: &str,
+        bearer: &str,
+        mut refresh: F,
+    ) -> Result<Option<String>, ConnectorError>
+    where
+        F: FnMut() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let segments: Vec<&str> = root_path
+            .split('/')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        if segments.is_empty() {
+            return Ok(None);
+        }
+        let mut parent_id: Option<String> = None;
+        for segment in segments {
+            let mut q = format!(
+                "name = '{}' and mimeType = '{}' and trashed = false",
+                escape_query(segment),
+                FOLDER_MIME
+            );
+            match parent_id.as_deref() {
+                Some(pid) => q.push_str(&format!(" and '{pid}' in parents")),
+                None => q.push_str(" and 'root' in parents"),
+            }
+            let url = format!(
+                "{DRIVE_BASE}/files?q={}&fields=files(id,name)",
+                urlencode(&q)
+            );
+            let resp: FileList = self.http.get_json(&url, bearer, || refresh()).await?;
+            match resp.files.into_iter().next() {
+                Some(found) => parent_id = Some(found.id),
+                None => return Ok(None),
+            }
+        }
+        Ok(parent_id)
+    }
+
+    /// List files in the agent's workspace folder under `root_path`.
     pub async fn workspace_list<F, Fut>(
         &self,
+        root_path: &str,
         agent_slug: &str,
         bearer: &str,
         mut refresh: F,
@@ -141,13 +238,102 @@ impl DriveWorkspaceClient {
         F: FnMut() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let folder = self.ensure_agent_folder(agent_slug, bearer, &mut refresh).await?;
+        let folder = self
+            .ensure_agent_folder(root_path, agent_slug, bearer, &mut refresh)
+            .await?;
         let q = format!("'{folder}' in parents and trashed = false");
         let url = format!(
             "{DRIVE_BASE}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
             urlencode(&q)
         );
         let resp: FileList = self.http.get_json(&url, bearer, || refresh()).await?;
+        Ok(resp.files)
+    }
+
+    /// List every file Apollia has visibility on with the `drive.file`
+    /// scope: files Apollia created itself + files inside folders the
+    /// user granted via the Drive Picker. Optional `folder_id` filters
+    /// to one parent; otherwise the query is unscoped and returns
+    /// top-level visibility (Drive applies the `drive.file` ACL
+    /// implicitly — Apollia never sees files it didn't create or get
+    /// granted to).
+    ///
+    /// `page_size` is capped at 100 to keep responses small; pagination
+    /// is left for a future iteration when Apollia has agents that need
+    /// to walk large file inventories.
+    pub async fn list_visible_files<F, Fut>(
+        &self,
+        folder_id: Option<&str>,
+        page_size: u32,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Vec<DriveFile>, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let page_size = page_size.clamp(1, 100);
+        let mut url = format!(
+            "{DRIVE_BASE}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q=trashed%20%3D%20false"
+        );
+        if let Some(id) = folder_id {
+            let q = format!("trashed = false and '{id}' in parents");
+            url = format!(
+                "{DRIVE_BASE}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+                urlencode(&q)
+            );
+        }
+        let resp: FileList = self.http.get_json(&url, bearer, refresh).await?;
+        Ok(resp.files)
+    }
+
+    /// Search Drive for files whose name matches `name`. When `exact` is
+    /// true, queries `name = 'X'`; otherwise `name contains 'X'` (Drive's
+    /// substring match is case-insensitive). Optional `mime_type_filter`
+    /// narrows by file type — pass a Google shortcut (`spreadsheet`,
+    /// `document`, `presentation`, `folder`) or a raw mime type string.
+    ///
+    /// Returns at most 50 matches (sorted by Drive's relevance default).
+    /// Use this as the answer to "find <title>" requests — `drive.file`
+    /// scope guarantees Apollia only ever sees its own files + Picker
+    /// grants, so no privacy footgun.
+    pub async fn find_by_name<F, Fut>(
+        &self,
+        name: &str,
+        mime_type_filter: Option<&str>,
+        exact: bool,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Vec<DriveFile>, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        // Drive's `q` parameter requires escaping single quotes in name
+        // values: we double them per the Drive search syntax.
+        let escaped = name.replace('\'', "\\'");
+        let name_clause = if exact {
+            format!("name = '{escaped}'")
+        } else {
+            format!("name contains '{escaped}'")
+        };
+        let mut clauses: Vec<String> = vec![name_clause, "trashed = false".to_string()];
+        if let Some(raw) = mime_type_filter {
+            let mime = match raw {
+                "spreadsheet" => "application/vnd.google-apps.spreadsheet",
+                "document" => "application/vnd.google-apps.document",
+                "presentation" => "application/vnd.google-apps.presentation",
+                "folder" => "application/vnd.google-apps.folder",
+                other => other,
+            };
+            clauses.push(format!("mimeType = '{mime}'"));
+        }
+        let q = clauses.join(" and ");
+        let url = format!(
+            "{DRIVE_BASE}/files?pageSize=50&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+            urlencode(&q)
+        );
+        let resp: FileList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.files)
     }
 
@@ -177,14 +363,20 @@ impl DriveWorkspaceClient {
         Ok(bytes.to_vec())
     }
 
-    /// Create a new text file in the agent's workspace.
+    /// Create a new text file in the agent's workspace under `root_path`.
     ///
-    /// Uses Drive's multipart upload (metadata + content in one request).
+    /// Uses Drive's two-step upload (create metadata, then PATCH `uploadType=media`).
+    /// `mime_type` controls both the metadata field AND the upload's
+    /// Content-Type header — both must agree, otherwise Drive auto-detects from
+    /// the content bytes (producing surprises like "application/json" for short
+    /// strings). Pass `None` to default to `text/plain`.
     pub async fn workspace_write<F, Fut>(
         &self,
+        root_path: &str,
         agent_slug: &str,
         name: &str,
         content: &[u8],
+        mime_type: Option<&str>,
         bearer: &str,
         mut refresh: F,
     ) -> Result<DriveFile, ConnectorError>
@@ -192,14 +384,17 @@ impl DriveWorkspaceClient {
         F: FnMut() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let folder = self.ensure_agent_folder(agent_slug, bearer, &mut refresh).await?;
+        let folder = self
+            .ensure_agent_folder(root_path, agent_slug, bearer, &mut refresh)
+            .await?;
 
+        let mime = mime_type.unwrap_or("text/plain");
         // Step 1: create the file metadata (resumable session would be needed
         // for >5MB payloads; v0.1.0 uses simple two-step uploads).
         let metadata = FileCreatePayload {
             name,
             parents: vec![folder],
-            mime_type: Some("text/plain"),
+            mime_type: Some(mime),
         };
         let metadata_url = format!("{DRIVE_BASE}/files");
         let file: DriveFile = self
@@ -214,10 +409,11 @@ impl DriveWorkspaceClient {
         );
         let response = self
             .http
-            .send_with_retries(
+            .send_with_retries_typed(
                 Method::PATCH,
                 &upload_url,
                 Some(content.to_vec()),
+                Some(mime),
                 bearer,
                 || refresh(),
             )
@@ -252,6 +448,88 @@ impl DriveWorkspaceClient {
             .json_request(Method::PATCH, &url, &body, bearer, refresh)
             .await?;
         Ok(())
+    }
+
+    // ─── Picker-friendly methods (direct folder_id, no path walking) ─────
+
+    /// List files inside a folder identified directly by its Drive `folder_id`.
+    /// Skips the path-walking of [`workspace_list`] — used by agents acting
+    /// on folders the user designated via Google Picker.
+    pub async fn list_files_in_folder<F, Fut>(
+        &self,
+        folder_id: &str,
+        bearer: &str,
+        refresh: F,
+    ) -> Result<Vec<DriveFile>, ConnectorError>
+    where
+        F: FnOnce() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let q = format!("'{folder_id}' in parents and trashed = false");
+        let url = format!(
+            "{DRIVE_BASE}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
+            urlencode(&q)
+        );
+        let resp: FileList = self.http.get_json(&url, bearer, refresh).await?;
+        Ok(resp.files)
+    }
+
+    /// Create or replace a text file inside an arbitrary folder identified
+    /// by its Drive `folder_id`. Pass `folder_id = None` to drop the file
+    /// at My Drive root (no parents). `mime_type = None` defaults to
+    /// `text/plain`; pass `text/markdown`, `application/json`, etc., to
+    /// avoid Drive's content-sniffing surprises.
+    pub async fn write_file_in_folder<F, Fut>(
+        &self,
+        folder_id: Option<&str>,
+        name: &str,
+        content: &[u8],
+        mime_type: Option<&str>,
+        bearer: &str,
+        mut refresh: F,
+    ) -> Result<DriveFile, ConnectorError>
+    where
+        F: FnMut() -> Fut + Send,
+        Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
+    {
+        let mime = mime_type.unwrap_or("text/plain");
+        let parents = match folder_id {
+            Some(id) => vec![id.to_string()],
+            None => Vec::new(),
+        };
+        let metadata = FileCreatePayload {
+            name,
+            parents,
+            mime_type: Some(mime),
+        };
+        let metadata_url = format!("{DRIVE_BASE}/files");
+        let file: DriveFile = self
+            .http
+            .json_request(Method::POST, &metadata_url, &metadata, bearer, || refresh())
+            .await?;
+
+        let upload_url = format!(
+            "{UPLOAD_BASE}/files/{file_id}?uploadType=media",
+            file_id = file.id
+        );
+        let response = self
+            .http
+            .send_with_retries_typed(
+                Method::PATCH,
+                &upload_url,
+                Some(content.to_vec()),
+                Some(mime),
+                bearer,
+                || refresh(),
+            )
+            .await?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| ConnectorError::Network(e.to_string()))?;
+        let updated: DriveFile = serde_json::from_slice(&bytes)
+            .map_err(|e| ConnectorError::Decoding(e.to_string()))?;
+        Ok(updated)
     }
 
     /// Share a file with a specific email address (reader role).

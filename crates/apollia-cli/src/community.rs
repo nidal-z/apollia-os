@@ -13,6 +13,18 @@ use std::path::{Path, PathBuf};
 
 use apollia_core::AgentManifest;
 
+/// Compute the per-agent venv's site-packages from a community agent's `.py`
+/// path. Convention : agent name == file stem.
+fn community_venv_site_packages_for_path(agent_py_path: &Path) -> Vec<PathBuf> {
+    let agent_name = match agent_py_path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let base = PathBuf::from(home).join(".apollia").join("venvs");
+    apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Error type
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,7 +73,10 @@ pub async fn validate_community_agent(
         return Err(AgentValidationError::FileNotFound(path.to_path_buf()));
     }
 
-    let module = apollia_aip::loader::load_agent_module(path)
+    // Inject per-agent venv site-packages (if any) so top-level imports of
+    // pip-installed packages resolve during community-agent validation.
+    let extras = community_venv_site_packages_for_path(path);
+    let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
         .map_err(|e| AgentValidationError::ManifestLoad(e.to_string()))?;
 
     let validated = apollia_aip::validator::validate_agent(&module)
