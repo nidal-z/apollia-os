@@ -12,6 +12,7 @@ from apollia.errors import (
 )
 from apollia.messages import on_message
 from apollia.orchestration import orchestrated
+from apollia.react import react
 from apollia.skills import skill
 from apollia.types import (
     Ctx,
@@ -34,6 +35,8 @@ __all__ = [
     "skill",
     "on_message",
     "orchestrated",
+    # ReAct utility (ADR-098, ADR-102)
+    "react",
     # Exceptions
     "AgentError",
     "DomainError",

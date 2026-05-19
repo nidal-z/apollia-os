@@ -142,6 +142,11 @@ class MockLlmProxy:
         self.responses: list[dict[str, object]] = list(responses or [])
         self.call_count: int = 0
         self.prompts: list[Any] = []
+        # Tracking for ReAct loop unit tests (LOT 7). Each call to
+        # ``run_tools`` appends an entry capturing the messages, tools
+        # list and ``max_iterations`` the agent passed in.
+        self.run_tools_calls: list[dict[str, Any]] = []
+        self.run_tools_responses: list[str] = []
 
     async def complete(
         self,
@@ -180,6 +185,39 @@ class MockLlmProxy:
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             backend=backend,
         )
+
+    async def run_tools(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+        max_iterations: int = 5,
+    ) -> str:
+        """Simulate ``LlmProxy.run_tools``: returns the next queued string.
+
+        Mirrors the real PyO3 ``LlmProxy.run_tools`` which performs the
+        ReAct loop server-side and returns the final assistant answer as
+        a plain string.
+
+        Calls are recorded in ``self.run_tools_calls`` for assertion.
+
+        Raises:
+            IndexError: If no more responses are queued in
+                ``self.run_tools_responses``.
+        """
+        self.run_tools_calls.append(
+            {
+                "messages": messages,
+                "tools": tools,
+                "max_iterations": max_iterations,
+            }
+        )
+        self.call_count += 1
+        if not self.run_tools_responses:
+            raise IndexError(
+                f"MockLlmProxy.run_tools exhausted after {self.call_count} calls — "
+                "no more responses configured in `run_tools_responses`"
+            )
+        return self.run_tools_responses.pop(0)
 
     @property
     def default_backend(self) -> str:

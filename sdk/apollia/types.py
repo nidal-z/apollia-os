@@ -176,14 +176,10 @@ class Ctx(Protocol):
     notify: NotifyInterface
     budget: BudgetView
 
-    async def react(
-        self,
-        system: str,
-        user: str,
-        *,
-        tools: list[dict[str, Any]] | None = None,
-        max_steps: int = 15,
-    ) -> str: ...
+    # NOTE: ReAct lives as a free function `apollia.react(ctx, ...)`
+    # (LOT 7, ADR-098/ADR-102), not on the Ctx protocol. Keeping it off
+    # the Ctx surface avoids a PyO3 injection layer and lets users compose
+    # alternative reasoning loops without subclassing the runtime context.
 
 
 # ──────────────────────────────────────────────────────────────────────

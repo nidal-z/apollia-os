@@ -170,8 +170,11 @@ impl ToolProxy {
             });
         }
 
-        // A2A path: intercept before registry lookup
-        if let Some(skill_id_ref) = tool_name.strip_prefix("a2a:") {
+        // A2A path: intercept before registry lookup.
+        // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
+        // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
+        // OpenAI-compatible — see ADR-102 / `A2AInterface::skill_as_tool`).
+        if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
             if !self.allowed_tools.iter().any(|t| t == &tool_name) {
                 // Émettre ToolCallDenied avant de retourner.
                 if let Some(bus) = self.event_bus.as_ref() {
@@ -188,7 +191,6 @@ impl ToolProxy {
                     ToolProxyError::ToolNotAllowed(tool_name).to_string(),
                 ));
             }
-            let skill_id = skill_id_ref.to_string();
             let invoker = self.a2a_invoker.clone().ok_or_else(|| {
                 PyRuntimeError::new_err("A2A invoker not configured for this agent")
             })?;
@@ -521,7 +523,7 @@ impl ToolProxy {
     ) -> Result<serde_json::Value, ToolProxyError> {
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
-        if let Some(skill_id) = tool_name.strip_prefix("a2a:") {
+        if let Some(skill_id) = extract_a2a_skill_id(tool_name) {
             if !self.allowed_tools.iter().any(|t| t == tool_name) {
                 return Err(ToolProxyError::ToolNotAllowed(tool_name.to_string()));
             }
@@ -532,7 +534,7 @@ impl ToolProxy {
             })?;
             return invoke_a2a_tool(
                 invoker,
-                skill_id,
+                &skill_id,
                 input,
                 &self.agent_id,
                 self.a2a_depth,
@@ -555,6 +557,30 @@ impl ToolProxy {
         )
         .await
     }
+}
+
+/// Extracts the original A2A `skill_id` from a tool name, supporting both
+/// the legacy `"a2a:{skill_id}"` prefix and the new
+/// `"a2a__{skill_id_with_dots_as_double_underscores}"` prefix introduced for
+/// OpenAI compatibility (which rejects `:` in tool names — see ADR-102 and
+/// `A2AInterface::skill_as_tool`). Returns `None` if the name doesn't match
+/// either A2A pattern.
+///
+/// Examples:
+/// - `extract_a2a_skill_id("a2a:read-excel")` -> `Some("read-excel")`
+/// - `extract_a2a_skill_id("a2a__pdf__read_text")` -> `Some("pdf.read_text")`
+/// - `extract_a2a_skill_id("bash")` -> `None`
+fn extract_a2a_skill_id(tool_name: &str) -> Option<String> {
+    if let Some(rest) = tool_name.strip_prefix("a2a:") {
+        return Some(rest.to_string());
+    }
+    if let Some(rest) = tool_name.strip_prefix("a2a__") {
+        // Reverse the encoding applied by `A2AInterface::skill_as_tool`:
+        // `.` was replaced by `__`. We restore it here so the invoker
+        // receives the canonical skill_id.
+        return Some(rest.replace("__", "."));
+    }
+    None
 }
 
 /// Routes an `"a2a:{skill_id}"` tool call to the [`A2AInvoker`].
@@ -3018,6 +3044,70 @@ mod tool_proxy_a2a_tests {
         );
 
         audit.shutdown().await;
+    }
+
+    /// New `a2a__{name}` prefix is routed to the invoker exactly like the
+    /// legacy `a2a:{name}` prefix, with `__` decoded back to `.` in the
+    /// skill_id.
+    #[tokio::test]
+    async fn test_a2a_double_underscore_prefix_is_routed() {
+        let invoker = make_invoker_with_excel().await;
+        // Register a worker with a dotted skill id to test `__` -> `.` decoding.
+        let (proxy, audit) =
+            make_base_proxy(vec!["a2a__read-excel"]).await;
+        let proxy = proxy.with_a2a(invoker, 0, None);
+
+        let result = proxy
+            .call_inner(
+                "a2a__read-excel",
+                serde_json::json!({"text": "process file.xlsx"}),
+            )
+            .await;
+
+        let val = result.expect("a2a__ prefix should route to invoker");
+        let text = val["text"].as_str().expect("text field");
+        assert!(
+            text.contains("[read-excel via excel-worker]"),
+            "expected formatted header in: {text}"
+        );
+        audit.shutdown().await;
+    }
+}
+
+#[cfg(test)]
+mod extract_a2a_skill_id_tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_a2a_legacy_colon_prefix() {
+        assert_eq!(
+            extract_a2a_skill_id("a2a:read-excel"),
+            Some("read-excel".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_a2a_double_underscore_prefix_simple() {
+        assert_eq!(
+            extract_a2a_skill_id("a2a__summarize"),
+            Some("summarize".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_a2a_double_underscore_prefix_dotted() {
+        // `__` is decoded back to `.` so the canonical skill_id is restored
+        // before the invoker sees it.
+        assert_eq!(
+            extract_a2a_skill_id("a2a__pdf__read_text"),
+            Some("pdf.read_text".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_a2a_no_prefix_returns_none() {
+        assert_eq!(extract_a2a_skill_id("bash"), None);
+        assert_eq!(extract_a2a_skill_id("a2a_typo"), None);
     }
 }
 

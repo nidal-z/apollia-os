@@ -109,16 +109,6 @@ class _CompleteCtxMock:
         self.notify: Any = MagicMock()
         self.budget: Any = MagicMock()
 
-    async def react(
-        self,
-        system: str,
-        user: str,
-        *,
-        tools: list[dict[str, Any]] | None = None,
-        max_steps: int = 15,
-    ) -> str:
-        return ""
-
 
 class _IncompleteCtxMock:
     """Same as :class:`_CompleteCtxMock` but missing ``llm``."""
@@ -138,16 +128,6 @@ class _IncompleteCtxMock:
         self.stt: Any = MagicMock()
         self.notify: Any = MagicMock()
         self.budget: Any = MagicMock()
-
-    async def react(
-        self,
-        system: str,
-        user: str,
-        *,
-        tools: list[dict[str, Any]] | None = None,
-        max_steps: int = 15,
-    ) -> str:
-        return ""
 
 
 def test_complete_mock_satisfies_ctx() -> None:
