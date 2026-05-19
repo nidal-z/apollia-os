@@ -129,20 +129,16 @@ TEST_TEMPLATE = '''\
 
 import pytest
 
-from apollia.testing import MockContext
-from apollia.testing.assertions import assert_result_completed
+from apollia.testing import mock, assert_result_completed
 from {module_name}_agent import {class_name}
 
 
 @pytest.mark.asyncio
 async def test_{module_name}_runs():
     """Verify the agent executes without error."""
-    ctx = MockContext.create(
-        tools={{}},
-        llm_responses=[{{"content": "I will help you."}}],
-    )
-    agent = {class_name}()
-    result = await agent.run({{"input": {{"text": "hello"}}}}, ctx)
+    agent, ctx = mock({class_name})
+    ctx.llm.responses = [{{"content": "I will help you."}}]
+    result = await agent.invoke_message("hello")
     assert_result_completed(result)
 '''
 

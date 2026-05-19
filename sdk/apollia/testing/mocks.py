@@ -1,19 +1,17 @@
-"""Mock implementations of Apollia runtime objects for agent unit testing.
+"""Mock implementations of low-level Apollia runtime proxies.
 
-Provides drop-in replacements for ``ToolProxy``, ``LlmProxy``,
-``MemoryInterface``, and ``RuntimeContext`` so agents can be tested in
-isolation without a running Apollia runtime.
+This module holds the *individual* mocks (``MockToolProxy``,
+``MockLlmProxy``, ``MockMemory``, ``MockLlmResponse``) used by the
+top-level :class:`~apollia.testing.MockContext` factory.
 
-Example::
+For most agent tests you don't need to import from here directly — use
+:func:`apollia.testing.mock` instead::
 
-    from apollia.testing import MockContext
+    from apollia.testing import mock
 
-    ctx = MockContext.create(
-        tools={"bash": {"output": "hello"}},
-        llm_responses=[{"content": "answer"}],
-        memory=True,
-    )
-    result = await my_agent.run(task, ctx)
+    agent, ctx = mock(MyAgent)
+    ctx.llm.responses = [{"content": "answer"}]
+    result = await agent.invoke_skill("my.skill", x=1)
 """
 
 from __future__ import annotations
@@ -176,10 +174,11 @@ class MockLlmProxy:
         system: str,
         user: str,
         backend: str | None = None,
-    ) -> dict[str, object]:
+    ) -> MockLlmResponse:
         """Convenience wrapper matching ``LlmProxy.chat()`` signature.
 
-        Delegates to ``complete()`` internally.
+        Delegates to ``complete()`` internally and returns a
+        :class:`MockLlmResponse` (same as ``complete()``).
         """
         return await self.complete(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -339,90 +338,9 @@ class MockMemory:
         self.operations.append({"op": "forget", "key": key, "existed": existed})
 
 
-class MockWorkspace:
-    """Minimal mock of the workspace object injected by the Apollia runtime.
-
-    Provides a ``rules`` attribute that mirrors ``ctx.workspace.rules``.
-    """
-
-    def __init__(self, rules: str = "") -> None:
-        self.rules: str = rules
-
-
-class MockContext:
-    """Factory assembling a complete mock execution context.
-
-    Instantiate via the ``create()`` class method — do not use the
-    constructor directly.
-
-    Example::
-
-        ctx = MockContext.create(
-            tools={"bash": {"output": "hello"}},
-            llm_responses=[{"content": "answer"}],
-            memory=True,
-        )
-        assert ctx.tools is not None
-        result = await ctx.tools.call("bash", {"cmd": "echo hi"})
-    """
-
-    def __init__(
-        self,
-        *,
-        _tools: MockToolProxy | None = None,
-        _llm: MockLlmProxy | None = None,
-        _memory: MockMemory | None = None,
-        _workspace: MockWorkspace | None = None,
-    ) -> None:
-        self._tools = _tools
-        self._llm = _llm
-        self._memory = _memory
-        self._workspace = _workspace
-
-    @staticmethod
-    def create(
-        tools: dict[str, Any] | None = None,
-        llm_responses: list[dict[str, object]] | None = None,
-        memory: bool = False,
-        workspace_rules: str | None = None,
-    ) -> MockContext:
-        """Build a ``MockContext`` with the requested components.
-
-        Args:
-            tools: Mapping of tool name to response dict.  ``None`` means
-                no ``ToolProxy`` is attached.
-            llm_responses: Ordered list of response dicts for the LLM.
-                ``None`` means no ``LlmProxy`` is attached.
-            memory: If ``True``, attach an empty ``MockMemory``.
-            workspace_rules: If provided, attach a ``MockWorkspace``
-                with the given rules text.  ``None`` means no workspace.
-
-        Returns:
-            A fully wired ``MockContext`` ready for injection into an agent.
-        """
-        return MockContext(
-            _tools=MockToolProxy(tools) if tools is not None else None,
-            _llm=MockLlmProxy(llm_responses) if llm_responses is not None else None,
-            _memory=MockMemory() if memory else None,
-            _workspace=MockWorkspace(workspace_rules) if workspace_rules is not None else None,
-        )
-
-    @property
-    def tools(self) -> MockToolProxy | None:
-        """Tool proxy mock, or ``None`` if not configured."""
-        return self._tools
-
-    @property
-    def llm(self) -> MockLlmProxy | None:
-        """LLM proxy mock, or ``None`` if not configured."""
-        return self._llm
-
-    @property
-    def memory(self) -> MockMemory | None:
-        """Memory interface mock, or ``None`` if not configured."""
-        return self._memory
-
-    @property
-    def workspace(self) -> MockWorkspace | None:
-        """Workspace mock, or ``None`` if not configured."""
-        return self._workspace
+__all__ = [
+    "MockToolProxy",
+    "MockLlmProxy",
+    "MockLlmResponse",
+    "MockMemory",
+]

@@ -1,4 +1,4 @@
-"""Tests for apollia.testing.mocks — mock runtime objects for agent testing."""
+"""Tests for apollia.testing.mocks — low-level mock proxies."""
 
 import pytest
 
@@ -6,25 +6,34 @@ from apollia.testing import MockContext, MockLlmProxy, MockMemory, MockToolProxy
 
 
 @pytest.mark.asyncio
-async def test_mock_context_create_with_all_components():
-    """MockContext.create() wires tools, llm, and memory when all are requested."""
-    ctx = MockContext.create(
-        tools={"bash": {"output": "hello"}},
-        llm_responses=[{"content": "answer"}],
-        memory=True,
-    )
+async def test_mock_context_wires_all_surfaces():
+    """The factory-built MockContext exposes every ctx.* surface."""
+    ctx = MockContext()
+    # Core surfaces wired by the factory:
     assert ctx.tools is not None
     assert ctx.llm is not None
     assert ctx.memory is not None
+    assert ctx.a2a is not None
+    assert ctx.datasources is not None
+    assert ctx.templates is not None
+    assert ctx.secrets is not None
+    assert ctx.events is not None
+    assert ctx.profile is not None
+    assert ctx.workspace is not None
+    assert ctx.stt is not None
+    assert ctx.notify is not None
+    assert ctx.budget is not None
+    assert ctx.logger is not None
 
 
 @pytest.mark.asyncio
-async def test_mock_context_create_partial():
-    """MockContext.create() leaves unrequested components as None."""
-    ctx = MockContext.create(tools={"bash": {"output": "ok"}})
-    assert ctx.tools is not None
-    assert ctx.llm is None
-    assert ctx.memory is None
+async def test_mock_context_surfaces_are_isolated_per_instance():
+    """Each MockContext() yields fresh, independent surface mocks."""
+    ctx1 = MockContext()
+    ctx2 = MockContext()
+    assert ctx1.tools is not ctx2.tools
+    assert ctx1.llm is not ctx2.llm
+    assert ctx1.events is not ctx2.events
 
 
 @pytest.mark.asyncio
@@ -86,8 +95,10 @@ async def test_mock_llm_proxy_sequential_responses():
     r1 = await proxy.complete("prompt1")
     r2 = await proxy.complete("prompt2")
 
-    assert r1 == {"content": "first"}
-    assert r2 == {"content": "second"}
+    # complete() returns a MockLlmResponse, accessed via .content or [].
+    assert r1.content == "first"
+    assert r2.content == "second"
+    assert r1["content"] == "first"
     proxy.assert_called_count(2)
 
     with pytest.raises(IndexError):
@@ -101,7 +112,7 @@ async def test_mock_llm_proxy_chat():
 
     result = await proxy.chat(system="You are helpful.", user="Hello")
 
-    assert result == {"content": "reply"}
+    assert result.content == "reply"
     assert proxy.call_count == 1
     assert len(proxy.prompts) == 1
     assert proxy.default_backend == "mock"

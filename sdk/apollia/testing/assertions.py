@@ -1,17 +1,24 @@
 """Assertion helpers for Apollia agent test suites.
 
-Provides specialised assertion functions that produce clear, contextual
-error messages when verifying agent execution results and mock
-interactions.  All functions are synchronous and raise ``AssertionError``
-on failure, making them directly compatible with pytest.
+Synchronous functions that raise :class:`AssertionError` on failure —
+directly compatible with ``pytest``.  They inspect both the
+:class:`AIPResult` dicts that agents return and the
+:class:`~apollia.testing.MockContext` services to verify behaviour.
 
 Example::
 
-    from apollia.testing import MockContext, assert_result_completed, assert_tool_called
+    from apollia.testing import (
+        mock,
+        assert_result_completed,
+        assert_skill_called,
+        assert_tool_called,
+    )
 
-    result = await my_agent.run(task, ctx)
-    assert_result_completed(result, contains="Hello")
+    agent, ctx = mock(MyAgent)
+    result = await agent.invoke_skill("my.skill", x=1)
+    assert_result_completed(result, contains="done")
     assert_tool_called(ctx, "bash", times=1)
+    assert_skill_called(ctx, "child.worker")
 """
 
 from __future__ import annotations
@@ -21,21 +28,27 @@ from typing import TYPE_CHECKING, Any
 from apollia.utils.formatting import aip_result_text
 
 if TYPE_CHECKING:
-    from apollia.testing.mocks import MockContext
+    from apollia.testing.mock_factory import MockContext
 
 _TEXT_PREVIEW_LIMIT = 100
 
 
+# ──────────────────────────────────────────────────────────────────────
+# AIPResult assertions
+# ──────────────────────────────────────────────────────────────────────
+
+
 def assert_result_completed(
     result: dict[str, Any],
+    *,
     contains: str | None = None,
 ) -> None:
-    """Verify that an AIP result has status ``completed``.
+    """Verify an :class:`AIPResult` dict has ``status == "completed"``.
 
     Args:
         result: AIPResult dictionary to verify.
         contains: If provided, additionally check that the concatenated
-            text parts contain this substring.
+            text parts of the output contain this substring.
 
     Raises:
         AssertionError: If the status is not ``completed`` or the text
@@ -54,22 +67,24 @@ def assert_result_completed(
 
 def assert_result_failed(
     result: dict[str, Any],
+    *,
     code: str | None = None,
 ) -> None:
-    """Verify that an AIP result has status ``failed``.
+    """Verify an :class:`AIPResult` dict has ``status == "failed"``.
 
     Args:
         result: AIPResult dictionary to verify.
-        code: If provided, additionally check that the error code matches.
+        code: If provided, additionally check that ``error.code``
+            matches exactly.
 
     Raises:
-        AssertionError: If the status is not ``failed`` or the error code
-            does not match.
+        AssertionError: If the status is not ``failed`` or the error
+            code does not match.
     """
     _assert_status(result, "failed")
 
     if code is not None:
-        error = result.get("error", {})
+        error = result.get("error") or {}
         actual_code = error.get("code", "")
         if actual_code != code:
             raise AssertionError(
@@ -78,10 +93,7 @@ def assert_result_failed(
 
 
 def assert_result_input_required(result: dict[str, Any]) -> None:
-    """Verify that an AIP result has status ``input_required``.
-
-    Args:
-        result: AIPResult dictionary to verify.
+    """Verify an :class:`AIPResult` dict has ``status == "input_required"``.
 
     Raises:
         AssertionError: If the status is not ``input_required``.
@@ -89,25 +101,59 @@ def assert_result_input_required(result: dict[str, Any]) -> None:
     _assert_status(result, "input_required")
 
 
-def assert_tool_called(
-    ctx: MockContext,
-    tool_name: str,
+# ──────────────────────────────────────────────────────────────────────
+# MockContext interaction assertions
+# ──────────────────────────────────────────────────────────────────────
+
+
+def assert_skill_called(
+    ctx: "MockContext",
+    skill_id: str,
+    *,
     times: int | None = None,
 ) -> None:
-    """Verify that a tool was called via the ``MockContext``.
+    """Verify ``ctx.a2a.invoke(skill_id, ...)`` was called.
 
     Args:
-        ctx: ``MockContext`` containing a ``MockToolProxy``.
-        tool_name: Name of the tool to verify.
-        times: If provided, verify the exact number of calls.
+        ctx: :class:`MockContext` instance returned by :func:`mock`.
+        skill_id: The fully-qualified skill id (e.g. ``"pdf.read_text"``).
+        times: If provided, assert the exact number of invocations.
 
     Raises:
-        AssertionError: If the tool was never called, or not the expected
-            number of times, or if tools are not configured.
+        AssertionError: If the skill was never called (or not the
+            expected number of times when ``times`` is set).
     """
-    if ctx.tools is None:
-        raise AssertionError("MockContext has no tools configured (tools is None)")
+    calls = [c for c in ctx.a2a.invoke_calls if c[0] == skill_id]
+    if times is not None:
+        if len(calls) != times:
+            raise AssertionError(
+                f"Expected skill '{skill_id}' to be invoked {times} times, "
+                f"was invoked {len(calls)} times"
+            )
+    elif not calls:
+        all_called = [c[0] for c in ctx.a2a.invoke_calls]
+        raise AssertionError(
+            f"Skill '{skill_id}' was not invoked via ctx.a2a.invoke "
+            f"(invoked skills: {all_called})"
+        )
 
+
+def assert_tool_called(
+    ctx: "MockContext",
+    tool_name: str,
+    *,
+    times: int | None = None,
+) -> None:
+    """Verify ``ctx.tools.call(tool_name, ...)`` was called.
+
+    Args:
+        ctx: :class:`MockContext` instance.
+        tool_name: Name of the tool, e.g. ``"bash"`` or ``"file_io"``.
+        times: If provided, assert the exact number of calls.
+
+    Raises:
+        AssertionError: If the tool was never called or the count differs.
+    """
     actual_count = sum(1 for name, _ in ctx.tools.calls if name == tool_name)
 
     if times is None:
@@ -123,22 +169,19 @@ def assert_tool_called(
 
 
 def assert_llm_called(
-    ctx: MockContext,
+    ctx: "MockContext",
+    *,
     times: int | None = None,
 ) -> None:
-    """Verify that the LLM was called via the ``MockContext``.
+    """Verify that the LLM proxy was called.
 
     Args:
-        ctx: ``MockContext`` containing a ``MockLlmProxy``.
-        times: If provided, verify the exact number of calls.
+        ctx: :class:`MockContext` instance.
+        times: If provided, assert the exact number of calls.
 
     Raises:
-        AssertionError: If the LLM was never called, or not the expected
-            number of times, or if LLM is not configured.
+        AssertionError: If the LLM was never called or the count differs.
     """
-    if ctx.llm is None:
-        raise AssertionError("MockContext has no LLM configured (llm is None)")
-
     actual_count = ctx.llm.call_count
 
     if times is None:
@@ -153,8 +196,114 @@ def assert_llm_called(
         )
 
 
+def assert_emitted_token(
+    ctx: "MockContext",
+    *,
+    contains: str | None = None,
+) -> None:
+    """Verify that at least one token was emitted via ``ctx.events.emit_token``.
+
+    Args:
+        ctx: :class:`MockContext` instance.
+        contains: If provided, assert that the concatenation of emitted
+            tokens contains this substring.
+
+    Raises:
+        AssertionError: If no token was emitted, or the concatenation
+            does not contain ``contains``.
+    """
+    if not ctx.events.tokens:
+        raise AssertionError("No tokens were emitted via ctx.events.emit_token")
+    if contains is not None:
+        joined = "".join(ctx.events.tokens)
+        if contains not in joined:
+            raise AssertionError(
+                f"Emitted tokens {joined!r} do not contain {contains!r}"
+            )
+
+
+def assert_emitted_thought(
+    ctx: "MockContext",
+    *,
+    contains: str | None = None,
+) -> None:
+    """Verify that at least one thought was emitted via ``ctx.events.emit_thought``.
+
+    Args:
+        ctx: :class:`MockContext` instance.
+        contains: If provided, assert that the concatenation of thought
+            texts contains this substring.
+
+    Raises:
+        AssertionError: If no thought was emitted, or the concatenation
+            does not contain ``contains``.
+    """
+    if not ctx.events.thoughts:
+        raise AssertionError("No thoughts were emitted via ctx.events.emit_thought")
+    if contains is not None:
+        joined = " ".join(t[0] for t in ctx.events.thoughts)
+        if contains not in joined:
+            raise AssertionError(
+                f"Emitted thoughts {joined!r} do not contain {contains!r}"
+            )
+
+
+def assert_memory_recorded(
+    ctx: "MockContext",
+    *,
+    key: str | None = None,
+) -> None:
+    """Verify that the agent wrote to memory.
+
+    Args:
+        ctx: :class:`MockContext` instance.
+        key: If provided, assert that this semantic key was remembered
+            via ``ctx.memory.remember(key, ...)``.  If ``None``, assert
+            that at least one episodic record was written.
+
+    Raises:
+        AssertionError: If the expected write did not happen.
+    """
+    if key is not None:
+        if key not in ctx.memory.store:
+            recorded = list(ctx.memory.store.keys())
+            raise AssertionError(
+                f"Memory key {key!r} was not remembered (recorded keys: {recorded})"
+            )
+    else:
+        if not ctx.memory.episodes:
+            raise AssertionError(
+                "No episodic memory was recorded via ctx.memory.record"
+            )
+
+
+def assert_template_rendered(
+    ctx: "MockContext",
+    name: str,
+) -> None:
+    """Verify ``ctx.templates.render(name, ...)`` was called.
+
+    Args:
+        ctx: :class:`MockContext` instance.
+        name: Template name (e.g. ``"prompt.j2"``).
+
+    Raises:
+        AssertionError: If the template was never rendered.
+    """
+    names = [c[0] for c in ctx.templates.render_calls]
+    if name not in names:
+        raise AssertionError(
+            f"Template {name!r} was not rendered (rendered: {names})"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Internal helpers
+# ──────────────────────────────────────────────────────────────────────
+
+
 def _assert_status(result: dict[str, Any], expected: str) -> None:
-    """Verify the ``status`` field of an AIP result dictionary.
+    """Verify the ``status`` field of an AIPResult dictionary.
 
     Raises:
         AssertionError: If the key is missing or the value differs.
@@ -168,3 +317,17 @@ def _assert_status(result: dict[str, Any], expected: str) -> None:
         raise AssertionError(
             f"Expected result status '{expected}', got '{actual}'"
         )
+
+
+__all__ = [
+    "assert_result_completed",
+    "assert_result_failed",
+    "assert_result_input_required",
+    "assert_skill_called",
+    "assert_tool_called",
+    "assert_llm_called",
+    "assert_emitted_token",
+    "assert_emitted_thought",
+    "assert_memory_recorded",
+    "assert_template_rendered",
+]

@@ -92,32 +92,42 @@ def format_as_json(data: Any, indent: int = 2) -> str:
 def aip_result_text(result: dict[str, Any]) -> str:
     """Extract concatenated text from an AIPResult dictionary.
 
+    Reads from the canonical ``output`` field (Rust shape).  For backward
+    compatibility also reads from the legacy ``parts`` field.  Within each
+    part, accepts either the canonical ``text`` key or the legacy
+    ``content`` key.
+
     Args:
-        result: Dictionary with a ``parts`` key containing a list of
-            part dicts, each having ``type`` and ``content`` keys.
+        result: AIPResult dictionary.
 
     Returns:
         Newline-joined text of all parts whose ``type`` is ``"text"``.
         Empty string when no text parts exist.
     """
-    return parts_to_text(result.get("parts", []))
+    parts = result.get("output") or result.get("parts") or []
+    return parts_to_text(parts)
 
 
 def parts_to_text(parts: list[dict[str, Any]]) -> str:
     """Extract concatenated text from a list of AIP parts.
 
     Args:
-        parts: List of dicts with ``type`` and ``content`` keys.
+        parts: List of dicts with ``type`` and (``text`` | ``content``) keys.
 
     Returns:
         Newline-joined text of all parts whose ``type`` is ``"text"``.
         Empty string when the list is empty or contains no text parts.
     """
-    texts = [
-        part.get("content", "")
-        for part in parts
-        if isinstance(part, dict) and part.get("type") == "text"
-    ]
+    texts: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict) or part.get("type") != "text":
+            continue
+        # Canonical key is "text" (mirrors Rust AIPPart). Legacy fallback
+        # is "content" for older fixtures still living in the codebase.
+        value = part.get("text")
+        if value is None:
+            value = part.get("content", "")
+        texts.append(value)
     return "\n".join(texts)
 
 

@@ -64,7 +64,9 @@ class TestScaffoldAgent:
 
         test_src = open(test_path, encoding="utf-8").read()
         assert "from hello_agent import HelloAgent" in test_src
-        assert "MockContext" in test_src
+        # New scaffold template uses the factory entry point ``mock()``
+        # (the old MockContext.create() pattern is gone post-LOT 10).
+        assert "from apollia.testing import mock" in test_src
         assert "assert_result_completed" in test_src
 
     def test_scaffold_conversational_agent(self, tmp_path: str) -> None:
