@@ -11,10 +11,9 @@ Cinq skills A2A déterministes :
 - ``chart.scatter`` — scatter / bubble (+ régression linéaire optionnelle)
 - ``chart.heatmap`` — heatmap (8 colormaps, show_values overlay)
 
-Dispatch multi-skills : le runtime Apollia (≥ 2026-05-19) propage le
-``skill_id`` invoqué dans ``AIPTask``. Le worker lit ``task.skill_id`` via
-``apollia.utils.a2a.extract_skill_id(task)`` et dispatche sur le full
-identifier (ex. ``chart.bar``).
+Dispatch multi-skills : le SDK route ``task.skill_id`` vers la méthode
+``@skill`` correspondante (ex. ``chart.bar``). Les paramètres sont
+extraits depuis la signature typée.
 
 Trois thèmes intégrés : ``default``, ``dark``, ``minimal``.
 Deux modes de sortie : ``file`` (écrit sur disque) ou ``base64`` (retourne

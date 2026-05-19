@@ -30,7 +30,7 @@ const ONBOARDING_AGENT_TOML: &str =
 /// version equals this constant, so without a bump, the runtime keeps
 /// loading the previously-extracted code from `~/.apollia/agents/…/`
 /// even after a rebuild.
-const ONBOARDING_AGENT_VERSION: &str = "2.3.0";
+const ONBOARDING_AGENT_VERSION: &str = "2.4.0";
 
 /// Source code of the Apollia Guide agent.
 const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
@@ -49,7 +49,7 @@ const APOLLIA_GUIDE_TUTORIALS_MD: &str =
 
 /// Bundled version — must match `manifest()["version"]` in `agent.py` and
 /// `[agent].version` in `manifest.toml`.
-const APOLLIA_GUIDE_VERSION: &str = "0.1.0";
+const APOLLIA_GUIDE_VERSION: &str = "0.2.0";
 
 /// Ensures the built-in agents are extracted and registered in the repository.
 ///

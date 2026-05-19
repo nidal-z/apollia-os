@@ -7,11 +7,9 @@ la validation est faite manuellement dans ``archive-worker.py`` (run/_do_*).
 Le choix de ``TypedDict`` plutôt que Pydantic préserve l'absence totale de
 dépendance externe (alignement Principe 2 d'Apollia OS).
 
-Dispatch multi-skills : depuis 2026-05-19, le runtime Apollia propage
-``skill_id`` dans ``AIPTask`` (lisible côté Python via
-``apollia.utils.a2a.extract_skill_id(task)``). Le worker dispatche sur le
-full skill id (``"archive.list"``, etc.) — plus de champ ``op`` dans les
-payloads.
+Dispatch multi-skills : le SDK route ``task.skill_id`` vers la méthode
+``@skill`` correspondante. Le worker reçoit directement les paramètres
+typés via la signature — plus de champ ``op`` dans les payloads.
 """
 
 from __future__ import annotations

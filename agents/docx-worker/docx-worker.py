@@ -9,10 +9,9 @@ Cinq skills A2A déterministes :
 - ``docx.extract-tables``       — extraction ciblée des tables uniquement.
 - ``docx.render-from-template`` — rendu Jinja2 via docxtpl (mode strict par défaut).
 
-Dispatch multi-skills : le runtime Apollia (≥ 2026-05-19) propage le
-``skill_id`` invoqué dans ``AIPTask``. Le worker lit ``task.skill_id`` via
-``apollia.utils.a2a.extract_skill_id(task)`` et dispatche sur le full
-identifier (ex. ``docx.read``).
+Dispatch multi-skills : le SDK route ``task.skill_id`` vers la méthode
+``@skill`` correspondante (ex. ``docx.read``). Les paramètres sont
+extraits depuis la signature typée.
 
 Headers/footers — 10 placeholders disponibles :
 - ``{page}``, ``{total_pages}``  — champs Word PAGE / NUMPAGES (dynamiques)

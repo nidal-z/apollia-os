@@ -241,13 +241,20 @@ pub struct AgentManifest {
 pub struct AgentSkill {
     /// Identifiant unique de la compétence.
     pub id: String,
-    /// Nom humain de la compétence.
+    /// Nom humain de la compétence. Si absent dans le manifest source,
+    /// le runtime peut le dériver de `id`.
+    #[serde(default)]
     pub name: String,
     /// Description de ce que fait la compétence.
+    #[serde(default)]
     pub description: String,
-    /// Modes d'entrée supportés (ex: ["text", "data"]).
+    /// Modes d'entrée supportés (ex: ["text", "data"]). Vide par défaut
+    /// pour rester rétrocompatible avec les manifests TOML legacy ;
+    /// le décorateur `@skill` côté SDK Python publie `["data"]`.
+    #[serde(default)]
     pub input_modes: Vec<String>,
-    /// Modes de sortie supportés (ex: ["text", "file"]).
+    /// Modes de sortie supportés (ex: ["text", "file"]). Vide par défaut.
+    #[serde(default)]
     pub output_modes: Vec<String>,
     /// Schéma des champs attendus dans la payload A2A.
     ///
