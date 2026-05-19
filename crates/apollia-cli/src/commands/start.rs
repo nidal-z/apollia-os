@@ -35,7 +35,7 @@ use apollia_runtime::A2AToolsProvider;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{
     build_native_dispatcher, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
-    TaskRepository, ToolRegistryHandle,
+    TaskRepository, ToolCredentialStore, ToolRegistryHandle,
 };
 use futures::stream;
 use pyo3::prelude::*;
@@ -94,6 +94,31 @@ fn venv_site_packages_for_name(agent_name: &str) -> Vec<PathBuf> {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     let base = PathBuf::from(home).join(".apollia").join("venvs");
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
+}
+
+/// Ouvre le [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+///
+/// Retourne `None` si la base de gouvernance n'existe pas encore (premier
+/// démarrage avant `apollia-os tools secret set ...`) ou si l'ouverture échoue.
+/// L'agent obtiendra alors `None` à chaque `ctx.secrets.get(key)` — cohérent
+/// avec la sémantique non-fatale d'ADR-104.
+fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredentialStore>>> {
+    let db_path = data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME);
+    if !db_path.exists() {
+        return None;
+    }
+    let keyfile_path = data_dir.join(".keyfile");
+    match ToolCredentialStore::new(&db_path, &keyfile_path) {
+        Ok(store) => Some(Arc::new(std::sync::Mutex::new(store))),
+        Err(e) => {
+            tracing::warn!(
+                target: "apollia.aip.secrets",
+                error = %e,
+                "failed to open ToolCredentialStore for ctx.secrets — agent will see None for all keys"
+            );
+            None
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -310,6 +335,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let agent_dir = agent_path.parent().map(Path::to_path_buf);
         let datasources_declared = manifest.datasources.clone();
         let templates_declared = manifest.templates.clone();
+        // ADR-104 (LOT 6) — secrets allowlist + shared credential store.
+        let secrets_declared = manifest.secrets.clone();
+        let secret_store = open_secret_store(&self.data_dir);
 
         let ctx: PyObject = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
@@ -333,6 +361,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
             .with_datasources(datasources_declared, agent_dir.as_deref())
             .with_templates(templates_declared, agent_dir.as_deref())
+            // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
+            .with_secrets(apollia_aip::secrets::SecretsInterface::new(
+                secret_store,
+                secrets_declared,
+            ))
             // ADR-088 — relier le contexte à la task pour que ctx.log()
             // étiquette les RuntimeEvent::AgentLog persistés.
             .with_task_id(task.task_id.clone());
@@ -512,6 +545,14 @@ struct AIPProductionBackend {
     /// Répertoire racine de l'agent — utilisé pour résoudre
     /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
     agent_dir: Option<PathBuf>,
+    /// Secrets déclarés au manifest (`manifest.secrets`). Allowlist stricte
+    /// pour `ctx.secrets.get()` (ADR-104, LOT 6). Vide quand l'agent n'en
+    /// déclare pas.
+    secrets_declared: Vec<String>,
+    /// Base de données apollia (`~/.apollia/` par défaut) — utilisée pour
+    /// ouvrir le [`ToolCredentialStore`] partagé qui alimente `ctx.secrets`
+    /// (ADR-104, LOT 6). `None` accepté en mode dégradé.
+    secrets_data_dir: Option<PathBuf>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -536,6 +577,8 @@ impl Clone for AIPProductionBackend {
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
+            secrets_declared: self.secrets_declared.clone(),
+            secrets_data_dir: self.secrets_data_dir.clone(),
         }
     }
 }
@@ -576,6 +619,12 @@ struct BridgeRunner {
     /// Répertoire racine de l'agent — résolution `datasources/` et
     /// `templates/` (ADR-103, LOT 5).
     agent_dir: Option<PathBuf>,
+    /// Secrets déclarés au manifest (`manifest.secrets`) — allowlist
+    /// `ctx.secrets.get()` (ADR-104, LOT 6).
+    secrets_declared: Vec<String>,
+    /// Base de données apollia (`~/.apollia/`) — ouverture lazy du
+    /// [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+    secrets_data_dir: Option<PathBuf>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -600,6 +649,8 @@ impl AgentRunner for BridgeRunner {
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
+        let secrets_declared = self.secrets_declared.clone();
+        let secrets_data_dir = self.secrets_data_dir.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -724,6 +775,11 @@ impl AgentRunner for BridgeRunner {
                 // ADR-103 (LOT 5) — datasources YAML + templates Jinja2.
                 .with_datasources(datasources_declared, agent_dir.as_deref())
                 .with_templates(templates_declared, agent_dir.as_deref())
+                // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
+                .with_secrets(apollia_aip::secrets::SecretsInterface::new(
+                    secrets_data_dir.as_deref().and_then(open_secret_store),
+                    secrets_declared,
+                ))
                 // ADR-088 — task_id pour étiqueter ctx.log() côté trace.
                 .with_task_id(task.task_id.clone());
                 Py::new(py, ctx)
@@ -759,6 +815,8 @@ impl ExecutionBackend for AIPProductionBackend {
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
+            secrets_declared: self.secrets_declared.clone(),
+            secrets_data_dir: self.secrets_data_dir.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -806,6 +864,10 @@ struct ProductionBackendFactory {
     router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     tools_config: apollia_core::ToolsConfig,
+    /// Base data directory (`~/.apollia/`) — utilisée pour ouvrir le
+    /// [`ToolCredentialStore`] partagé à chaque exécution d'agent (ADR-104,
+    /// LOT 6 — `ctx.secrets`).
+    data_dir: PathBuf,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -876,6 +938,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let datasources_declared = validated.manifest.datasources.clone();
             let templates_declared = validated.manifest.templates.clone();
             let agent_dir = agent_path.parent().map(Path::to_path_buf);
+            // ADR-104 (LOT 6) — capture la liste des secrets déclarés.
+            let secrets_declared = validated.manifest.secrets.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -897,6 +961,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 datasources_declared,
                 templates_declared,
                 agent_dir,
+                secrets_declared,
+                secrets_data_dir: Some(self.data_dir.clone()),
             })
         })();
 
@@ -1152,6 +1218,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         registry: registry_lock.clone(),
         router: router_lock.clone(),
         tools_config: tools_config.clone(),
+        data_dir: data_dir_for_chat.clone(),
     });
 
     // Concrete ChatAgentRunner for Chat Agent mode.

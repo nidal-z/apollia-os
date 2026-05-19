@@ -35,7 +35,7 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{
     build_dispatcher_with, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
-    TaskRepository, ToolRegistryHandle,
+    TaskRepository, ToolCredentialStore, ToolRegistryHandle,
 };
 use futures::stream;
 use pyo3::prelude::*;
@@ -208,6 +208,9 @@ struct AIPProductionBackend {
     /// Répertoire racine de l'agent — utilisé pour résoudre
     /// `datasources/<name>.yaml` et `templates/<name>.j2` (ADR-103, LOT 5).
     agent_dir: Option<PathBuf>,
+    /// Secrets déclarés au manifest (`manifest.secrets`) — allowlist
+    /// `ctx.secrets.get()` (ADR-104, LOT 6).
+    secrets_declared: Vec<String>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -234,6 +237,7 @@ impl Clone for AIPProductionBackend {
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
+            secrets_declared: self.secrets_declared.clone(),
         }
     }
 }
@@ -280,6 +284,9 @@ struct BridgeRunner {
     /// Répertoire racine de l'agent — résolution `datasources/` et
     /// `templates/` (ADR-103, LOT 5).
     agent_dir: Option<PathBuf>,
+    /// Secrets déclarés au manifest — allowlist `ctx.secrets.get()`
+    /// (ADR-104, LOT 6).
+    secrets_declared: Vec<String>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -308,6 +315,7 @@ impl AgentRunner for BridgeRunner {
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
+        let secrets_declared = self.secrets_declared.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -499,6 +507,16 @@ impl AgentRunner for BridgeRunner {
                 ctx = ctx
                     .with_datasources(datasources_declared, agent_dir.as_deref())
                     .with_templates(templates_declared, agent_dir.as_deref());
+                // ADR-104 (LOT 6) — ctx.secrets read-only gated par le manifest.
+                // Le store est ouvert ici (et non capturé dans le BridgeRunner)
+                // pour éviter de tenir un Mutex à travers les awaits et pour
+                // ramasser proprement les changements de secrets effectués
+                // pendant la session.
+                let secret_store = open_secret_store(&default_data_dir());
+                ctx = ctx.with_secrets(apollia_aip::secrets::SecretsInterface::new(
+                    secret_store,
+                    secrets_declared,
+                ));
                 // ADR-088 — relier le contexte à la task pour que ctx.log()
                 // étiquette correctement les RuntimeEvent::AgentLog persistés.
                 ctx = ctx.with_task_id(task.task_id.clone());
@@ -543,6 +561,7 @@ impl ExecutionBackend for AIPProductionBackend {
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),
             agent_dir: self.agent_dir.clone(),
+            secrets_declared: self.secrets_declared.clone(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -667,6 +686,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let datasources_declared = validated.manifest.datasources.clone();
             let templates_declared = validated.manifest.templates.clone();
             let agent_dir = agent_path.parent().map(Path::to_path_buf);
+            // ADR-104 (LOT 6) — capture la liste secrets déclarés.
+            let secrets_declared = validated.manifest.secrets.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -690,6 +711,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 datasources_declared,
                 templates_declared,
                 agent_dir,
+                secrets_declared,
             })
         })();
 
@@ -711,6 +733,37 @@ impl AgentBackendFactory for ProductionBackendFactory {
 fn default_memory_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia").join("memory")
+}
+
+/// Base de données apollia (`~/.apollia/`) — utilisée pour ouvrir le
+/// [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+fn default_data_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    PathBuf::from(home).join(".apollia")
+}
+
+/// Ouvre le [`ToolCredentialStore`] partagé pour `ctx.secrets` (ADR-104, LOT 6).
+///
+/// Retourne `None` si la base de gouvernance n'existe pas encore ou si
+/// l'ouverture échoue — l'agent obtient alors `None` à chaque
+/// `ctx.secrets.get(key)` (sémantique non-fatale, ADR-104).
+fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredentialStore>>> {
+    let db_path = data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME);
+    if !db_path.exists() {
+        return None;
+    }
+    let keyfile_path = data_dir.join(".keyfile");
+    match ToolCredentialStore::new(&db_path, &keyfile_path) {
+        Ok(store) => Some(Arc::new(std::sync::Mutex::new(store))),
+        Err(e) => {
+            tracing::warn!(
+                target: "apollia.aip.secrets",
+                error = %e,
+                "failed to open ToolCredentialStore for ctx.secrets — agent will see None for all keys"
+            );
+            None
+        }
+    }
 }
 
 // ─── Chat Agent Runner ───────────────────────────────────────────────────────
@@ -797,6 +850,8 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         let datasources_declared = validated.manifest.datasources.clone();
         let templates_declared = validated.manifest.templates.clone();
         let agent_dir = install_path.parent().map(Path::to_path_buf);
+        // ADR-104 (LOT 6) — capture la liste des secrets déclarés.
+        let secrets_declared = validated.manifest.secrets.clone();
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
         // 3. Resolve OnceLock handles
@@ -877,6 +932,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             datasources_declared,
             templates_declared,
             agent_dir,
+            secrets_declared,
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

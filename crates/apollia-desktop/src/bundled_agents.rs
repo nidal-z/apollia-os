@@ -161,7 +161,7 @@ fn onboarding_manifest() -> AgentManifest {
         // into the global `__user__` namespace.
         user_memory_write: true,
         datasources: vec![],
-        templates: vec![],
+        templates: vec![],        secrets: vec![],
     }
 }
 
@@ -266,7 +266,7 @@ fn apollia_guide_manifest() -> AgentManifest {
         agent_class: None,
         user_memory_write: false,
         datasources: vec![],
-        templates: vec![],
+        templates: vec![],        secrets: vec![],
     }
 }
 

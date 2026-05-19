@@ -2908,7 +2908,7 @@ mod tool_proxy_a2a_tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],
+            templates: vec![],            secrets: vec![],
         }
     }
 

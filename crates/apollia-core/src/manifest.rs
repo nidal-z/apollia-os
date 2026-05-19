@@ -215,6 +215,23 @@ pub struct AgentManifest {
     /// Vide par défaut — agents sans templates.
     #[serde(default)]
     pub templates: Vec<String>,
+
+    /// Noms logiques des secrets déclarés via `@agent(secrets=...)` (ADR-104, LOT 6).
+    ///
+    /// Allowlist stricte des clés de credentials que l'agent peut lire depuis
+    /// `ctx.secrets.get(key)`. Le runtime résout chaque clé via le
+    /// [`ToolCredentialStore`](apollia_tools::ToolCredentialStore) chiffré
+    /// (AES-256-GCM) en utilisant le namespace tool `"agent"` (convention LOT 6).
+    ///
+    /// **Gating** : une clé non déclarée renvoie toujours `None` côté Python,
+    /// même si la valeur existe en base. Conséquence directe du principe
+    /// least-privilege (ADR-104).
+    ///
+    /// **Lecture seule** : l'agent ne peut pas écrire un secret — les ops les
+    /// gèrent via `apollia-os tools secret set ...` ou l'UI desktop.
+    /// Vide par défaut — agents sans secrets configurés.
+    #[serde(default)]
+    pub secrets: Vec<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -281,7 +298,7 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],
+            templates: vec![],            secrets: vec![],
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -322,7 +339,7 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],
+            templates: vec![],            secrets: vec![],
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -468,7 +485,7 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],
+            templates: vec![],            secrets: vec![],
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

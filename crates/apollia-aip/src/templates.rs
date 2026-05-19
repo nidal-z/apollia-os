@@ -1,4 +1,4 @@
-//! ctx.templates — runtime Jinja2 template rendering (LOT 4/5 — ADR-103).
+//! ctx.templates — runtime Jinja2 template rendering.
 //!
 //! Utilise [`minijinja`] (Apache-2.0, ~70 KB) pour rendre les templates Jinja2
 //! déclarés dans `@agent(templates=...)`. Les fichiers sont chargés depuis

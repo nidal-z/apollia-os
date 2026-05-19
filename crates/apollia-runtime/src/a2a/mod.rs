@@ -488,7 +488,7 @@ mod tests {
                 agent_class: None,
                 user_memory_write: false,
                 datasources: vec![],
-                templates: vec![],
+                templates: vec![],                secrets: vec![],
             },
             process_state: state,
             registered_at: Instant::now(),

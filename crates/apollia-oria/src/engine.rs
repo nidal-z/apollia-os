@@ -1662,7 +1662,7 @@ mod orchestrated_tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],
+            templates: vec![],            secrets: vec![],
         }
     }
 
@@ -1813,7 +1813,7 @@ mod orchestrated_tests {
                 agent_class: None,
                 user_memory_write: false,
                 datasources: vec![],
-                templates: vec![],
+                templates: vec![],                secrets: vec![],
             },
         };
         let task = AIPTask::default();

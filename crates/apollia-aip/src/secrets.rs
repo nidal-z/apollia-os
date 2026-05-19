@@ -169,4 +169,109 @@ mod tests {
         let s = SecretsInterface::new(None, vec!["A".to_string(), "B".to_string()]);
         assert_eq!(s.list_names(), vec!["A", "B"]);
     }
+
+    // ── LOT 6 — Tests avec un ToolCredentialStore réel ────────────────────
+
+    /// Construit un `ToolCredentialStore` éphémère + insère un secret pour
+    /// le namespace `"agent"` (convention LOT 4/6).
+    fn store_with_agent_secret(
+        dir: &tempfile::TempDir,
+        key: &str,
+        value: &str,
+    ) -> Arc<Mutex<ToolCredentialStore>> {
+        let _ = apollia_tools::GovernanceDb::open(dir.path()).expect("init governance.db");
+        let db = dir
+            .path()
+            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let kf = dir.path().join(".keyfile");
+        let mut store = ToolCredentialStore::new(&db, &kf).expect("open store");
+        store
+            .set(AGENT_SECRETS_NAMESPACE, key, value)
+            .expect("set secret");
+        Arc::new(Mutex::new(store))
+    }
+
+    /// LOT 6 — Avec un store réel et une clé déclarée, `get()` retourne la
+    /// valeur en clair.
+    #[test]
+    fn test_get_with_store_returns_value_when_declared() {
+        // GIVEN
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store_with_agent_secret(&tmp, "brave_api_key", "BSA-secret-001");
+        let iface = SecretsInterface::new(Some(store), vec!["brave_api_key".to_string()]);
+        // WHEN / THEN
+        assert_eq!(
+            iface.get("brave_api_key").expect("get"),
+            Some("BSA-secret-001".to_string())
+        );
+        assert!(iface.has("brave_api_key").expect("has"));
+    }
+
+    /// LOT 6 — Gating manifest : une clé existante en base mais non
+    /// déclarée renvoie `None`.
+    #[test]
+    fn test_get_with_store_gated_by_manifest() {
+        // GIVEN store contient `brave_api_key` mais l'agent n'a déclaré
+        // que `openai_api_key`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store_with_agent_secret(&tmp, "brave_api_key", "BSA-secret-001");
+        let iface = SecretsInterface::new(Some(store), vec!["openai_api_key".to_string()]);
+        // WHEN / THEN — Le secret en base est invisible parce que non déclaré.
+        assert_eq!(iface.get("brave_api_key").expect("get"), None);
+        assert!(!iface.has("brave_api_key").expect("has"));
+        // La clé déclarée mais absente du store renvoie None aussi.
+        assert_eq!(iface.get("openai_api_key").expect("get"), None);
+    }
+
+    /// LOT 6 — `has()` retourne false pour une clé déclarée mais absente
+    /// du store.
+    #[test]
+    fn test_has_false_when_declared_but_missing_in_store() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // store ouvert (vide).
+        let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
+        let db = tmp
+            .path()
+            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let kf = tmp.path().join(".keyfile");
+        let store = ToolCredentialStore::new(&db, &kf).expect("open");
+        let iface = SecretsInterface::new(
+            Some(Arc::new(Mutex::new(store))),
+            vec!["api_key".to_string()],
+        );
+        assert!(!iface.has("api_key").expect("has"));
+    }
+
+    /// LOT 6 — `with_namespace` permet d'isoler les secrets par agent.
+    /// Un store qui contient un secret sous `agent::veille-ia` n'est visible
+    /// que pour une interface configurée avec ce namespace, pas pour le
+    /// namespace par défaut `"agent"`.
+    #[test]
+    fn test_with_namespace_isolates_secrets() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
+        let db = tmp
+            .path()
+            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let kf = tmp.path().join(".keyfile");
+        let mut store = ToolCredentialStore::new(&db, &kf).expect("open");
+        store
+            .set("agent::veille-ia", "brave_api_key", "scoped-value")
+            .expect("set scoped");
+        let shared = Arc::new(Mutex::new(store));
+
+        // Namespace par défaut "agent" — ne voit rien.
+        let default_iface =
+            SecretsInterface::new(Some(shared.clone()), vec!["brave_api_key".to_string()]);
+        assert_eq!(default_iface.get("brave_api_key").expect("get"), None);
+
+        // Namespace scopé — voit la valeur.
+        let scoped_iface =
+            SecretsInterface::new(Some(shared), vec!["brave_api_key".to_string()])
+                .with_namespace("agent::veille-ia");
+        assert_eq!(
+            scoped_iface.get("brave_api_key").expect("get"),
+            Some("scoped-value".to_string())
+        );
+    }
 }
