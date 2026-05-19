@@ -1079,6 +1079,16 @@ pub struct RuntimeContext {
 
     /// Interface secrets read-only — `ctx.secrets` (ADR-104).
     secrets_iface: Option<Py<crate::secrets::SecretsInterface>>,
+
+    /// Budget wall-clock total (en secondes) — propagé depuis le manifest
+    /// (`budget.wall_clock_secs`) au moment du `bridge.call_run()`.
+    ///
+    /// Lorsqu'il est `Some(n)`, le getter `ctx.budget.wall_clock_remaining`
+    /// renvoie `Some(max(0, n - elapsed))`. Lorsqu'il est `None` (mode test,
+    /// CLI dry-run sans deadline), le getter renvoie `None` et l'agent doit
+    /// inférer qu'aucune contrainte temporelle n'est appliquée. LOT 8 —
+    /// ADR-101.
+    pub(crate) wall_clock_secs: Option<u64>,
 }
 
 impl RuntimeContext {
@@ -1222,6 +1232,7 @@ impl RuntimeContext {
             datasources_iface,
             templates_iface,
             secrets_iface,
+            wall_clock_secs: None,
         }
     }
 
@@ -1282,6 +1293,7 @@ impl RuntimeContext {
             datasources_iface,
             templates_iface,
             secrets_iface,
+            wall_clock_secs: None,
         }
     }
 
@@ -1337,6 +1349,17 @@ impl RuntimeContext {
     pub fn with_profile(mut self, profile: crate::profile::ProfileInterface) -> Self {
         self.profile =
             pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
+        self
+    }
+
+    /// Propage le budget wall-clock total (en secondes) depuis le manifest
+    /// pour alimenter `ctx.budget.wall_clock_remaining` (LOT 8 — ADR-101).
+    ///
+    /// Appelé par le `BridgeRunner`/`AipBridge` après lecture du manifest.
+    /// Si non appelé, `ctx.budget.wall_clock_remaining` reste `None` (aucune
+    /// deadline imposée du point de vue de l'agent).
+    pub fn with_wall_clock_secs(mut self, secs: u64) -> Self {
+        self.wall_clock_secs = Some(secs);
         self
     }
 
@@ -1536,6 +1559,16 @@ impl RuntimeContext {
         }
     }
 
+    /// Nom logique de l'agent (ADR-106 — utilisé pour nommer le logger
+    /// `apollia.agent.<agent_name>` via le `logger_bridge` LOT 8).
+    ///
+    /// Propriété Python `ctx.agent_name`. Stable sur toute la durée de vie
+    /// du contexte. Toujours présent (chaîne vide impossible en pratique).
+    #[getter]
+    fn agent_name(&self) -> String {
+        self.agent_name.clone()
+    }
+
     // ── LOT 4 — Getters pour les nouvelles surfaces nestées (ADR-101) ──
     /// Façade A2A consolidée — `ctx.a2a` (ADR-102).
     ///
@@ -1595,11 +1628,15 @@ impl RuntimeContext {
     fn budget(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.step_budget {
             Some(view) => {
+                let elapsed = view.elapsed_secs();
+                let wall_clock_remaining = self
+                    .wall_clock_secs
+                    .map(|secs| (secs as f64 - elapsed).max(0.0));
                 let bv = crate::budget::BudgetView::new(
                     view.steps_remaining(),
                     view.tool_calls_remaining(),
-                    view.elapsed_secs(),
-                    None,
+                    elapsed,
+                    wall_clock_remaining,
                 );
                 Ok(Py::new(py, bv)?.into_any())
             }
@@ -2760,6 +2797,67 @@ mod tests {
         assert!(value["output_schema"].is_null());
         let tags = value["tags"].as_array().expect("tags should be an array");
         assert!(tags.is_empty());
+    }
+
+    // ── LOT 8 (ADR-101) — ctx.budget wall-clock plumbing ─────────────────
+    /// `ctx.budget.wall_clock_remaining` reste `None` quand le bridge n'a
+    /// pas propagé `wall_clock_secs` (mode test / dry-run).
+    #[test]
+    fn test_budget_wall_clock_none_by_default() {
+        // GIVEN a ctx with a budget view but no wall_clock_secs configured
+        use std::sync::atomic::AtomicU32;
+        let view = Arc::new(StepBudgetView::new(Arc::new(AtomicU32::new(0)), 5));
+        let mut ctx = RuntimeContext::for_test();
+        ctx.step_budget = Some(view);
+
+        // WHEN reading ctx.budget.wall_clock_remaining
+        pyo3::Python::with_gil(|py| {
+            let bv_obj = ctx.budget(py).expect("budget getter");
+            let bound = bv_obj.bind(py);
+            let wcr = bound
+                .getattr("wall_clock_remaining")
+                .expect("wall_clock_remaining attr");
+            // THEN it is Python None.
+            assert!(wcr.is_none(), "expected None, got: {wcr}");
+        });
+    }
+
+    /// Quand `with_wall_clock_secs(n)` est appelé, `wall_clock_remaining`
+    /// renvoie `max(0, n - elapsed)` au lieu de `None`.
+    #[test]
+    fn test_budget_wall_clock_remaining_reflects_manifest() {
+        // GIVEN a ctx with budget view + wall_clock_secs=600 from manifest
+        use std::sync::atomic::AtomicU32;
+        let view = Arc::new(StepBudgetView::new(Arc::new(AtomicU32::new(0)), 5));
+        let mut ctx = RuntimeContext::for_test().with_wall_clock_secs(600);
+        ctx.step_budget = Some(view);
+
+        // WHEN reading ctx.budget.wall_clock_remaining
+        pyo3::Python::with_gil(|py| {
+            let bv_obj = ctx.budget(py).expect("budget getter");
+            let bound = bv_obj.bind(py);
+            let wcr: f64 = bound
+                .getattr("wall_clock_remaining")
+                .expect("wall_clock_remaining attr")
+                .extract()
+                .expect("f64");
+            // THEN it is close to 600 (we just constructed the view).
+            assert!(
+                wcr > 599.0 && wcr <= 600.0,
+                "expected wall_clock_remaining near 600.0, got: {wcr}"
+            );
+        });
+    }
+
+    /// `ctx.agent_name` est exposé en lecture aux agents (LOT 8 — ADR-106).
+    #[test]
+    fn test_agent_name_getter_exposed_to_python() {
+        // GIVEN a for_test context (agent_name = "test-agent")
+        let ctx = RuntimeContext::for_test();
+
+        // WHEN reading agent_name via the Python getter
+        // THEN it matches the underlying field.
+        assert_eq!(ctx.agent_name(), "test-agent");
     }
 }
 

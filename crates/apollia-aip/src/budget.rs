@@ -8,6 +8,14 @@
 //!
 //! Construit par [`crate::context::RuntimeContext::new_with_llm`] à chaque
 //! exécution d'agent en lisant les compteurs live du `StepBudgetView` Rust.
+//!
+//! ## Wall-clock (LOT 8)
+//!
+//! Le `wall_clock_secs` est propagé depuis le manifest (champ
+//! `budget.wall_clock_secs`, alias `wall_clock_timeout_secs`) au moment du
+//! `bridge.call_run()`. Lorsqu'il est présent, `wall_clock_remaining` renvoie
+//! `Some(max(0, wall_clock_secs - elapsed_seconds))` ; sinon `None`
+//! (agent sans deadline configurée, p. ex. mode CLI dry-run).
 
 use pyo3::prelude::*;
 

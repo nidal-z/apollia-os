@@ -322,6 +322,36 @@ impl AIPBridge {
                     }
                 }
 
+                // 1c. LOT 8 — propage le wall_clock_secs résolu (manifest →
+                // bridge) vers le RuntimeContext pour alimenter
+                // `ctx.budget.wall_clock_remaining`. Le bridge a déjà la valeur
+                // sous forme de `Duration` ; on la pousse côté ctx pour qu'elle
+                // soit lue par le getter `budget`.
+                if let Ok(ctx_bound) = ctx.bind(py).downcast::<crate::context::RuntimeContext>() {
+                    let mut rc = ctx_bound.borrow_mut();
+                    if rc.wall_clock_secs.is_none() {
+                        rc.wall_clock_secs = Some(wall_clock_secs);
+                    }
+                }
+
+                // 1d. LOT 8 — câble le logger Python pour piper les records
+                // vers `ctx.log(level, msg)` (qui émet Rust tracing + bus). On
+                // configure une fois par task, plutôt que paresseusement à
+                // chaque accès `ctx.logger` (plus prévisible, un seul handler).
+                // Échec silencieux : un agent sans dépendance sur `ctx.logger`
+                // continue de tourner.
+                let _ = (|| -> PyResult<()> {
+                    let bridge_mod = py.import("apollia._internal.logger_bridge")?;
+                    let configure = bridge_mod.getattr("configure_agent_logger")?;
+                    // Récupère l'agent_name depuis le ctx pour nommer le logger.
+                    let agent_name: String =
+                        ctx.bind(py).getattr("agent_name")?.extract().unwrap_or_else(
+                            |_| "unknown".to_string(),
+                        );
+                    configure.call1((ctx.bind(py), agent_name))?;
+                    Ok(())
+                })();
+
                 // 2. Deserialise AIPTask into a Python dict.
                 let task_dict = json_loads(py, &task_json)
                     .map_err(|e| AIPBridgeError::SerializationError(e.to_string()))?;

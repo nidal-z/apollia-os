@@ -64,16 +64,21 @@ impl EventsInterface {
     ///
     /// Capturée par le SDK Python (`react.py`) à chaque tour. Affiché en
     /// mode builder, masqué en mode operator par défaut.
-    fn emit_thought(&self, text: String, step_num: u32) -> PyResult<()> {
+    ///
+    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// `emit_thought(text: str, *, step: int)`. Le paramètre `step` est
+    /// keyword-only côté Python, ce qui empêche les confusions positionnelles.
+    #[pyo3(signature = (text, *, step))]
+    fn emit_thought(&self, text: String, step: u32) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
             // Fallback structuré pour les tests sans bus.
-            tracing::info!(target: "apollia.agent.thought", step = step_num, "{}", text);
+            tracing::info!(target: "apollia.agent.thought", step = step, "{}", text);
             return Ok(());
         };
         let _ = bus.send(RuntimeEvent::Thought {
             task_id: task_id.clone(),
             agent_id: self.agent_id.clone(),
-            step_num,
+            step_num: step,
             text,
         });
         Ok(())
@@ -81,52 +86,64 @@ impl EventsInterface {
 
     /// Émet un événement `Retry` (parse error, tool error, llm error).
     ///
-    /// `cause` doit être l'une des chaînes normalisées :
+    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// `emit_retry(*, step: int, reason: str, count: int)`. Mapping
+    /// vers `RuntimeEvent::Retry { step_num, cause, attempt }` :
+    /// `reason → cause`, `count → attempt`.
+    ///
+    /// `reason` doit être l'une des chaînes normalisées :
     /// `"action_parse_error" | "tool_error" | "llm_error" | "other"`.
-    fn emit_retry(&self, step_num: u32, cause: String, attempt: u32) -> PyResult<()> {
+    #[pyo3(signature = (*, step, reason, count))]
+    fn emit_retry(&self, step: u32, reason: String, count: u32) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
             tracing::warn!(
                 target: "apollia.agent.retry",
-                step = step_num,
-                attempt = attempt,
+                step = step,
+                count = count,
                 "{}",
-                cause
+                reason
             );
             return Ok(());
         };
         let _ = bus.send(RuntimeEvent::Retry {
             task_id: task_id.clone(),
             agent_id: self.agent_id.clone(),
-            step_num,
-            cause,
-            attempt,
+            step_num: step,
+            cause: reason,
+            attempt: count,
         });
         Ok(())
     }
 
     /// Émet un `ActionParseError` (JSON action invalide, non-réparable).
+    ///
+    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// `emit_action_parse_error(*, step: int, raw: str, fatal: bool = False)`.
+    /// Mapping vers `RuntimeEvent::ActionParseError` :
+    /// `raw → raw_content`, `fatal → repair_attempted`.
+    #[pyo3(signature = (*, step, raw, fatal = false))]
     fn emit_action_parse_error(
         &self,
-        step_num: u32,
-        raw_content: String,
-        repair_attempted: bool,
+        step: u32,
+        raw: String,
+        fatal: bool,
     ) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
             tracing::warn!(
                 target: "apollia.agent.action_parse_error",
-                step = step_num,
-                repair_attempted = repair_attempted,
+                step = step,
+                fatal = fatal,
                 "{}",
-                raw_content
+                raw
             );
             return Ok(());
         };
         let _ = bus.send(RuntimeEvent::ActionParseError {
             task_id: task_id.clone(),
             agent_id: self.agent_id.clone(),
-            step_num,
-            raw_content,
-            repair_attempted,
+            step_num: step,
+            raw_content: raw,
+            repair_attempted: fatal,
         });
         Ok(())
     }
@@ -152,5 +169,144 @@ impl EventsInterface {
             chat_session_id,
             chat_message_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_core::events::{AgentId, TaskId};
+    use tokio::sync::broadcast;
+
+    fn make_bus(cap: usize) -> (
+        apollia_core::events::EventBusSender,
+        broadcast::Receiver<RuntimeEvent>,
+    ) {
+        broadcast::channel::<RuntimeEvent>(cap)
+    }
+
+    /// LOT 8 (ADR-105) — `emit_thought` propage bien sur le bus avec le
+    /// shape attendu et la signature `(text, *, step)` du Protocol Python.
+    #[test]
+    fn test_emit_thought_publishes_to_bus() {
+        // GIVEN an EventsInterface attached to a bus + task_id + agent_id
+        pyo3::prepare_freethreaded_python();
+        let (tx, mut rx) = make_bus(16);
+        let task_id = TaskId::from("task-42".to_string());
+        let agent_id = AgentId::new_v4();
+        let iface = EventsInterface::new(
+            Some(tx),
+            Some(task_id.clone()),
+            agent_id.clone(),
+            None,
+            None,
+        );
+
+        // WHEN emit_thought is invoked
+        iface
+            .emit_thought("reasoning".to_string(), 3)
+            .expect("emit_thought");
+
+        // THEN the bus receives RuntimeEvent::Thought with matching fields.
+        let evt = rx.try_recv().expect("event on bus");
+        match evt {
+            RuntimeEvent::Thought {
+                task_id: tid,
+                agent_id: aid,
+                step_num,
+                text,
+            } => {
+                assert_eq!(tid, task_id);
+                assert_eq!(aid, agent_id);
+                assert_eq!(step_num, 3);
+                assert_eq!(text, "reasoning");
+            }
+            other => panic!("expected Thought, got {other:?}"),
+        }
+    }
+
+    /// `emit_retry` mappe correctement `reason → cause`, `count → attempt`.
+    #[test]
+    fn test_emit_retry_maps_python_names_to_runtime_event() {
+        // GIVEN an EventsInterface with bus + task_id
+        pyo3::prepare_freethreaded_python();
+        let (tx, mut rx) = make_bus(16);
+        let task_id = TaskId::from("task-99".to_string());
+        let iface = EventsInterface::new(
+            Some(tx),
+            Some(task_id.clone()),
+            AgentId::new_v4(),
+            None,
+            None,
+        );
+
+        // WHEN emit_retry is called with the Protocol-aligned kwargs
+        iface
+            .emit_retry(2, "tool_error".to_string(), 1)
+            .expect("emit_retry");
+
+        // THEN the bus event carries cause/attempt with the right values.
+        let evt = rx.try_recv().expect("event on bus");
+        match evt {
+            RuntimeEvent::Retry {
+                task_id: tid,
+                step_num,
+                cause,
+                attempt,
+                ..
+            } => {
+                assert_eq!(tid, task_id);
+                assert_eq!(step_num, 2);
+                assert_eq!(cause, "tool_error");
+                assert_eq!(attempt, 1);
+            }
+            other => panic!("expected Retry, got {other:?}"),
+        }
+    }
+
+    /// `emit_action_parse_error` mappe `raw → raw_content`,
+    /// `fatal → repair_attempted` (interop ADR-105 ↔ ADR-088).
+    #[test]
+    fn test_emit_action_parse_error_maps_fields() {
+        pyo3::prepare_freethreaded_python();
+        let (tx, mut rx) = make_bus(16);
+        let task_id = TaskId::from("task-7".to_string());
+        let iface = EventsInterface::new(
+            Some(tx),
+            Some(task_id),
+            AgentId::new_v4(),
+            None,
+            None,
+        );
+
+        iface
+            .emit_action_parse_error(5, "{ broken".to_string(), true)
+            .expect("emit_action_parse_error");
+
+        let evt = rx.try_recv().expect("event on bus");
+        match evt {
+            RuntimeEvent::ActionParseError {
+                step_num,
+                raw_content,
+                repair_attempted,
+                ..
+            } => {
+                assert_eq!(step_num, 5);
+                assert_eq!(raw_content, "{ broken");
+                assert!(repair_attempted);
+            }
+            other => panic!("expected ActionParseError, got {other:?}"),
+        }
+    }
+
+    /// Sans bus, `emit_thought` reste un no-op silencieux (fallback tracing).
+    #[test]
+    fn test_emit_thought_noop_without_bus() {
+        pyo3::prepare_freethreaded_python();
+        let iface = EventsInterface::new(None, None, AgentId::new_v4(), None, None);
+        // Just verify it doesn't error — tracing fallback covers stderr.
+        iface
+            .emit_thought("anything".to_string(), 1)
+            .expect("noop should succeed");
     }
 }
