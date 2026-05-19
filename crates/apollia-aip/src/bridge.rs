@@ -347,10 +347,25 @@ impl AIPBridge {
                     }
                 }
 
-                let coroutine = agent
-                    .bind(py)
-                    .call_method1("run", (task_dict, ctx))
-                    .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?;
+                // LOT 4 — Dispatch routing :
+                // 1. Nouveau SDK (ADR-098) : si l'agent expose
+                //    `__apollia_dispatch__`, on l'appelle. La méthode
+                //    s'occupe ensuite de router vers le bon @skill /
+                //    @on_message / @orchestrated et de construire l'AIPResult
+                //    côté Python (ADR-109).
+                // 2. Sinon (agents legacy) : on appelle `run(task, ctx)`
+                //    directement, comportement historique préservé.
+                let dispatch_attr = "__apollia_dispatch__";
+                let agent_bound = agent.bind(py);
+                let coroutine = if agent_bound.hasattr(dispatch_attr).unwrap_or(false) {
+                    agent_bound
+                        .call_method1(dispatch_attr, (task_dict, ctx))
+                        .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?
+                } else {
+                    agent_bound
+                        .call_method1("run", (task_dict, ctx))
+                        .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?
+                };
 
                 let result = run_coroutine(py, &coroutine)?;
 

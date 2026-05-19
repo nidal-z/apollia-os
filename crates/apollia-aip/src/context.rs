@@ -1026,6 +1026,33 @@ pub struct RuntimeContext {
     /// part vers le persistor `runtime_events` (ADR-088). `None` quand le
     /// contexte est construit pour des tests qui ne simulent pas une tâche.
     task_id: Option<String>,
+
+    // ── LOT 4 — Nouvelles surfaces nestées (ADR-101) ────────────────────
+    /// Façade A2A consolidée — `ctx.a2a` (ADR-102).
+    ///
+    /// Partage le même `Arc<A2AInvoker>` que [`Self::a2a_invoker`]. Construit
+    /// systématiquement (l'agent voit toujours `ctx.a2a`, mais les méthodes
+    /// lèvent `RuntimeError` quand l'invoker n'est pas disponible).
+    a2a_iface: Option<Py<crate::a2a::A2AInterface>>,
+
+    /// Surface d'émission d'événements typés — `ctx.events` (ADR-105).
+    ///
+    /// Construit systématiquement (au pire en mode no-op silencieux quand le
+    /// bus est absent).
+    events_iface: Option<Py<crate::events::EventsInterface>>,
+
+    /// Interface datasources YAML — `ctx.datasources` (ADR-103).
+    ///
+    /// Construit systématiquement à partir de `manifest.datasources`. Si la
+    /// liste déclarée est vide, l'interface est quand même présente mais
+    /// `get()` lève toujours `FileNotFoundError("not declared")`.
+    datasources_iface: Option<Py<crate::datasources::DatasourcesInterface>>,
+
+    /// Interface templates Jinja2 — `ctx.templates` (ADR-103).
+    templates_iface: Option<Py<crate::templates::TemplatesInterface>>,
+
+    /// Interface secrets read-only — `ctx.secrets` (ADR-104).
+    secrets_iface: Option<Py<crate::secrets::SecretsInterface>>,
 }
 
 impl RuntimeContext {
@@ -1101,6 +1128,45 @@ impl RuntimeContext {
         let memory = memory_interface
             .and_then(|mem| pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok()));
 
+        // ── LOT 4 — Construction des nouvelles surfaces nestées ────────
+        // Toutes sont construites systématiquement (au pire en mode no-op)
+        // pour que `ctx.a2a`, `ctx.events`, etc. soient toujours accessibles
+        // sans branchement côté Python. Les valeurs de gating (datasources,
+        // templates, secrets) sont par défaut vides — le bridge les
+        // surchargera après lecture du manifest (LOT 5/6) via les builders
+        // dédiés.
+        let bus_for_iface = bus_for_token.clone();
+        let agent_id_for_iface = agent_id_stored.clone();
+        let agent_name_for_iface = agent_name.clone();
+        let a2a_invoker_for_iface = a2a_invoker.clone();
+
+        let (a2a_iface, events_iface, datasources_iface, templates_iface, secrets_iface) =
+            pyo3::Python::with_gil(|py| {
+                let a2a = crate::a2a::A2AInterface::new(
+                    a2a_invoker_for_iface,
+                    agent_name_for_iface,
+                    0,
+                    None,
+                );
+                let events = crate::events::EventsInterface::new(
+                    Some(bus_for_iface),
+                    None,
+                    agent_id_for_iface,
+                    None,
+                    None,
+                );
+                let ds = crate::datasources::DatasourcesInterface::new(Vec::new());
+                let tp = crate::templates::TemplatesInterface::new(Vec::new());
+                let sc = crate::secrets::SecretsInterface::new(None, Vec::new());
+                (
+                    pyo3::Py::new(py, a2a).ok(),
+                    pyo3::Py::new(py, events).ok(),
+                    pyo3::Py::new(py, ds).ok(),
+                    pyo3::Py::new(py, tp).ok(),
+                    pyo3::Py::new(py, sc).ok(),
+                )
+            });
+
         Self {
             llm,
             tools,
@@ -1125,6 +1191,11 @@ impl RuntimeContext {
             agent_id: agent_id_stored,
             delegation_chain: Vec::new(),
             task_id: None,
+            a2a_iface,
+            events_iface,
+            datasources_iface,
+            templates_iface,
+            secrets_iface,
         }
     }
 
@@ -1134,6 +1205,28 @@ impl RuntimeContext {
     /// dans le code de production.
     #[cfg(test)]
     pub(crate) fn for_test() -> Self {
+        let test_agent_id = AgentId::new_v4();
+        let (a2a_iface, events_iface, datasources_iface, templates_iface, secrets_iface) =
+            pyo3::Python::with_gil(|py| {
+                let a2a = crate::a2a::A2AInterface::new(None, "test-agent".to_string(), 0, None);
+                let events = crate::events::EventsInterface::new(
+                    None,
+                    None,
+                    test_agent_id.clone(),
+                    None,
+                    None,
+                );
+                let ds = crate::datasources::DatasourcesInterface::new(Vec::new());
+                let tp = crate::templates::TemplatesInterface::new(Vec::new());
+                let sc = crate::secrets::SecretsInterface::new(None, Vec::new());
+                (
+                    pyo3::Py::new(py, a2a).ok(),
+                    pyo3::Py::new(py, events).ok(),
+                    pyo3::Py::new(py, ds).ok(),
+                    pyo3::Py::new(py, tp).ok(),
+                    pyo3::Py::new(py, sc).ok(),
+                )
+            });
         Self {
             tools: None,
             llm: None,
@@ -1155,9 +1248,14 @@ impl RuntimeContext {
             notify: None,
             stt: None,
             profile: None,
-            agent_id: AgentId::new_v4(),
+            agent_id: test_agent_id,
             delegation_chain: Vec::new(),
             task_id: None,
+            a2a_iface,
+            events_iface,
+            datasources_iface,
+            templates_iface,
+            secrets_iface,
         }
     }
 
@@ -1249,7 +1347,55 @@ impl RuntimeContext {
                 self.agent_id.to_string(),
             ));
         }
+        // LOT 4 — re-construit EventsInterface en y injectant le task_id.
+        // Le pyclass est immuable, on remplace donc le Py<> en place.
+        let task_id_for_events = apollia_core::events::TaskId::from(task_id_str.clone());
+        let agent_id_for_events = self.agent_id.clone();
+        let bus_for_events = self.event_bus.clone();
+        let chat_session = self.chat_session_id.clone();
+        let chat_message = self.chat_message_id.clone();
+        self.events_iface = pyo3::Python::with_gil(|py| {
+            let new_iface = crate::events::EventsInterface::new(
+                bus_for_events,
+                Some(task_id_for_events),
+                agent_id_for_events,
+                chat_session,
+                chat_message,
+            );
+            pyo3::Py::new(py, new_iface).ok()
+        });
         self.task_id = Some(task_id_str);
+        self
+    }
+
+    // ── LOT 4 — Builders pour les nouvelles surfaces nestées ────────────
+    /// Branche l'interface datasources sur le contexte (LOT 4/5).
+    ///
+    /// Remplace la version par défaut (liste vide). Doit être appelé après
+    /// [`new_with_llm`](RuntimeContext::new_with_llm) par le bridge runtime
+    /// une fois le manifest lu et les fichiers YAML chargés.
+    pub fn with_datasources(
+        mut self,
+        ds: crate::datasources::DatasourcesInterface,
+    ) -> Self {
+        self.datasources_iface =
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, ds).ok());
+        self
+    }
+
+    /// Branche l'interface templates Jinja2 sur le contexte (LOT 4/5).
+    pub fn with_templates(
+        mut self,
+        tp: crate::templates::TemplatesInterface,
+    ) -> Self {
+        self.templates_iface =
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, tp).ok());
+        self
+    }
+
+    /// Branche l'interface secrets sur le contexte (LOT 4/6).
+    pub fn with_secrets(mut self, sc: crate::secrets::SecretsInterface) -> Self {
+        self.secrets_iface = pyo3::Python::with_gil(|py| pyo3::Py::new(py, sc).ok());
         self
     }
 }
@@ -1340,6 +1486,91 @@ impl RuntimeContext {
             Some(p) => p.clone_ref(py).into_any(),
             None => py.None(),
         }
+    }
+
+    // ── LOT 4 — Getters pour les nouvelles surfaces nestées (ADR-101) ──
+    /// Façade A2A consolidée — `ctx.a2a` (ADR-102).
+    ///
+    /// Retourne toujours une `A2AInterface` (jamais `None`) ; les méthodes
+    /// internes lèvent `RuntimeError("A2A invoker not available …")` si le
+    /// runtime n'a pas d'invoker actif. Cette uniformité évite à l'agent de
+    /// brancher sur la présence de `ctx.a2a`.
+    #[getter]
+    fn a2a(&self, py: Python<'_>) -> PyObject {
+        match &self.a2a_iface {
+            Some(p) => p.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Émission d'événements typés — `ctx.events` (ADR-105).
+    #[getter]
+    fn events(&self, py: Python<'_>) -> PyObject {
+        match &self.events_iface {
+            Some(p) => p.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Datasources YAML lecture-seule — `ctx.datasources` (ADR-103).
+    #[getter]
+    fn datasources(&self, py: Python<'_>) -> PyObject {
+        match &self.datasources_iface {
+            Some(p) => p.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Templates Jinja2 lecture-seule — `ctx.templates` (ADR-103).
+    #[getter]
+    fn templates(&self, py: Python<'_>) -> PyObject {
+        match &self.templates_iface {
+            Some(p) => p.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Secrets lecture-seule avec gating manifest — `ctx.secrets` (ADR-104).
+    #[getter]
+    fn secrets(&self, py: Python<'_>) -> PyObject {
+        match &self.secrets_iface {
+            Some(p) => p.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Vue lecture-seule du budget d'exécution — `ctx.budget` (ADR-101).
+    ///
+    /// Successeur typé de `ctx.step_budget` (qui reste fonctionnel et
+    /// `#[deprecated]` jusqu'à LOT 9). Snapshot frais à chaque accès.
+    #[getter]
+    fn budget(&self, py: Python<'_>) -> PyResult<PyObject> {
+        match &self.step_budget {
+            Some(view) => {
+                let bv = crate::budget::BudgetView::new(
+                    view.steps_remaining(),
+                    view.tool_calls_remaining(),
+                    view.elapsed_secs(),
+                    None,
+                );
+                Ok(Py::new(py, bv)?.into_any())
+            }
+            None => Ok(py.None()),
+        }
+    }
+
+    /// Logger structuré pré-configuré pour cet agent — `ctx.logger`
+    /// (ADR-106).
+    ///
+    /// Retourne `logging.getLogger("apollia.agent.{agent_id}")`. La
+    /// configuration des handlers (relais tracing Rust, niveau, format) est
+    /// gérée par le bootstrap SDK Python en LOT 8. Ici on garantit
+    /// seulement que l'agent reçoit toujours un Logger nommé.
+    #[getter]
+    fn logger<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let logger_name = format!("apollia.agent.{}", self.agent_id);
+        let logging = py.import("logging")?;
+        logging.call_method1("getLogger", (logger_name,))
     }
 
     /// Émet un token de streaming vers le frontend en mode chat.
@@ -2454,31 +2685,7 @@ mod a2a_tests {
     #[tokio::test]
     async fn test_gate_check_rejects_without_a2a() {
         // GIVEN un RuntimeContext avec supports_a2a = false
-        let ctx = RuntimeContext {
-            tools: None,
-            llm: None,
-            memory: None,
-            mailbox: None,
-            agent_name: "test-agent".to_string(),
-            supports_a2a: false,
-            user_context: None,
-            a2a_delegate: None,
-            a2a_invoker: None,
-            user_memory_writable: false,
-            a2a_depth: 0,
-            chain_deadline: None,
-            workspace: None,
-            event_bus: None,
-            chat_session_id: None,
-            chat_message_id: None,
-            step_budget: None,
-            notify: None,
-            stt: None,
-            profile: None,
-            agent_id: AgentId::new_v4(),
-            delegation_chain: Vec::new(),
-            task_id: None,
-        };
+        let ctx = RuntimeContext::for_test();
 
         // THEN les vérifications internes échouent
         assert!(!ctx.supports_a2a);
@@ -2502,31 +2709,8 @@ mod a2a_tests {
         );
         uc.insert("context".to_string(), vec![]);
 
-        let ctx = RuntimeContext {
-            tools: None,
-            llm: None,
-            memory: None,
-            mailbox: None,
-            agent_name: "chat-agent".to_string(),
-            supports_a2a: false,
-            user_context: Some(uc),
-            a2a_delegate: None,
-            a2a_invoker: None,
-            user_memory_writable: false,
-            a2a_depth: 0,
-            chain_deadline: None,
-            workspace: None,
-            event_bus: None,
-            chat_session_id: None,
-            chat_message_id: None,
-            step_budget: None,
-            notify: None,
-            stt: None,
-            profile: None,
-            agent_id: AgentId::new_v4(),
-            delegation_chain: Vec::new(),
-            task_id: None,
-        };
+        let mut ctx = RuntimeContext::for_test();
+        ctx.user_context = Some(uc);
 
         // THEN user_context is Some with expected categories
         assert!(ctx.user_context.is_some());
@@ -2539,31 +2723,7 @@ mod a2a_tests {
     #[tokio::test]
     async fn test_user_context_none_in_task_mode() {
         // GIVEN a RuntimeContext with user_context = None (task mode)
-        let ctx = RuntimeContext {
-            tools: None,
-            llm: None,
-            memory: None,
-            mailbox: None,
-            agent_name: "task-agent".to_string(),
-            supports_a2a: false,
-            user_context: None,
-            a2a_delegate: None,
-            a2a_invoker: None,
-            user_memory_writable: false,
-            a2a_depth: 0,
-            chain_deadline: None,
-            workspace: None,
-            event_bus: None,
-            chat_session_id: None,
-            chat_message_id: None,
-            step_budget: None,
-            notify: None,
-            stt: None,
-            profile: None,
-            agent_id: AgentId::new_v4(),
-            delegation_chain: Vec::new(),
-            task_id: None,
-        };
+        let ctx = RuntimeContext::for_test();
 
         // THEN user_context is None
         assert!(ctx.user_context.is_none());

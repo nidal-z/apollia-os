@@ -206,15 +206,28 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             return Err(AIPValidationError::RunNotAsync);
         }
 
-        // Call manifest() and convert dict -> JSON -> AgentManifest
-        let manifest_dict = agent_ref
-            .call_method0("manifest")
-            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
+        // LOT 4 — Source of truth pour le manifest :
+        //   - Nouveau SDK (ADR-098) : `__apollia_manifest__` sur la classe,
+        //     pré-calculé par le décorateur `@agent`. Évite un appel
+        //     Python à chaque validation.
+        //   - Sinon legacy : `agent.manifest()` (méthode dynamique).
         let json_mod = py
             .import("json")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
+        let manifest_obj = if agent_ref
+            .hasattr("__apollia_manifest__")
+            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
+        {
+            agent_ref
+                .getattr("__apollia_manifest__")
+                .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
+        } else {
+            agent_ref
+                .call_method0("manifest")
+                .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
+        };
         let json_str: String = json_mod
-            .call_method1("dumps", (&manifest_dict,))
+            .call_method1("dumps", (&manifest_obj,))
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
             .extract()
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;

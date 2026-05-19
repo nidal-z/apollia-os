@@ -156,6 +156,10 @@ notify = "6"
 pyo3 = { version = "0.24", features = ["auto-initialize"] }
 pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 
+# --- Agent runtime (apollia-aip) — YAML datasources + Jinja2 templates (ADR-103) ---
+serde_yaml = "0.9"
+minijinja = { version = "2", default-features = false, features = ["builtins", "serde"] }
+
 # --- Internal crates ---
 apollia-core    = { path = "crates/apollia-core" }
 apollia-runtime = { path = "crates/apollia-runtime" }

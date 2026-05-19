@@ -1,5 +1,6 @@
 """Parsing and formatting utilities for Apollia agents."""
 
+from apollia.utils.a2a import extract_a2a_payload
 from apollia.utils.assertion import (
     AssertionSpec,
     Citation,
@@ -35,6 +36,7 @@ __all__ = [
     "aip_result_text",
     "assert_with_confidence",
     "build_citation_payload",
+    "extract_a2a_payload",
     "extract_code_block",
     "extract_json",
     "extract_xml_tag",

@@ -28,6 +28,8 @@ futures             = { workspace = true }
 async-trait         = { workspace = true }
 pyo3                = { workspace = true }
 pyo3-async-runtimes = { workspace = true }
+serde_yaml          = { workspace = true }
+minijinja           = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
