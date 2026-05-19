@@ -43,12 +43,22 @@ def expose_to_module(cls: type, instance: Any) -> None:
     module = _resolve_module(cls)
     existing = getattr(module, "agent", None)
     if existing is not None and existing is not instance:
-        existing_cls = type(existing)
-        if existing_cls is not cls:
-            raise AgentConfigError(
-                f"Module '{module.__name__}' already declares an 'agent' of "
-                f"class {existing_cls.__name__}; cannot register {cls.__name__}"
-            )
+        # Tolerate the case where `module.agent` is the @agent decorator
+        # itself (user did `from apollia import agent` at the top of the
+        # file). The decorator is the very `agent` function exported by
+        # `apollia.agent`; detect it by identity.
+        try:
+            from apollia.agent import agent as _agent_decorator
+            is_decorator_shadow = existing is _agent_decorator
+        except ImportError:
+            is_decorator_shadow = False
+        if not is_decorator_shadow:
+            existing_cls = type(existing)
+            if existing_cls is not cls:
+                raise AgentConfigError(
+                    f"Module '{module.__name__}' already declares an 'agent' of "
+                    f"class {existing_cls.__name__}; cannot register {cls.__name__}"
+                )
     setattr(module, "agent", instance)
 
 
