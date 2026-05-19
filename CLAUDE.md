@@ -139,6 +139,7 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 | Spec CLI | `docs/wiki/Briques-CLI.md` |
 | Stories et sprints | `docs/internal/STORIES/sprint-index.md` |
 | Décisions (ADR) | `docs/wiki/Decisions-Log.md` · fichiers : `docs/adr/` |
+| **SDK Python (Apollia AgentKit v0.5.0)** | `sdk/README.md` · décorateurs `@agent` / `@skill` / `@on_message` / `@orchestrated` · ADRs 098-112 |
 | Planning launch v0.1.0 | `docs/internal/RELEASE-MOSCOW.md` (MoSCoW) · `docs/internal/release/PLAN-13-JOURS-2026-05-08.md` (séquençage 8 → 20 mai) · `docs/internal/release/BACKLOG-2026-05-08.md` (tâches détaillées) |
 | Design system frontend | `docs/wiki/DESIGN-SYSTEM.md` |
 

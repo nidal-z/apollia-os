@@ -373,6 +373,7 @@ def test_json_streamer_skips_non_watched_fields() -> None:
     assert emitted == "Calling tool"
 
 
+@pytest.mark.skip(reason="apollia_base shim module supprimé post-LOT 13 (rebuild AgentKit)")
 def test_backward_compat_import() -> None:
     """Old import path via apollia_base re-exports all public symbols."""
     import sys

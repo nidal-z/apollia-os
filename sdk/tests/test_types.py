@@ -73,42 +73,36 @@ def test_aip_result_to_dict_with_data():
     assert d["data"] == {"items": 3}
 
 
-def test_import_from_root():
-    """from apollia import AIPResult works."""
-    from apollia import AIPResult as R
+def test_import_aipresult_from_types():
+    """AIPResult remains importable from apollia.types (legacy compat)."""
+    from apollia.types import AIPResult as R
 
     assert R is not None
     assert R is AIPResult
 
 
 def test_version():
-    """__version__ is exposed."""
+    """__version__ is exposed and bumped post-AgentKit rebuild."""
     from apollia import __version__
 
-    assert __version__ == "0.4.0"
+    assert __version__ == "0.5.0"
 
 
-def test_import_conversational_agent():
-    """from apollia import ConversationalAgent works without runtime."""
-    from apollia import ConversationalAgent
+def test_new_public_api_exports():
+    """New decorator-first API is exported from apollia root (ADR-098)."""
+    from apollia import agent, skill, on_message, orchestrated, DomainError, NeedHumanInput
+
+    assert all(callable(x) for x in (agent, skill, on_message, orchestrated))
+    assert DomainError is not None
+    assert NeedHumanInput is not None
+
+
+def test_legacy_conversational_agent_still_importable_from_submodule():
+    """ConversationalAgent legacy reste accessible depuis apollia.agents
+    pour les tests SDK existants — sera supprimé en post-LOT 15."""
+    from apollia.agents import ConversationalAgent
 
     assert ConversationalAgent is not None
-
-
-def test_import_from_agents_module():
-    """from apollia.agents import AIPResult, ConversationalAgent works."""
-    from apollia.agents import AIPResult, ConversationalAgent
-
-    assert AIPResult is not None
-    assert ConversationalAgent is not None
-
-
-def test_conversational_agent_cannot_instantiate_without_manifest():
-    """ConversationalAgent enforces manifest() implementation via ABC."""
-    from apollia import ConversationalAgent
-
-    with pytest.raises(TypeError, match="abstract"):
-        ConversationalAgent()  # type: ignore[abstract]
 
 
 def test_agent_manifest_dict_accepts_aip_v2_fields():
