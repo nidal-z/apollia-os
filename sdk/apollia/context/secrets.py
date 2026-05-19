@@ -1,4 +1,4 @@
-"""ctx.secrets — read-only credentials access (ADR-104)."""
+"""ctx.secrets — read-only credentials access."""
 
 from __future__ import annotations
 

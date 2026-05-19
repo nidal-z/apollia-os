@@ -1,4 +1,4 @@
-"""Tests for the ``Ctx`` Protocol and its 14 typed sub-surfaces (ADR-101)."""
+"""Tests for the ``Ctx`` Protocol and its 14 typed sub-surfaces."""
 
 from __future__ import annotations
 

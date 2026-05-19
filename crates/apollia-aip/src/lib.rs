@@ -10,8 +10,7 @@
 //! - `context` — `RuntimeContext` injected into agent `run()` calls.
 //! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI).
 //!
-//! LOT 4 additions (additive, non-breaking — see ADR-101 / ADR-102 /
-//! ADR-103 / ADR-104 / ADR-105 / ADR-106):
+//! Nested ctx surfaces (additive, non-breaking):
 //! - `a2a` — nested `ctx.a2a` surface (consolidates flat A2A methods).
 //! - `events` — `ctx.events` typed event emission.
 //! - `datasources` — `ctx.datasources` YAML runtime access.
@@ -41,7 +40,7 @@ pub mod stt;
 pub mod templates;
 pub mod validator;
 
-// ── LOT 4 public re-exports — consumed by apollia-runtime when wiring
+// ── Public re-exports — consumed by apollia-runtime when wiring
 //    RuntimeContext at task start. Keeping these flat at the crate root
 //    makes the bridge surface easy to discover. ──
 pub use a2a::A2AInterface;

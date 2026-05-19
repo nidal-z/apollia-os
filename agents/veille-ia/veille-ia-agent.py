@@ -1116,4 +1116,4 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
 
 
 # (Module-level ``agent`` singleton exposé automatiquement par le décorateur
-# ``@agent`` (ADR-107).)
+# ``@agent``.)

@@ -4,9 +4,6 @@ The command performs read-only introspection: it loads the target ``.py``
 file as a module, extracts the canonical manifest produced by ``@agent``
 (or falls back to a legacy ``manifest()`` method/function), and renders
 either a human-readable summary or a JSON document.
-
-See ADR-110 for the design rationale (fail-fast manifest inspection,
-parity with the runtime loader, exit code conventions).
 """
 
 from __future__ import annotations

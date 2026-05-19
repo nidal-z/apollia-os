@@ -1,7 +1,6 @@
 """``@skill`` decorator — mark a method as an A2A-invocable skill.
 
-See ADR-098 (decorator-first) and ADR-099 (signature = schema). The
-decorator stamps a marker on the method; the manifest builder (LOT 1)
+The decorator stamps a marker on the method; the manifest builder
 walks those markers to assemble the canonical agent manifest.
 """
 
@@ -48,7 +47,7 @@ def skill(
 
     The method signature (excluding ``self`` and ``ctx``) is introspected
     at decoration time to generate the JSON Schema for input validation
-    (cf. ADR-099). The method must be ``async def``.
+    The method must be ``async def``.
 
     Args:
         skill_id: Dot-namespaced unique identifier (e.g. ``"pdf.read_text"``).

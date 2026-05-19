@@ -1,4 +1,4 @@
-"""ctx.templates — runtime Jinja2 template rendering (ADR-103)."""
+"""ctx.templates — runtime Jinja2 template rendering."""
 
 from __future__ import annotations
 

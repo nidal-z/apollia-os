@@ -1,11 +1,11 @@
 """Public types for Apollia agents.
 
 This module exposes the ``Ctx`` Protocol — the unique surface an agent
-sees at runtime — plus the multi-modal content types (ADR-111) and the
+sees at runtime — plus the multi-modal content types and the
 small set of helpers used to build vision messages.
 
 Legacy ``AIPResult`` is kept here for backward compatibility with the
-agents under :mod:`apollia.agents` (frozen for LOT 13 migration).  New
+agents under :mod:`apollia.agents`.  New
 agents should not depend on it directly: handlers return plain values
 and the dispatch boundary builds the canonical AIPResult dict.
 """
@@ -34,7 +34,7 @@ from apollia.context.workspace import WorkspaceContext
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Multi-modal content (Vision API typing, ADR-111)
+# Multi-modal content (Vision API typing)
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -95,7 +95,7 @@ class Message(TypedDict):
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Vision helpers (ADR-111)
+# Vision helpers
 # ──────────────────────────────────────────────────────────────────────
 
 
@@ -152,8 +152,8 @@ def image_from_url(url: str) -> ImageContent:
 class Ctx(Protocol):
     """Runtime context passed to every agent handler.
 
-    Exposes 100% of the Apollia backend through 14 typed services
-    (ADR-101).  Use type hints to get IDE autocomplete::
+    Exposes 100% of the Apollia backend through 14 typed services.
+    Use type hints to get IDE autocomplete::
 
         @skill("foo.bar")
         async def bar(self, name: str, ctx: Ctx) -> dict:
@@ -176,10 +176,10 @@ class Ctx(Protocol):
     notify: NotifyInterface
     budget: BudgetView
 
-    # NOTE: ReAct lives as a free function `apollia.react(ctx, ...)`
-    # (LOT 7, ADR-098/ADR-102), not on the Ctx protocol. Keeping it off
-    # the Ctx surface avoids a PyO3 injection layer and lets users compose
-    # alternative reasoning loops without subclassing the runtime context.
+    # NOTE: ReAct lives as a free function `apollia.react(ctx, ...)`,
+    # not on the Ctx protocol. Keeping it off the Ctx surface avoids a
+    # PyO3 injection layer and lets users compose alternative reasoning
+    # loops without subclassing the runtime context.
 
 
 # ──────────────────────────────────────────────────────────────────────

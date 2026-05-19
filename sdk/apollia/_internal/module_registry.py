@@ -1,8 +1,8 @@
 """``@agent`` automatic module-level instance exposure.
 
-ADR-107: every agent module must expose a module-level ``agent`` symbol
+Every agent module must expose a module-level ``agent`` symbol
 that points to the singleton instance of the ``@agent``-decorated class.
-The decorator (LOT 2) instantiates the class and calls
+The decorator instantiates the class and calls
 :func:`expose_to_module` to bind it.
 """
 

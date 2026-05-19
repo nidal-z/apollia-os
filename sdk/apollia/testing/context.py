@@ -9,8 +9,6 @@ These mocks intentionally implement only the surface methods agents use
 at runtime.  They are *not* full duck-types — calling a method that has
 not been implemented will raise :class:`AttributeError`, which keeps the
 test surface small and intentional.
-
-See LOT 10 of the SDK refactor (testing utilities).
 """
 
 from __future__ import annotations

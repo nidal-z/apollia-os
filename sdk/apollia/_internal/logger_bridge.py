@@ -1,4 +1,4 @@
-"""Bridge stdlib ``logging`` → ``ctx.log()`` Rust tracing (ADR-106, LOT 8).
+"""Bridge stdlib ``logging`` → ``ctx.log()`` Rust tracing.
 
 The Rust bridge (`apollia-aip/src/bridge.rs::call_run`) invokes
 :func:`configure_agent_logger` once per task, *before* the agent's

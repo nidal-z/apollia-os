@@ -206,8 +206,8 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             return Err(AIPValidationError::RunNotAsync);
         }
 
-        // LOT 4 — Source of truth pour le manifest :
-        //   - Nouveau SDK (ADR-098) : `__apollia_manifest__` sur la classe,
+        // Source of truth pour le manifest :
+        //   - Nouveau SDK : `__apollia_manifest__` sur la classe,
         //     pré-calculé par le décorateur `@agent`. Évite un appel
         //     Python à chaque validation.
         //   - Sinon legacy : `agent.manifest()` (méthode dynamique).

@@ -1,6 +1,6 @@
 """ReAct loop utility — Reason + Act loop using ``ctx.llm`` and tools.
 
-ADR-098 retains the ReAct pattern as a free utility (not a base class).
+The ReAct pattern is exposed as a free utility (not a base class).
 Agents opt in by importing :func:`react` and calling it from any handler::
 
     from apollia import react

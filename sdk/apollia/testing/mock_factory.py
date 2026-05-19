@@ -1,7 +1,7 @@
 """Factory for ``(agent_instance, MockContext)`` used in unit tests.
 
-See LOT 10 of the SDK refactor.  This module is the public entry point
-for the ``apollia.testing`` package: ``from apollia.testing import mock``.
+This module is the public entry point for the ``apollia.testing``
+package: ``from apollia.testing import mock``.
 
 Usage::
 

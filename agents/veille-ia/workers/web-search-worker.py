@@ -5,7 +5,7 @@ des articles trouvés. Exposé via le skill A2A
 ``research.search_and_extract``, consommé par les directors (veille-ia,
 …).
 
-SDK : decorator-first Apollia AgentKit (ADR-098..ADR-112).
+SDK : decorator-first Apollia AgentKit.
 """
 
 from __future__ import annotations

@@ -1,9 +1,9 @@
 """Manifest generation from ``@agent``, ``@skill``, ``@on_message`` and
 ``@orchestrated`` decorators.
 
-The decorators (defined in LOT 2) stamp markers on classes and methods.
+The decorators stamp markers on classes and methods.
 This module walks those markers to produce the canonical manifest dict
-consumed by the Rust loader. See ADR-098 and ADR-110.
+consumed by the Rust loader.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ __all__ = [
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Marker attributes (set by decorators in LOT 2)
+# Marker attributes (set by decorators)
 # ──────────────────────────────────────────────────────────────────────
 
 # Method attribute → dict {id, description, requires_approval, dangerous}.
@@ -211,7 +211,7 @@ def build_manifest(
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
 
-    Validates at load time (fail-fast, ADR-110):
+    Validates at load time (fail-fast):
 
     - ``name`` and ``version`` are non-empty.
     - Every entry in ``datasources``/``templates``/``secrets``/``tools_required``

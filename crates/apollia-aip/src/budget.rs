@@ -1,4 +1,4 @@
-//! ctx.budget — read-only StepBudget view exposed to Python (LOT 4 — ADR-101).
+//! ctx.budget — read-only StepBudget view exposed to Python.
 //!
 //! Successeur typé du [`crate::context::PyStepBudgetView`] historique. La
 //! sémantique est strictement identique (snapshot lecture-seule au moment de
@@ -9,7 +9,7 @@
 //! Construit par [`crate::context::RuntimeContext::new_with_llm`] à chaque
 //! exécution d'agent en lisant les compteurs live du `StepBudgetView` Rust.
 //!
-//! ## Wall-clock (LOT 8)
+//! ## Wall-clock
 //!
 //! Le `wall_clock_secs` est propagé depuis le manifest (champ
 //! `budget.wall_clock_secs`, alias `wall_clock_timeout_secs`) au moment du

@@ -31,8 +31,8 @@ class LlmProxy(Protocol):
     """``ctx.llm`` — LLM backend access.
 
     Three primary methods: :meth:`complete` for single-shot, :meth:`stream`
-    for token iteration, :meth:`embed` for embeddings.  Stream cleanup is
-    governed by ADR-112 (cancellation propagates to the Rust backend).
+    for token iteration, :meth:`embed` for embeddings.  Stream cleanup
+    propagates cancellation to the Rust backend.
     """
 
     @property

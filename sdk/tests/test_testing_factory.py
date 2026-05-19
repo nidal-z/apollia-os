@@ -1,4 +1,4 @@
-"""Tests for apollia.testing.mock factory + new assertion helpers (LOT 10)."""
+"""Tests for apollia.testing.mock factory + new assertion helpers."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from apollia.testing import (
 # ──────────────────────────────────────────────────────────────────────
 # Module-fixture machinery
 #
-# ``@agent`` (ADR-107) refuses to register two different classes inside
+# ``@agent`` refuses to register two different classes inside
 # the same Python module — the test_*.py file itself would have an
 # ``agent`` symbol clash with the imported decorator.  We therefore
 # build fresh, unique fake modules for every fixture class.

@@ -3,7 +3,7 @@
 Agents never construct these dicts directly: handlers return plain Python
 values (strings, dicts, dataclasses…) or raise typed exceptions, and the
 SDK dispatch boundary translates that into the canonical shape consumed by
-the Rust runtime. See ADR-109.
+the Rust runtime.
 
 Reference shape (mirrors ``crates/apollia-core/src/result.rs``):
 

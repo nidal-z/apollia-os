@@ -1,6 +1,6 @@
 """Code Review Director — orchestre 3 workers (security, style, perf) via A2A.
 
-Pattern : L2 director (decorator-first SDK, ADR-098..ADR-112). Les règles
+Pattern : L2 director (decorator-first SDK). Les règles
 métier vivent dans APOLLIA.md (lues par les workers via ``ctx.workspace``).
 Le director ne fait QUE de l'orchestration et de l'agrégation.
 """

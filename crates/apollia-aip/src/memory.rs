@@ -1619,7 +1619,7 @@ mod tests {
         assert!(id.is_ok(), "record with expires_in should succeed");
     }
 
-    // LOT 9 — export() round-trips all entry types as JSON
+    // export() round-trips all entry types as JSON
     #[test]
     fn test_export_round_trips_entries() {
         // GIVEN a namespace seeded with episodic + semantic entries
@@ -1657,7 +1657,7 @@ mod tests {
         assert_eq!(dump["procedural"].as_array().expect("procedural").len(), 0);
     }
 
-    // LOT 9 — import_data(replace=True) restores into an empty namespace
+    // import_data(replace=True) restores into an empty namespace
     #[test]
     fn test_export_then_import_replace_round_trip() {
         // GIVEN namespace A with one semantic + one episodic entry, dumped
@@ -1706,7 +1706,7 @@ mod tests {
         assert_eq!(value, Some("15000".to_string()));
     }
 
-    // LOT 9 — import_data without replace keeps existing entries intact (merge)
+    // import_data without replace keeps existing entries intact (merge)
     #[test]
     fn test_import_data_merge_does_not_overwrite() {
         // GIVEN namespace with an existing entry and a dump from another agent
@@ -1754,7 +1754,7 @@ mod tests {
         assert_eq!(value, Some("operator".to_string()));
     }
 
-    // LOT 9 — accept the `schema_version` alias in addition to `format_version`
+    // Accept the `schema_version` alias in addition to `format_version`
     #[test]
     fn test_import_accepts_schema_version_alias() {
         // GIVEN a dump that only carries `schema_version` (SDK-facing alias)

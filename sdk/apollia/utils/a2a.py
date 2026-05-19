@@ -14,7 +14,7 @@ a low-level test fixture), import them from the private module:
 
 This module re-exports the same functions and emits a
 :class:`DeprecationWarning` on import. It will be removed in v0.6.0
-once the legacy agents under ``apollia.agents`` are retired (LOT 13).
+once the legacy agents under ``apollia.agents`` are retired.
 """
 
 from __future__ import annotations

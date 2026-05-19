@@ -73,7 +73,7 @@ class _DocxError(DomainError):
     step_budget={"max_steps": 1, "max_tool_calls": 5, "wall_clock_secs": 300},
 )
 class DocxWorker:
-    """5 skills .docx déterministes (decorator-first, ADR-098+)."""
+    """5 skills .docx déterministes (decorator-first)."""
 
     @skill(
         "docx.read",
@@ -1438,4 +1438,4 @@ def _json_default(o: Any) -> Any:
 
 
 # (The ``agent`` module-level singleton is exposed automatically by the
-# ``@agent`` decorator, cf. ADR-107.)
+# ``@agent`` decorator.)

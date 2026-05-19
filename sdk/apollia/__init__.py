@@ -35,7 +35,7 @@ __all__ = [
     "skill",
     "on_message",
     "orchestrated",
-    # ReAct utility (ADR-098, ADR-102)
+    # ReAct utility
     "react",
     # Exceptions
     "AgentError",

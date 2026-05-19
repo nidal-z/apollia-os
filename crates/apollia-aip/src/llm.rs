@@ -90,7 +90,7 @@ pub struct PyLlmResponse {
 ///     {"role": "user",      "content": "Résume en 3 points."},
 /// ])
 ///
-/// # Cas 3 — Streaming (async iterator, ADR-112)
+/// # Cas 3 — Streaming (async iterator)
 /// async for chunk in await ctx.llm.stream([{"role": "user", "content": "..."}]):
 ///     print(chunk)
 /// # Use ctx.llm.stream_buffered(...) (deprecated) to get a list[str] instead.
@@ -330,12 +330,12 @@ impl LlmProxy {
 
     /// Buffered streaming — collects all chunks server-side and returns a
     /// `list[str]`. Kept for backward compat ; the new canonical streaming
-    /// API is [`Self::stream`] (async iterator) per ADR-112.
+    /// API is [`Self::stream`] (async iterator).
     ///
     /// Fallback : if the backend does not support streaming, falls back to
     /// `complete()` and returns the content as a single-element list.
     #[deprecated(
-        note = "ctx.llm.stream() now returns an async iterator (ADR-112). \
+        note = "ctx.llm.stream() now returns an async iterator. \
                 Use `async for chunk in await ctx.llm.stream(messages)` instead. \
                 If you really need a buffered list, call `stream_buffered`."
     )]
@@ -466,7 +466,7 @@ impl LlmProxy {
 
     /// Streaming LLM call — returns an async iterator yielding text chunks.
     ///
-    /// Canonical streaming surface per ADR-112. Returns a [`PyTokenStream`]
+    /// Canonical streaming surface. Returns a [`PyTokenStream`]
     /// implementing the async iteration protocol (`__aiter__` / `__anext__`).
     /// Each chunk is yielded as soon as it arrives from the backend so the
     /// agent can emit real-time `ChatToken` events.
@@ -579,8 +579,8 @@ impl LlmProxy {
 
     /// Deprecated alias for [`Self::stream`] — kept for backward compat with
     /// agents written against the previous bridge. Will be removed once the
-    /// legacy `BaseReActAgent` is dropped (LOT 13).
-    #[deprecated(note = "Use `stream()` directly (ADR-112). \
+    /// legacy `BaseReActAgent` is dropped.
+    #[deprecated(note = "Use `stream()` directly. \
                           `stream_complete` is kept as a transitional alias.")]
     #[allow(deprecated)]
     #[pyo3(signature = (messages, backend = None))]
@@ -671,7 +671,7 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
 ///
 /// `content` peut être :
 /// - une `str` (fast path texte) ;
-/// - une `list[dict]` de blocs typés (ADR-111 vision typing) — chaque bloc est
+/// - une `list[dict]` de blocs typés (vision typing) — chaque bloc est
 ///   soit `{"type": "text", "text": "..."}`, soit
 ///   `{"type": "image", "source": {"type": "base64"|"url", ...}}`.
 ///   Les blocs texte sont concaténés (jointure par `\n\n`). Les blocs image
@@ -978,7 +978,7 @@ mod tests {
         });
     }
 
-    /// LOT 9 — multi-modal content list with a text block is accepted and flattened.
+    /// Multi-modal content list with a text block is accepted and flattened.
     #[test]
     fn test_py_dict_to_chat_message_multimodal_text_only() {
         pyo3::prepare_freethreaded_python();
@@ -1001,7 +1001,7 @@ mod tests {
         });
     }
 
-    /// LOT 9 — image content blocks are flattened to a placeholder.
+    /// Image content blocks are flattened to a placeholder.
     #[test]
     fn test_py_dict_to_chat_message_multimodal_with_image() {
         pyo3::prepare_freethreaded_python();
@@ -1039,7 +1039,7 @@ mod tests {
         });
     }
 
-    /// LOT 9 — unknown block type raises PyValueError.
+    /// Unknown block type raises PyValueError.
     #[test]
     fn test_py_dict_to_chat_message_unknown_block_type() {
         pyo3::prepare_freethreaded_python();

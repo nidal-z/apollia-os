@@ -10,7 +10,7 @@ Principles (ADR-073):
   - Never invents a capability that is not in the embedded knowledge base.
   - Only proposes navigate-style actions (no destructive tools).
 
-SDK : decorator-first Apollia AgentKit (ADR-098..ADR-112).
+SDK : decorator-first Apollia AgentKit.
 """
 
 from __future__ import annotations

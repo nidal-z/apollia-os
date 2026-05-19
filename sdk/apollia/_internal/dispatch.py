@@ -3,7 +3,6 @@
 Routes an incoming AIP task to the right handler on an agent instance,
 validates the payload against the inferred schema, awaits coroutine
 handlers, and traps every exception into a canonical ``AIPResult`` dict.
-See ADR-098 and ADR-100.
 """
 
 from __future__ import annotations

@@ -240,7 +240,7 @@ mod tests {
         });
     }
 
-    /// LOT 5 — Vérifie le chemin de production : `load_from_dir` lit un vrai
+    /// Vérifie le chemin de production : `load_from_dir` lit un vrai
     /// fichier `.j2` depuis `<agent_dir>/templates/<name>.j2` et le rend
     /// correctement avec un contexte Python.
     #[test]
@@ -275,7 +275,7 @@ mod tests {
         });
     }
 
-    /// LOT 5 — Vérifie les fallbacks d'extension `.jinja2` et `.jinja`.
+    /// Vérifie les fallbacks d'extension `.jinja2` et `.jinja`.
     #[test]
     fn test_load_from_dir_extension_fallbacks() {
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -292,7 +292,7 @@ mod tests {
         assert!(iface.has("b"));
     }
 
-    /// LOT 5 — Un template manquant n'empêche pas la compilation des autres.
+    /// Un template manquant n'empêche pas la compilation des autres.
     #[test]
     fn test_load_from_dir_missing_template_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");
@@ -319,7 +319,7 @@ mod tests {
         });
     }
 
-    /// LOT 5 — Un template syntactically invalide est ignoré (warn!), pas un crash.
+    /// Un template syntactically invalide est ignoré (warn!), pas un crash.
     #[test]
     fn test_load_from_dir_invalid_template_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");

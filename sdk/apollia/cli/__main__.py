@@ -53,7 +53,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     new_parser.set_defaults(func=_run_new)
 
-    # `apollia inspect` — read-only manifest inspection (ADR-110).
+    # `apollia inspect` — read-only manifest inspection.
     inspect_cmd.build_parser(subparsers)
 
     return parser

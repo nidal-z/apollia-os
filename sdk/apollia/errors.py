@@ -3,8 +3,6 @@
 All SDK-raised exceptions inherit from :class:`AgentError`. The dispatch
 boundary (see ``apollia._internal.dispatch``) catches these and translates
 them into structured ``AIPResult`` dicts that the Rust runtime consumes.
-
-See ADR-100 for the full design rationale.
 """
 
 from __future__ import annotations
@@ -99,5 +97,5 @@ class AgentConfigError(AgentError):
     """Agent decorator configuration is invalid.
 
     Raised at import / load time so misconfigurations are caught before
-    the runtime ever schedules a task on the agent (fail-fast, ADR-110).
+    the runtime ever schedules a task on the agent (fail-fast).
     """

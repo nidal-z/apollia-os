@@ -140,7 +140,7 @@ class MockLlmProxy:
         self.responses: list[dict[str, object]] = list(responses or [])
         self.call_count: int = 0
         self.prompts: list[Any] = []
-        # Tracking for ReAct loop unit tests (LOT 7). Each call to
+        # Tracking for ReAct loop unit tests. Each call to
         # ``run_tools`` appends an entry capturing the messages, tools
         # list and ``max_iterations`` the agent passed in.
         self.run_tools_calls: list[dict[str, Any]] = []

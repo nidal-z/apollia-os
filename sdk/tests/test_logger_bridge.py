@@ -1,4 +1,4 @@
-"""Tests for ``apollia._internal.logger_bridge`` (LOT 8 — ADR-106).
+"""Tests for ``apollia._internal.logger_bridge``.
 
 Covers:
 
@@ -76,7 +76,7 @@ def test_level_mapping_covers_all_stdlib_levels() -> None:
     logger.error("e")
     logger.critical("c")
 
-    # THEN the rust-side level strings match the ADR-106 contract.
+    # THEN the rust-side level strings match the expected contract.
     assert ctx.calls == [
         ("debug", "d"),
         ("info", "i"),

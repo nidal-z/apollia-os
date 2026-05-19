@@ -1,4 +1,4 @@
-//! ctx.events — typed event emission for agents (LOT 4 — ADR-105).
+//! ctx.events — typed event emission for agents.
 //!
 //! Encapsule l'`EventBus` runtime dans un `#[pyclass]` consommable depuis
 //! Python via `ctx.events.<verb>(...)`. Chaque méthode est un no-op
@@ -8,7 +8,7 @@
 //! Successeur additif des méthodes flat existantes sur `RuntimeContext`
 //! (`emit_token`, `emit_thought`, `emit_retry`, `emit_action_parse_error`).
 //! Les anciennes restent fonctionnelles mais marquées `#[deprecated]` —
-//! suppression effective en LOT 9 après migration des agents (LOT 13).
+//! suppression effective après migration des agents.
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 use pyo3::prelude::*;
@@ -65,7 +65,7 @@ impl EventsInterface {
     /// Capturée par le SDK Python (`react.py`) à chaque tour. Affiché en
     /// mode builder, masqué en mode operator par défaut.
     ///
-    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// Signature alignée sur le Protocol Python :
     /// `emit_thought(text: str, *, step: int)`. Le paramètre `step` est
     /// keyword-only côté Python, ce qui empêche les confusions positionnelles.
     #[pyo3(signature = (text, *, step))]
@@ -86,7 +86,7 @@ impl EventsInterface {
 
     /// Émet un événement `Retry` (parse error, tool error, llm error).
     ///
-    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// Signature alignée sur le Protocol Python :
     /// `emit_retry(*, step: int, reason: str, count: int)`. Mapping
     /// vers `RuntimeEvent::Retry { step_num, cause, attempt }` :
     /// `reason → cause`, `count → attempt`.
@@ -117,7 +117,7 @@ impl EventsInterface {
 
     /// Émet un `ActionParseError` (JSON action invalide, non-réparable).
     ///
-    /// Signature alignée sur le Protocol Python (ADR-105) :
+    /// Signature alignée sur le Protocol Python :
     /// `emit_action_parse_error(*, step: int, raw: str, fatal: bool = False)`.
     /// Mapping vers `RuntimeEvent::ActionParseError` :
     /// `raw → raw_content`, `fatal → repair_attempted`.
@@ -185,7 +185,7 @@ mod tests {
         broadcast::channel::<RuntimeEvent>(cap)
     }
 
-    /// LOT 8 (ADR-105) — `emit_thought` propage bien sur le bus avec le
+    /// `emit_thought` propage bien sur le bus avec le
     /// shape attendu et la signature `(text, *, step)` du Protocol Python.
     #[test]
     fn test_emit_thought_publishes_to_bus() {
@@ -265,7 +265,7 @@ mod tests {
     }
 
     /// `emit_action_parse_error` mappe `raw → raw_content`,
-    /// `fatal → repair_attempted` (interop ADR-105 ↔ ADR-088).
+    /// `fatal → repair_attempted` (interop ADR-088).
     #[test]
     fn test_emit_action_parse_error_maps_fields() {
         pyo3::prepare_freethreaded_python();

@@ -981,5 +981,5 @@ class OnboardingAgent:
         return processed_text
 
 
-# (Module-level ``agent`` singleton exposé automatiquement par ``@agent`` —
-# ADR-107. Le runtime fait ``module.getattr("agent")`` après exécution.)
+# (Module-level ``agent`` singleton exposé automatiquement par ``@agent``.
+# Le runtime fait ``module.getattr("agent")`` après exécution.)

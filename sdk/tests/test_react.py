@@ -1,4 +1,4 @@
-"""Tests for the ``apollia.react`` utility (LOT 7 — ADR-098, ADR-102)."""
+"""Tests for the ``apollia.react`` utility."""
 
 from __future__ import annotations
 

@@ -3,7 +3,7 @@
 This module is the heart of the SDK's "no boilerplate" promise: handler
 parameters are introspected with ``inspect`` and ``typing``, then mapped
 to a JSON Schema fragment which is later validated against incoming task
-payloads. See ADR-099.
+payloads.
 
 Supported annotations:
 

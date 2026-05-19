@@ -1,4 +1,4 @@
-"""ctx.events — typed event emission (ADR-105)."""
+"""ctx.events — typed event emission."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Protocol, runtime_checkable
 class EventsInterface(Protocol):
     """Public typed events for streaming, ReAct observability, error reporting.
 
-    Only the four canonical event kinds defined in ADR-105 are exposed.
+    Only the four canonical event kinds are exposed.
     Internal lifecycle events (``task_started``, ``step_completed``, ...)
     are emitted by the runtime, not by the agent.
     """

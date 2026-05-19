@@ -83,7 +83,7 @@ class _ChartError(DomainError):
     step_budget={"max_steps": 1, "max_tool_calls": 5, "wall_clock_secs": 300},
 )
 class ChartWorker:
-    """5 skills chart-generation (decorator-first, ADR-098+)."""
+    """5 skills chart-generation (decorator-first)."""
 
     @skill(
         "chart.bar",

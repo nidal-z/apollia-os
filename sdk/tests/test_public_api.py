@@ -40,7 +40,6 @@ def test_version_is_string() -> None:
     import apollia
 
     assert isinstance(apollia.__version__, str)
-    # We bumped to 0.5.0 at LOT 2.
     assert apollia.__version__.startswith("0.5")
 
 
@@ -78,14 +77,14 @@ def test_legacy_top_level_imports_removed() -> None:
 
 
 def test_legacy_modules_still_importable_for_migration() -> None:
-    """LOT 9 still keeps legacy modules around for progressive migration."""
+    """Legacy modules are kept around for progressive migration."""
     # Direct import from the legacy submodule should still work.
     mod = importlib.import_module("apollia.agents")
     assert mod is not None
 
 
 # ──────────────────────────────────────────────────────────────────────
-# LOT 3 — Ctx Protocol + vision helpers
+# Ctx Protocol + vision helpers
 # ──────────────────────────────────────────────────────────────────────
 
 

@@ -184,7 +184,7 @@ def test_agent_dispatch_hook_routes_to_skill() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Auto module instance (ADR-107)
+# Auto module instance
 # ──────────────────────────────────────────────────────────────────────
 
 

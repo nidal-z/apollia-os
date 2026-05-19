@@ -1,8 +1,8 @@
-//! ctx.a2a — agent-to-agent invocation surface (LOT 4/7 — ADR-102).
+//! ctx.a2a — agent-to-agent invocation surface.
 //!
 //! Façade nestée consolidant les 6 méthodes A2A historiquement aplaties sur
 //! `RuntimeContext` (`a2a_invoke`, `a2a_discover`, `a2a_list_skills`,
-//! `send`, `receive`, `delegate`). Pour LOT 4, on expose les 3 méthodes
+//! `send`, `receive`, `delegate`). On expose les 3 méthodes
 //! "haut niveau" qui pilotent l'[`A2AInvoker`] :
 //!
 //! - [`A2AInterface::invoke`] — appel synchrone d'un skill avec retour
@@ -11,14 +11,12 @@
 //!   `a2a_discover`).
 //! - [`A2AInterface::list_skills`] — inventaire complet du runtime
 //!   (équivalent `a2a_list_skills`).
-//! - [`A2AInterface::skill_as_tool`] — **nouveau** : produit un descriptor
-//!   tool consommable par `ctx.react` (LOT 7). Format minimal pour LOT 4 ;
-//!   l'enrichissement (schémas IO depuis la carte de découverte) viendra en
-//!   LOT 7.
+//! - [`A2AInterface::skill_as_tool`] — produit un descriptor
+//!   tool consommable par `ctx.react`.
 //!
 //! Les méthodes mailbox (`send`/`receive`) et la délégation Director→Worker
-//! (`delegate`) restent sur `RuntimeContext` flat pour LOT 4 — elles
-//! seront migrées en LOT 7 sans changement de sémantique.
+//! (`delegate`) restent sur `RuntimeContext` flat — elles
+//! seront migrées sans changement de sémantique.
 //!
 //! L'interface partage le même `Arc<A2AInvoker>` que `RuntimeContext` —
 //! pas de duplication d'état ni de second canal d'événements. Le compteur
@@ -197,7 +195,7 @@ impl A2AInterface {
     }
 
     /// Construit un descripteur tool consommable par la boucle ReAct
-    /// (`apollia.react`) — ADR-102 / ADR-098.
+    /// (`apollia.react`).
     ///
     /// Effectue un appel `discover(skill_id)` pour récupérer la description
     /// et le schéma d'entrée du skill cible, puis assemble un descripteur au

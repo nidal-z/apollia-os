@@ -1,4 +1,4 @@
-"""Tests for the multi-modal vision helpers (ADR-111)."""
+"""Tests for the multi-modal vision helpers."""
 
 from __future__ import annotations
 
@@ -113,7 +113,7 @@ def test_image_from_path_rejects_non_image(tmp_path: Path) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# LOT 9 — vision content passes through MockLlmProxy end-to-end
+# vision content passes through MockLlmProxy end-to-end
 # ──────────────────────────────────────────────────────────────────────
 
 

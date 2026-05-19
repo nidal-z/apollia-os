@@ -33,7 +33,7 @@ def modern_agent(tmp_path: Path) -> Path:
 
         Imports the ``@agent`` / ``@skill`` decorators under aliased names so
         that the module-level ``agent`` symbol can be exclusively owned by
-        the singleton instance produced by the decorator (ADR-107).
+        the singleton instance produced by the decorator.
         """
 
         from __future__ import annotations

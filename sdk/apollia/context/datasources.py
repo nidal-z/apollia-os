@@ -1,4 +1,4 @@
-"""ctx.datasources — runtime YAML datasources (ADR-103)."""
+"""ctx.datasources — runtime YAML datasources."""
 
 from __future__ import annotations
 

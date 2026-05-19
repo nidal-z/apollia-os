@@ -1,4 +1,4 @@
-//! ctx.datasources — runtime YAML datasources access (LOT 4/5 — ADR-103).
+//! ctx.datasources — runtime YAML datasources access.
 //!
 //! Charge les fichiers YAML déclarés dans `@agent(datasources=...)` depuis
 //! `<agent_dir>/datasources/<name>.yaml` au démarrage de l'agent, met en
@@ -256,7 +256,7 @@ mod tests {
         assert!(!ds.has("unknown"));
     }
 
-    /// LOT 5 — Vérifie le chemin de production : `load_from_dir` lit un vrai
+    /// Vérifie le chemin de production : `load_from_dir` lit un vrai
     /// fichier YAML depuis `<agent_dir>/datasources/<name>.yaml` et l'expose
     /// au runtime Python via `get()`.
     #[test]
@@ -294,7 +294,7 @@ mod tests {
         });
     }
 
-    /// LOT 5 — Vérifie le fallback `.yml` quand `.yaml` est absent.
+    /// Vérifie le fallback `.yml` quand `.yaml` est absent.
     #[test]
     fn test_load_from_dir_yml_fallback() {
         // GIVEN datasources/config.yml (not .yaml)
@@ -312,9 +312,9 @@ mod tests {
         assert!(iface.has("config"));
     }
 
-    /// LOT 5 — Vérifie qu'une datasource manquante n'empêche pas le chargement
-    /// des autres (logging warn! mais pas d'échec global, conforme à
-    /// l'ADR-103 et au commentaire de `load_from_dir`).
+    /// Vérifie qu'une datasource manquante n'empêche pas le chargement
+    /// des autres (logging warn! mais pas d'échec global, conforme au
+    /// commentaire de `load_from_dir`).
     #[test]
     fn test_load_from_dir_missing_file_is_non_fatal() {
         // GIVEN datasources/present.yaml exists, declared also includes "missing"
@@ -336,7 +336,7 @@ mod tests {
         assert!(!iface.has("missing"));
     }
 
-    /// LOT 5 — Un YAML malformé est ignoré (warn!), pas un crash de boot.
+    /// Un YAML malformé est ignoré (warn!), pas un crash de boot.
     #[test]
     fn test_load_from_dir_invalid_yaml_is_non_fatal() {
         let tmp = tempfile::tempdir().expect("temp dir");

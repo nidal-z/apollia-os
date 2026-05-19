@@ -1,7 +1,6 @@
 """``@agent`` decorator — declare a class as an Apollia agent.
 
-See ADR-098 (decorator-first), ADR-107 (auto module instance), and
-ADR-110 (fail-fast validation at import time). The decorator:
+The decorator:
 
 - validates the class against the agent contract,
 - builds the canonical manifest (caches it on the class),
@@ -57,7 +56,7 @@ def _check_string_tuple(name: str, value: Any) -> tuple[str, ...]:
 
 
 def _check_init_takes_no_required_args(cls: type) -> None:
-    """Ensure ``cls()`` can be called with no arguments (ADR-107).
+    """Ensure ``cls()`` can be called with no arguments.
 
     Inspects the class signature (which resolves ``__init__`` through the
     MRO). Built-ins / un-introspectable callables are skipped — the
@@ -134,7 +133,7 @@ def agent(
     9. Attaches an async ``__apollia_dispatch__(task, ctx) -> dict`` hook
        that delegates to :func:`apollia._internal.dispatch.dispatch_task`.
     10. Instantiates the class with no arguments and exposes the
-        singleton via :func:`expose_to_module` (ADR-107).
+        singleton via :func:`expose_to_module`.
 
     Raises:
         AgentConfigError: on any validation failure (fail-fast at import time).
@@ -245,7 +244,7 @@ def agent(
         )
         cls.__apollia_dispatch__ = __apollia_dispatch__  # type: ignore[attr-defined]
 
-        # Auto-instantiate (ADR-107) and expose to the defining module.
+        # Auto-instantiate and expose to the defining module.
         try:
             instance = cls()
         except TypeError as exc:

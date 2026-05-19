@@ -1,6 +1,6 @@
 """``@on_message`` decorator — mark a method as the conversational handler.
 
-See ADR-098. At most one ``@on_message`` method is allowed per agent
+At most one ``@on_message`` method is allowed per agent
 class; the duplication check fires at ``@agent`` decoration time
 (via :func:`apollia._internal.manifest.find_on_message_handler`).
 """

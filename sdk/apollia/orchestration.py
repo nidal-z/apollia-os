@@ -1,8 +1,8 @@
 """``@orchestrated`` decorator — mark an agent as ORIA-orchestrated.
 
-See ADR-098. ``@orchestrated`` is mutually exclusive with ``@skill`` and
+``@orchestrated`` is mutually exclusive with ``@skill`` and
 ``@on_message`` on the same class; the consistency check is enforced
-when ``@agent`` builds the manifest (LOT 1).
+when ``@agent`` builds the manifest.
 """
 
 from __future__ import annotations

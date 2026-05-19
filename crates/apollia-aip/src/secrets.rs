@@ -1,4 +1,4 @@
-//! ctx.secrets — read-only credentials access for agents (LOT 4/6 — ADR-104).
+//! ctx.secrets — read-only credentials access for agents.
 //!
 //! Encapsule un [`ToolCredentialStore`](apollia_tools::ToolCredentialStore)
 //! existant (AES-256-GCM) avec **gating manifest** : un agent ne voit que
@@ -7,15 +7,11 @@
 //!
 //! Le store n'est pas exposé en écriture aux agents — les ops gèrent les
 //! secrets via la CLI / le desktop. Cette interface est lecture-seule par
-//! conception (ADR-104).
+//! conception.
 //!
-//! **Note LOT 4 (transition)** : ce module pose la surface Python `ctx.secrets`
-//! et la sémantique de gating. Le câblage effectif avec un
-//! `ToolCredentialStore` partagé sera fait en LOT 6 — pour le moment, le
-//! constructeur accepte le store mais l'interface fonctionne aussi en mode
-//! dégradé (`store = None`) avec gating fonctionnel et toutes les valeurs à
-//! `None`. Le namespace tool utilisé pour les agents est `"agent"` par
-//! convention (LOT 6 pourra le rendre paramétrable par agent).
+//! L'interface fonctionne aussi en mode dégradé (`store = None`) avec gating
+//! fonctionnel et toutes les valeurs à `None`. Le namespace tool utilisé pour
+//! les agents est `"agent"` par convention.
 
 use std::sync::{Arc, Mutex};
 
@@ -24,7 +20,7 @@ use pyo3::prelude::*;
 
 /// Namespace `tool_name` utilisé dans `ToolCredentialStore` pour les
 /// credentials propres à un agent (par opposition aux secrets propres à un
-/// outil natif comme `web_search`). Convention temporaire LOT 4/6.
+/// outil natif comme `web_search`).
 const AGENT_SECRETS_NAMESPACE: &str = "agent";
 
 /// Interface lecture-seule exposée à l'agent via `ctx.secrets`.
@@ -49,7 +45,7 @@ pub struct SecretsInterface {
     /// Namespace `tool_name` à utiliser pour chercher les credentials de cet
     /// agent dans le store. Par défaut [`AGENT_SECRETS_NAMESPACE`] ;
     /// surchargeable via [`Self::with_namespace`] pour les tests / les
-    /// futurs scenarios par-agent (LOT 6).
+    /// futurs scenarios par-agent.
     namespace: String,
 }
 
@@ -65,7 +61,7 @@ impl SecretsInterface {
     /// **Gating** : si `key` n'est pas dans la liste déclarée au manifest,
     /// le retour est `None` même si la valeur existe en base. Ce comportement
     /// est silencieux — la déclaration manifest est la **seule** source
-    /// d'autorité (Principe #1, ADR-104).
+    /// d'autorité (Principe #1).
     fn get(&self, key: &str) -> PyResult<Option<String>> {
         if !self.declared.iter().any(|d| d == key) {
             return Ok(None);
@@ -131,7 +127,7 @@ impl SecretsInterface {
     }
 
     /// Surcharge le namespace `tool_name` utilisé pour la résolution. Permet
-    /// d'isoler les secrets par agent en LOT 6 (ex. `"agent::veille-ia"`).
+    /// d'isoler les secrets par agent (ex. `"agent::veille-ia"`).
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
         self.namespace = namespace.into();
         self
@@ -170,10 +166,10 @@ mod tests {
         assert_eq!(s.list_names(), vec!["A", "B"]);
     }
 
-    // ── LOT 6 — Tests avec un ToolCredentialStore réel ────────────────────
+    // ── Tests avec un ToolCredentialStore réel ────────────────────
 
     /// Construit un `ToolCredentialStore` éphémère + insère un secret pour
-    /// le namespace `"agent"` (convention LOT 4/6).
+    /// le namespace `"agent"`.
     fn store_with_agent_secret(
         dir: &tempfile::TempDir,
         key: &str,
@@ -191,7 +187,7 @@ mod tests {
         Arc::new(Mutex::new(store))
     }
 
-    /// LOT 6 — Avec un store réel et une clé déclarée, `get()` retourne la
+    /// Avec un store réel et une clé déclarée, `get()` retourne la
     /// valeur en clair.
     #[test]
     fn test_get_with_store_returns_value_when_declared() {
@@ -207,7 +203,7 @@ mod tests {
         assert!(iface.has("brave_api_key").expect("has"));
     }
 
-    /// LOT 6 — Gating manifest : une clé existante en base mais non
+    /// Gating manifest : une clé existante en base mais non
     /// déclarée renvoie `None`.
     #[test]
     fn test_get_with_store_gated_by_manifest() {
@@ -223,7 +219,7 @@ mod tests {
         assert_eq!(iface.get("openai_api_key").expect("get"), None);
     }
 
-    /// LOT 6 — `has()` retourne false pour une clé déclarée mais absente
+    /// `has()` retourne false pour une clé déclarée mais absente
     /// du store.
     #[test]
     fn test_has_false_when_declared_but_missing_in_store() {
@@ -242,7 +238,7 @@ mod tests {
         assert!(!iface.has("api_key").expect("has"));
     }
 
-    /// LOT 6 — `with_namespace` permet d'isoler les secrets par agent.
+    /// `with_namespace` permet d'isoler les secrets par agent.
     /// Un store qui contient un secret sous `agent::veille-ia` n'est visible
     /// que pour une interface configurée avec ce namespace, pas pour le
     /// namespace par défaut `"agent"`.

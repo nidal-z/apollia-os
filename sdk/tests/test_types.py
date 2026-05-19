@@ -89,7 +89,7 @@ def test_version():
 
 
 def test_new_public_api_exports():
-    """New decorator-first API is exported from apollia root (ADR-098)."""
+    """New decorator-first API is exported from apollia root."""
     from apollia import agent, skill, on_message, orchestrated, DomainError, NeedHumanInput
 
     assert all(callable(x) for x in (agent, skill, on_message, orchestrated))
@@ -99,7 +99,7 @@ def test_new_public_api_exports():
 
 def test_legacy_conversational_agent_still_importable_from_submodule():
     """ConversationalAgent legacy reste accessible depuis apollia.agents
-    pour les tests SDK existants — sera supprimé en post-LOT 15."""
+    pour les tests SDK existants — sera supprimé ultérieurement."""
     from apollia.agents import ConversationalAgent
 
     assert ConversationalAgent is not None

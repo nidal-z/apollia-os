@@ -173,7 +173,7 @@ impl ToolProxy {
         // A2A path: intercept before registry lookup.
         // Accept both `a2a:{skill_id}` (legacy, Anthropic-compatible) and
         // `a2a__{skill_id_with_dots_replaced_by_double_underscore}` (new,
-        // OpenAI-compatible — see ADR-102 / `A2AInterface::skill_as_tool`).
+        // OpenAI-compatible — see `A2AInterface::skill_as_tool`).
         if let Some(skill_id) = extract_a2a_skill_id(&tool_name) {
             if !self.allowed_tools.iter().any(|t| t == &tool_name) {
                 // Émettre ToolCallDenied avant de retourner.
@@ -562,7 +562,7 @@ impl ToolProxy {
 /// Extracts the original A2A `skill_id` from a tool name, supporting both
 /// the legacy `"a2a:{skill_id}"` prefix and the new
 /// `"a2a__{skill_id_with_dots_as_double_underscores}"` prefix introduced for
-/// OpenAI compatibility (which rejects `:` in tool names — see ADR-102 and
+/// OpenAI compatibility (which rejects `:` in tool names — see
 /// `A2AInterface::skill_as_tool`). Returns `None` if the name doesn't match
 /// either A2A pattern.
 ///
@@ -1053,31 +1053,31 @@ pub struct RuntimeContext {
     /// contexte est construit pour des tests qui ne simulent pas une tâche.
     task_id: Option<String>,
 
-    // ── LOT 4 — Nouvelles surfaces nestées (ADR-101) ────────────────────
-    /// Façade A2A consolidée — `ctx.a2a` (ADR-102).
+    // ── Nouvelles surfaces nestées ────────────────────
+    /// Façade A2A consolidée — `ctx.a2a`.
     ///
     /// Partage le même `Arc<A2AInvoker>` que [`Self::a2a_invoker`]. Construit
     /// systématiquement (l'agent voit toujours `ctx.a2a`, mais les méthodes
     /// lèvent `RuntimeError` quand l'invoker n'est pas disponible).
     a2a_iface: Option<Py<crate::a2a::A2AInterface>>,
 
-    /// Surface d'émission d'événements typés — `ctx.events` (ADR-105).
+    /// Surface d'émission d'événements typés — `ctx.events`.
     ///
     /// Construit systématiquement (au pire en mode no-op silencieux quand le
     /// bus est absent).
     events_iface: Option<Py<crate::events::EventsInterface>>,
 
-    /// Interface datasources YAML — `ctx.datasources` (ADR-103).
+    /// Interface datasources YAML — `ctx.datasources`.
     ///
     /// Construit systématiquement à partir de `manifest.datasources`. Si la
     /// liste déclarée est vide, l'interface est quand même présente mais
     /// `get()` lève toujours `FileNotFoundError("not declared")`.
     datasources_iface: Option<Py<crate::datasources::DatasourcesInterface>>,
 
-    /// Interface templates Jinja2 — `ctx.templates` (ADR-103).
+    /// Interface templates Jinja2 — `ctx.templates`.
     templates_iface: Option<Py<crate::templates::TemplatesInterface>>,
 
-    /// Interface secrets read-only — `ctx.secrets` (ADR-104).
+    /// Interface secrets read-only — `ctx.secrets`.
     secrets_iface: Option<Py<crate::secrets::SecretsInterface>>,
 
     /// Budget wall-clock total (en secondes) — propagé depuis le manifest
@@ -1086,8 +1086,7 @@ pub struct RuntimeContext {
     /// Lorsqu'il est `Some(n)`, le getter `ctx.budget.wall_clock_remaining`
     /// renvoie `Some(max(0, n - elapsed))`. Lorsqu'il est `None` (mode test,
     /// CLI dry-run sans deadline), le getter renvoie `None` et l'agent doit
-    /// inférer qu'aucune contrainte temporelle n'est appliquée. LOT 8 —
-    /// ADR-101.
+    /// inférer qu'aucune contrainte temporelle n'est appliquée.
     pub(crate) wall_clock_secs: Option<u64>,
 }
 
@@ -1164,13 +1163,12 @@ impl RuntimeContext {
         let memory = memory_interface
             .and_then(|mem| pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok()));
 
-        // ── LOT 4 — Construction des nouvelles surfaces nestées ────────
+        // ── Construction des nouvelles surfaces nestées ────────
         // Toutes sont construites systématiquement (au pire en mode no-op)
         // pour que `ctx.a2a`, `ctx.events`, etc. soient toujours accessibles
         // sans branchement côté Python. Les valeurs de gating (datasources,
         // templates, secrets) sont par défaut vides — le bridge les
-        // surchargera après lecture du manifest (LOT 5/6) via les builders
-        // dédiés.
+        // surchargera après lecture du manifest via les builders dédiés.
         let bus_for_iface = bus_for_token.clone();
         let agent_id_for_iface = agent_id_stored.clone();
         let agent_name_for_iface = agent_name.clone();
@@ -1353,7 +1351,7 @@ impl RuntimeContext {
     }
 
     /// Propage le budget wall-clock total (en secondes) depuis le manifest
-    /// pour alimenter `ctx.budget.wall_clock_remaining` (LOT 8 — ADR-101).
+    /// pour alimenter `ctx.budget.wall_clock_remaining`.
     ///
     /// Appelé par le `BridgeRunner`/`AipBridge` après lecture du manifest.
     /// Si non appelé, `ctx.budget.wall_clock_remaining` reste `None` (aucune
@@ -1396,7 +1394,7 @@ impl RuntimeContext {
                 self.agent_id.to_string(),
             ));
         }
-        // LOT 4 — re-construit EventsInterface en y injectant le task_id.
+        // Re-construit EventsInterface en y injectant le task_id.
         // Le pyclass est immuable, on remplace donc le Py<> en place.
         let task_id_for_events = apollia_core::events::TaskId::from(task_id_str.clone());
         let agent_id_for_events = self.agent_id.clone();
@@ -1417,8 +1415,8 @@ impl RuntimeContext {
         self
     }
 
-    // ── LOT 4/5 — Builders pour les nouvelles surfaces nestées ──────────
-    /// Branche l'interface datasources sur le contexte (LOT 5 — ADR-103).
+    // ── Builders pour les nouvelles surfaces nestées ──────────
+    /// Branche l'interface datasources sur le contexte.
     ///
     /// Construit une [`crate::datasources::DatasourcesInterface`] gating sur
     /// `declared` (typiquement `manifest.datasources`). Si `agent_dir` est
@@ -1443,7 +1441,7 @@ impl RuntimeContext {
         self
     }
 
-    /// Branche l'interface templates Jinja2 sur le contexte (LOT 5 — ADR-103).
+    /// Branche l'interface templates Jinja2 sur le contexte.
     ///
     /// Construit une [`crate::templates::TemplatesInterface`] gating sur
     /// `declared` (typiquement `manifest.templates`). Si `agent_dir` est
@@ -1464,7 +1462,7 @@ impl RuntimeContext {
         self
     }
 
-    /// Branche l'interface secrets sur le contexte (LOT 4/6).
+    /// Branche l'interface secrets sur le contexte.
     pub fn with_secrets(mut self, sc: crate::secrets::SecretsInterface) -> Self {
         self.secrets_iface = pyo3::Python::with_gil(|py| pyo3::Py::new(py, sc).ok());
         self
@@ -1559,8 +1557,8 @@ impl RuntimeContext {
         }
     }
 
-    /// Nom logique de l'agent (ADR-106 — utilisé pour nommer le logger
-    /// `apollia.agent.<agent_name>` via le `logger_bridge` LOT 8).
+    /// Nom logique de l'agent (utilisé pour nommer le logger
+    /// `apollia.agent.<agent_name>` via le `logger_bridge`).
     ///
     /// Propriété Python `ctx.agent_name`. Stable sur toute la durée de vie
     /// du contexte. Toujours présent (chaîne vide impossible en pratique).
@@ -1569,8 +1567,8 @@ impl RuntimeContext {
         self.agent_name.clone()
     }
 
-    // ── LOT 4 — Getters pour les nouvelles surfaces nestées (ADR-101) ──
-    /// Façade A2A consolidée — `ctx.a2a` (ADR-102).
+    // ── Getters pour les nouvelles surfaces nestées ──
+    /// Façade A2A consolidée — `ctx.a2a`.
     ///
     /// Retourne toujours une `A2AInterface` (jamais `None`) ; les méthodes
     /// internes lèvent `RuntimeError("A2A invoker not available …")` si le
@@ -1584,7 +1582,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Émission d'événements typés — `ctx.events` (ADR-105).
+    /// Émission d'événements typés — `ctx.events`.
     #[getter]
     fn events(&self, py: Python<'_>) -> PyObject {
         match &self.events_iface {
@@ -1593,7 +1591,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Datasources YAML lecture-seule — `ctx.datasources` (ADR-103).
+    /// Datasources YAML lecture-seule — `ctx.datasources`.
     #[getter]
     fn datasources(&self, py: Python<'_>) -> PyObject {
         match &self.datasources_iface {
@@ -1602,7 +1600,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Templates Jinja2 lecture-seule — `ctx.templates` (ADR-103).
+    /// Templates Jinja2 lecture-seule — `ctx.templates`.
     #[getter]
     fn templates(&self, py: Python<'_>) -> PyObject {
         match &self.templates_iface {
@@ -1611,7 +1609,7 @@ impl RuntimeContext {
         }
     }
 
-    /// Secrets lecture-seule avec gating manifest — `ctx.secrets` (ADR-104).
+    /// Secrets lecture-seule avec gating manifest — `ctx.secrets`.
     #[getter]
     fn secrets(&self, py: Python<'_>) -> PyObject {
         match &self.secrets_iface {
@@ -1620,10 +1618,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Vue lecture-seule du budget d'exécution — `ctx.budget` (ADR-101).
+    /// Vue lecture-seule du budget d'exécution — `ctx.budget`.
     ///
     /// Successeur typé de `ctx.step_budget` (qui reste fonctionnel et
-    /// `#[deprecated]` jusqu'à LOT 9). Snapshot frais à chaque accès.
+    /// `#[deprecated]`). Snapshot frais à chaque accès.
     #[getter]
     fn budget(&self, py: Python<'_>) -> PyResult<PyObject> {
         match &self.step_budget {
@@ -1644,13 +1642,12 @@ impl RuntimeContext {
         }
     }
 
-    /// Logger structuré pré-configuré pour cet agent — `ctx.logger`
-    /// (ADR-106).
+    /// Logger structuré pré-configuré pour cet agent — `ctx.logger`.
     ///
     /// Retourne `logging.getLogger("apollia.agent.{agent_id}")`. La
     /// configuration des handlers (relais tracing Rust, niveau, format) est
-    /// gérée par le bootstrap SDK Python en LOT 8. Ici on garantit
-    /// seulement que l'agent reçoit toujours un Logger nommé.
+    /// gérée par le bootstrap SDK Python. Ici on garantit seulement que
+    /// l'agent reçoit toujours un Logger nommé.
     #[getter]
     fn logger<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let logger_name = format!("apollia.agent.{}", self.agent_id);
@@ -2409,7 +2406,7 @@ mod runtime_context_tests {
         assert_eq!(view.steps_remaining(), 0);
     }
 
-    /// LOT 5 (ADR-103) — end-to-end builder test.
+    /// End-to-end builder test.
     /// `with_datasources(declared, Some(dir))` charge réellement le YAML
     /// depuis disque et `ctx.datasources` expose la valeur à Python.
     #[test]
@@ -2442,7 +2439,7 @@ mod runtime_context_tests {
         });
     }
 
-    /// LOT 5 (ADR-103) — `with_templates(declared, Some(dir))` charge réellement
+    /// `with_templates(declared, Some(dir))` charge réellement
     /// les templates Jinja2 et le rendu fonctionne avec un dict Python.
     #[test]
     fn test_with_templates_renders_from_real_dir() {
@@ -2473,7 +2470,7 @@ mod runtime_context_tests {
         });
     }
 
-    /// LOT 5 (ADR-103) — `with_datasources(declared, None)` n'effectue aucun
+    /// `with_datasources(declared, None)` n'effectue aucun
     /// I/O ; toute lecture renvoie `FileNotFoundError("not found on disk")`.
     #[test]
     fn test_with_datasources_no_dir_keeps_empty_cache() {
@@ -2799,7 +2796,7 @@ mod tests {
         assert!(tags.is_empty());
     }
 
-    // ── LOT 8 (ADR-101) — ctx.budget wall-clock plumbing ─────────────────
+    // ── ctx.budget wall-clock plumbing ─────────────────
     /// `ctx.budget.wall_clock_remaining` reste `None` quand le bridge n'a
     /// pas propagé `wall_clock_secs` (mode test / dry-run).
     #[test]
@@ -2849,7 +2846,7 @@ mod tests {
         });
     }
 
-    /// `ctx.agent_name` est exposé en lecture aux agents (LOT 8 — ADR-106).
+    /// `ctx.agent_name` est exposé en lecture aux agents.
     #[test]
     fn test_agent_name_getter_exposed_to_python() {
         // GIVEN a for_test context (agent_name = "test-agent")

@@ -4,7 +4,7 @@
 
 The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` — a typed runtime context exposing **14 backend services** (LLM, memory, tools, A2A, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
-**Design philosophy** (see `docs/adr/ADR-098-apollia-agentkit-decorator-first.md`) :
+**Design philosophy** :
 - Signature **is** the schema (type hints → JSON Schema → runtime validation)
 - Errors are **typed exceptions** trapped by the SDK at the dispatch boundary
 - Zero external dependencies (stdlib only)
@@ -179,7 +179,7 @@ raise DomainError("FILE_TOO_LARGE", "File exceeds 100MB", details={"size_mb": 15
 raise NeedHumanInput("Approve processing this 100MB file?", context={"path": "/tmp/big.pdf"})
 ```
 
-You never construct `AIPResult` yourself — it's internal to the SDK (ADR-109).
+You never construct `AIPResult` yourself — it's internal to the SDK.
 
 ## Manifest declarations
 
@@ -254,9 +254,9 @@ python -m apollia new my-agent --type worker
 
 ## Architecture references
 
-- **ADRs 098-112** in `docs/adr/` — every architectural decision behind the rebuild
+- **ADRs** in `docs/adr/` — every architectural decision behind the rebuild
 - **Skills `apollia-agent-forge` + `apollia-worker-forge`** in `.claude/skills/` — Claude Code skills for generating agents
-- **Existing agents** in `agents/` — 17 production agents migrated to AgentKit (LOT 13)
+- **Existing agents** in `agents/` — 17 production agents migrated to AgentKit
 
 ## Project structure
 
@@ -266,7 +266,7 @@ sdk/
 ├── README.md          (this file)
 └── apollia/
     ├── __init__.py    # public API : agent, skill, on_message, orchestrated, react, errors
-    ├── agent.py       # @agent decorator (ADR-098, 107)
+    ├── agent.py       # @agent decorator
     ├── skills.py      # @skill decorator
     ├── messages.py    # @on_message decorator
     ├── orchestration.py  # @orchestrated decorator

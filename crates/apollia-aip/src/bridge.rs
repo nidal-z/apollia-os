@@ -322,7 +322,7 @@ impl AIPBridge {
                     }
                 }
 
-                // 1c. LOT 8 — propage le wall_clock_secs résolu (manifest →
+                // 1c. Propage le wall_clock_secs résolu (manifest →
                 // bridge) vers le RuntimeContext pour alimenter
                 // `ctx.budget.wall_clock_remaining`. Le bridge a déjà la valeur
                 // sous forme de `Duration` ; on la pousse côté ctx pour qu'elle
@@ -334,7 +334,7 @@ impl AIPBridge {
                     }
                 }
 
-                // 1d. LOT 8 — câble le logger Python pour piper les records
+                // 1d. Câble le logger Python pour piper les records
                 // vers `ctx.log(level, msg)` (qui émet Rust tracing + bus). On
                 // configure une fois par task, plutôt que paresseusement à
                 // chaque accès `ctx.logger` (plus prévisible, un seul handler).
@@ -377,12 +377,12 @@ impl AIPBridge {
                     }
                 }
 
-                // LOT 4 — Dispatch routing :
-                // 1. Nouveau SDK (ADR-098) : si l'agent expose
+                // Dispatch routing :
+                // 1. Nouveau SDK : si l'agent expose
                 //    `__apollia_dispatch__`, on l'appelle. La méthode
                 //    s'occupe ensuite de router vers le bon @skill /
                 //    @on_message / @orchestrated et de construire l'AIPResult
-                //    côté Python (ADR-109).
+                //    côté Python.
                 // 2. Sinon (agents legacy) : on appelle `run(task, ctx)`
                 //    directement, comportement historique préservé.
                 let dispatch_attr = "__apollia_dispatch__";
