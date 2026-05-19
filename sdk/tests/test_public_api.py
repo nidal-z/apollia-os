@@ -82,3 +82,52 @@ def test_legacy_modules_still_importable_for_migration() -> None:
     # Direct import from the legacy submodule should still work.
     mod = importlib.import_module("apollia.agents")
     assert mod is not None
+
+
+# ──────────────────────────────────────────────────────────────────────
+# LOT 3 — Ctx Protocol + vision helpers
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_ctx_message_and_vision_helpers_top_level_import() -> None:
+    """The Ctx surface and vision helpers are reachable from ``apollia``."""
+    from apollia import (
+        Ctx,
+        ImageContent,
+        LlmMessage,
+        Message,
+        TextContent,
+        image_from_bytes,
+        image_from_path,
+        image_from_url,
+        text,
+    )
+
+    assert Ctx is not None
+    assert Message is not None
+    assert LlmMessage is not None
+    assert TextContent is not None
+    assert ImageContent is not None
+    assert callable(text)
+    assert callable(image_from_path)
+    assert callable(image_from_bytes)
+    assert callable(image_from_url)
+
+
+def test_all_contains_lot3_exports() -> None:
+    import apollia
+
+    lot3_exports = {
+        "Ctx",
+        "Message",
+        "LlmMessage",
+        "MessageContent",
+        "TextContent",
+        "ImageContent",
+        "text",
+        "image_from_path",
+        "image_from_bytes",
+        "image_from_url",
+    }
+    missing = lot3_exports - set(apollia.__all__)
+    assert not missing, f"Missing exports from apollia.__all__: {missing}"
