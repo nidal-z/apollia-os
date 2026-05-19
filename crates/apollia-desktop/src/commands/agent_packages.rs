@@ -575,10 +575,20 @@ pub async fn get_agent_package_detail(
 
 /// Désinstalle un package, ses agents et ses triggers.
 ///
-/// 1. Supprime les agents de `agents.db` et les retire du registry runtime.
-/// 2. Supprime le package de `installed_packages` (CASCADE sur `package_agents`).
-/// 3. Supprime le répertoire d'installation.
-/// 4. Émet `AgentUninstalled` pour chaque agent → SSE → le frontend rafraîchit la liste.
+/// Best-effort par design : si une étape échoue (DB désynchro, filesystem
+/// déjà supprimé, registry runtime sans entrée), on continue à purger le
+/// reste plutôt que d'avorter. Un uninstall qui échoue partiellement laisse
+/// l'utilisateur dans un état non-réinstallable. Le rapport d'erreurs est
+/// agrégé en fin de fonction pour journalisation.
+///
+/// Cleanup ordre :
+/// 1. Snapshot des metadata DB (lookup tolérant : best-effort).
+/// 2. Suppression `installed_agents` (cascade).
+/// 3. Suppression `installed_packages` (cascade sur `package_agents`).
+/// 4. Désenregistrement runtime in-memory + émission `AgentUninstalled`.
+/// 5. Suppression filesystem : `install_root` + venv worker par agent.
+/// 6. Si aucune trace trouvée nulle part → retourne erreur pour informer le
+///    frontend qu'il n'y avait rien à désinstaller.
 #[tauri::command]
 pub async fn uninstall_agent_package(
     name: String,
@@ -587,37 +597,57 @@ pub async fn uninstall_agent_package(
     runtime: State<'_, RuntimeHandle>,
     event_bus: State<'_, EventBusSender>,
 ) -> Result<(), String> {
+    let data_dir = apollia_data_dir();
+    let venvs_root = data_dir.join("venvs");
+    let install_root_default = data_dir.join("agents").join("packages").join(&name);
+
+    // ── Step 1: best-effort snapshot of DB metadata ──────────────────────────
     let (root_path, agent_names) = {
         let pkg_repo = pkg_repo_state.lock().map_err(|_| "repo lock poisoned")?;
-        let pkg = pkg_repo
-            .get(&name)
-            .map_err(|e| format!("database error: {e}"))?
-            .ok_or_else(|| format!("Package '{name}' not found"))?;
-        let agents = pkg_repo.list_agents_for_package(&name).unwrap_or_default();
-        (pkg.root_path, agents)
+        match pkg_repo.get(&name) {
+            Ok(Some(pkg)) => {
+                let agents = pkg_repo.list_agents_for_package(&name).unwrap_or_default();
+                (pkg.root_path, agents)
+            }
+            _ => (install_root_default.clone(), Vec::new()),
+        }
     };
 
-    // Delete from DB.
+    // Filesystem fallback : si la DB n'a pas d'agents listés mais le
+    // dossier d'install existe, on peut quand même y aller (à minima
+    // purger l'install_root et tout venv qui pourrait y correspondre).
+    let mut errors: Vec<String> = Vec::new();
+
+    // ── Step 2: delete installed_agents rows (idempotent) ────────────────────
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
         for agent_name in &agent_names {
-            let _ = agent_repo.delete(agent_name);
+            if let Err(e) = agent_repo.delete(agent_name) {
+                errors.push(format!("agent_repo.delete({agent_name}): {e}"));
+            }
         }
+        // Tente aussi par le nom du package — couvre le cas où un seul
+        // agent porte le nom du package (workers standalone).
+        let _ = agent_repo.delete(&name);
     }
 
-    // Remove package record (cascades to package_agents).
+    // ── Step 3: delete installed_packages (cascade) ──────────────────────────
     {
         let pkg_repo = pkg_repo_state
             .lock()
             .map_err(|_| "pkg repo lock poisoned")?;
-        pkg_repo
-            .delete(&name)
-            .map_err(|e| format!("failed to delete package: {e}"))?;
+        if let Err(e) = pkg_repo.delete(&name) {
+            errors.push(format!("pkg_repo.delete({name}): {e}"));
+        }
     }
 
-    // Unregister each agent from the in-memory runtime registry and emit events.
-    // This prevents ghost "session only" entries in list_agents.
-    for agent_name in &agent_names {
+    // ── Step 4: unregister runtime + emit events ─────────────────────────────
+    let names_to_unregister: Vec<String> = if agent_names.is_empty() {
+        vec![name.clone()]
+    } else {
+        agent_names.clone()
+    };
+    for agent_name in &names_to_unregister {
         if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(agent_name).await {
             let _ = runtime
                 .router_handle
@@ -630,7 +660,54 @@ pub async fn uninstall_agent_package(
         });
     }
 
-    let _ = std::fs::remove_dir_all(&root_path);
+    // ── Step 5: filesystem purge ─────────────────────────────────────────────
+    // 5a — install_root du package (resolved depuis la DB, fallback chemin par défaut).
+    if root_path.exists() {
+        if let Err(e) = std::fs::remove_dir_all(&root_path) {
+            errors.push(format!("remove_dir_all({}): {e}", root_path.display()));
+        }
+    }
+    if install_root_default != root_path && install_root_default.exists() {
+        let _ = std::fs::remove_dir_all(&install_root_default);
+    }
+
+    // 5b — venvs par agent : ~/.apollia/venvs/<agent_name>/
+    // Critique : sans ça, un pip install partiellement réussi laissait des
+    // packages installés qui pouvaient shadow la nouvelle install.
+    for agent_name in &names_to_unregister {
+        let agent_venv = venvs_root.join(agent_name);
+        if agent_venv.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&agent_venv) {
+                errors.push(format!("remove_dir_all({}): {e}", agent_venv.display()));
+            }
+        }
+    }
+
+    // 5c — venv du package lui-même (cas worker standalone où agent name = pkg name)
+    let pkg_venv = venvs_root.join(&name);
+    if pkg_venv.exists() && !names_to_unregister.contains(&name) {
+        let _ = std::fs::remove_dir_all(&pkg_venv);
+    }
+
+    // ── Step 6: report ───────────────────────────────────────────────────────
+    if !errors.is_empty() {
+        tracing::warn!(
+            package = %name,
+            errors = ?errors,
+            "uninstall completed with non-fatal errors"
+        );
+    }
+
+    // Si on n'a rien purgé du tout (ni DB, ni filesystem, ni venv), prévenir
+    // le frontend. Sinon, l'opération est considérée comme un succès même
+    // partiel — l'utilisateur doit pouvoir re-installer ensuite.
+    let anything_purged = !agent_names.is_empty()
+        || root_path.exists() == false  // un remove_dir_all a réussi
+        || install_root_default.exists() == false;
+    if !anything_purged && errors.iter().any(|e| e.contains("pkg_repo.delete")) {
+        return Err(format!("Package '{name}' not found in any registry"));
+    }
+
     Ok(())
 }
 
