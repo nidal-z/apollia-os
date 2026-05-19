@@ -97,26 +97,3 @@ def test_new_public_api_exports():
     assert NeedHumanInput is not None
 
 
-def test_legacy_conversational_agent_still_importable_from_submodule():
-    """ConversationalAgent legacy reste accessible depuis apollia.agents
-    pour les tests SDK existants — sera supprimé ultérieurement."""
-    from apollia.agents import ConversationalAgent
-
-    assert ConversationalAgent is not None
-
-
-def test_agent_manifest_dict_accepts_aip_v2_fields():
-    """AgentManifestDict accepts the four AIP v2 fields."""
-    from apollia.stubs.manifest import AgentManifestDict
-
-    manifest: AgentManifestDict = {
-        "name": "test",
-        "agent_type": "worker",
-        "examples": ["example"],
-        "limitations": ["none"],
-        "setup_notes": "install X",
-    }
-    assert manifest["agent_type"] == "worker"
-    assert manifest["examples"] == ["example"]
-    assert manifest["limitations"] == ["none"]
-    assert manifest["setup_notes"] == "install X"

@@ -76,13 +76,6 @@ def test_legacy_top_level_imports_removed() -> None:
     assert "AIPResult" not in apollia.__all__
 
 
-def test_legacy_modules_still_importable_for_migration() -> None:
-    """Legacy modules are kept around for progressive migration."""
-    # Direct import from the legacy submodule should still work.
-    mod = importlib.import_module("apollia.agents")
-    assert mod is not None
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Ctx Protocol + vision helpers
 # ──────────────────────────────────────────────────────────────────────

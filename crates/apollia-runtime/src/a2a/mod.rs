@@ -343,8 +343,8 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
 
     // 4. Construire l'input AIP depuis le payload JSON. Le `skill_id` est
     //    propagé séparément via `AIPTask.skill_id` (cf. submit_with_chain
-    //    plus bas) — les workers multi-skills le lisent via
-    //    `apollia.utils.a2a.extract_skill_id(task)`.
+    //    plus bas) — les workers multi-skills le lisent via le décorateur
+    //    `@skill` qui se charge du dispatch automatique.
     let input = AIPInput {
         parts: vec![AIPPart::Data(DataPart {
             data: input_payload,

@@ -1,9 +1,11 @@
 //! AIP duck-typing validator for Python agent objects.
 //!
-//! Validates that a Python object is AIP-compatible by checking for
-//! `manifest()` (synchronous) and `run()` (async coroutine function).
-//! Optional callbacks (`on_start`, `on_stop`, `health_check`) are detected
-//! but not required.
+//! Every Apollia agent is built with the decorator SDK (`@agent`,
+//! `@skill`, `@on_message`, `@orchestrated`), which attaches
+//! `__apollia_manifest__` (class attribute) and `__apollia_dispatch__`
+//! (async method) to the agent class.  The validator deserialises the
+//! manifest, detects optional callbacks, and refuses any agent that does
+//! not expose those two attributes.
 
 use apollia_core::AgentManifest;
 use apollia_tools::NATIVE_TOOL_NAMES;
@@ -32,20 +34,28 @@ pub struct ValidatedAgent {
 /// Errors that can occur during AIP validation of a Python agent.
 #[derive(Debug, thiserror::Error)]
 pub enum AIPValidationError {
-    /// The agent does not have a `manifest()` method.
-    #[error("agent missing required method 'manifest()'")]
+    /// The agent class is missing `__apollia_manifest__` — the @agent
+    /// decorator was not applied.
+    #[error(
+        "agent missing required attribute '__apollia_manifest__' \
+         — apply the @agent decorator from apollia"
+    )]
     MissingManifest,
 
-    /// The agent does not have a `run()` method.
-    #[error("agent missing required method 'run()'")]
+    /// The agent class is missing `__apollia_dispatch__` — the @agent
+    /// decorator was not applied.
+    #[error(
+        "agent missing required attribute '__apollia_dispatch__' \
+         — apply the @agent decorator from apollia"
+    )]
     MissingRun,
 
-    /// The `run()` method is not async (not a coroutine function).
-    #[error("agent method 'run()' must be async (coroutine function)")]
+    /// The `__apollia_dispatch__` method is not async (not a coroutine function).
+    #[error("agent method '__apollia_dispatch__' must be async (coroutine function)")]
     RunNotAsync,
 
-    /// `manifest()` returned data that cannot be deserialized into `AgentManifest`.
-    #[error("manifest() returned invalid data: {0}")]
+    /// `__apollia_manifest__` could not be deserialized into `AgentManifest`.
+    #[error("__apollia_manifest__ contains invalid data: {0}")]
     InvalidManifest(String),
 
     /// `manifest.version` is not valid semver (`MAJOR.MINOR.PATCH`).
@@ -157,48 +167,49 @@ fn validate_manifest_semantics(manifest: &AgentManifest) -> Result<(), AIPValida
     Ok(())
 }
 
-/// Validates that a Python object is AIP-compatible.
+/// Validates that a Python object is an Apollia decorator-built agent.
 ///
-/// Checks for the presence of `manifest()` (synchronous) and `run()` (async),
-/// calls `manifest()` to deserialize into [`AgentManifest`],
-/// and detects optional callbacks (`on_start`, `on_stop`, `health_check`).
+/// Checks for the presence of `__apollia_manifest__` and
+/// `__apollia_dispatch__` (both installed by the `@agent` decorator),
+/// deserialises the manifest into [`AgentManifest`], and detects optional
+/// callbacks (`on_start`, `on_stop`, `health_check`, `on_plan_complete`).
 ///
 /// # Errors
 ///
-/// - [`AIPValidationError::MissingManifest`] if the object has no `manifest()` method
-/// - [`AIPValidationError::MissingRun`] if the object has no `run()` method
-/// - [`AIPValidationError::RunNotAsync`] if `run()` is not a coroutine function
-/// - [`AIPValidationError::InvalidManifest`] if the dict returned by `manifest()` is invalid
+/// - [`AIPValidationError::MissingManifest`] if the object has no `__apollia_manifest__`
+/// - [`AIPValidationError::MissingRun`] if the object has no `__apollia_dispatch__`
+/// - [`AIPValidationError::RunNotAsync`] if `__apollia_dispatch__` is not a coroutine function
+/// - [`AIPValidationError::InvalidManifest`] if the manifest dict is invalid
 /// - [`AIPValidationError::PythonError`] for any other Python error
 pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidationError> {
     Python::with_gil(|py| {
         let agent_ref = agent.bind(py);
 
-        // Check manifest() exists
+        // Require __apollia_manifest__ (installed by @agent).
         if !agent_ref
-            .hasattr("manifest")
+            .hasattr("__apollia_manifest__")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
         {
             return Err(AIPValidationError::MissingManifest);
         }
 
-        // Check run() exists
+        // Require __apollia_dispatch__ (installed by @agent).
         if !agent_ref
-            .hasattr("run")
+            .hasattr("__apollia_dispatch__")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
         {
             return Err(AIPValidationError::MissingRun);
         }
 
-        // Check run() is async (coroutine function)
+        // The dispatch hook must be an async coroutine function.
         let inspect = py
             .import("inspect")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
-        let run_method = agent_ref
-            .getattr("run")
+        let dispatch_method = agent_ref
+            .getattr("__apollia_dispatch__")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let is_coro: bool = inspect
-            .call_method1("iscoroutinefunction", (&run_method,))
+            .call_method1("iscoroutinefunction", (&dispatch_method,))
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
             .extract()
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
@@ -206,26 +217,15 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             return Err(AIPValidationError::RunNotAsync);
         }
 
-        // Source of truth pour le manifest :
-        //   - Nouveau SDK : `__apollia_manifest__` sur la classe,
-        //     pré-calculé par le décorateur `@agent`. Évite un appel
-        //     Python à chaque validation.
-        //   - Sinon legacy : `agent.manifest()` (méthode dynamique).
+        // The manifest is a static class attribute pre-built by the
+        // @agent decorator. We do not call any dynamic `manifest()`
+        // method — that legacy escape hatch is gone.
         let json_mod = py
             .import("json")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
-        let manifest_obj = if agent_ref
-            .hasattr("__apollia_manifest__")
-            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
-        {
-            agent_ref
-                .getattr("__apollia_manifest__")
-                .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
-        } else {
-            agent_ref
-                .call_method0("manifest")
-                .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
-        };
+        let manifest_obj = agent_ref
+            .getattr("__apollia_manifest__")
+            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let json_str: String = json_mod
             .call_method1("dumps", (&manifest_obj,))
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?
@@ -287,35 +287,46 @@ mod tests {
         })
     }
 
-    const VALID_AGENT: &str = r#"
-import asyncio
+    /// Builds a minimal decorator-style agent.
+    ///
+    /// We do not import the real Apollia SDK from these unit tests (the
+    /// PyO3 bindings live in the same crate, and importing them would
+    /// require pip-installing the SDK). Instead, we forge a class with
+    /// the same surface contract the validator inspects:
+    /// `__apollia_manifest__` (dict) and an async `__apollia_dispatch__`
+    /// method.
+    fn build_agent(manifest: &str, extra_methods: &str) -> Py<PyAny> {
+        let code = format!(
+            r#"
+class A:
+    __apollia_manifest__ = {manifest}
 
-class TestAgent:
-    def manifest(self):
-        return {
-            "name": "test-agent",
-            "version": "0.1.0",
-            "description": "A test agent",
-            "tools_required": [],
-        }
+    async def __apollia_dispatch__(self, task, ctx):
+        return {{"status": "completed", "output": []}}
+{extra_methods}
+agent = A()
+"#,
+        );
+        create_py_agent(&code)
+    }
 
-    async def run(self, task, ctx):
-        return {"status": "completed", "output": "ok"}
-
-agent = TestAgent()
-"#;
+    const VALID_MANIFEST: &str = r#"{
+        "name": "test-agent",
+        "version": "0.1.0",
+        "description": "A test agent",
+        "tools_required": [],
+    }"#;
 
     #[test]
     fn test_validate_valid_agent() {
-        // GIVEN a valid Python agent with manifest() + async run()
-        let agent = create_py_agent(VALID_AGENT);
+        // GIVEN a valid decorator-style agent with __apollia_manifest__
+        //   AND async __apollia_dispatch__
+        let agent = build_agent(VALID_MANIFEST, "");
 
         // WHEN we validate
-        let result = validate_agent(&agent);
+        let validated = validate_agent(&agent).expect("validation should succeed");
 
         // THEN validation succeeds with correct manifest
-        assert!(result.is_ok());
-        let validated = result.expect("validation should succeed");
         assert_eq!(validated.manifest.name, "test-agent");
         assert_eq!(validated.manifest.version, "0.1.0");
         assert!(!validated.has_on_start);
@@ -325,8 +336,10 @@ agent = TestAgent()
 
     #[test]
     fn test_validate_missing_manifest() {
-        // GIVEN a Python agent without manifest()
-        let agent = create_py_agent("class A:\n    async def run(self, t, c): pass\nagent = A()\n");
+        // GIVEN an agent without __apollia_manifest__
+        let agent = create_py_agent(
+            "class A:\n    async def __apollia_dispatch__(self, t, c): pass\nagent = A()\n",
+        );
 
         // WHEN we validate
         let result = validate_agent(&agent);
@@ -336,22 +349,24 @@ agent = TestAgent()
     }
 
     #[test]
-    fn test_validate_missing_run() {
-        // GIVEN a Python agent without run()
-        let agent = create_py_agent("class A:\n    def manifest(self): return {}\nagent = A()\n");
+    fn test_validate_missing_dispatch() {
+        // GIVEN an agent without __apollia_dispatch__
+        let agent = create_py_agent(
+            "class A:\n    __apollia_manifest__ = {}\nagent = A()\n",
+        );
 
         // WHEN we validate
         let result = validate_agent(&agent);
 
-        // THEN we get MissingRun
+        // THEN we get MissingRun (dispatch hook absent)
         assert!(matches!(result, Err(AIPValidationError::MissingRun)));
     }
 
     #[test]
-    fn test_validate_run_not_async() {
-        // GIVEN a Python agent with synchronous run()
+    fn test_validate_dispatch_not_async() {
+        // GIVEN an agent whose dispatch hook is synchronous
         let agent = create_py_agent(
-            "class A:\n    def manifest(self): return {}\n    def run(self, t, c): pass\nagent = A()\n",
+            "class A:\n    __apollia_manifest__ = {}\n    def __apollia_dispatch__(self, t, c): pass\nagent = A()\n",
         );
 
         // WHEN we validate
@@ -363,16 +378,8 @@ agent = TestAgent()
 
     #[test]
     fn test_validate_invalid_manifest_data() {
-        // GIVEN an agent whose manifest() returns an incomplete dict
-        let agent = create_py_agent(
-            r#"
-class A:
-    def manifest(self):
-        return {"name": "x"}
-    async def run(self, t, c): pass
-agent = A()
-"#,
-        );
+        // GIVEN an agent whose manifest is missing required fields
+        let agent = build_agent(r#"{"name": "x"}"#, "");
 
         // WHEN we validate
         let result = validate_agent(&agent);
@@ -387,30 +394,25 @@ agent = A()
     #[test]
     fn test_validate_detects_optional_callbacks() {
         // GIVEN an agent with on_start, on_stop and health_check
-        let agent = create_py_agent(
-            r#"
-class A:
-    def manifest(self):
-        return {
-            "name": "cb-agent",
-            "version": "1.0.0",
-            "description": "Agent with callbacks",
-            "tools_required": [],
-        }
-    async def run(self, t, c): pass
+        let extra = r#"
     async def on_start(self, ctx): pass
     async def on_stop(self): pass
     def health_check(self): return True
-agent = A()
-"#,
+"#;
+        let agent = build_agent(
+            r#"{
+                "name": "cb-agent",
+                "version": "1.0.0",
+                "description": "Agent with callbacks",
+                "tools_required": [],
+            }"#,
+            extra,
         );
 
         // WHEN we validate
-        let result = validate_agent(&agent);
+        let validated = validate_agent(&agent).expect("validation should succeed");
 
         // THEN callbacks are detected
-        assert!(result.is_ok());
-        let validated = result.expect("validation should succeed");
         assert!(validated.has_on_start);
         assert!(validated.has_on_stop);
         assert!(validated.has_health_check);
@@ -419,19 +421,14 @@ agent = A()
     #[test]
     fn test_validate_rejects_non_semver_version() {
         // GIVEN an agent whose manifest version is not semver (emoji).
-        let agent = create_py_agent(
-            r#"
-class A:
-    def manifest(self):
-        return {
-            "name": "broken",
-            "version": "🚀",
-            "description": "bad",
-            "tools_required": [],
-        }
-    async def run(self, t, c): pass
-agent = A()
-"#,
+        let agent = build_agent(
+            r#"{
+                "name": "broken",
+                "version": "🚀",
+                "description": "bad",
+                "tools_required": [],
+            }"#,
+            "",
         );
 
         // WHEN we validate
@@ -446,21 +443,15 @@ agent = A()
 
     #[test]
     fn test_validate_detects_tool_typo() {
-        // GIVEN an agent requiring a tool that is a Levenshtein-close typo
-        // of a known native tool (`bash_explorr` vs `bash_executor`).
-        let agent = create_py_agent(
-            r#"
-class A:
-    def manifest(self):
-        return {
-            "name": "typo-agent",
-            "version": "1.0.0",
-            "description": "typo",
-            "tools_required": ["bash_explorr"],
-        }
-    async def run(self, t, c): pass
-agent = A()
-"#,
+        // GIVEN an agent requiring a tool that is a Levenshtein-close typo.
+        let agent = build_agent(
+            r#"{
+                "name": "typo-agent",
+                "version": "1.0.0",
+                "description": "typo",
+                "tools_required": ["bash_explorr"],
+            }"#,
+            "",
         );
 
         // WHEN we validate
@@ -478,19 +469,18 @@ agent = A()
 
     #[test]
     fn test_validate_extracts_python_class_name() {
-        // GIVEN a valid agent whose Python class is named `ReActAgent`.
+        // GIVEN a valid decorator-style agent whose class is named `MyAgent`.
         let agent = create_py_agent(
             r#"
-class ReActAgent:
-    def manifest(self):
-        return {
-            "name": "react-demo",
-            "version": "1.0.0",
-            "description": "react demo",
-            "tools_required": [],
-        }
-    async def run(self, t, c): pass
-agent = ReActAgent()
+class MyAgent:
+    __apollia_manifest__ = {
+        "name": "demo",
+        "version": "1.0.0",
+        "description": "demo",
+        "tools_required": [],
+    }
+    async def __apollia_dispatch__(self, t, c): pass
+agent = MyAgent()
 "#,
         );
 
@@ -498,29 +488,21 @@ agent = ReActAgent()
         let validated = validate_agent(&agent).expect("validation should succeed");
 
         // THEN the class name is captured on the manifest.
-        assert_eq!(
-            validated.manifest.agent_class.as_deref(),
-            Some("ReActAgent")
-        );
+        assert_eq!(validated.manifest.agent_class.as_deref(), Some("MyAgent"));
     }
 
     #[test]
     fn test_validate_passes_unknown_non_typo_tool() {
         // GIVEN an agent requiring a tool whose name is too far from any
         // native tool to be a typo (e.g. an MCP-provided tool).
-        let agent = create_py_agent(
-            r#"
-class A:
-    def manifest(self):
-        return {
-            "name": "mcp-agent",
-            "version": "1.0.0",
-            "description": "uses an mcp tool",
-            "tools_required": ["my_custom_mcp_tool"],
-        }
-    async def run(self, t, c): pass
-agent = A()
-"#,
+        let agent = build_agent(
+            r#"{
+                "name": "mcp-agent",
+                "version": "1.0.0",
+                "description": "uses an mcp tool",
+                "tools_required": ["my_custom_mcp_tool"],
+            }"#,
+            "",
         );
 
         // WHEN we validate

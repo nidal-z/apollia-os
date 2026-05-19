@@ -1,14 +1,10 @@
 """Internal helpers used by the dispatch boundary to read A2A task fields.
 
-These were previously exposed as ``apollia.utils.a2a`` for agent authors,
-but the new public surface relies on the ``@skill`` decorator + the
-dispatch glue in :mod:`apollia._internal.dispatch` to route tasks. Agent
-code should not need to call these helpers directly — they live here so
-they can be shared between dispatch primitives without leaking through
-the public API.
-
-The legacy ``apollia.utils.a2a`` module re-exports these functions and
-emits a :class:`DeprecationWarning` on import.
+The public surface relies on the ``@skill`` decorator plus the dispatch
+glue in :mod:`apollia._internal.dispatch` to route tasks. Agent code
+should not need to call these helpers directly — they live here so they
+can be shared between dispatch primitives without leaking through the
+public API.
 """
 
 from __future__ import annotations

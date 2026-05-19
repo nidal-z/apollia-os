@@ -85,8 +85,8 @@ pub struct AgentListItem {
     pub limitations: Vec<String>,
     /// Note de configuration requise avant la première utilisation (`None` = aucun prérequis).
     pub setup_notes: Option<String>,
-    /// Nom de la classe Python source de l'agent (ex: `"ReActAgent"`,
-    /// `"ConversationalAgent"`, `"OrchestratedAgent"`, `"WorkerAgent"`).
+    /// Nom de la classe Python source de l'agent (ex: `"VeilleIaAgent"`,
+    /// `"ApolliaGuide"`, `"DocxWorker"`).
     /// Renseigné par le validateur AIP. `None` pour les agents construits
     /// hors pipeline PyO3.
     pub agent_class: Option<String>,

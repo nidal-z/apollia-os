@@ -17,10 +17,11 @@ pub struct AIPTask {
     /// pour les exécutions racine, les tâches déclenchées par triggers, ou
     /// l'invocation directe via la CLI / API REST sans skill ciblé).
     ///
-    /// Les workers multi-skills lisent ce champ via
-    /// `apollia.utils.a2a.extract_skill_id(task)` pour dispatcher entre leurs
-    /// skills internes. Convention : full ID type `"chart.bar"` (pas seulement
-    /// le suffixe). Cf. ADR sur la propagation `skill_id` (2026-05-19).
+    /// Les workers multi-skills déclarent un handler par opération via le
+    /// décorateur `@skill(id="...")` ; le dispatch glue côté SDK lit ce
+    /// champ et route automatiquement vers le bon handler. Convention :
+    /// full ID type `"chart.bar"` (pas seulement le suffixe). Cf. ADR sur
+    /// la propagation `skill_id` (2026-05-19).
     #[serde(default)]
     pub skill_id: Option<String>,
     /// Identifiant du projet auquel cette tâche est rattachée.

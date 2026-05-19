@@ -178,8 +178,8 @@ pub struct AgentManifest {
     #[serde(default)]
     pub setup_notes: Option<String>,
 
-    /// Nom de la classe Python source de l'agent (ex: `"ReActAgent"`,
-    /// `"ConversationalAgent"`, `"OrchestratedAgent"`, `"WorkerAgent"`).
+    /// Nom de la classe Python source de l'agent (ex: `"VeilleIaAgent"`,
+    /// `"ApolliaGuide"`, `"DocxWorker"`).
     ///
     /// Décision D2 : la classe Python est la source de vérité du type
     /// d'agent. Renseigné par le validateur AIP à partir de

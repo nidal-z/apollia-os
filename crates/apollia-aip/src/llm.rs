@@ -93,7 +93,6 @@ pub struct PyLlmResponse {
 /// # Cas 3 — Streaming (async iterator)
 /// async for chunk in await ctx.llm.stream([{"role": "user", "content": "..."}]):
 ///     print(chunk)
-/// # Use ctx.llm.stream_buffered(...) (deprecated) to get a list[str] instead.
 ///
 /// # Cas 4 — Boucle ReAct automatique
 /// result = await ctx.llm.run_tools(
@@ -328,100 +327,6 @@ impl LlmProxy {
         })
     }
 
-    /// Buffered streaming — collects all chunks server-side and returns a
-    /// `list[str]`. Kept for backward compat ; the new canonical streaming
-    /// API is [`Self::stream`] (async iterator).
-    ///
-    /// Fallback : if the backend does not support streaming, falls back to
-    /// `complete()` and returns the content as a single-element list.
-    #[deprecated(
-        note = "ctx.llm.stream() now returns an async iterator. \
-                Use `async for chunk in await ctx.llm.stream(messages)` instead. \
-                If you really need a buffered list, call `stream_buffered`."
-    )]
-    #[allow(deprecated)]
-    #[pyo3(signature = (messages, backend = None))]
-    fn stream_buffered<'py>(
-        &self,
-        py: Python<'py>,
-        messages: Vec<PyObject>,
-        backend: Option<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let chat_messages = messages
-            .iter()
-            .map(|obj| py_dict_to_chat_message(py, obj))
-            .collect::<PyResult<Vec<_>>>()?;
-
-        let router = Arc::clone(&self.router);
-        let obs = Arc::clone(&self.obs_config);
-        let bus = self.event_bus.clone();
-
-        pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let backend_key = backend.as_deref();
-            let backend_model = router.get(backend_key);
-
-            let chunks: Vec<String> = match backend_model {
-                Some(model) => {
-                    let req = CompletionRequest {
-                        messages: chat_messages.clone(),
-                        ..Default::default()
-                    };
-                    match model.stream(req).await {
-                        Ok(mut stream) => {
-                            let mut collected: Vec<String> = Vec::new();
-                            while let Some(chunk) = stream.next().await {
-                                match chunk {
-                                    Ok(apollia_llm::StreamChunk::Text(text)) => {
-                                        collected.push(text);
-                                    }
-                                    Ok(apollia_llm::StreamChunk::ToolCall(_)) => {
-                                        // Tool calls in stream not handled in Python bridge
-                                    }
-                                    Err(_) => break,
-                                }
-                            }
-                            collected
-                        }
-                        // fallback: stream() not supported → single complete()
-                        Err(_) => {
-                            let fallback_req = CompletionRequest {
-                                messages: chat_messages,
-                                ..Default::default()
-                            };
-                            let resp = router
-                                .complete_with_observability(
-                                    backend_key,
-                                    fallback_req,
-                                    bus.as_ref(),
-                                    &obs,
-                                )
-                                .await
-                                .map_err(llm_err_to_py)?;
-                            vec![resp.content]
-                        }
-                    }
-                }
-                // fallback: backend not found → single complete() (may return BackendUnavailable)
-                None => {
-                    let fallback_req = CompletionRequest {
-                        messages: chat_messages,
-                        ..Default::default()
-                    };
-                    let resp = router
-                        .complete_with_observability(backend_key, fallback_req, bus.as_ref(), &obs)
-                        .await
-                        .map_err(llm_err_to_py)?;
-                    vec![resp.content]
-                }
-            };
-
-            Python::with_gil(|py| {
-                let py_list = pyo3::types::PyList::new(py, &chunks).unwrap();
-                Ok(py_list.into_any().unbind())
-            })
-        })
-    }
-
     /// Boucle ReAct automatique : LLM → outil(s) → LLM → ... → réponse finale.
     ///
     /// `messages` : liste de dicts `{"role": "...", "content": "..."}`.
@@ -577,21 +482,6 @@ impl LlmProxy {
         })
     }
 
-    /// Deprecated alias for [`Self::stream`] — kept for backward compat with
-    /// agents written against the previous bridge. Will be removed once the
-    /// legacy `BaseReActAgent` is dropped.
-    #[deprecated(note = "Use `stream()` directly. \
-                          `stream_complete` is kept as a transitional alias.")]
-    #[allow(deprecated)]
-    #[pyo3(signature = (messages, backend = None))]
-    fn stream_complete<'py>(
-        &self,
-        py: Python<'py>,
-        messages: Vec<PyObject>,
-        backend: Option<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.stream(py, messages, backend)
-    }
 }
 
 // ─────────────────────────────────────────────

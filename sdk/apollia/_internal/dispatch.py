@@ -67,7 +67,7 @@ def extract_task_skill_id(task: dict[str, Any]) -> str | None:
 def extract_task_payload(task: dict[str, Any]) -> dict[str, Any]:
     """Extract the structured A2A payload from a task.
 
-    Preference order (mirrors ``apollia.utils.a2a.extract_a2a_payload``):
+    Preference order:
 
     1. First ``DataPart`` ⇒ its ``data`` dict.
     2. First ``TextPart`` whose ``text`` parses as a JSON object ⇒ that dict.
