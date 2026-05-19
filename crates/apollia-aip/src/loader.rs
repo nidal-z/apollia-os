@@ -103,6 +103,31 @@ pub fn load_agent_module_with_sys_paths(
             .getattr("path")
             .map_err(|e| AIPLoaderError::PythonError(format!("failed to get sys.path: {e}")))?;
 
+        // Drop cached `apollia.*` modules so any update to the editable SDK
+        // is picked up without restarting the daemon. Without this, a long-
+        // running runtime would keep the version of `apollia.skills` that
+        // was first imported — and reject newer kwargs on subsequent loads.
+        let sys_modules = sys
+            .getattr("modules")
+            .map_err(|e| AIPLoaderError::PythonError(format!("failed to get sys.modules: {e}")))?;
+        let keys: Vec<String> = sys_modules
+            .call_method0("keys")
+            .ok()
+            .and_then(|k| k.try_iter().ok())
+            .map(|it| {
+                it.filter_map(|item| item.ok().and_then(|o| o.extract::<String>().ok()))
+                    .filter(|name| name == "apollia" || name.starts_with("apollia."))
+                    .collect()
+            })
+            .unwrap_or_default();
+        for key in keys {
+            let _ = sys_modules.call_method1("pop", (key, py.None()));
+        }
+        // Invalidate finder caches so the next import re-reads from disk.
+        if let Ok(importlib) = py.import("importlib") {
+            let _ = importlib.call_method0("invalidate_caches");
+        }
+
         // Insert venv site-packages first. Iterate in reverse so the first
         // element of `extra_sys_paths` ends up at the front of sys.path.
         for extra in extra_sys_paths.iter().rev() {
