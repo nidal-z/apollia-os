@@ -10,8 +10,7 @@ Principles (ADR-073):
   - Never invents a capability that is not in the embedded knowledge base.
   - Only proposes navigate-style actions (no destructive tools).
 
-Quick start:
-  apollia-os run apollia-guide --input "How do I automate a daily summary?"
+SDK : decorator-first Apollia AgentKit (ADR-098..ADR-112).
 """
 
 from __future__ import annotations
@@ -21,7 +20,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from apollia.agents import AIPResult, ConversationalAgent
+from apollia import DomainError, agent, on_message
+from apollia.types import Ctx, Message
 
 
 # ---------------------------------------------------------------------------
@@ -32,12 +32,7 @@ _KNOWLEDGE_DIR: Path = Path(__file__).parent / "knowledge"
 
 
 def _load_knowledge_base() -> str:
-    """Concatenate ``knowledge/*.md`` into a single context block.
-
-    Markdown files are kept small enough (< 8 KB each) to fit within typical
-    local LLM context windows. If the resulting block exceeds the configured
-    budget, :func:`_truncate_for_context` trims trailing sections.
-    """
+    """Concatenate ``knowledge/*.md`` into a single context block."""
     if not _KNOWLEDGE_DIR.is_dir():
         return ""
     parts: list[str] = []
@@ -49,23 +44,20 @@ def _load_knowledge_base() -> str:
 
 
 _KNOWLEDGE_BASE: str = _load_knowledge_base()
-
-# Rough budget — 8k tokens ≈ 32k chars, keep half for conversation + system.
 _MAX_KB_CHARS: int = 16_000
 
 
 def _truncate_for_context(kb: str) -> str:
-    """Cap the knowledge base to :data:`_MAX_KB_CHARS` chars (tail-dropped)."""
     if len(kb) <= _MAX_KB_CHARS:
         return kb
     return kb[: _MAX_KB_CHARS].rsplit("\n", 1)[0] + "\n\n… (knowledge base truncated for context budget)"
 
 
 # ---------------------------------------------------------------------------
-# System prompt
+# System prompts (operator/builder)
 # ---------------------------------------------------------------------------
 
-_OPERATOR_PROMPT = f"""\
+_OPERATOR_PROMPT = """\
 You are **Apollia Guide**, the built-in product coach for Apollia OS. Your
 audience is an **operator** — a non-technical user who wants to automate
 recurring tasks without writing code.
@@ -78,7 +70,7 @@ recurring tasks without writing code.
 2. **Suggest one concrete next step** per response, as an action button
    when possible. Format: end your reply with a single JSON block:
    ```apollia-actions
-   [{{"label": "…", "action": "navigate", "payload": {{"route": "/…"}}}}]
+   [{"label": "…", "action": "navigate", "payload": {"route": "/…"}}]
    ```
    At most 3 buttons. Use the exact routes from the knowledge base.
 3. Keep replies **short and warm** — 2–4 sentences before the action block.
@@ -89,10 +81,10 @@ recurring tasks without writing code.
 
 ## Knowledge base
 
-{{knowledge_base}}
+{knowledge_base}
 """
 
-_BUILDER_PROMPT = f"""\
+_BUILDER_PROMPT = """\
 You are **Apollia Guide**, the built-in product coach for Apollia OS. Your
 audience is a **builder** — a developer who wants to create agents,
 pipelines, triggers, and MCP integrations.
@@ -103,7 +95,7 @@ pipelines, triggers, and MCP integrations.
    knowledge base below.
 2. Suggest one concrete next step per response as an action button:
    ```apollia-actions
-   [{{"label": "…", "action": "navigate", "payload": {{"route": "/…"}}}}]
+   [{"label": "…", "action": "navigate", "payload": {"route": "/…"}}]
    ```
 3. Use precise technical vocabulary (manifest, tool, pipeline, trigger,
    step budget, HITL, MCP stdio/HTTP).
@@ -112,25 +104,20 @@ pipelines, triggers, and MCP integrations.
 
 ## Knowledge base
 
-{{knowledge_base}}
+{knowledge_base}
 """
 
 
 def build_system_prompt(mode: str | None) -> str:
-    """Render the system prompt for the given UI mode (``operator`` / ``builder``)."""
     kb = _truncate_for_context(_KNOWLEDGE_BASE)
     tpl = _BUILDER_PROMPT if mode == "builder" else _OPERATOR_PROMPT
     return tpl.replace("{knowledge_base}", kb)
 
 
 # ---------------------------------------------------------------------------
-# Onboarding profile context (specs-onboarding-agent.md §8.1)
+# Profile context block (specs-onboarding-agent.md §8.1)
 # ---------------------------------------------------------------------------
 
-# Tier 1 + Tier 2 keys read from semantic memory. Missing keys are silently
-# omitted from the rendered XML so the LLM never sees empty placeholders.
-# Schema aligned with Settings → Profil (post-refactor): tools.daily replaces
-# tech.languages/tech.stack, tech.proficiency replaces tech.expertise.
 _PROFILE_KEYS: tuple[str, ...] = (
     "user.name",
     "user.role",
@@ -148,19 +135,15 @@ _PROFILE_KEYS: tuple[str, ...] = (
 )
 
 
-async def build_context_block(ctx: Any) -> str:
-    """Read the onboarding profile from semantic memory and render the XML block.
-
-    Returns an empty string when no key is available so callers can prepend
-    unconditionally without producing empty ``<user_profile>`` tags.
-    """
+async def build_context_block(ctx: Ctx) -> str:
+    """Render the onboarding profile from semantic memory as an XML block."""
+    if ctx.memory is None:
+        return ""
     fields: dict[str, str | None] = {key: None for key in _PROFILE_KEYS}
     for key in _PROFILE_KEYS:
         try:
             fields[key] = await ctx.memory.recall(key)
         except Exception:
-            # Memory backend issue → treat the key as missing rather than fail
-            # the whole turn. Apollia Guide must remain usable offline.
             fields[key] = None
 
     profile_lines: list[str] = []
@@ -216,8 +199,6 @@ async def build_context_block(ctx: Any) -> str:
 # ---------------------------------------------------------------------------
 
 _ACTION_RE = re.compile(r"```apollia-actions\s*(\[.*?\])\s*```", re.DOTALL)
-
-# Whitelisted actions — frontend enforces the same list; keep in sync.
 _ALLOWED_ACTIONS = {"navigate", "invoke"}
 _ALLOWED_ROUTES = {
     "/dashboard",
@@ -241,11 +222,6 @@ _ALLOWED_ROUTES = {
 
 
 def _parse_action_buttons(raw: str) -> list[dict[str, Any]]:
-    """Extract ``apollia-actions`` JSON blocks and validate against the whitelist.
-
-    Returns an empty list if no block is found or the JSON is malformed —
-    the frontend renders the plain text answer only in that case.
-    """
     match = _ACTION_RE.search(raw)
     if not match:
         return []
@@ -273,7 +249,6 @@ def _parse_action_buttons(raw: str) -> list[dict[str, Any]]:
 
 
 def _strip_action_block(text: str) -> str:
-    """Remove the ``apollia-actions`` fenced block from the user-visible text."""
     return _ACTION_RE.sub("", text).strip()
 
 
@@ -282,106 +257,56 @@ def _strip_action_block(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-class ApolliaGuideAgent(ConversationalAgent):
-    """Apollia Guide — product coach agent.
+@agent(
+    name="apollia-guide",
+    version="0.1.0",
+    description=(
+        "Conversational coach for Apollia OS — knows product capabilities "
+        "and suggests actionable deep-links."
+    ),
+    tags=("coach", "system", "guide", "meta"),
+    memory_namespace="apollia-guide",
+    agent_type="system",
+    step_budget={"max_steps": 30, "max_tool_calls": 10, "wall_clock_secs": 600},
+)
+class ApolliaGuide:
+    """Apollia Guide — product coach agent (uses ``ctx.llm``, never spawns
+    a second backend)."""
 
-    Always uses ``ctx.llm`` (the user's configured backend). Never spawns
-    a second LLM, never bypasses the user's consent.
-    """
-
-    MAX_TURNS = 30
-    TEMPERATURE = 0.5
-
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "apollia-guide",
-            "version": "0.1.0",
-            "description": (
-                "Conversational coach for Apollia OS — knows product "
-                "capabilities and suggests actionable deep-links."
-            ),
-            "execution_mode": "auto",
-            "agent_type": "system",
-            "tools_required": [],
-            "tools_optional": [
-                "navigate",
-                "read_memory_namespace",
-                "get_user_integrations",
-                "get_installed_agents",
-            ],
-            "memory_namespace": "apollia-guide",
-            "max_concurrent_tasks": 1,
-            "dangerous_tools_allowed": False,
-            "tags": ["coach", "system", "guide"],
-        }
-
-    async def converse(
+    @on_message
+    async def chat(
         self,
-        ctx: Any,
-        user_message: str,
-        history: list[dict[str, str]] | None = None,
-        mode: str | None = None,
-    ) -> tuple[str, list[dict[str, Any]], list[dict[str, str]]]:
-        """Run one dialogue turn and return ``(text, action_buttons, messages)``."""
+        message: str,
+        history: list[Message],
+        ctx: Ctx,
+    ) -> dict[str, Any]:
+        """Run one dialogue turn → JSON with visible text + action buttons."""
         if ctx.llm is None:
-            raise RuntimeError(
-                "ApolliaGuideAgent requires ctx.llm — no LLM backend configured"
+            raise DomainError(
+                "NO_LLM", "apollia-guide requires a configured LLM backend"
             )
 
-        messages: list[dict[str, str]] = list(history) if history else []
-        if not messages or messages[0].get("role") != "system":
-            context_block = await build_context_block(ctx)
-            base_prompt = build_system_prompt(mode)
-            system_prompt = (
-                f"{context_block}\n\n{base_prompt}" if context_block else base_prompt
-            )
-            messages.insert(0, {"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": user_message})
+        # Mode (operator|builder) is currently not forwarded by the chat
+        # surface; default to operator. Future: read from task metadata.
+        mode: str | None = None
+
+        context_block = await build_context_block(ctx)
+        base_prompt = build_system_prompt(mode)
+        system_prompt = (
+            f"{context_block}\n\n{base_prompt}" if context_block else base_prompt
+        )
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+        for m in history or []:
+            role = m.get("role", "user")
+            if role == "agent":
+                role = "assistant"
+            messages.append({"role": role, "content": m.get("content", "")})
+        messages.append({"role": "user", "content": message})
 
         response = await ctx.llm.complete(messages)
         raw_text: str = getattr(response, "content", "") or ""
 
         action_buttons = _parse_action_buttons(raw_text)
         visible_text = _strip_action_block(raw_text)
-        messages.append({"role": "assistant", "content": visible_text})
-        return visible_text, action_buttons, messages
-
-    async def run(self, task: Any, ctx: Any) -> AIPResult:
-        """Execute a single turn. Task input may carry a ``mode`` metadata field."""
-        if ctx.llm is None:
-            return AIPResult.failed(
-                "NO_LLM", "apollia-guide requires a configured LLM backend"
-            )
-
-        task_input = task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
-        if task_input is None:
-            return AIPResult.failed("NO_INPUT", "No input provided in task")
-
-        if isinstance(task_input, dict):
-            parts = task_input.get("parts", [])
-            input_text = parts[0]["text"] if parts else str(task_input)
-        elif hasattr(task_input, "parts"):
-            parts = task_input.parts
-            input_text = parts[0].text if parts else str(task_input)
-        else:
-            input_text = str(task_input)
-
-        metadata = task.get("metadata", {}) if isinstance(task, dict) else getattr(task, "metadata", {})
-        mode = metadata.get("mode") if isinstance(metadata, dict) else None
-
-        raw_history = task.get("history", []) if isinstance(task, dict) else getattr(task, "history", [])
-        history: list[dict[str, str]] = []
-        for msg in (raw_history or []):
-            if isinstance(msg, dict):
-                role_raw = msg.get("role", "user")
-                role = "assistant" if role_raw == "agent" else role_raw
-                parts = msg.get("parts", [])
-                text = parts[0]["text"] if parts and isinstance(parts[0], dict) else str(msg)
-                history.append({"role": role, "content": text})
-
-        text, buttons, _ = await self.converse(ctx, input_text, history or None, mode)
-        payload = {"text": text, "action_buttons": buttons}
-        return AIPResult.completed(json.dumps(payload))
-
-
-agent = ApolliaGuideAgent()
+        return {"text": visible_text, "action_buttons": action_buttons}

@@ -31,18 +31,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from apollia.agents.react import AIPResult
-from apollia.agents.worker import WorkerAgent
-from apollia.utils.a2a import extract_a2a_payload, extract_skill_id
-
-
-ALLOWED_SKILL_IDS: tuple[str, ...] = (
-    "docx.read",
-    "docx.write",
-    "docx.append-section",
-    "docx.extract-tables",
-    "docx.render-from-template",
-)
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 
 MAX_FILE_BYTES: int = 100 * 1024 * 1024  # 100 MiB
 PAPER_SIZES: tuple[str, ...] = ("A4", "Letter", "Legal", "A3", "A5")
@@ -61,182 +51,151 @@ PAPER_DIMS_CM: dict[str, tuple[float, float]] = {
 FIELD_PLACEHOLDERS: dict[str, str] = {"page": "PAGE", "total_pages": "NUMPAGES"}
 
 
-class _DocxError(Exception):
-    """Domain error portant un code stable et un message humain."""
+class _DocxError(DomainError):
+    """Legacy alias kept for the internal ``_do_*`` helpers.
 
-    def __init__(
+    They raise ``_DocxError`` which is itself a :class:`DomainError`, so the
+    dispatch boundary handles it as a typed failure with stable code +
+    message + details. Future cleanup may inline-replace these.
+    """
+
+
+@agent(
+    name="docx-worker",
+    version="0.1.0",
+    description=(
+        "Manipulation de fichiers Word (.docx) : lire, écrire, ajouter, "
+        "extraire des tables, rendre des templates Jinja2 — préserve "
+        "styles, sections, headers/footers."
+    ),
+    tags=("docx", "word", "office", "python-docx", "docxtpl", "template", "worker"),
+    agent_type="worker",
+    step_budget={"max_steps": 1, "max_tool_calls": 5, "wall_clock_secs": 300},
+)
+class DocxWorker:
+    """5 skills .docx déterministes (decorator-first, ADR-098+)."""
+
+    @skill(
+        "docx.read",
+        description=(
+            "Lit un .docx et retourne JSON structuré : blocs ordonnés, "
+            "métadonnées de section, hyperlinks, styles utilisés."
+        ),
+    )
+    async def read_docx(
         self,
-        code: str,
-        message: str,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.details = details
-
-
-class DocxWorker(WorkerAgent):
-    """Deterministic worker exposing 5 .docx-manipulation skills."""
-
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "docx-worker",
-            "version": "0.1.0",
-            "description": (
-                "Manipulation de fichiers Word (.docx) : lire, écrire, ajouter, "
-                "extraire des tables, rendre des templates Jinja2 — préserve "
-                "styles, sections, headers/footers."
-            ),
-            "execution_mode": "direct",
-            "agent_type": "user",
-            "supports_a2a": True,
-            "max_concurrent_tasks": 2,
-            "tools_required": [],
-            "dangerous_tools_allowed": False,
-            "packages": ["python-docx==1.1.2", "docxtpl==0.18.0"],
-            "tags": ["docx", "word", "office", "python-docx", "docxtpl", "template", "worker"],
-            "step_budget": {
-                "max_steps": 1,
-                "max_tool_calls": 5,
-                "wall_clock_secs": 300,
-            },
-            "skills": _build_skill_manifests(),
-        }
-
-    async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
-        skill_id = extract_skill_id(task)
-        if skill_id is None:
-            return AIPResult.failed(
-                "MISSING_SKILL_ID",
-                "docx-worker : aucun skill_id propagé par le runtime (worker multi-skills)",
-                details={"expected": list(ALLOWED_SKILL_IDS)},
-            )
-        if skill_id not in ALLOWED_SKILL_IDS:
-            return AIPResult.failed(
-                "UNKNOWN_SKILL_ID",
-                f"skill_id non reconnu : {skill_id!r}",
-                details={"got": skill_id, "expected": list(ALLOWED_SKILL_IDS)},
-            )
-
-        payload = extract_a2a_payload(task)
-        if not payload:
-            return AIPResult.failed(
-                "INVALID_PAYLOAD",
-                "docx-worker : payload A2A vide ou non parseable",
-            )
-
-        try:
-            if skill_id == "docx.read":
-                result = _do_read(payload)
-            elif skill_id == "docx.write":
-                result = _do_write(payload)
-            elif skill_id == "docx.append-section":
-                result = _do_append_section(payload)
-            elif skill_id == "docx.extract-tables":
-                result = _do_extract_tables(payload)
-            else:  # "docx.render-from-template"
-                result = _do_render_from_template(payload)
-        except FileNotFoundError as exc:
-            return AIPResult.failed("FILE_NOT_FOUND", str(exc))
-        except _DocxError as exc:
-            return AIPResult.failed(exc.code, exc.message, details=exc.details)
-        except Exception as exc:  # last-resort safety net
-            ctx.log("error", f"docx-worker {skill_id} failed: {exc}")
-            return AIPResult.failed("EXECUTION_FAILED", f"Erreur inattendue : {exc}")
-
-        return AIPResult.completed(
-            json.dumps(result, ensure_ascii=False, default=_json_default)
+        path: str,
+        include_runs: bool = False,
+        include_styles: bool = True,
+        max_blocks: int = 50_000,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Lecture structurée."""
+        return _do_read(
+            {
+                "path": path,
+                "include_runs": include_runs,
+                "include_styles": include_styles,
+                "max_blocks": max_blocks,
+            }
         )
 
+    @skill(
+        "docx.write",
+        description=(
+            "Crée un .docx multi-section avec styles avancés (named_styles, "
+            "blocks paragraph/heading/table/list/image/page_break, headers/footers)."
+        ),
+    )
+    async def write_docx(
+        self,
+        output_path: str,
+        sections: list[dict[str, Any]],
+        named_styles: dict[str, Any] | None = None,
+        document_setup: dict[str, Any] | None = None,
+        overwrite: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Crée un .docx."""
+        return _do_write(
+            {
+                "output_path": output_path,
+                "sections": sections,
+                "named_styles": named_styles,
+                "document_setup": document_setup,
+                "overwrite": overwrite,
+            }
+        )
 
-# ─── Manifest skills builder ───────────────────────────────────────────────
+    @skill(
+        "docx.append_section",
+        description=(
+            "Ajoute des blocs à un .docx existant. Préserve styles, "
+            "headers/footers, sections existantes."
+        ),
+    )
+    async def append_section(
+        self,
+        path: str,
+        blocks: list[dict[str, Any]],
+        named_styles: dict[str, Any] | None = None,
+        section_break_before: bool = False,
+        new_section_setup: dict[str, Any] | None = None,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Ajoute des blocs à un .docx."""
+        return _do_append_section(
+            {
+                "path": path,
+                "blocks": blocks,
+                "named_styles": named_styles,
+                "section_break_before": section_break_before,
+                "new_section_setup": new_section_setup,
+            }
+        )
 
+    @skill(
+        "docx.extract_tables",
+        description=(
+            "Extraction ciblée des tables. Plus rapide que docx.read quand "
+            "le caller veut juste les tables."
+        ),
+    )
+    async def extract_tables(
+        self,
+        path: str,
+        include_headers: bool = True,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Extraction tables."""
+        return _do_extract_tables({"path": path, "include_headers": include_headers})
 
-def _build_skill_manifests() -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "docx.read",
-            "name": "Read DOCX document",
-            "description": (
-                "Lit un .docx et retourne JSON structuré : blocs ordonnés, "
-                "métadonnées de section, hyperlinks, styles utilisés."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin absolu vers le .docx.", "required": True},
-                "include_runs": {"type": "boolean", "description": "Si true, retourne les runs détaillés (text + font) au lieu d'un texte agrégé.", "required": False},
-                "include_styles": {"type": "boolean", "description": "Défaut true — inclut style_name de chaque bloc.", "required": False},
-                "max_blocks": {"type": "integer", "description": "Défaut 50 000.", "required": False},
-            },
-        },
-        {
-            "id": "docx.write",
-            "name": "Write DOCX document",
-            "description": (
-                "Crée un .docx multi-section avec styles avancés (named_styles, "
-                "blocks paragraph/heading/table/list/image/page_break, headers/footers)."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "output_path": {"type": "string", "description": "Chemin de sortie du .docx.", "required": True},
-                "sections": {"type": "array", "description": "Liste de SectionWriteSpec (≥1).", "required": True},
-                "named_styles": {"type": "object", "description": "Dict {style_id: StyleSpec}.", "required": False},
-                "document_setup": {"type": "object", "description": "Défauts globaux (orientation, margins, paper_size).", "required": False},
-                "overwrite": {"type": "boolean", "description": "Défaut false (refuse si existe).", "required": False},
-            },
-        },
-        {
-            "id": "docx.append-section",
-            "name": "Append content to DOCX",
-            "description": (
-                "Ajoute des blocs à un .docx existant. Préserve styles, "
-                "headers/footers, sections existantes."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": ".docx existant.", "required": True},
-                "blocks": {"type": "array", "description": "Liste de Block (≥1).", "required": True},
-                "named_styles": {"type": "object", "description": "Fusionnés aux existants.", "required": False},
-                "section_break_before": {"type": "boolean", "description": "Défaut false. Si true, démarre une nouvelle section.", "required": False},
-                "new_section_setup": {"type": "object", "description": "Si section_break_before: true.", "required": False},
-            },
-        },
-        {
-            "id": "docx.extract-tables",
-            "name": "Extract tables from DOCX",
-            "description": (
-                "Extraction ciblée des tables. Plus rapide que docx.read quand "
-                "le caller veut juste les tables."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin absolu vers le .docx.", "required": True},
-                "include_headers": {"type": "boolean", "description": "Défaut true — la 1ère ligne devient headers.", "required": False},
-            },
-        },
-        {
-            "id": "docx.render-from-template",
-            "name": "Render DOCX from Jinja2 template",
-            "description": (
-                "Rend un template .docx (placeholders Jinja2 via docxtpl) "
-                "en injectant un contexte. strict_undefined par défaut."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "template_path": {"type": "string", "description": ".docx avec placeholders Jinja2.", "required": True},
-                "output_path": {"type": "string", "description": "Chemin de sortie du .docx rendu.", "required": True},
-                "context": {"type": "object", "description": "Variables Jinja2 à injecter.", "required": True},
-                "strict_undefined": {"type": "boolean", "description": "Défaut true — échoue si variable manquante.", "required": False},
-                "overwrite": {"type": "boolean", "description": "Défaut false.", "required": False},
-            },
-        },
-    ]
+    @skill(
+        "docx.render_from_template",
+        description=(
+            "Rend un template .docx (placeholders Jinja2 via docxtpl) "
+            "en injectant un contexte. strict_undefined par défaut."
+        ),
+    )
+    async def render_from_template(
+        self,
+        template_path: str,
+        output_path: str,
+        context: dict[str, Any],
+        strict_undefined: bool = True,
+        overwrite: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Rendu Jinja2 .docx."""
+        return _do_render_from_template(
+            {
+                "template_path": template_path,
+                "output_path": output_path,
+                "context": context,
+                "strict_undefined": strict_undefined,
+                "overwrite": overwrite,
+            }
+        )
 
 
 # ─── Operation: read ───────────────────────────────────────────────────────
@@ -1397,7 +1356,7 @@ def _validate_docx_path(path: str, must_exist: bool = False) -> None:
     if must_exist:
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"fichier introuvable : {path}")
+            raise _DocxError("FILE_NOT_FOUND", f"fichier introuvable : {path}")
         size = p.stat().st_size
         if size > MAX_FILE_BYTES:
             raise _DocxError(
@@ -1478,5 +1437,5 @@ def _json_default(o: Any) -> Any:
     raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
-# Module-level — requis par le loader runtime (crates/apollia-aip/src/loader.rs).
-agent = DocxWorker()
+# (The ``agent`` module-level singleton is exposed automatically by the
+# ``@agent`` decorator, cf. ADR-107.)

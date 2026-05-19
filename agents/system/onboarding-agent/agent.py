@@ -41,7 +41,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from apollia.agents import AIPResult, ConversationalAgent
+from apollia import DomainError, agent, on_message
+from apollia.types import Ctx, Message
 
 _logger = logging.getLogger("onboarding-agent")
 
@@ -815,54 +816,54 @@ async def _finalize(ctx: Any, profile_hint: str | None, suggested_hint: list[str
 # Agent
 # ---------------------------------------------------------------------------
 
-class OnboardingAgent(ConversationalAgent):
+_SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
+
+
+@agent(
+    name="onboarding-agent",
+    version="2.3.0",
+    description=(
+        "Premier contact utilisateur — calibrage en 3 questions "
+        "(identité, supervision, souveraineté)"
+    ),
+    tags=("onboarding", "conversational"),
+    memory_namespace="onboarding",
+    agent_type="system",
+    # ADR-086 — accès aux outils permission_rule_* pour proposer les règles
+    # dérivées du profil (HITL-gated).
+    tools_required=("permission_rule_add", "permission_rule_list"),
+    # Only this system agent owns the user profile and may write into the
+    # global `__user__` namespace via ctx.profile.set (ADR-087).
+    user_memory_write=True,
+    step_budget={"max_steps": 6, "max_tool_calls": 10, "wall_clock_secs": 600},
+)
+class OnboardingAgent:
     """4-turn calibration agent for first-time Apollia OS users."""
 
-    SYSTEM_PROMPT = SYSTEM_PROMPT
-    MAX_TURNS = 6
-    TEMPERATURE = 0.6
+    SYSTEM_PROMPT = _SYSTEM_PROMPT_TEXT
 
-    def manifest(self) -> dict[str, Any]:
-        """Return the AIP agent manifest."""
-        return {
-            "name": "onboarding-agent",
-            "version": "2.3.0",
-            "description": "Premier contact utilisateur — calibrage en 3 questions (identité, supervision, souveraineté)",
-            "execution_mode": "auto",
-            "agent_type": "system",
-            # ADR-086 — accès aux outils permission_rule_* pour proposer les
-            # règles dérivées du profil (HITL-gated).
-            "tools_required": ["permission_rule_add", "permission_rule_list"],
-            "tools_optional": [],
-            "memory_namespace": "onboarding",
-            "max_concurrent_tasks": 1,
-            "dangerous_tools_allowed": False,
-            "tags": ["onboarding", "conversational"],
-            # Only this system agent owns the user profile and may write
-            # into the global `__user__` namespace via ctx.profile.set
-            # (ADR-087, supersedes the legacy remember_user path).
-            "user_memory_write": True,
-        }
-
-    def on_response(self, response: str) -> str:
-        """Hide internal tags from the user-facing transcript."""
-        return _strip_tags(response)
-
-    async def converse(
+    @on_message
+    async def chat(
         self,
-        ctx: Any,
-        user_message: str,
-        history: list[dict[str, str]] | None = None,
-    ) -> tuple[str, list[dict[str, str]]]:
+        message: str,
+        history: list[Message],
+        ctx: Ctx,
+    ) -> str:
         """Drive one onboarding turn: LLM → tag parsing → conditional finalize."""
         if ctx.llm is None:
-            raise RuntimeError(
-                "OnboardingAgent requires ctx.llm — no LLM backend configured"
+            raise DomainError(
+                "NO_LLM",
+                "OnboardingAgent requires ctx.llm — no LLM backend configured",
             )
 
-        messages: list[dict[str, str]] = list(history) if history else []
-        if not messages or messages[0].get("role") != "system":
-            messages.insert(0, {"role": "system", "content": self.SYSTEM_PROMPT})
+        user_message = message
+        messages: list[dict[str, str]] = []
+        messages.append({"role": "system", "content": self.SYSTEM_PROMPT})
+        for m in history or []:
+            role = m.get("role", "user")
+            if role == "agent":
+                role = "assistant"
+            messages.append({"role": role, "content": m.get("content", "")})
 
         # Inject a runtime progress note right before the user message so
         # the LLM has explicit, machine-checked state about what to do next
@@ -963,60 +964,22 @@ class OnboardingAgent(ConversationalAgent):
                         + _DETERMINISTIC_QUESTION[missing_key]
                     )
 
-        processed_text = self.on_response(raw_text)
-        messages.append({"role": "assistant", "content": processed_text})
+        # Hide internal [REMEMBER]/[INFER]/[PROFILE]/[SUGGEST] tags from the
+        # user-facing transcript (private contract between this agent and the
+        # local memory backend).
+        processed_text = _strip_tags(raw_text)
 
         if ctx.memory is not None:
-            await ctx.memory.record(
-                content=f"user: {user_message}\nassistant: {processed_text}",
-                importance=0.3,
-            )
+            try:
+                await ctx.memory.record(
+                    content=f"user: {user_message}\nassistant: {processed_text}",
+                    importance=0.3,
+                )
+            except Exception as exc:
+                _logger.debug("memory.record failed: %s", exc)
 
-        return processed_text, messages
-
-    async def run(self, task: Any, ctx: Any) -> AIPResult:
-        """Execute one onboarding turn from an AIPTask payload."""
-        if ctx.llm is None:
-            raise RuntimeError(
-                "OnboardingAgent requires ctx.llm — no LLM backend configured"
-            )
-
-        task_input = task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
-        if task_input is None:
-            return AIPResult.failed("NO_INPUT", "No input provided in task")
-
-        if isinstance(task_input, dict):
-            parts = task_input.get("parts", [])
-            input_text = parts[0]["text"] if parts else str(task_input)
-        elif hasattr(task_input, "parts"):
-            parts = task_input.parts
-            input_text = parts[0].text if parts else str(task_input)
-        elif hasattr(task_input, "text"):
-            input_text = task_input.text
-        else:
-            input_text = str(task_input)
-
-        raw_history = task.get("history", []) if isinstance(task, dict) else getattr(task, "history", [])
-        history: list[dict[str, str]] = []
-        for msg in (raw_history or []):
-            if isinstance(msg, dict):
-                role_raw = msg.get("role", "user")
-                role = "assistant" if role_raw == "agent" else role_raw
-                parts = msg.get("parts", [])
-                text = parts[0]["text"] if parts and isinstance(parts[0], dict) else str(msg)
-                history.append({"role": role, "content": text})
-            elif hasattr(msg, "role"):
-                role = "assistant" if msg.role == "agent" else msg.role
-                parts = getattr(msg, "parts", [])
-                text = parts[0].text if parts else str(msg)
-                history.append({"role": role, "content": text})
-
-        response_text, _ = await self.converse(ctx, input_text, history=history or None)
-        return AIPResult.completed(response_text)
+        return processed_text
 
 
-# ---------------------------------------------------------------------------
-# Module-level agent instance (required by the Apollia AIP contract)
-# ---------------------------------------------------------------------------
-
-agent = OnboardingAgent()
+# (Module-level ``agent`` singleton exposé automatiquement par ``@agent`` —
+# ADR-107. Le runtime fait ``module.getattr("agent")`` après exécution.)

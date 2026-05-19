@@ -22,18 +22,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from apollia.agents.react import AIPResult
-from apollia.agents.worker import WorkerAgent
-from apollia.utils.a2a import extract_a2a_payload, extract_skill_id
-
-
-ALLOWED_SKILL_IDS: tuple[str, ...] = (
-    "xlsx.read",
-    "xlsx.read-as-dataframe",
-    "xlsx.write",
-    "xlsx.append-rows",
-    "xlsx.update-cells",
-)
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 
 MAX_FILE_BYTES: int = 100 * 1024 * 1024     # 100 MiB
 EXCEL_ROW_LIMIT: int = 1_048_576            # Excel hard limit
@@ -60,187 +50,144 @@ DTYPE_MAP: dict[str, str] = {
 }
 
 
-class _XlsxError(Exception):
-    """Domain error portant un code stable et un message humain."""
+class _XlsxError(DomainError):
+    """Legacy alias — subclass of :class:`DomainError` for typed dispatch."""
 
-    def __init__(
+
+@agent(
+    name="xlsx-worker",
+    version="0.1.0",
+    description=(
+        "Manipulation de fichiers Excel (.xlsx) : lire, écrire, ajouter "
+        "des lignes, patcher des cellules ciblées — préserve types, "
+        "formules et merged cells. Styles avancés et lecture pandas."
+    ),
+    tags=("xlsx", "excel", "spreadsheet", "openpyxl", "pandas", "worker"),
+    agent_type="worker",
+    step_budget={"max_steps": 1, "max_tool_calls": 5, "wall_clock_secs": 300},
+)
+class XlsxWorker:
+    """5 skills .xlsx déterministes (decorator-first, ADR-098+)."""
+
+    @skill(
+        "xlsx.read",
+        description=(
+            "Lit un fichier .xlsx et retourne JSON structuré (feuilles, "
+            "lignes typées, merged ranges, freeze panes). Mode 'values' ou 'formulas'."
+        ),
+    )
+    async def read_xlsx(
         self,
-        code: str,
-        message: str,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.details = details
-
-
-class XlsxWorker(WorkerAgent):
-    """Deterministic worker exposing 5 .xlsx-manipulation skills."""
-
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "xlsx-worker",
-            "version": "0.1.0",
-            "description": (
-                "Manipulation de fichiers Excel (.xlsx) : lire, écrire, ajouter "
-                "des lignes, patcher des cellules ciblées — préserve types, "
-                "formules et merged cells. Styles avancés et lecture pandas."
-            ),
-            "execution_mode": "direct",
-            "agent_type": "user",
-            "supports_a2a": True,
-            "max_concurrent_tasks": 2,
-            "tools_required": [],
-            "dangerous_tools_allowed": False,
-            "packages": ["openpyxl==3.1.5", "pandas==2.2.3"],
-            "tags": ["xlsx", "excel", "spreadsheet", "openpyxl", "pandas", "worker"],
-            "step_budget": {
-                "max_steps": 1,
-                "max_tool_calls": 5,
-                "wall_clock_secs": 300,
-            },
-            "skills": _build_skill_manifests(),
-        }
-
-    async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
-        skill_id = extract_skill_id(task)
-        if skill_id is None:
-            return AIPResult.failed(
-                "MISSING_SKILL_ID",
-                "xlsx-worker : aucun skill_id propagé par le runtime (worker multi-skills)",
-                details={"expected": list(ALLOWED_SKILL_IDS)},
-            )
-        if skill_id not in ALLOWED_SKILL_IDS:
-            return AIPResult.failed(
-                "UNKNOWN_SKILL_ID",
-                f"skill_id non reconnu : {skill_id!r}",
-                details={"got": skill_id, "expected": list(ALLOWED_SKILL_IDS)},
-            )
-
-        payload = extract_a2a_payload(task)
-        if not payload:
-            return AIPResult.failed(
-                "INVALID_PAYLOAD",
-                "xlsx-worker : payload A2A vide ou non parseable",
-            )
-
-        try:
-            if skill_id == "xlsx.read":
-                result = _do_read(payload)
-            elif skill_id == "xlsx.read-as-dataframe":
-                result = _do_read_as_dataframe(payload)
-            elif skill_id == "xlsx.write":
-                result = _do_write(payload)
-            elif skill_id == "xlsx.append-rows":
-                result = _do_append_rows(payload)
-            else:  # "xlsx.update-cells"
-                result = _do_update_cells(payload)
-        except FileNotFoundError as exc:
-            return AIPResult.failed("FILE_NOT_FOUND", str(exc))
-        except _XlsxError as exc:
-            return AIPResult.failed(exc.code, exc.message, details=exc.details)
-        except Exception as exc:  # last-resort safety net
-            ctx.log("error", f"xlsx-worker {skill_id} failed: {exc}")
-            return AIPResult.failed("EXECUTION_FAILED", f"Erreur inattendue : {exc}")
-
-        return AIPResult.completed(
-            json.dumps(result, ensure_ascii=False, default=_json_default)
+        path: str,
+        sheet_names: list[str] | None = None,
+        read_mode: str = "values",
+        max_rows: int = 100_000,
+        max_cols: int = 1_000,
+        include_types: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Lecture brute."""
+        return _do_read(
+            {
+                "path": path,
+                "sheet_names": sheet_names,
+                "read_mode": read_mode,
+                "max_rows": max_rows,
+                "max_cols": max_cols,
+                "include_types": include_types,
+            }
         )
 
+    @skill(
+        "xlsx.read_as_dataframe",
+        description=(
+            "Lit un .xlsx en pandas.DataFrame, infère les dtypes, retourne "
+            "les records JSON."
+        ),
+    )
+    async def read_as_dataframe(
+        self,
+        path: str,
+        sheet_name: str | int | None = None,
+        header_row: int | None = 0,
+        skiprows: int = 0,
+        nrows: int | None = None,
+        dtypes_hint: dict[str, str] | None = None,
+        na_values: list[Any] | None = None,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Lecture pandas."""
+        return _do_read_as_dataframe(
+            {
+                "path": path,
+                "sheet_name": sheet_name,
+                "header_row": header_row,
+                "skiprows": skiprows,
+                "nrows": nrows,
+                "dtypes_hint": dtypes_hint,
+                "na_values": na_values,
+            }
+        )
 
-# ─── Manifest skills builder ───────────────────────────────────────────────
+    @skill(
+        "xlsx.write",
+        description=(
+            "Crée un .xlsx multi-sheet avec styles avancés, conditional "
+            "formatting, freeze panes, auto-filter."
+        ),
+    )
+    async def write_xlsx(
+        self,
+        output_path: str,
+        sheets: list[dict[str, Any]],
+        named_styles: dict[str, Any] | None = None,
+        overwrite: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Écriture multi-sheet."""
+        return _do_write(
+            {
+                "output_path": output_path,
+                "sheets": sheets,
+                "named_styles": named_styles,
+                "overwrite": overwrite,
+            }
+        )
 
+    @skill(
+        "xlsx.append_rows",
+        description=(
+            "Ajoute des lignes à une feuille existante sans toucher au reste."
+        ),
+    )
+    async def append_rows(
+        self,
+        path: str,
+        rows: list[list[Any]],
+        sheet_name: str | None = None,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Ajout de lignes."""
+        return _do_append_rows({"path": path, "rows": rows, "sheet_name": sheet_name})
 
-def _build_skill_manifests() -> list[dict[str, Any]]:
-    return [
-        {
-            "id": "xlsx.read",
-            "name": "Read XLSX workbook",
-            "description": (
-                "Lit un fichier .xlsx et retourne JSON structuré (feuilles, "
-                "lignes typées, merged ranges, freeze panes). Mode 'values' ou "
-                "'formulas'."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin absolu vers le .xlsx.", "required": True},
-                "sheet_names": {"type": "array", "description": "Si absent : toutes les feuilles.", "required": False},
-                "read_mode": {"type": "string", "description": "'values' (défaut) ou 'formulas'.", "required": False},
-                "max_rows": {"type": "integer", "description": "Défaut 100 000.", "required": False},
-                "max_cols": {"type": "integer", "description": "Défaut 1 000.", "required": False},
-                "include_types": {"type": "boolean", "description": "Si true, rows = [[{value, type}, ...]] au lieu de [[v, ...]].", "required": False},
-            },
-        },
-        {
-            "id": "xlsx.read-as-dataframe",
-            "name": "Read XLSX as pandas DataFrame",
-            "description": (
-                "Lit un .xlsx en pandas.DataFrame, infère les dtypes, retourne "
-                "les records JSON. Header detection, skip/nrows pagination, "
-                "dtypes_hint pour forcer les types."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin absolu vers le .xlsx.", "required": True},
-                "sheet_name": {"type": "string", "description": "Nom ou index (str/int). Première si absent.", "required": False},
-                "header_row": {"type": "integer", "description": "Row index 0-based des headers. Défaut 0. null = pas de header.", "required": False},
-                "skiprows": {"type": "integer", "description": "Lignes à skip après header.", "required": False},
-                "nrows": {"type": "integer", "description": "Max lignes à lire.", "required": False},
-                "dtypes_hint": {"type": "object", "description": "{col: 'int'|'float'|'str'|'bool'|'datetime'} pour forcer.", "required": False},
-                "na_values": {"type": "array", "description": "Valeurs à interpréter comme NaN.", "required": False},
-            },
-        },
-        {
-            "id": "xlsx.write",
-            "name": "Write XLSX workbook",
-            "description": (
-                "Crée un .xlsx multi-sheet avec styles avancés (named styles "
-                "réutilisables, conditional formatting, sizing colonnes/lignes, "
-                "freeze panes, auto-filter)."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "output_path": {"type": "string", "description": "Chemin de sortie du .xlsx.", "required": True},
-                "sheets": {"type": "array", "description": "Liste de SheetSpec (≥1). Cf. README pour le schéma complet.", "required": True},
-                "named_styles": {"type": "object", "description": "Dict {style_id: StyleSpec} réutilisables. Cf. README.", "required": False},
-                "overwrite": {"type": "boolean", "description": "Défaut false (refuse si existe).", "required": False},
-            },
-        },
-        {
-            "id": "xlsx.append-rows",
-            "name": "Append rows to XLSX sheet",
-            "description": (
-                "Ajoute des lignes à une feuille existante sans toucher au "
-                "reste — préserve formules, styles, merged cells."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin du .xlsx existant.", "required": True},
-                "sheet_name": {"type": "string", "description": "Première feuille si absent.", "required": False},
-                "rows": {"type": "array", "description": "Liste de listes (≥1 ligne).", "required": True},
-            },
-        },
-        {
-            "id": "xlsx.update-cells",
-            "name": "Update specific XLSX cells",
-            "description": (
-                "Patch ciblé cellule par cellule (A1 notation). Préserve les "
-                "formules des cellules non touchées. Retourne erreurs par cellule."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": {
-                "path": {"type": "string", "description": "Chemin du .xlsx existant.", "required": True},
-                "sheet_name": {"type": "string", "description": "Nom de la feuille.", "required": True},
-                "updates": {"type": "array", "description": "Liste de {cell_ref, value} (≥1).", "required": True},
-            },
-        },
-    ]
+    @skill(
+        "xlsx.update_cells",
+        description=(
+            "Patch ciblé cellule par cellule (A1 notation). Préserve les "
+            "formules des cellules non touchées."
+        ),
+    )
+    async def update_cells(
+        self,
+        path: str,
+        sheet_name: str,
+        updates: list[dict[str, Any]],
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Patch ciblé."""
+        return _do_update_cells(
+            {"path": path, "sheet_name": sheet_name, "updates": updates}
+        )
 
 
 # ─── Operations ────────────────────────────────────────────────────────────
@@ -385,8 +332,8 @@ def _do_read_as_dataframe(payload: dict[str, Any]) -> dict[str, Any]:
 
     try:
         df = pd.read_excel(**pd_kwargs)
-    except FileNotFoundError:
-        raise
+    except FileNotFoundError as exc:
+        raise _XlsxError("FILE_NOT_FOUND", str(exc)) from exc
     except Exception as exc:
         msg = str(exc).lower()
         if "could not convert" in msg or "could not cast" in msg or "invalid literal" in msg:
@@ -1001,7 +948,7 @@ def _validate_xlsx_path(path: str, must_exist: bool = False) -> None:
     if must_exist:
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"fichier introuvable : {path}")
+            raise _XlsxError("FILE_NOT_FOUND", f"fichier introuvable : {path}")
         size = p.stat().st_size
         if size > MAX_FILE_BYTES:
             raise _XlsxError(
@@ -1080,5 +1027,4 @@ def _json_default(o: Any) -> Any:
     raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
-# Module-level — requis par le loader runtime (crates/apollia-aip/src/loader.rs).
-agent = XlsxWorker()
+# (Module-level ``agent`` singleton exposé automatiquement par ``@agent``.)

@@ -31,23 +31,18 @@ import re
 from pathlib import Path
 from typing import Any
 
-# Headless rendering — must happen BEFORE importing pyplot.
-import matplotlib
+# Headless rendering — must happen BEFORE importing pyplot. matplotlib
+# itself is an optional runtime dep (declared in the agent.toml packages
+# block); import lazily so ``apollia inspect`` works without it.
+try:
+    import matplotlib
 
-matplotlib.use("Agg")
+    matplotlib.use("Agg")
+except ImportError:  # pragma: no cover - matplotlib only required at runtime
+    matplotlib = None  # type: ignore[assignment]
 
-from apollia.agents.react import AIPResult
-from apollia.agents.worker import WorkerAgent
-from apollia.utils.a2a import extract_a2a_payload, extract_skill_id
-
-
-ALLOWED_SKILL_IDS: tuple[str, ...] = (
-    "chart.bar",
-    "chart.line",
-    "chart.pie",
-    "chart.scatter",
-    "chart.heatmap",
-)
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 ALLOWED_FORMATS: tuple[str, ...] = ("png", "svg")
 ALLOWED_THEMES: tuple[str, ...] = ("default", "dark", "minimal")
 ALLOWED_COLORMAPS: tuple[str, ...] = (
@@ -72,214 +67,247 @@ PALETTE_DARK = ["#4FC3F7", "#81C784", "#FFB74D", "#FFD54F", "#BA68C8", "#E0E0E0"
 PALETTE_MINIMAL = ["#88C0D0", "#A3BE8C", "#EBCB8B", "#D08770", "#B48EAD", "#81A1C1", "#BF616A", "#5E81AC"]
 
 
-class _ChartError(Exception):
-    """Domain error portant un code stable et un message humain."""
+class _ChartError(DomainError):
+    """Legacy alias — subclass of :class:`DomainError` for typed dispatch."""
 
-    def __init__(
+
+@agent(
+    name="chart-worker",
+    version="0.1.0",
+    description=(
+        "Génération de charts (PNG/SVG) depuis JSON : bar, line, pie, "
+        "scatter, heatmap. Styles avancés (3 thèmes), régression linéaire."
+    ),
+    tags=("chart", "dataviz", "matplotlib", "png", "svg", "worker"),
+    agent_type="worker",
+    step_budget={"max_steps": 1, "max_tool_calls": 5, "wall_clock_secs": 300},
+)
+class ChartWorker:
+    """5 skills chart-generation (decorator-first, ADR-098+)."""
+
+    @skill(
+        "chart.bar",
+        description=(
+            "Bar chart PNG/SVG (vertical/horizontal, grouped/stacked) "
+            "depuis une liste de series."
+        ),
+    )
+    async def bar(
         self,
-        code: str,
-        message: str,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.details = details
-
-
-class ChartWorker(WorkerAgent):
-    """Deterministic worker exposing 5 chart-generation skills."""
-
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "chart-worker",
-            "version": "0.1.0",
-            "description": (
-                "Génération de charts (PNG/SVG) depuis JSON : bar, line, pie, "
-                "scatter, heatmap. Styles avancés (3 thèmes), régression linéaire, "
-                "mode file ou base64."
-            ),
-            "execution_mode": "direct",
-            "agent_type": "user",
-            "supports_a2a": True,
-            "max_concurrent_tasks": 2,
-            "tools_required": [],
-            "dangerous_tools_allowed": False,
-            "packages": ["matplotlib==3.9.2"],
-            "tags": ["chart", "dataviz", "matplotlib", "png", "svg", "worker"],
-            "step_budget": {
-                "max_steps": 1,
-                "max_tool_calls": 5,
-                "wall_clock_secs": 300,
-            },
-            "skills": _build_skill_manifests(),
-        }
-
-    async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
-        skill_id = extract_skill_id(task)
-        if skill_id is None:
-            return AIPResult.failed(
-                "MISSING_SKILL_ID",
-                "chart-worker : aucun skill_id propagé par le runtime (worker multi-skills)",
-                details={"expected": list(ALLOWED_SKILL_IDS)},
+        series: list[dict[str, Any]],
+        output_path: str | None = None,
+        output_mode: str = "file",
+        format: str | None = None,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        width_inches: float = 10.0,
+        height_inches: float = 6.0,
+        dpi: int = 150,
+        theme: str = "default",
+        legend: bool = True,
+        grid: bool = True,
+        overwrite: bool = False,
+        font_size: int = 11,
+        title_font_size: int = 14,
+        categories: list[Any] | None = None,
+        orientation: str = "vertical",
+        bar_style: str = "grouped",
+        value_labels: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Bar chart."""
+        return _do_bar(
+            _gather_chart_payload(
+                locals(),
+                extra_keys=("series", "categories", "orientation", "bar_style", "value_labels"),
             )
-        if skill_id not in ALLOWED_SKILL_IDS:
-            return AIPResult.failed(
-                "UNKNOWN_SKILL_ID",
-                f"skill_id non reconnu : {skill_id!r}",
-                details={"got": skill_id, "expected": list(ALLOWED_SKILL_IDS)},
+        )
+
+    @skill(
+        "chart.line",
+        description=(
+            "Line chart PNG/SVG. Axes datetime/number/category, markers, line styles."
+        ),
+    )
+    async def line(
+        self,
+        series: list[dict[str, Any]],
+        output_path: str | None = None,
+        output_mode: str = "file",
+        format: str | None = None,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        width_inches: float = 10.0,
+        height_inches: float = 6.0,
+        dpi: int = 150,
+        theme: str = "default",
+        legend: bool = True,
+        grid: bool = True,
+        overwrite: bool = False,
+        font_size: int = 11,
+        title_font_size: int = 14,
+        x_type: str = "auto",
+        y_log_scale: bool = False,
+        area_fill: bool = False,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Line chart."""
+        return _do_line(
+            _gather_chart_payload(
+                locals(),
+                extra_keys=("series", "x_type", "y_log_scale", "area_fill"),
             )
+        )
 
-        payload = extract_a2a_payload(task)
-        if not payload:
-            return AIPResult.failed(
-                "INVALID_PAYLOAD",
-                "chart-worker : payload A2A vide ou non parseable",
+    @skill(
+        "chart.pie",
+        description=(
+            "Pie ou donut chart PNG/SVG. Explode, show_percent, hole_size, start_angle."
+        ),
+    )
+    async def pie(
+        self,
+        data: list[dict[str, Any]],
+        output_path: str | None = None,
+        output_mode: str = "file",
+        format: str | None = None,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        width_inches: float = 10.0,
+        height_inches: float = 6.0,
+        dpi: int = 150,
+        theme: str = "default",
+        legend: bool = True,
+        grid: bool = True,
+        overwrite: bool = False,
+        font_size: int = 11,
+        title_font_size: int = 14,
+        donut: bool = False,
+        hole_size: float | None = None,
+        colors: list[str] | None = None,
+        show_percent: bool = True,
+        show_values: bool = False,
+        explode: list[float] | None = None,
+        start_angle: float = 90.0,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Pie / donut chart."""
+        return _do_pie(
+            _gather_chart_payload(
+                locals(),
+                extra_keys=(
+                    "data", "donut", "hole_size", "colors", "show_percent",
+                    "show_values", "explode", "start_angle",
+                ),
             )
+        )
 
-        try:
-            if skill_id == "chart.bar":
-                result = _do_bar(payload)
-            elif skill_id == "chart.line":
-                result = _do_line(payload)
-            elif skill_id == "chart.pie":
-                result = _do_pie(payload)
-            elif skill_id == "chart.scatter":
-                result = _do_scatter(payload)
-            else:  # "chart.heatmap"
-                result = _do_heatmap(payload)
-        except _ChartError as exc:
-            return AIPResult.failed(exc.code, exc.message, details=exc.details)
-        except Exception as exc:  # last-resort safety net
-            ctx.log("error", f"chart-worker {skill_id} failed: {exc}")
-            return AIPResult.failed("EXECUTION_FAILED", f"Erreur inattendue : {exc}")
+    @skill(
+        "chart.scatter",
+        description=(
+            "Scatter / bubble chart PNG/SVG. Régression linéaire optionnelle (R² annoté)."
+        ),
+    )
+    async def scatter(
+        self,
+        series: list[dict[str, Any]],
+        output_path: str | None = None,
+        output_mode: str = "file",
+        format: str | None = None,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        width_inches: float = 10.0,
+        height_inches: float = 6.0,
+        dpi: int = 150,
+        theme: str = "default",
+        legend: bool = True,
+        grid: bool = True,
+        overwrite: bool = False,
+        font_size: int = 11,
+        title_font_size: int = 14,
+        x_type: str = "number",
+        y_type: str = "number",
+        regression: bool = False,
+        marker_size: float = 50.0,
+        alpha: float = 0.7,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Scatter / bubble chart."""
+        return _do_scatter(
+            _gather_chart_payload(
+                locals(),
+                extra_keys=("series", "x_type", "y_type", "regression", "marker_size", "alpha"),
+            )
+        )
 
-        return AIPResult.completed(json.dumps(result, ensure_ascii=False))
+    @skill(
+        "chart.heatmap",
+        description=(
+            "Heatmap depuis matrice numérique. 8 colormaps, show_values overlay."
+        ),
+    )
+    async def heatmap(
+        self,
+        matrix: list[list[float]],
+        output_path: str | None = None,
+        output_mode: str = "file",
+        format: str | None = None,
+        title: str | None = None,
+        xlabel: str | None = None,
+        ylabel: str | None = None,
+        width_inches: float = 10.0,
+        height_inches: float = 6.0,
+        dpi: int = 150,
+        theme: str = "default",
+        legend: bool = True,
+        grid: bool = True,
+        overwrite: bool = False,
+        font_size: int = 11,
+        title_font_size: int = 14,
+        row_labels: list[str] | None = None,
+        col_labels: list[str] | None = None,
+        colormap: str = "viridis",
+        vmin: float | None = None,
+        vmax: float | None = None,
+        show_values: bool = False,
+        value_format: str = "{:.2f}",
+        colorbar: bool = True,
+        colorbar_label: str | None = None,
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Heatmap."""
+        return _do_heatmap(
+            _gather_chart_payload(
+                locals(),
+                extra_keys=(
+                    "matrix", "row_labels", "col_labels", "colormap", "vmin", "vmax",
+                    "show_values", "value_format", "colorbar", "colorbar_label",
+                ),
+            )
+        )
 
 
-# ─── Manifest skills builder ───────────────────────────────────────────────
+_COMMON_PAYLOAD_KEYS: tuple[str, ...] = (
+    "output_path", "output_mode", "format", "title", "xlabel", "ylabel",
+    "width_inches", "height_inches", "dpi", "theme", "legend", "grid",
+    "overwrite", "font_size", "title_font_size",
+)
 
 
-_COMMON_SCHEMA: dict[str, dict[str, Any]] = {
-    "output_path": {"type": "string", "description": "Chemin de sortie (.png ou .svg). Requis si output_mode='file'.", "required": False},
-    "output_mode": {"type": "string", "description": "'file' (défaut) ou 'base64'.", "required": False},
-    "format": {"type": "string", "description": "'png' ou 'svg'. Inféré depuis output_path si absent.", "required": False},
-    "title": {"type": "string", "description": "Titre du chart.", "required": False},
-    "xlabel": {"type": "string", "description": "Label de l'axe X.", "required": False},
-    "ylabel": {"type": "string", "description": "Label de l'axe Y.", "required": False},
-    "width_inches": {"type": "number", "description": "Largeur en pouces, défaut 10.", "required": False},
-    "height_inches": {"type": "number", "description": "Hauteur en pouces, défaut 6.", "required": False},
-    "dpi": {"type": "integer", "description": "DPI pour PNG, défaut 150.", "required": False},
-    "theme": {"type": "string", "description": "'default', 'dark', 'minimal'.", "required": False},
-    "legend": {"type": "boolean", "description": "Affiche la légende, défaut true.", "required": False},
-    "grid": {"type": "boolean", "description": "Affiche la grille, défaut true.", "required": False},
-    "overwrite": {"type": "boolean", "description": "Défaut false (mode file uniquement).", "required": False},
-    "font_size": {"type": "integer", "description": "Taille police générale, défaut 11.", "required": False},
-    "title_font_size": {"type": "integer", "description": "Taille police titre, défaut 14.", "required": False},
-}
-
-
-def _build_skill_manifests() -> list[dict[str, Any]]:
-    def _with_extra(extras: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-        merged = dict(_COMMON_SCHEMA)
-        merged.update(extras)
-        return merged
-
-    return [
-        {
-            "id": "chart.bar",
-            "name": "Bar chart",
-            "description": (
-                "Génère un bar chart PNG/SVG (vertical ou horizontal, grouped "
-                "ou stacked) depuis une liste de series."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": _with_extra({
-                "series": {"type": "array", "description": "Liste de series {name, data, color?}.", "required": True},
-                "categories": {"type": "array", "description": "Labels x-axis si data est [number].", "required": False},
-                "orientation": {"type": "string", "description": "'vertical' (défaut) ou 'horizontal'.", "required": False},
-                "bar_style": {"type": "string", "description": "'grouped' (défaut) ou 'stacked'.", "required": False},
-                "value_labels": {"type": "boolean", "description": "Affiche la valeur sur chaque barre.", "required": False},
-            }),
-        },
-        {
-            "id": "chart.line",
-            "name": "Line chart",
-            "description": (
-                "Génère un line chart PNG/SVG (single ou multi-series). Axes "
-                "datetime/number/category, markers, line styles."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": _with_extra({
-                "series": {"type": "array", "description": "Liste de series {name, data: [{x,y}], color?, line_style?, line_width?, marker?}.", "required": True},
-                "x_type": {"type": "string", "description": "'auto' (défaut), 'number', 'datetime', 'category'.", "required": False},
-                "y_log_scale": {"type": "boolean", "description": "Échelle log sur Y.", "required": False},
-                "area_fill": {"type": "boolean", "description": "Remplit sous la courbe.", "required": False},
-            }),
-        },
-        {
-            "id": "chart.pie",
-            "name": "Pie / donut chart",
-            "description": (
-                "Génère un pie ou donut chart PNG/SVG. Explode par slice, "
-                "show_percent, hole_size, start_angle."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": _with_extra({
-                "data": {"type": "array", "description": "Liste [{label, value}] avec value > 0.", "required": True},
-                "donut": {"type": "boolean", "description": "Mode donut, défaut false.", "required": False},
-                "hole_size": {"type": "number", "description": "0-0.9, défaut 0.4 si donut.", "required": False},
-                "colors": {"type": "array", "description": "Hex colors, un par slice.", "required": False},
-                "show_percent": {"type": "boolean", "description": "Affiche les % sur les slices, défaut true.", "required": False},
-                "show_values": {"type": "boolean", "description": "Affiche les valeurs, défaut false.", "required": False},
-                "explode": {"type": "array", "description": "Offset 0-0.3 par slice.", "required": False},
-                "start_angle": {"type": "number", "description": "Angle de départ en degrés, défaut 90.", "required": False},
-            }),
-        },
-        {
-            "id": "chart.scatter",
-            "name": "Scatter / bubble chart",
-            "description": (
-                "Génère un scatter ou bubble chart PNG/SVG. Régression linéaire "
-                "optionnelle (R² annoté), marker_style configurable."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": _with_extra({
-                "series": {"type": "array", "description": "Liste de series {name, data: [{x,y,size?}], color?, marker_style?}.", "required": True},
-                "x_type": {"type": "string", "description": "'number' (défaut) ou 'datetime'.", "required": False},
-                "y_type": {"type": "string", "description": "'number' (défaut) ou 'datetime'.", "required": False},
-                "regression": {"type": "boolean", "description": "Ajoute droite de régression + R² par series.", "required": False},
-                "marker_size": {"type": "number", "description": "Taille par défaut, défaut 50.", "required": False},
-                "alpha": {"type": "number", "description": "Transparence 0-1, défaut 0.7.", "required": False},
-            }),
-        },
-        {
-            "id": "chart.heatmap",
-            "name": "Heatmap matrix",
-            "description": (
-                "Génère une heatmap PNG/SVG depuis une matrice numérique. "
-                "8 colormaps, show_values overlay, vmin/vmax explicites."
-            ),
-            "input_modes": ["text"],
-            "output_modes": ["text"],
-            "input_schema": _with_extra({
-                "matrix": {"type": "array", "description": "Liste de listes de numbers (rows × cols).", "required": True},
-                "row_labels": {"type": "array", "description": "Labels des lignes.", "required": False},
-                "col_labels": {"type": "array", "description": "Labels des colonnes.", "required": False},
-                "colormap": {"type": "string", "description": "'viridis' (défaut), 'plasma', 'magma', 'inferno', 'Blues', 'Reds', 'Greens', 'RdBu'.", "required": False},
-                "vmin": {"type": "number", "description": "Borne min explicite.", "required": False},
-                "vmax": {"type": "number", "description": "Borne max explicite.", "required": False},
-                "show_values": {"type": "boolean", "description": "Overlay les valeurs, défaut false.", "required": False},
-                "value_format": {"type": "string", "description": "Format Python, défaut '{:.2f}'.", "required": False},
-                "colorbar": {"type": "boolean", "description": "Affiche la colorbar, défaut true.", "required": False},
-                "colorbar_label": {"type": "string", "description": "Label de la colorbar.", "required": False},
-            }),
-        },
-    ]
+def _gather_chart_payload(local_vars: dict[str, Any], extra_keys: tuple[str, ...]) -> dict[str, Any]:
+    """Assemble a payload dict from a handler's ``locals()`` snapshot."""
+    payload: dict[str, Any] = {}
+    for k in _COMMON_PAYLOAD_KEYS:
+        if k in local_vars:
+            payload[k] = local_vars[k]
+    for k in extra_keys:
+        if k in local_vars:
+            payload[k] = local_vars[k]
+    return payload
 
 
 # ─── Operation: bar ────────────────────────────────────────────────────────
@@ -1115,5 +1143,4 @@ def _check_data_points_cap(total: int) -> None:
         )
 
 
-# Module-level — requis par le loader runtime (crates/apollia-aip/src/loader.rs).
-agent = ChartWorker()
+# (Module-level ``agent`` singleton exposé automatiquement par ``@agent``.)

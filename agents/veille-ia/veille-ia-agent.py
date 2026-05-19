@@ -25,7 +25,8 @@ import jinja2
 import yaml
 from pydantic import ValidationError
 
-from apollia.agents.react import AIPResult, BaseReActAgent
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 
 
 def _capture_agent_dir() -> Path:
@@ -94,7 +95,17 @@ CRITICAL_KEYWORDS = [
 ]
 
 
-class VeilleIaAgent(BaseReActAgent):
+@agent(
+    name="veille-ia-agent",
+    version="3.0.0",
+    description="Veille IA/LLM quotidienne — state machine + entités + datasources YAML.",
+    tags=("veille", "monitoring", "competitive-intelligence", "ia"),
+    memory_namespace="veille-ia",
+    tools_required=("file_write", "web_search", "web_read"),
+    packages=("jinja2", "pydantic", "pyyaml"),
+    step_budget={"max_steps": 25, "max_tool_calls": 25, "wall_clock_secs": 1800},
+)
+class VeilleIaAgent:
     """Director de la veille IA quotidienne — state machine déterministe."""
 
     SYSTEM_PROMPT = """Tu es veille-ia-agent, le director de la veille IA/LLM quotidienne.
@@ -107,71 +118,28 @@ Orchestre la production d'un rapport quotidien deux axes (technologique + concur
 Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
 </output_format>
 """
-    MAX_STEPS = 25
-    TEMPERATURE = 0.2
 
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "veille-ia-agent",
-            "version": "3.0.0",
-            "description": "Veille IA/LLM quotidienne — state machine + entités + datasources YAML.",
-            "execution_mode": "direct",
-            "agent_type": "user",
-            # web_search/web_read sont required car le director a un fallback direct
-            # quand A2A n'est pas disponible (cas : agent lancé via trigger ou `apollia agent run`,
-            # qui ne câble pas A2A — seul le mode chat le câble actuellement).
-            "tools_required": ["file_write", "web_search", "web_read"],
-            "tools_optional": [
-                "file_read",
-                "memory_search",
-                "a2a:search-and-extract",
-                "a2a:extract-entities",
-                "a2a:synthesize-report",
-            ],
-            "tools_requiring_approval": [],
-            "memory_namespace": "veille-ia",
-            "supports_a2a": True,
-            "max_concurrent_tasks": 1,
-            "user_memory_write": False,
-            "dangerous_tools_allowed": False,
-            "step_budget": {"max_steps": 25, "max_tool_calls": 25, "wall_clock_secs": 1800},
-            "skills": [
-                {
-                    "id": "run-veille",
-                    "name": "Lancer la veille du jour",
-                    "description": "Lance la veille du jour et produit un rapport Markdown structuré.",
-                    "input_modes": ["text"],
-                    "output_modes": ["text"],
-                }
-            ],
-            "packages": ["jinja2", "pydantic", "pyyaml"],
-            "tags": ["veille", "monitoring", "competitive-intelligence", "ia"],
-            "setup_notes": (
-                "Architecture : workflow déterministe (state machine 15 steps) avec LLM appelé chirurgicalement "
-                "sur extract_entities, score_and_rank, exec_summary. Choix workflow vs agent justifié par : "
-                "chemin prévisible, sources/output connus, déterminisme requis pour audit EU AI Act. "
-                "Datasources YAML dans `datasources/` modifiables sans toucher au code."
-            ),
-            "limitations": [
-                "Ne fait pas de scraping JS-lourd (web_read = parse statique).",
-                "Pas de mémoire vectorielle/graph (FTS5 BM25 seul).",
-                "Notification webhook configurée hors agent (via canaux Apollia).",
-            ],
-            "examples": [
-                "Génère la veille IA/LLM du jour",
-                "Quels sont les findings critiques de la semaine ?",
-                "Lance la veille concurrentielle uniquement",
-            ],
-        }
+    @skill(
+        "veille.run",
+        description="Lance la veille du jour et produit un rapport Markdown structuré.",
+    )
+    async def run_veille(
+        self,
+        prompt: str = "",
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Lance la state machine veille → produit le rapport Markdown du jour.
 
-    async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
+        Args:
+            prompt: optional free-form instruction (e.g. "veille concurrentielle uniquement").
+        """
         if ctx.llm is None:
-            return AIPResult.failed("NO_LLM", "Backend LLM requis")
+            raise DomainError("NO_LLM", "Backend LLM requis")
 
         start_ts = datetime.now()
         state: dict[str, Any] = {
             "step": VeilleStep.INIT,
-            "task": task,
+            "task": {"input": {"parts": [{"type": "text", "text": prompt}]}},
             "data": {},
             "progress": [],
             "errors": [],
@@ -187,15 +155,16 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
         iteration = 0
         while state["step"] != VeilleStep.DONE:
             if iteration >= max_iterations:
-                return AIPResult.failed(
+                raise DomainError(
                     "STATE_LOOP",
-                    f"Max iterations atteint. Progress: {state['progress']}. Errors: {state['errors']}",
+                    f"Max iterations atteint. Progress: {state['progress']}.",
+                    details={"errors": state["errors"]},
                 )
             iteration += 1
             try:
                 state = await self._dispatch(state, ctx)
             except Exception as e:
-                ctx.log("error", f"Step {state['step'].value} failed: {e}")
+                ctx.logger.error("step failed", step=state["step"].value, error=str(e))
                 state["errors"].append({"step": state["step"].value, "error": str(e)})
                 state["step"] = self._error_recovery(state["step"])
 
@@ -203,10 +172,13 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
             datetime.now().timestamp() - state["metrics"]["wall_clock_start"], 1
         )
 
-        output_text = state["data"].get("rendered_report", "")
-        # AIPResult.completed n'accepte que `text` — pas de `data=`.
-        # Les métriques sont déjà persistées en mémoire épisodique (cf. _step_persist_memory).
-        return AIPResult.completed(output_text)
+        return {
+            "report": state["data"].get("rendered_report", ""),
+            "today": state["today"],
+            "progress": state["progress"],
+            "errors": state["errors"],
+            "metrics": state["metrics"],
+        }
 
     # ============================================================
     # Dispatch
@@ -254,7 +226,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
     # ============================================================
 
     async def _step_init(self, state, ctx):
-        ctx.log("info", f"veille-ia-agent run started: {state['today']}")
+        ctx.logger.info(f"veille-ia-agent run started: {state['today']}")
         state["progress"].append("INIT ok")
         state["step"] = VeilleStep.LOAD_DATASOURCES
         return state
@@ -294,7 +266,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                 if all_entries.get(key):
                     ctx_user[f"user.{key}"] = all_entries[key]
         except Exception as e:
-            ctx.log("debug", f"profile.all() failed: {e}")
+            ctx.logger.debug(f"profile.all() failed: {e}")
         state["data"]["user_context"] = ctx_user
         state["progress"].append(f"USER_CONTEXT ok ({len(ctx_user)} keys)")
         state["step"] = VeilleStep.BOOTSTRAP_CHECK
@@ -346,7 +318,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                 if r.get("key", "").startswith("seen:")
             ]
         except Exception as e:
-            ctx.log("warn", f"memory search seen: failed: {e}")
+            ctx.logger.warning(f"memory search seen: failed: {e}")
             seen_hashes = []
 
         try:
@@ -360,7 +332,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                     except json.JSONDecodeError:
                         pass
         except Exception as e:
-            ctx.log("warn", f"memory search entity: failed: {e}")
+            ctx.logger.warning(f"memory search entity: failed: {e}")
             known_entities = {}
 
         state["data"]["seen_hashes"] = seen_hashes
@@ -383,7 +355,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
         max_articles = state["data"]["queries"].get("depth", {}).get(axis, 5)
 
         if not queries:
-            ctx.log("warn", f"Aucune requête pour axe {axis}")
+            ctx.logger.warning(f"Aucune requête pour axe {axis}")
             state["data"][f"articles_{axis}_raw"] = []
             state["progress"].append(f"SEARCH_{axis.upper()} skip (no queries)")
             state["step"] = next_step
@@ -395,8 +367,8 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
 
         # Try A2A first (worker spécialisé si dispo)
         try:
-            result = await ctx.a2a_invoke(
-                "search-and-extract",
+            result = await ctx.a2a.invoke(
+                "research.search_and_extract",
                 {
                     "queries": queries,
                     "axis": axis,
@@ -417,7 +389,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                 skipped = articles_data.get("skipped_dupes", 0)
                 a2a_used = True
         except Exception as e:
-            ctx.log("info", f"a2a unavailable for {axis} ({e}) → fallback direct")
+            ctx.logger.info(f"a2a unavailable for {axis} ({e}) → fallback direct")
 
         # Fallback direct si A2A indispo OU 0 articles retournés
         if not a2a_used or not articles:
@@ -454,7 +426,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                 search_result = await ctx.tools.call("web_search", {"query": q, "max_results": 5})
                 state_results = search_result.get("results", []) if isinstance(search_result, dict) else []
             except Exception as e:
-                ctx.log("warn", f"web_search failed for '{q}': {e}")
+                ctx.logger.warning(f"web_search failed for '{q}': {e}")
                 continue
 
             for r in state_results:
@@ -477,7 +449,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                         if full_text:
                             excerpt = full_text[:2000]
                 except Exception as e:
-                    ctx.log("debug", f"web_read failed for {url}: {e}")
+                    ctx.logger.debug(f"web_read failed for {url}: {e}")
                 source = url.split("/")[2] if "://" in url else url[:50]
                 articles.append({
                     "title": (r.get("title") if isinstance(r, dict) else "") or url[:100],
@@ -505,8 +477,8 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
 
         # Try A2A first
         try:
-            result = await ctx.a2a_invoke(
-                "extract-entities",
+            result = await ctx.a2a.invoke(
+                "research.extract_entities",
                 {
                     "articles": all_articles,
                     "known_entities": list(state["data"].get("known_entities", {}).keys()),
@@ -526,7 +498,7 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
                 article_to_entities = ent_data.get("article_to_entities", {})
                 a2a_used = True
         except Exception as e:
-            ctx.log("info", f"a2a extract-entities unavailable ({e}) → fallback direct LLM")
+            ctx.logger.info(f"a2a extract-entities unavailable ({e}) → fallback direct LLM")
 
         # Fallback direct LLM
         if not a2a_used:
@@ -592,17 +564,17 @@ Réponds UNIQUEMENT avec le JSON, max 15 entités, ne pas inventer ce qui n'est 
             resp = await ctx.llm.chat(self._ENTITY_EXTRACTION_PROMPT, user_msg)
             text = self._extract_llm_text(resp)
             if not text:
-                ctx.log("warn", f"entity extraction: LLM returned empty text (resp type={type(resp).__name__})")
+                ctx.logger.warning(f"entity extraction: LLM returned empty text (resp type={type(resp).__name__})")
                 return [], {}
-            ctx.log("info", f"entity extraction: LLM returned {len(text)} chars; preview={text[:200]!r}")
+            ctx.logger.info(f"entity extraction: LLM returned {len(text)} chars; preview={text[:200]!r}")
             cleaned = self._extract_json_block(text)
             if not cleaned:
-                ctx.log("warn", "entity extraction: no JSON block found in LLM response")
+                ctx.logger.warning("entity extraction: no JSON block found in LLM response")
                 return [], {}
             parsed = json.loads(cleaned)
             return parsed.get("entities", []), parsed.get("article_to_entities", {})
         except Exception as e:
-            ctx.log("warn", f"direct entity extraction failed: {e}")
+            ctx.logger.warning(f"direct entity extraction failed: {e}")
             return [], {}
 
     async def _step_score_and_rank(self, state, ctx):
@@ -629,8 +601,8 @@ Réponds UNIQUEMENT avec le JSON, max 15 entités, ne pas inventer ce qui n'est 
 
         # Try A2A first
         try:
-            result = await ctx.a2a_invoke(
-                "synthesize-report",
+            result = await ctx.a2a.invoke(
+                "research.synthesize_report",
                 {
                     "articles_tech": all_articles_tech,
                     "articles_competitive": all_articles_competitive,
@@ -652,7 +624,7 @@ Réponds UNIQUEMENT avec le JSON, max 15 entités, ne pas inventer ce qui n'est 
                 report = await self._validate_with_repair(raw_text, VeilleReport, ctx)
                 a2a_used = True
         except Exception as e:
-            ctx.log("info", f"a2a synthesize-report unavailable ({e}) → fallback direct LLM")
+            ctx.logger.info(f"a2a synthesize-report unavailable ({e}) → fallback direct LLM")
 
         # Fallback direct LLM
         if report is None:
@@ -725,16 +697,16 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
             resp = await ctx.llm.chat(self._SYNTHESIS_PROMPT, user_msg)
             text = self._extract_llm_text(resp)
             if not text:
-                ctx.log("warn", f"synthesis: LLM returned empty text (resp type={type(resp).__name__})")
+                ctx.logger.warning(f"synthesis: LLM returned empty text (resp type={type(resp).__name__})")
                 return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
-            ctx.log("info", f"synthesis: LLM returned {len(text)} chars; preview={text[:200]!r}")
+            ctx.logger.info(f"synthesis: LLM returned {len(text)} chars; preview={text[:200]!r}")
             cleaned = self._extract_json_block(text)
             if not cleaned:
-                ctx.log("warn", f"synthesis: no JSON block found in LLM response; falling back to minimal report")
+                ctx.logger.warning(f"synthesis: no JSON block found in LLM response; falling back to minimal report")
                 return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
             return await self._validate_with_repair(cleaned, VeilleReport, ctx)
         except Exception as e:
-            ctx.log("warn", f"direct synthesis failed: {e}")
+            ctx.logger.warning(f"direct synthesis failed: {e}")
             # Avant d'abandonner, produire un rapport minimal des articles bruts
             return self._build_minimal_report(today, articles_tech, articles_competitive, user_context)
 
@@ -952,7 +924,7 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
                     ],
                 )
         except Exception as e:
-            ctx.log("debug", f"learn_procedure failed: {e}")
+            ctx.logger.debug(f"learn_procedure failed: {e}")
 
         state["progress"].append(f"PERSIST ok ({seen_count} new seen, episode recorded)")
         state["step"] = VeilleStep.WRITE_FILE
@@ -967,7 +939,7 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
             state["metrics"]["tool_calls"] += 1
             state["progress"].append(f"WRITE_FILE ok ({path})")
         except Exception as e:
-            ctx.log("warn", f"file_write failed: {e}")
+            ctx.logger.warning(f"file_write failed: {e}")
             state["progress"].append(f"WRITE_FILE failed: {e}")
         state["step"] = VeilleStep.NOTIFY
         return state
@@ -1000,7 +972,7 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
                     title="Apollia · Veille IA",
                 )
             except Exception as e:
-                ctx.log("warn", f"notify desktop failed: {e}")
+                ctx.logger.warning(f"notify desktop failed: {e}")
 
             if critical_count > 0:
                 alert = self._render_template(
@@ -1016,7 +988,7 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
                         channel="webhook",
                     )
                 except Exception as e:
-                    ctx.log("warn", f"notify webhook failed: {e}")
+                    ctx.logger.warning(f"notify webhook failed: {e}")
 
         state["progress"].append(f"NOTIFY ok ({articles_count} articles, {critical_count} critical)")
         state["step"] = VeilleStep.DONE
@@ -1034,13 +1006,13 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
                 try:
                     return yaml.safe_load(ws_yaml) or {}
                 except yaml.YAMLError as e:
-                    ctx.log("warn", f"workspace YAML invalid for '{workspace_title}': {e}")
+                    ctx.logger.warning(f"workspace YAML invalid for '{workspace_title}': {e}")
         local_path = _agent_dir() / local_relative
         if local_path.exists():
             try:
                 return yaml.safe_load(local_path.read_text()) or {}
             except yaml.YAMLError as e:
-                ctx.log("warn", f"local YAML invalid {local_path}: {e}")
+                ctx.logger.warning(f"local YAML invalid {local_path}: {e}")
         return {}
 
     async def _needs_bootstrap(self, ctx) -> bool:
@@ -1085,7 +1057,7 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
             try:
                 return schema.model_validate_json(raw)
             except ValidationError as e:
-                ctx.log("warn", f"Validation failed (attempt {attempt + 1}/{max_retries}): {e}")
+                ctx.logger.warning(f"Validation failed (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt == max_retries - 1:
                     raise
                 repair_prompt = (
@@ -1143,6 +1115,5 @@ Réponds UNIQUEMENT avec le JSON, sans Markdown, sans texte avant/après."""
         return env.get_template(template_name).render(**vars)
 
 
-# Variable module-level requise par le runtime Apollia (loader.rs:113-115).
-# Le runtime fait `module.getattr("agent")` après avoir exécuté le fichier.
-agent = VeilleIaAgent()
+# (Module-level ``agent`` singleton exposé automatiquement par le décorateur
+# ``@agent`` (ADR-107).)

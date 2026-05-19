@@ -1,12 +1,10 @@
-"""synthesis-worker v3.0.0 — Synthèse + scoring + production VeilleReport JSON.
+"""synthesis-worker — Synthèse + scoring + production VeilleReport JSON.
 
-Refonte v3 :
-- Reçoit articles bruts + scoring.yaml + user_context + article_to_entities depuis le director.
-- Applique le scoring (additif pondéré sur critères matchés).
-- LLM produit un VeilleReport JSON conforme schemas.py (Pydantic).
-- Retourne le JSON validé (le director rend via Jinja2, ce worker NE FAIT PAS de Markdown).
+Worker A2A. Reçoit articles bruts + scoring + user_context, applique le
+scoring (additif pondéré), produit un VeilleReport JSON conforme au
+schema Pydantic (le director rend ensuite via Jinja2).
 
-Skill A2A : `synthesize-report`.
+Skill A2A : ``research.synthesize_report``.
 """
 
 from __future__ import annotations
@@ -15,14 +13,12 @@ import json
 import re
 from typing import Any
 
-from apollia.agents.react import AIPResult
-from apollia.agents.worker import WorkerAgent
-from apollia.utils.a2a import extract_a2a_payload
+from apollia import DomainError, agent, react, skill
+from apollia.types import Ctx
 from apollia.utils.parsing import extract_json
 
 
-class SynthesisWorker(WorkerAgent):
-    SYSTEM_PROMPT = """Tu es synthesis-worker, expert en synthèse de veille technologique et concurrentielle.
+SYSTEM_PROMPT = """Tu es synthesis-worker, expert en synthèse de veille technologique et concurrentielle.
 
 <role>
 À partir d'articles bruts, tu produis un rapport structuré JSON conforme au schema VeilleReport.
@@ -47,9 +43,9 @@ JSON strict conforme au schema VeilleReport :
   "executive_summary": "1-2 lignes",
   "articles_tech": [Article, ...],
   "articles_competitive": [Article, ...],
-  "critical_findings": [Article, ...],   // articles avec is_critical=true
-  "new_entities": [],                      // remplis par le director, laisser []
-  "metrics": {}                            // remplis par le director, laisser {}
+  "critical_findings": [Article, ...],
+  "new_entities": [],
+  "metrics": {}
 }
 
 Article = {
@@ -76,60 +72,43 @@ Article = {
 5. Conserver la langue des excerpts (FR ou EN selon source).
 </rules>
 """
-    MAX_STEPS = 8
-    TEMPERATURE = 0.2
 
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "synthesis-worker",
-            "version": "3.0.0",
-            "description": "Scoring + synthèse VeilleReport JSON conforme schema Pydantic.",
-            "execution_mode": "direct",
-            "agent_type": "user",
-            "tools_required": [],
-            "memory_namespace": "veille-ia",
-            "shared_memory_namespaces": [],
-            "supports_a2a": True,
-            "max_concurrent_tasks": 2,
-            "step_budget": {"max_steps": 8, "max_tool_calls": 0, "wall_clock_secs": 300},
-            "skills": [
-                {
-                    "id": "synthesize-report",
-                    "name": "Synthétiser le rapport de veille",
-                    "description": "Score les articles et produit un VeilleReport JSON validable Pydantic.",
-                    "input_modes": ["text"],
-                    "output_modes": ["text"],
-                    "input_schema": {
-                        "articles_tech": "array",
-                        "articles_competitive": "array",
-                        "scoring": "object",
-                        "user_context": "object",
-                        "article_to_entities": "object",
-                        "date": "string",
-                    },
-                }
-            ],
-            "packages": ["pydantic"],
-            "tags": ["worker", "synthesis", "scoring"],
-        }
 
-    async def run(self, task: dict[str, Any], ctx: Any) -> dict[str, Any]:
+@agent(
+    name="synthesis-worker",
+    version="3.0.0",
+    description="Scoring + synthèse VeilleReport JSON conforme schema Pydantic.",
+    tags=("worker", "synthesis", "scoring"),
+    agent_type="worker",
+    memory_namespace="veille-ia",
+    packages=("pydantic",),
+    step_budget={"max_steps": 8, "max_tool_calls": 0, "wall_clock_secs": 300},
+)
+class SynthesisWorker:
+    """Worker A2A — scoring + synthèse VeilleReport JSON."""
+
+    @skill(
+        "research.synthesize_report",
+        description=(
+            "Score les articles et produit un VeilleReport JSON validable Pydantic."
+        ),
+    )
+    async def synthesize_report(
+        self,
+        articles_tech: list[dict[str, Any]],
+        articles_competitive: list[dict[str, Any]],
+        scoring: dict[str, Any],
+        user_context: dict[str, Any] | None = None,
+        article_to_entities: dict[str, Any] | None = None,
+        date: str = "",
+        ctx: Ctx = None,
+    ) -> dict[str, Any]:
+        """Synthèse VeilleReport JSON."""
         if ctx.llm is None:
-            return AIPResult.failed("NO_LLM", "Backend LLM requis")
-
-        payload = extract_a2a_payload(task)
-        if not payload:
-            return self.domain_error("invalid_payload", "Payload A2A vide ou non parseable")
-
-        articles_tech = payload.get("articles_tech", [])
-        articles_competitive = payload.get("articles_competitive", [])
-        scoring = payload.get("scoring", {})
-        user_context = payload.get("user_context", {})
-        article_to_entities = payload.get("article_to_entities", {})
-        date = payload.get("date", "")
+            raise DomainError("NO_LLM", "Backend LLM requis")
 
         if not articles_tech and not articles_competitive:
-            empty_report = {
+            return {
                 "date": date,
                 "executive_summary": "Aucun article significatif aujourd'hui.",
                 "articles_tech": [],
@@ -138,41 +117,42 @@ Article = {
                 "new_entities": [],
                 "metrics": {},
             }
-            return AIPResult.completed(json.dumps(empty_report, ensure_ascii=False))
 
-        # Construire le user_message structuré
         user_message = json.dumps(
             {
                 "date": date,
                 "articles_tech": articles_tech,
                 "articles_competitive": articles_competitive,
                 "scoring": scoring,
-                "user_context": user_context,
-                "article_to_entities": article_to_entities,
+                "user_context": user_context or {},
+                "article_to_entities": article_to_entities or {},
             },
             ensure_ascii=False,
         )
 
         try:
-            result = await self.react(task, ctx, user_message)
-        except Exception as e:
-            return self.domain_error("execution_failed", str(e))
+            result = await react(
+                ctx,
+                system=SYSTEM_PROMPT,
+                user=user_message,
+                max_steps=8,
+                temperature=0.2,
+            )
+        except DomainError:
+            raise
+        except Exception as exc:
+            raise DomainError("EXECUTION_FAILED", str(exc)) from exc
 
-        if isinstance(result, dict):
-            return result
-
-        # Parse JSON output structuré
-        # Strip code fences si LLM en a ajouté
-        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", result.strip(), flags=re.MULTILINE).strip()
+        cleaned = re.sub(
+            r"^```(?:json)?\s*|\s*```$", "", result.strip(), flags=re.MULTILINE
+        ).strip()
         parsed = extract_json(cleaned) if not cleaned.startswith("{") else None
         if parsed is None:
             try:
                 parsed = json.loads(cleaned)
-            except json.JSONDecodeError as e:
-                return self.domain_error("parse_error", f"Output non parseable JSON: {e}")
+            except json.JSONDecodeError as exc:
+                raise DomainError(
+                    "PARSE_ERROR", f"Output non parseable JSON: {exc}"
+                ) from exc
 
-        return AIPResult.completed(json.dumps(parsed, ensure_ascii=False))
-
-
-# Variable module-level requise par le runtime Apollia (loader.rs:113-115).
-agent = SynthesisWorker()
+        return parsed

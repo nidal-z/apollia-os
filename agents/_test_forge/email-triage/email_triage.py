@@ -1,21 +1,19 @@
-"""Email Triage — agent orchestré ORIA.
+"""Email Triage — agent L3 orchestré ORIA.
 
-Pattern : L3 (OrchestratedAgent).
-ORIA (Reasoner) génère le plan, ActorLoop l'exécute step-by-step.
-L'agent ne fait QUE :
-- déclarer le manifest (system_prompt riche, tools_requiring_approval)
-- post-traitement via on_plan_complete
+ORIA (Reasoner) génère le plan, ActorLoop l'exécute step-by-step. L'agent
+fournit uniquement le ``system_prompt`` (via ``@orchestrated``) et un
+``on_plan_complete`` pour formatter la synthèse finale.
 
-⚠️ Apollia v0.1 ne fournit pas d'outils gmail natifs. Cet agent assume des wrappers
-http_fetch vers Gmail API (ou équivalent Microsoft Graph). Voir setup.md.
+⚠️ Apollia v0.1 ne fournit pas d'outils Gmail natifs. Cet agent assume des
+wrappers ``http_fetch`` vers Gmail API (ou équivalent Microsoft Graph).
+Voir setup.md.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from apollia.agents.orchestrated import OrchestratedAgent
-from apollia.agents.react import AIPResult
+from apollia import agent, orchestrated
 
 
 SYSTEM_PROMPT = """Tu es un agent de triage d'inbox. Mode orchestré ORIA.
@@ -57,48 +55,29 @@ WORKFLOW (à respecter dans le plan que tu génères) :
 """
 
 
-class EmailTriageAgent(OrchestratedAgent):
-    def manifest(self) -> dict[str, Any]:
-        return {
-            "name": "email-triage",
-            "version": "1.0.0",
-            "description": "Triage inbox orchestré ORIA, HITL avant envoi",
-            "execution_mode": "orchestrated",
-            "agent_type": "user",
-            "system_prompt": SYSTEM_PROMPT,
-            "tools_required": ["http_fetch", "memory_search"],
-            "tools_optional": ["file_write"],
-            "tools_requiring_approval": ["http_fetch"],
-            "memory_namespace": "email-triage",
-            "supports_a2a": False,
-            "max_concurrent_tasks": 1,
-            "step_budget": {
-                "max_steps": 30,
-                "max_tool_calls": 25,
-                "wall_clock_secs": 1800,
-            },
-            "tags": ["email", "triage", "orchestrated"],
-            "setup_notes": (
-                "Voir setup.md. CRITIQUE : configurer credentials Gmail en mémoire et "
-                "remplir APOLLIA.md sections classification/templates."
-            ),
-            "limitations": (
-                "Apollia v0.1 sans outils gmail natifs — wrappers http_fetch requis. "
-                "user.agents.hitl pas lu dynamiquement par le runtime — fixé au manifest."
-            ),
-        }
-
-    async def run(self, task: dict[str, Any], ctx: Any) -> AIPResult:
-        raise RuntimeError(
-            "OrchestratedAgent.run() ne doit pas être appelé directement. "
-            "ORIA gère l'exécution via Reasoner + ActorLoop."
-        )
+@agent(
+    name="email-triage",
+    version="1.0.0",
+    description="Triage inbox orchestré ORIA, HITL avant envoi",
+    tags=("email", "triage", "orchestrated"),
+    memory_namespace="email-triage",
+    tools_required=("http_fetch", "memory_search"),
+    step_budget={"max_steps": 30, "max_tool_calls": 25, "wall_clock_secs": 1800},
+)
+@orchestrated(system_prompt=SYSTEM_PROMPT)
+class EmailTriage:
+    """Email triage — exécution pilotée par ORIA."""
 
     def on_plan_complete(self, step_results: dict[str, Any]) -> dict[str, Any]:
-        """Post-traitement : agrège les résultats du plan en une synthèse markdown."""
+        """Agrège les résultats du plan en une synthèse markdown."""
         triaged_count = 0
         escalated: list[str] = []
-        actions: dict[str, int] = {"reply_draft": 0, "label": 0, "archive": 0, "skip": 0}
+        actions: dict[str, int] = {
+            "reply_draft": 0,
+            "label": 0,
+            "archive": 0,
+            "skip": 0,
+        }
         errors: list[str] = []
 
         for step_id, result in step_results.items():
@@ -110,13 +89,13 @@ class EmailTriageAgent(OrchestratedAgent):
                 if part.get("type") != "text":
                     continue
                 text = part.get("text", "")
-                # Parsing best-effort : on cherche des marqueurs simples produits par les steps
-                if "[escalate]" in text.lower():
+                low = text.lower()
+                if "[escalate]" in low:
                     escalated.append(text[:200])
-                if "[email-triaged]" in text.lower():
+                if "[email-triaged]" in low:
                     triaged_count += 1
                 for action in actions:
-                    if f"[action:{action}]" in text.lower():
+                    if f"[action:{action}]" in low:
                         actions[action] += 1
 
         synthesis_lines = [
@@ -141,20 +120,4 @@ class EmailTriageAgent(OrchestratedAgent):
             for err in errors[:5]:
                 synthesis_lines.append(f"- {err}")
 
-        text = "\n".join(synthesis_lines)
-        return {"output": [{"type": "text", "text": text}]}
-
-
-agent = EmailTriageAgent()
-
-
-def manifest() -> dict[str, Any]:
-    return agent.manifest()
-
-
-async def run(task: dict[str, Any], ctx: Any) -> AIPResult:
-    return await agent.run(task, ctx)
-
-
-def on_plan_complete(step_results: dict[str, Any]) -> dict[str, Any]:
-    return agent.on_plan_complete(step_results)
+        return {"output": [{"type": "text", "text": "\n".join(synthesis_lines)}]}
