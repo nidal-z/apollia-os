@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, NamedTuple, Optional, TypedDict, Union
+from typing import Annotated, Any, Literal, NamedTuple, Optional, TypedDict, Union
 
 import pytest
 
@@ -57,12 +57,13 @@ def test_annotation_any() -> None:
 
 def test_annotation_optional_str() -> None:
     schema = annotation_to_schema(Optional[str])
-    assert schema["type"] == ["string", "null"]
+    # Compact form: type stays a plain string; nullable marker exposes null.
+    assert schema == {"type": "string", "nullable": True}
 
 
 def test_annotation_pep604_optional() -> None:
     schema = annotation_to_schema(str | None)
-    assert schema["type"] == ["string", "null"]
+    assert schema == {"type": "string", "nullable": True}
 
 
 def test_annotation_union() -> None:
@@ -386,6 +387,174 @@ def test_validate_dataclass_payload() -> None:
     assert validate_payload({"cfg": {"a": 1}}, schema) == {"cfg": {"a": 1}}
     with pytest.raises(PayloadError):
         validate_payload({"cfg": {}}, schema)
+
+
+# ────────────────────── Annotated[T, "desc"] ──────────────────────
+
+
+def test_annotated_string_description_propagated() -> None:
+    """Annotated[str, "..."] surfaces the metadata string as ``description``."""
+    schema = annotation_to_schema(Annotated[str, "Path to the input file"])
+    assert schema == {"type": "string", "description": "Path to the input file"}
+
+
+def test_annotated_list_description_propagated() -> None:
+    schema = annotation_to_schema(
+        Annotated[list[int], "List of integer indices to fetch"]
+    )
+    assert schema["type"] == "array"
+    assert schema["items"] == {"type": "integer"}
+    assert schema["description"] == "List of integer indices to fetch"
+
+
+def test_annotated_with_optional_type() -> None:
+    """Annotated wrapping Optional/Union surfaces both ``nullable`` and ``description``."""
+    schema = annotation_to_schema(
+        Annotated[str | None, "Optional chart title shown at the top"]
+    )
+    # Compact nullable form preserved + description added.
+    assert schema["type"] == "string"
+    assert schema["nullable"] is True
+    assert schema["description"] == "Optional chart title shown at the top"
+
+
+def test_annotated_no_string_metadata_is_passthrough() -> None:
+    """Non-string Annotated metadata is silently ignored (backcompat)."""
+    schema = annotation_to_schema(Annotated[int, 42])
+    assert schema == {"type": "integer"}
+
+
+def test_annotated_chained_metadata() -> None:
+    """Multiple string metadata entries are space-joined into a single description."""
+    schema = annotation_to_schema(
+        Annotated[int, "Page index", "0-based, must be < total_pages"]
+    )
+    assert schema["type"] == "integer"
+    assert schema["description"] == "Page index 0-based, must be < total_pages"
+
+
+def test_annotated_in_signature_surfaces_description() -> None:
+    """A skill handler signature using Annotated propagates per-property docs."""
+
+    def fn(
+        path: Annotated[str, "Absolute path to the PDF file"],
+        page: Annotated[int, "0-based page index"] = 0,
+    ) -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    assert schema["properties"]["path"]["description"] == "Absolute path to the PDF file"
+    assert schema["properties"]["page"]["description"] == "0-based page index"
+
+
+# ────────────────────── Optional compact nullable form ──────────────────────
+
+
+def test_optional_compact_nullable_form() -> None:
+    """Optional[str] uses the compact ``{type: string, nullable: true}`` form."""
+    schema = annotation_to_schema(Optional[int])
+    assert schema == {"type": "integer", "nullable": True}
+
+
+def test_optional_dataclass_nullable_preserves_object_schema() -> None:
+    @dataclass
+    class Cfg:
+        a: int
+
+    schema = annotation_to_schema(Optional[Cfg])
+    assert schema["type"] == "object"
+    assert schema["nullable"] is True
+    assert "properties" in schema
+
+
+def test_union_with_none_nullable() -> None:
+    """``T | U | None`` produces ``{anyOf: [...], nullable: true}`` without ``None`` inside."""
+    schema = annotation_to_schema(Union[str, int, None])
+    assert schema["nullable"] is True
+    assert "anyOf" in schema
+    branch_types = {tuple(sorted(b.items())) for b in schema["anyOf"]}
+    # Must contain string + integer branches; null must not appear as a branch.
+    assert {("type", "string")} in [set(b.items()) for b in schema["anyOf"]]
+    assert {("type", "integer")} in [set(b.items()) for b in schema["anyOf"]]
+    _ = branch_types  # silence unused warning in the diff
+
+
+def test_optional_validation_accepts_none_via_nullable() -> None:
+    """The validator honours the compact ``nullable: true`` for None values."""
+
+    def fn(name: str | None = None) -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    assert schema["properties"]["name"]["nullable"] is True
+    # Compact form must still allow None.
+    assert validate_payload({"name": None}, schema) == {"name": None}
+    # And a string remains valid.
+    assert validate_payload({"name": "x"}, schema) == {"name": "x"}
+
+
+# ────────────────────── enriched PayloadError ──────────────────────
+
+
+def test_payload_error_lists_expected_fields() -> None:
+    """Unexpected fields raise a PayloadError that lists every expected field."""
+
+    def fn(path: str, count: int = 1) -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    with pytest.raises(PayloadError) as exc:
+        validate_payload({"path": "x", "totally_unknown": 1}, schema)
+    assert exc.value.details is not None
+    assert exc.value.details["unexpected"] == "totally_unknown"
+    assert set(exc.value.details["expected"]) == {"path", "count"}
+
+
+def test_payload_error_did_you_mean() -> None:
+    """A close typo on an unknown field triggers a ``did_you_mean`` suggestion."""
+
+    def fn(path: str, mode: str = "fast") -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    # Provide ``path`` so we hit the "unexpected field" branch (not "missing").
+    with pytest.raises(PayloadError) as exc:
+        validate_payload({"path": "x", "mod": "fast"}, schema)
+    assert exc.value.details is not None
+    assert exc.value.details.get("did_you_mean") == "mode"
+    assert "Did you mean 'mode'" in exc.value.message
+
+
+def test_payload_error_no_suggestion_when_far() -> None:
+    """No suggestion is offered when no candidate is close enough."""
+
+    def fn(path: str, mode: str = "fast") -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    with pytest.raises(PayloadError) as exc:
+        validate_payload({"path": "p", "xyzzy": "x"}, schema)
+    assert exc.value.details is not None
+    assert "did_you_mean" not in exc.value.details
+
+
+def test_payload_error_missing_required_lists_required() -> None:
+    def fn(path: str, mode: str) -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    with pytest.raises(PayloadError) as exc:
+        validate_payload({"path": "x"}, schema)
+    assert exc.value.field == "mode"
+    assert exc.value.details is not None
+    assert exc.value.details["missing"] == "mode"
+    assert set(exc.value.details["required"]) == {"path", "mode"}
+
+
+def test_payload_error_type_mismatch_has_actual_and_expected() -> None:
+    def fn(path: str) -> None: ...
+
+    schema = signature_to_input_schema(fn)
+    with pytest.raises(PayloadError) as exc:
+        validate_payload({"path": 42}, schema)
+    assert exc.value.field == "path"
+    assert exc.value.details is not None
+    assert exc.value.details["expected_type"] == "string"
+    assert exc.value.details["actual_type"] == "integer"
 
 
 # Eliminate unused field/return import warnings.

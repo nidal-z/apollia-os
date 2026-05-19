@@ -364,3 +364,107 @@ async def test_dispatch_task_no_handler() -> None:
     result = await dispatch_task(agent, task, _Ctx())
     assert result["status"] == "failed"
     assert result["error"]["code"] == "NO_HANDLER"
+
+
+# ────────────────────── enriched error surfaces ──────────────────────
+
+
+@pytest.mark.asyncio
+async def test_payload_error_lists_expected_fields_in_details() -> None:
+    """The dispatch boundary preserves ``expected`` / ``unexpected`` from PayloadError details."""
+
+    def handler(self: Any, path: str) -> str:  # noqa: ARG001
+        return path
+
+    agent = _build_agent_with_skill(
+        handler_name="handler",
+        handler=handler,
+        skill_id="parse",
+        input_schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+    )
+    result = await dispatch_skill(agent, "parse", {"path": "x", "bogus": 1}, _Ctx())
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "PAYLOAD_ERROR"
+    details = result["error"]["details"]
+    assert details["unexpected"] == "bogus"
+    assert details["expected"] == ["path"]
+
+
+@pytest.mark.asyncio
+async def test_payload_error_did_you_mean_propagated() -> None:
+    """A close typo surfaces a ``did_you_mean`` hint through the AIPResult details."""
+
+    def handler(self: Any, path: str, mode: str = "fast") -> str:  # noqa: ARG001
+        return path
+
+    agent = _build_agent_with_skill(
+        handler_name="handler",
+        handler=handler,
+        skill_id="parse",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "mode": {"type": "string"},
+            },
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+    )
+    # ``path`` is supplied (required satisfied); ``mod`` is the typo that
+    # should trigger the suggestion.
+    result = await dispatch_skill(agent, "parse", {"path": "x", "mod": "fast"}, _Ctx())
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "PAYLOAD_ERROR"
+    assert result["error"]["details"]["did_you_mean"] == "mode"
+
+
+@pytest.mark.asyncio
+async def test_skill_not_found_lists_known_skills() -> None:
+    """A missing skill_id surfaces the list of available skills for steering the LLM."""
+
+    def handler(self: Any) -> str:  # noqa: ARG001
+        return "ok"
+
+    agent = _build_agent_with_skill(
+        handler_name="h",
+        handler=handler,
+        skill_id="chart.bar",
+        input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+    )
+    result = await dispatch_skill(agent, "chart.barr", {}, _Ctx())
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "UNKNOWN_SKILL_ID"
+    assert result["error"]["details"]["requested"] == "chart.barr"
+    assert result["error"]["details"]["known"] == ["chart.bar"]
+
+
+@pytest.mark.asyncio
+async def test_payload_error_type_mismatch_carries_typed_details() -> None:
+    """A type mismatch surfaces ``expected_type``/``actual_type`` for LLM repair."""
+
+    def handler(self: Any, count: int) -> str:  # noqa: ARG001
+        return str(count)
+
+    agent = _build_agent_with_skill(
+        handler_name="handler",
+        handler=handler,
+        skill_id="count",
+        input_schema={
+            "type": "object",
+            "properties": {"count": {"type": "integer"}},
+            "required": ["count"],
+            "additionalProperties": False,
+        },
+    )
+    result = await dispatch_skill(agent, "count", {"count": "five"}, _Ctx())
+    assert result["status"] == "failed"
+    assert result["error"]["code"] == "PAYLOAD_ERROR"
+    details = result["error"]["details"]
+    assert details["expected_type"] == "integer"
+    assert details["actual_type"] == "string"

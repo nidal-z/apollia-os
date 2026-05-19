@@ -36,12 +36,40 @@ def _validate_skill_id(skill_id: Any) -> str:
     return skill_id
 
 
+def _validate_examples(
+    skill_id: str, examples: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
+    """Validate the optional ``examples=`` argument and return a normalized list.
+
+    Each example must be a ``dict`` representing a sample payload. The
+    SDK does not validate examples against the inferred schema — author
+    is responsible (validating here would create a chicken-and-egg cycle
+    since the schema isn't built until ``collect_skills`` runs).
+    """
+    if examples is None:
+        return []
+    if not isinstance(examples, list):
+        raise AgentConfigError(
+            f"@skill {skill_id!r}: examples must be a list of dicts, "
+            f"got {type(examples).__name__}"
+        )
+    for idx, item in enumerate(examples):
+        if not isinstance(item, dict):
+            raise AgentConfigError(
+                f"@skill {skill_id!r}: examples[{idx}] must be a dict, "
+                f"got {type(item).__name__}"
+            )
+    # Shallow copy each example to defensively isolate from caller mutations.
+    return [dict(ex) for ex in examples]
+
+
 def skill(
     skill_id: str,
     *,
     description: str = "",
     requires_approval: bool = False,
     dangerous: bool = False,
+    examples: list[dict[str, Any]] | None = None,
 ) -> Callable[[F], F]:
     """Mark a method as an A2A skill exposed by the agent.
 
@@ -51,18 +79,26 @@ def skill(
 
     Args:
         skill_id: Dot-namespaced unique identifier (e.g. ``"pdf.read_text"``).
-        description: Human-readable description for A2A discovery.
+        description: Human-readable description for A2A discovery. When
+            omitted, the manifest falls back to the first line of the
+            method's docstring.
         requires_approval: HITL gate before invocation.
         dangerous: Marks the skill as potentially destructive (display warning).
+        examples: Optional list of sample payload dicts shown alongside
+            the input schema in the manifest. Useful for steering small
+            LLMs that struggle with JSON Schema alone. Each entry must be
+            a dict; the SDK does not validate it against the schema so
+            authors are responsible for keeping examples in sync.
 
     Raises:
         AgentConfigError: if ``skill_id`` is empty, contains invalid chars,
             or the method is not async, or ``@skill`` is applied twice on
-            the same method.
+            the same method, or ``examples`` is not a list of dicts.
     """
     validated_id = _validate_skill_id(skill_id)
     if not isinstance(description, str):
         raise AgentConfigError("@skill description must be a string")
+    validated_examples = _validate_examples(validated_id, examples)
 
     def decorator(fn: F) -> F:
         if not callable(fn):
@@ -87,6 +123,7 @@ def skill(
                 "description": description,
                 "requires_approval": bool(requires_approval),
                 "dangerous": bool(dangerous),
+                "examples": validated_examples,
             },
         )
         return fn

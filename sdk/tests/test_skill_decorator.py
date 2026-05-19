@@ -25,6 +25,7 @@ def test_skill_marker_set_with_defaults() -> None:
         "description": "",
         "requires_approval": False,
         "dangerous": False,
+        "examples": [],
     }
 
 
@@ -184,3 +185,67 @@ def test_skill_description_must_be_string() -> None:
         @skill("x.y", description=123)  # type: ignore[arg-type]
         async def fn(self: object) -> dict[str, str]:
             return {}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# examples= keyword
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_skill_examples_propagated() -> None:
+    """``examples=`` is normalized and stamped on the SKILL_ATTR marker."""
+
+    @skill(
+        "chart.bar",
+        description="Generate a bar chart",
+        examples=[
+            {"series": [{"name": "Q1", "values": [1, 2, 3]}]},
+            {"series": [{"name": "Sales", "values": [10]}], "title": "2026"},
+        ],
+    )
+    async def fn(self: object) -> dict[str, str]:
+        return {}
+
+    meta = getattr(fn, SKILL_ATTR)
+    assert len(meta["examples"]) == 2
+    assert meta["examples"][0]["series"][0]["name"] == "Q1"
+    assert meta["examples"][1]["title"] == "2026"
+
+
+def test_skill_examples_default_empty_list() -> None:
+    """When no ``examples=`` provided, the marker carries an empty list."""
+
+    @skill("x.y")
+    async def fn(self: object) -> dict[str, str]:
+        return {}
+
+    assert getattr(fn, SKILL_ATTR)["examples"] == []
+
+
+def test_skill_examples_must_be_list() -> None:
+    with pytest.raises(AgentConfigError, match="examples"):
+
+        @skill("x.y", examples={"not": "a list"})  # type: ignore[arg-type]
+        async def fn(self: object) -> dict[str, str]:
+            return {}
+
+
+def test_skill_examples_must_be_list_of_dicts() -> None:
+    with pytest.raises(AgentConfigError, match="examples"):
+
+        @skill("x.y", examples=[{"ok": 1}, "not a dict"])  # type: ignore[list-item]
+        async def fn(self: object) -> dict[str, str]:
+            return {}
+
+
+def test_skill_examples_isolated_from_caller_mutation() -> None:
+    """Mutating the caller's list after decoration must not affect the marker."""
+
+    samples = [{"a": 1}]
+
+    @skill("x.y", examples=samples)
+    async def fn(self: object) -> dict[str, str]:
+        return {}
+
+    samples.append({"b": 2})
+    assert len(getattr(fn, SKILL_ATTR)["examples"]) == 1

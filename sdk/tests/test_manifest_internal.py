@@ -26,6 +26,7 @@ def _mark_skill(
     description: str = "",
     requires_approval: bool = False,
     dangerous: bool = False,
+    examples: list[dict[str, Any]] | None = None,
 ) -> Any:
     """Test-only stand-in for the future ``@skill`` decorator."""
 
@@ -38,6 +39,7 @@ def _mark_skill(
                 "description": description,
                 "requires_approval": requires_approval,
                 "dangerous": dangerous,
+                "examples": list(examples) if examples else [],
             },
         )
         return fn
@@ -283,3 +285,95 @@ def test_registry_cached_on_class() -> None:
     build_manifest(Agent, name="a", version="1.0.0", description="d")
     cached = getattr(Agent, SKILLS_REGISTRY_ATTR)
     assert "x" in cached
+
+
+# ──────────────────────────── docstring fallback ────────────────────────────
+
+
+def test_collect_skills_falls_back_to_docstring() -> None:
+    """An empty ``description=`` falls back to the first line of the docstring."""
+
+    class Agent:
+        @_mark_skill(skill_id="chart.bar", description="")
+        def bar(self, x: int) -> str:
+            """Generate a bar chart from data series.
+
+            Each series produces one colored bar group.
+            """
+            return str(x)
+
+    registry = collect_skills(Agent)
+    assert registry["chart.bar"].description == "Generate a bar chart from data series."
+
+
+def test_collect_skills_docstring_first_paragraph_keeps_only_one_line() -> None:
+    """First paragraph spanning multiple lines uses only the first non-empty line."""
+
+    class Agent:
+        @_mark_skill(skill_id="parse.pdf")
+        def parse(self, path: str) -> str:
+            """Parse a PDF file.
+            Continued explanation that should not appear in the manifest.
+
+            Second paragraph ignored.
+            """
+            return path
+
+    registry = collect_skills(Agent)
+    # ``inspect.getdoc`` strips leading indentation; first non-blank line wins.
+    assert registry["parse.pdf"].description == "Parse a PDF file."
+
+
+def test_collect_skills_explicit_description_wins_over_docstring() -> None:
+    """An explicit ``description=`` overrides the docstring fallback."""
+
+    class Agent:
+        @_mark_skill(skill_id="x", description="explicit wins")
+        def x(self, a: int) -> str:
+            """Docstring would normally be used."""
+            return str(a)
+
+    registry = collect_skills(Agent)
+    assert registry["x"].description == "explicit wins"
+
+
+def test_collect_skills_no_docstring_no_description() -> None:
+    """A skill with neither description nor docstring yields ``""``."""
+
+    class Agent:
+        @_mark_skill(skill_id="bare")
+        def bare(self, a: int) -> str:
+            return str(a)
+
+    registry = collect_skills(Agent)
+    assert registry["bare"].description == ""
+
+
+# ──────────────────────────── examples in manifest ────────────────────────────
+
+
+def test_collect_skills_examples_in_manifest() -> None:
+    """``examples=`` from the decorator is propagated into the skill manifest."""
+    samples: list[dict[str, Any]] = [{"a": 1}, {"a": 2, "b": "x"}]
+
+    class Agent:
+        @_mark_skill(skill_id="echo", examples=samples)
+        def echo(self, a: int, b: str = "") -> dict[str, Any]:
+            return {"a": a, "b": b}
+
+    manifest = build_manifest(Agent, name="x", version="1.0.0", description="d")
+    skill_entry = next(s for s in manifest["skills"] if s["id"] == "echo")
+    assert skill_entry["examples"] == samples
+
+
+def test_collect_skills_no_examples_no_key_in_manifest() -> None:
+    """When no examples are provided, the manifest entry omits ``examples``."""
+
+    class Agent:
+        @_mark_skill(skill_id="echo")
+        def echo(self, a: int) -> dict[str, Any]:
+            return {"a": a}
+
+    manifest = build_manifest(Agent, name="x", version="1.0.0", description="d")
+    skill_entry = next(s for s in manifest["skills"] if s["id"] == "echo")
+    assert "examples" not in skill_entry

@@ -64,6 +64,7 @@ class SkillEntry:
         "output_schema",
         "requires_approval",
         "dangerous",
+        "examples",
     )
 
     def __init__(
@@ -75,6 +76,7 @@ class SkillEntry:
         output_schema: dict[str, Any],
         requires_approval: bool,
         dangerous: bool,
+        examples: list[dict[str, Any]] | None = None,
     ) -> None:
         self.skill_id = skill_id
         self.handler_name = handler_name
@@ -83,6 +85,7 @@ class SkillEntry:
         self.output_schema = output_schema
         self.requires_approval = requires_approval
         self.dangerous = dangerous
+        self.examples: list[dict[str, Any]] = list(examples) if examples else []
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -107,13 +110,42 @@ def _iter_methods(cls: type) -> list[tuple[str, Any]]:
     return result
 
 
+def _docstring_first_line(fn: Any) -> str:
+    """Return the first line/paragraph of a function's docstring.
+
+    Used as the fallback description when ``@skill(description=...)`` is
+    not provided. Returns ``""`` if there is no docstring.
+
+    Algorithm:
+    1. ``inspect.getdoc(fn)`` (cleans indentation).
+    2. Split on the first blank line — keep the leading paragraph.
+    3. Within that paragraph, keep only the first non-empty line.
+    """
+    raw = inspect.getdoc(fn)
+    if not raw:
+        return ""
+    # First paragraph (until blank line).
+    paragraph = raw.split("\n\n", 1)[0]
+    for line in paragraph.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
 def collect_skills(cls: type) -> dict[str, SkillEntry]:
     """Walk ``cls`` (and its MRO) to collect all ``@skill``-decorated methods.
 
     The decorator stamps :data:`SKILL_ATTR` on the method with a dict
-    ``{id, description, requires_approval, dangerous}``. This function
+    ``{id, description, requires_approval, dangerous, examples}``. This function
     builds input/output JSON schemas via :mod:`apollia._internal.inference`
     and returns a ``{skill_id: SkillEntry}`` mapping.
+
+    Description resolution order:
+
+    1. Explicit ``@skill(description=...)`` argument if non-empty.
+    2. First line of the handler's docstring (see :func:`_docstring_first_line`).
+    3. Empty string.
 
     Raises :class:`AgentConfigError` if two methods declare the same
     skill id.
@@ -130,14 +162,18 @@ def collect_skills(cls: type) -> dict[str, SkillEntry]:
             )
         input_schema = signature_to_input_schema(fn)
         output_schema = return_to_output_schema(fn)
+        explicit_desc = meta.get("description") or ""
+        description = explicit_desc if explicit_desc else _docstring_first_line(fn)
+        examples_meta = meta.get("examples") or []
         registry[skill_id] = SkillEntry(
             skill_id=skill_id,
             handler_name=name,
-            description=meta.get("description") or (inspect.getdoc(fn) or ""),
+            description=description,
             input_schema=input_schema,
             output_schema=output_schema,
             requires_approval=bool(meta.get("requires_approval", False)),
             dangerous=bool(meta.get("dangerous", False)),
+            examples=list(examples_meta) if isinstance(examples_meta, list) else [],
         )
     return registry
 
@@ -258,8 +294,9 @@ def build_manifest(
     else:
         execution_mode = "direct"
 
-    skills_list = [
-        {
+    skills_list: list[dict[str, Any]] = []
+    for entry in skills_registry.values():
+        skill_dict: dict[str, Any] = {
             "id": entry.skill_id,
             "name": entry.skill_id,
             "description": entry.description,
@@ -273,8 +310,12 @@ def build_manifest(
             "requires_approval": entry.requires_approval,
             "dangerous": entry.dangerous,
         }
-        for entry in skills_registry.values()
-    ]
+        # Only include examples when the author actually provided some, to
+        # avoid noising the manifest with empty arrays for skills that
+        # don't use them.
+        if entry.examples:
+            skill_dict["examples"] = list(entry.examples)
+        skills_list.append(skill_dict)
 
     manifest: dict[str, Any] = {
         "name": name,

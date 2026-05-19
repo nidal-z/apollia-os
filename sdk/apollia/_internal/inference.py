@@ -9,10 +9,12 @@ Supported annotations:
 
 - Primitives: ``str``, ``int``, ``float``, ``bool``, ``bytes``
 - Containers: ``list[T]``, ``tuple[T, ...]``, ``dict[str, T]``
-- ``Optional[T]`` / ``T | None`` → schema of ``T`` with nullable flag
+- ``Optional[T]`` / ``T | None`` → schema of ``T`` with ``nullable: true``
 - ``T | U`` (non-Optional unions) → ``{"anyOf": [...]}``
+- ``T | U | None`` → ``{"anyOf": [...], "nullable": true}``
 - ``Literal[...]`` → ``{"enum": [...]}`` with inferred ``type``
 - ``Any`` / missing annotation → ``{}`` (any-type)
+- ``Annotated[T, "description"]`` → schema of ``T`` with ``description``
 - dataclasses / TypedDict / NamedTuple → object schemas
 
 Strictness:
@@ -20,15 +22,19 @@ Strictness:
 - Payload validation does **not** silently coerce strings to numbers.
 - Extra payload fields are rejected when ``additionalProperties`` is
   ``False`` (the default for inferred schemas).
+- Validation accepts both the compact ``nullable: true`` form and the
+  legacy ``"type": ["X", "null"]`` form for null acceptance — this keeps
+  hand-crafted schemas working.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import inspect
 import typing
 from collections.abc import Callable
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 from apollia.errors import PayloadError, SchemaError
 
@@ -104,7 +110,7 @@ def _dataclass_schema(tp: type) -> dict[str, Any]:
     properties: dict[str, Any] = {}
     required: list[str] = []
     try:
-        hints = typing.get_type_hints(tp)
+        hints = typing.get_type_hints(tp, include_extras=True)
     except Exception:
         hints = {}
     for field in dataclasses.fields(tp):
@@ -129,7 +135,7 @@ def _dataclass_schema(tp: type) -> dict[str, Any]:
 def _typeddict_schema(tp: type) -> dict[str, Any]:
     properties: dict[str, Any] = {}
     try:
-        hints = typing.get_type_hints(tp)
+        hints = typing.get_type_hints(tp, include_extras=True)
     except Exception:
         hints = dict(getattr(tp, "__annotations__", {}))
     for name, ann in hints.items():
@@ -149,7 +155,7 @@ def _namedtuple_schema(tp: type) -> dict[str, Any]:
     fields: tuple[str, ...] = getattr(tp, "_fields", ())
     defaults: dict[str, Any] = getattr(tp, "_field_defaults", {})
     try:
-        hints = typing.get_type_hints(tp)
+        hints = typing.get_type_hints(tp, include_extras=True)
     except Exception:
         hints = {}
     properties: dict[str, Any] = {}
@@ -189,19 +195,34 @@ def annotation_to_schema(annotation: Any) -> dict[str, Any]:
             return {"type": "null"}
         return {}
 
+    # Annotated[T, "description", ...]: unwrap T, collect string metadata as
+    # description. Multiple string metadata entries are concatenated with a
+    # space separator (most common use case: chained context strings).
+    if get_origin(annotation) is Annotated:
+        annotated_args = get_args(annotation)
+        if annotated_args:
+            inner_ann = annotated_args[0]
+            descriptions = [m for m in annotated_args[1:] if isinstance(m, str) and m]
+            inner_schema = annotation_to_schema(inner_ann)
+            if descriptions:
+                merged = dict(inner_schema)
+                existing = merged.get("description")
+                if isinstance(existing, str) and existing:
+                    merged["description"] = " ".join([existing, *descriptions])
+                else:
+                    merged["description"] = " ".join(descriptions)
+                return merged
+            return inner_schema
+
     # Optional[T] / T | None.
     is_opt, inner = _is_optional(annotation)
     if is_opt:
         inner_schema = annotation_to_schema(inner)
-        # Add "null" to the allowed types if possible, else keep nullable flag.
+        # Compact ``nullable: true`` form — more widely understood by LLMs
+        # than the JSON-Schema-draft ``"type": ["X", "null"]`` array form,
+        # and less verbose in the tool descriptor.
         new_schema = dict(inner_schema)
-        existing_type = new_schema.get("type")
-        if isinstance(existing_type, str):
-            new_schema["type"] = [existing_type, "null"]
-        elif isinstance(existing_type, list) and "null" not in existing_type:
-            new_schema["type"] = list(existing_type) + ["null"]
-        else:
-            new_schema["nullable"] = True
+        new_schema["nullable"] = True
         return new_schema
 
     origin = get_origin(annotation)
@@ -312,7 +333,7 @@ def signature_to_input_schema(fn: Callable[..., Any]) -> dict[str, Any]:
         raise SchemaError(f"Cannot inspect signature of {fn!r}: {exc}") from exc
 
     try:
-        hints = typing.get_type_hints(fn)
+        hints = typing.get_type_hints(fn, include_extras=True)
     except Exception:
         hints = {}
 
@@ -351,7 +372,7 @@ def return_to_output_schema(fn: Callable[..., Any]) -> dict[str, Any]:
     Returns ``{}`` for missing / ``Any`` / ``None`` annotations.
     """
     try:
-        hints = typing.get_type_hints(fn)
+        hints = typing.get_type_hints(fn, include_extras=True)
     except Exception:
         hints = {}
     ann = hints.get("return", inspect.Parameter.empty)
@@ -368,6 +389,42 @@ def return_to_output_schema(fn: Callable[..., Any]) -> dict[str, Any]:
 # ──────────────────────────────────────────────────────────────────────
 # Payload validation
 # ──────────────────────────────────────────────────────────────────────
+
+
+def _python_type_name(value: Any) -> str:
+    """Human-friendly Python type name for error messages."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _format_type_decl(type_decl: Any) -> str:
+    """Render a JSON-Schema type declaration as a readable string."""
+    if isinstance(type_decl, list):
+        return " | ".join(str(t) for t in type_decl)
+    return str(type_decl)
+
+
+def _suggest(field_name: str, candidates: list[str]) -> str | None:
+    """Return the closest matching candidate field name, or None."""
+    if not candidates:
+        return None
+    matches = difflib.get_close_matches(field_name, candidates, n=1, cutoff=0.6)
+    if matches:
+        return matches[0]
+    return None
 
 
 def _matches_type(value: Any, type_decl: Any) -> bool:
@@ -397,6 +454,10 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
     if not schema:
         return  # Any-type, accept everything.
 
+    # nullable: True allows None regardless of the declared ``type``.
+    if value is None and schema.get("nullable") is True:
+        return
+
     # anyOf.
     if "anyOf" in schema:
         last_err: PayloadError | None = None
@@ -422,9 +483,16 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
 
     type_decl = schema.get("type")
     if type_decl is not None and not _matches_type(value, type_decl):
+        actual_type = _python_type_name(value)
         raise PayloadError(
-            f"{path or '<root>'}: expected type {type_decl!r}, got {type(value).__name__}",
+            f"{path or '<root>'}: expected type {_format_type_decl(type_decl)}, "
+            f"got {actual_type}",
             field=path or None,
+            details={
+                "field": path or None,
+                "expected_type": type_decl,
+                "actual_type": actual_type,
+            },
         )
 
     if type_decl == "array" or (
@@ -449,11 +517,14 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
             properties = schema.get("properties", {})
             required = schema.get("required", [])
             additional = schema.get("additionalProperties", True)
+            expected = list(properties.keys())
             for req in required:
                 if req not in value:
+                    req_path = f"{path}.{req}" if path else req
                     raise PayloadError(
-                        f"missing required field: {req}",
-                        field=req,
+                        f"Missing required field '{req_path}'. Required: {required}.",
+                        field=req_path,
+                        details={"missing": req, "required": list(required)},
                     )
             for key, sub_value in value.items():
                 if key in properties:
@@ -461,10 +532,20 @@ def _validate_value(value: Any, schema: dict[str, Any], path: str) -> None:
                     _validate_value(sub_value, properties[key], sub_path)
                 else:
                     if additional is False:
-                        raise PayloadError(
-                            f"unexpected field: {key}",
-                            field=key,
+                        key_path = f"{path}.{key}" if path else key
+                        suggestion = _suggest(key, expected)
+                        msg = (
+                            f"Unexpected field '{key_path}'. "
+                            f"Expected fields: {expected}."
                         )
+                        details: dict[str, Any] = {
+                            "unexpected": key,
+                            "expected": expected,
+                        }
+                        if suggestion is not None:
+                            msg += f" Did you mean '{suggestion}'?"
+                            details["did_you_mean"] = suggestion
+                        raise PayloadError(msg, field=key_path, details=details)
                     if isinstance(additional, dict):
                         sub_path = f"{path}.{key}" if path else key
                         _validate_value(sub_value, additional, sub_path)
@@ -493,17 +574,33 @@ def validate_payload(payload: dict[str, Any], schema: dict[str, Any]) -> dict[st
     properties = schema.get("properties", {})
     required = schema.get("required", [])
     additional = schema.get("additionalProperties", True)
+    expected = list(properties.keys())
 
     # Check required fields first so the error is deterministic.
     for req in required:
         if req not in payload:
-            raise PayloadError(f"missing required field: {req}", field=req)
+            raise PayloadError(
+                f"Missing required field '{req}'. Required: {required}.",
+                field=req,
+                details={"missing": req, "required": list(required)},
+            )
 
     # Reject extra fields up-front if strict.
     if additional is False:
         for key in payload:
             if key not in properties:
-                raise PayloadError(f"unexpected field: {key}", field=key)
+                suggestion = _suggest(key, expected)
+                msg = (
+                    f"Unexpected field '{key}'. Expected fields: {expected}."
+                )
+                details: dict[str, Any] = {
+                    "unexpected": key,
+                    "expected": expected,
+                }
+                if suggestion is not None:
+                    msg += f" Did you mean '{suggestion}'?"
+                    details["did_you_mean"] = suggestion
+                raise PayloadError(msg, field=key, details=details)
 
     # Validate each known field against its property schema.
     coerced: dict[str, Any] = {}
