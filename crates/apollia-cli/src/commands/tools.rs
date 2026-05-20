@@ -58,6 +58,28 @@ pub enum ToolsCommand {
         /// Nom de l'outil.
         tool_name: String,
     },
+    /// Consultation de la file HITL côté tool registry.
+    Approvals {
+        /// Sous-commande approvals.
+        #[command(subcommand)]
+        command: ToolsApprovalsCmd,
+    },
+}
+
+/// Sous-commandes de `apollia-os tools approvals`.
+#[derive(Debug, Subcommand)]
+pub enum ToolsApprovalsCmd {
+    /// Liste les approbations en attente (tasks en `input_required`).
+    Pending,
+    /// Liste les approbations résolues dans la fenêtre `--days`.
+    Resolved {
+        /// Nombre de jours d'historique à inclure (défaut: 7).
+        #[arg(long, default_value_t = 7)]
+        days: u32,
+        /// Nombre maximum d'entrées à retourner (défaut: 50).
+        #[arg(long, default_value_t = 50)]
+        limit: u32,
+    },
 }
 
 /// Sous-commandes de `apollia-os tools config`.
@@ -116,6 +138,179 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
         ToolsCommand::Reload => run_reload(json),
         ToolsCommand::Credentials { command } => run_credentials(command, json).await,
         ToolsCommand::Describe { tool_name } => run_describe(socket, tool_name, json).await,
+        ToolsCommand::Approvals { command } => run_approvals(socket, command, json).await,
+    }
+}
+
+// ─── Approvals (HITL queue) ──────────────────────────────────────────────────
+
+/// Dispatch `tools approvals <verb>` to the runtime client.
+async fn run_approvals(socket: Option<PathBuf>, cmd: &ToolsApprovalsCmd, json: bool) -> i32 {
+    let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    let client = RuntimeClient::new(socket_path);
+    match cmd {
+        ToolsApprovalsCmd::Pending => run_approvals_pending(&client, json).await,
+        ToolsApprovalsCmd::Resolved { days, limit } => {
+            run_approvals_resolved(&client, *days, *limit, json).await
+        }
+    }
+}
+
+async fn run_approvals_pending(client: &RuntimeClient, json: bool) -> i32 {
+    match client.get("/api/v1/approvals/pending").await {
+        Ok(resp) if resp.status < 400 => {
+            if json {
+                println!("{}", resp.body);
+            } else {
+                match serde_json::from_str::<serde_json::Value>(&resp.body) {
+                    Ok(v) => print_pending_human(&v),
+                    Err(_) => println!("{}", resp.body),
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(ClientError::ConnectionRefused) => {
+            if json {
+                println!("{{\"error\":\"runtime not started\"}}");
+            } else {
+                eprintln!("Error: runtime not started");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
+        Err(e) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {e}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+async fn run_approvals_resolved(client: &RuntimeClient, days: u32, limit: u32, json: bool) -> i32 {
+    let uri = format!("/api/v1/approvals/resolved?days={days}&limit={limit}");
+    match client.get(&uri).await {
+        Ok(resp) if resp.status < 400 => {
+            if json {
+                println!("{}", resp.body);
+            } else {
+                match serde_json::from_str::<serde_json::Value>(&resp.body) {
+                    Ok(v) => print_resolved_human(&v),
+                    Err(_) => println!("{}", resp.body),
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": resp.body}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(ClientError::ConnectionRefused) => {
+            if json {
+                println!("{{\"error\":\"runtime not started\"}}");
+            } else {
+                eprintln!("Error: runtime not started");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
+        Err(e) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": e.to_string()}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {e}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn print_pending_human(v: &serde_json::Value) {
+    let arr = v
+        .get("pending")
+        .or_else(|| v.get("approvals"))
+        .and_then(|a| a.as_array())
+        .cloned()
+        .unwrap_or_else(|| v.as_array().cloned().unwrap_or_default());
+    if arr.is_empty() {
+        println!("  (no pending approvals)");
+        return;
+    }
+    println!("  {:<24} {:<24} {:<24} {}", "TASK", "TOOL", "AGENT", "REQUESTED");
+    for item in &arr {
+        let task_id = item.get("task_id").and_then(|x| x.as_str()).unwrap_or("?");
+        let tool = item
+            .get("tool")
+            .or_else(|| item.get("tool_name"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        let agent = item
+            .get("agent")
+            .or_else(|| item.get("agent_id"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        let when = item
+            .get("requested_at")
+            .or_else(|| item.get("created_at"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        println!("  {task_id:<24} {tool:<24} {agent:<24} {when}");
+    }
+}
+
+fn print_resolved_human(v: &serde_json::Value) {
+    let arr = v
+        .get("resolved")
+        .or_else(|| v.get("approvals"))
+        .and_then(|a| a.as_array())
+        .cloned()
+        .unwrap_or_else(|| v.as_array().cloned().unwrap_or_default());
+    if arr.is_empty() {
+        println!("  (no resolved approvals in window)");
+        return;
+    }
+    println!("  {:<24} {:<10} {:<24} {}", "TASK", "DECISION", "TOOL", "RESOLVED");
+    for item in &arr {
+        let task_id = item.get("task_id").and_then(|x| x.as_str()).unwrap_or("?");
+        let decision = item
+            .get("decision")
+            .or_else(|| item.get("status"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        let tool = item.get("tool").and_then(|x| x.as_str()).unwrap_or("?");
+        let when = item
+            .get("resolved_at")
+            .and_then(|x| x.as_str())
+            .unwrap_or("?");
+        println!("  {task_id:<24} {decision:<10} {tool:<24} {when}");
     }
 }
 
