@@ -32,6 +32,7 @@ use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::permissions::PermissionsCommand;
 use commands::plan_cache::PlanCacheCommand;
+use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
 use commands::task::TaskCommand;
@@ -333,6 +334,16 @@ enum Commands {
 
     /// Shortcut for `task list --pending-approval` — list pending HITL tasks.
     Hitl,
+
+    /// Project management (list, create, show, update, delete, agents, templates).
+    ///
+    /// Operates locally on `~/.apollia/projects.db`; the runtime does not need
+    /// to be running.
+    Project {
+        /// Project subcommand.
+        #[command(subcommand)]
+        command: ProjectCommand,
+    },
 }
 
 fn main() {
@@ -474,6 +485,7 @@ fn main() {
                 };
                 commands::task::run(&cmd, cli.socket, json).await
             }
+            Commands::Project { command } => commands::project::run(&command, json),
         }
     });
 

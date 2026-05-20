@@ -17,6 +17,7 @@ pub mod notify;
 pub mod onboard;
 pub mod permissions;
 pub mod plan_cache;
+pub mod project;
 pub mod resilience;
 pub mod review;
 pub mod rollback;
