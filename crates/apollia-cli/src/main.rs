@@ -279,6 +279,22 @@ enum Commands {
         #[command(subcommand)]
         command: PlanCacheCommand,
     },
+
+    /// Diagnose the local Apollia environment (no runtime required).
+    ///
+    /// Verifies the Apollia home directory, the config file, local SQLite
+    /// databases, the Python bridge, and the runtime socket. Prints a status
+    /// table and exits 0 when healthy, 1 when at least one check errors.
+    Doctor,
+
+    /// Tail or follow the runtime log file.
+    ///
+    /// Defaults to `~/.apollia/logs/runtime.log`. When this file is absent
+    /// the command prints a hint explaining how to redirect daemon stderr.
+    Logs(commands::logs::LogsArgs),
+
+    /// Print the binary version (use `--json` for machine-readable output).
+    Version,
 }
 
 fn main() {
@@ -408,6 +424,9 @@ fn main() {
                 commands::resilience::run(&command, cli.socket, json).await
             }
             Commands::PlanCache { command } => commands::plan_cache::run(&command, json),
+            Commands::Doctor => commands::doctor::run(cli.socket, json).await,
+            Commands::Logs(args) => commands::logs::run(&args, json).await,
+            Commands::Version => commands::version::run(json),
         }
     });
 
