@@ -22,7 +22,7 @@ Si votre agent contient un `apollia.react(...)`, un `@on_message` non trivial, o
 Un fichier `evals/test_coach.py`, hors du dossier `tests/` Python standard pour qu'il ne soit pas lancé par `pytest` par défaut (les evals consomment du LLM réel).
 
 ```python
-"""Eval suite for coach agent — runs against a real LLM."""
+"""Eval suite for coach agent, runs against a real LLM."""
 
 import asyncio
 import json
