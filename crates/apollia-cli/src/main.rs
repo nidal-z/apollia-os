@@ -344,6 +344,22 @@ enum Commands {
         #[command(subcommand)]
         command: ProjectCommand,
     },
+
+    /// Print the event-sourced trace of a task (ADR-088).
+    Trace {
+        /// Task identifier.
+        task_id: String,
+        /// Force JSON output even without global `--json`.
+        #[arg(long, value_name = "FORMAT", value_parser = ["human", "json"], default_value = "human")]
+        format: String,
+    },
+
+    /// Aggregated activity overview (tasks + LLM costs + audit stats).
+    Digest {
+        /// Time window: 24h, 7d, or 30d.
+        #[arg(long, default_value = "24h")]
+        since: commands::digest::DigestWindow,
+    },
 }
 
 fn main() {
@@ -486,6 +502,11 @@ fn main() {
                 commands::task::run(&cmd, cli.socket, json).await
             }
             Commands::Project { command } => commands::project::run(&command, json),
+            Commands::Trace { task_id, format } => {
+                let format_json = format == "json";
+                commands::trace::run(&task_id, format_json, cli.socket, json).await
+            }
+            Commands::Digest { since } => commands::digest::run(since, cli.socket, json).await,
         }
     });
 

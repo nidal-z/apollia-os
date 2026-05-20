@@ -21,6 +21,15 @@ pub enum AuditCommand {
     },
     /// Display audit statistics.
     Stats,
+    /// Export the full audit trail as JSON.
+    Export {
+        /// Destination file (default: stdout).
+        #[arg(long, value_name = "PATH")]
+        output: Option<PathBuf>,
+        /// Maximum number of events to include (default: 10000).
+        #[arg(long, default_value_t = 10_000)]
+        limit: u32,
+    },
 }
 
 /// Execute an `audit` subcommand.
@@ -33,6 +42,42 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
     match cmd {
         AuditCommand::List { limit } => run_list(&client, *limit, json).await,
         AuditCommand::Stats => run_stats(&client, json).await,
+        AuditCommand::Export { output, limit } => run_export(&client, output.as_deref(), *limit).await,
+    }
+}
+
+/// `apollia-os audit export` — dump the audit trail as JSON.
+async fn run_export(client: &RuntimeClient, output: Option<&std::path::Path>, limit: u32) -> i32 {
+    let uri = format!("/api/v1/audit?limit={limit}");
+    match client.get(&uri).await {
+        Ok(resp) if resp.status < 400 => match output {
+            Some(path) => match std::fs::write(path, &resp.body) {
+                Ok(()) => {
+                    eprintln!("* wrote {} bytes to {}", resp.body.len(), path.display());
+                    exit_codes::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("Error writing {}: {e}", path.display());
+                    exit_codes::GENERAL_ERROR
+                }
+            },
+            None => {
+                println!("{}", resp.body);
+                exit_codes::SUCCESS
+            }
+        },
+        Ok(resp) => {
+            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            exit_codes::GENERAL_ERROR
+        }
+        Err(ClientError::ConnectionRefused) => {
+            eprintln!("Error: runtime not started");
+            exit_codes::RUNTIME_ERROR
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
     }
 }
 
