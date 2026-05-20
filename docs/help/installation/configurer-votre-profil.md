@@ -28,7 +28,7 @@ Le parcours est rythmé par un rail de progression visible en haut de la fenêtr
 
 Au lancement, Apollia détecte qu'aucun profil n'existe et ouvre la fenêtre de configuration centrée sur l'écran.
 
-`[SCREENSHOT: fenêtre d'accueil avec logo Apollia, sous-titre "Le runtime souverain pour tes agents IA en local", trois cartes Local-first / LLM au choix / Agents autonomes, bouton "Commencer la configuration"]`
+![Fenêtre d'accueil avec logo Apollia, sous-titre "Le runtime souverain pour tes agents IA en local", trois cartes Local-first / LLM au choix / Agents autonomes, bouton "Commencer la configuration"](../_screenshots/installation-configurer-votre-profil-1.png)
 
 Lisez le bandeau de bienvenue, puis cliquez sur **Commencer la configuration**.
 
@@ -36,7 +36,7 @@ Lisez le bandeau de bienvenue, puis cliquez sur **Commencer la configuration**.
 
 Deux cartes vous sont proposées côte à côte. Cliquez sur celle qui correspond le mieux à votre usage — vous pourrez le changer plus tard depuis **Paramètres → Profil**.
 
-`[SCREENSHOT: étape Profil avec deux cartes Opérateur (icône étincelles) et Builder (icône code), chacune avec 3 puces et un exemple de rôle]`
+![Étape Profil avec deux cartes Opérateur (icône étincelles) et Builder (icône code), chacune avec 3 puces et un exemple de rôle](../_screenshots/installation-configurer-votre-profil-2.png)
 
 - **Opérateur** : pour qui veut des agents qui exécutent des tâches concrètes (emails, veille, synthèses) sans toucher à du code. Validation explicite des actions sensibles, agents prêts à l'emploi.
 - **Builder** : pour qui veut concevoir, debugger et observer ses agents. Observabilité complète (timeline, traces, coûts), SDK Python, permissions granulaires.
@@ -47,7 +47,7 @@ Un lien discret en bas — **Je suis les deux → mode Builder** — permet de b
 
 Cette étape calibre Apollia à votre matériel et à vos préférences de souveraineté. Un bandeau d'informations système (RAM, OS, GPU) apparaît en haut pour vous aider à choisir.
 
-`[SCREENSHOT: étape Modèles, bandeau RAM 32 GB · macOS arm64 · GPU, section LLM avec liste curée de modèles Qwen3 et badge "Recommandé"]`
+![Étape Modèles, bandeau RAM · macOS · GPU, section LLM avec liste curée de modèles Qwen3 et badge "Recommandé"](../_screenshots/installation-configurer-votre-profil-3.png)
 
 #### Section LLM (obligatoire)
 
@@ -58,7 +58,7 @@ Trois chemins possibles, selon votre situation :
 3. **Recherche HuggingFace.** Le bouton **Rechercher sur HuggingFace** ouvre un mini-navigateur intégré : tapez le nom d'un modèle, dépliez les fichiers GGUF disponibles, et cliquez pour télécharger celui qui correspond à votre RAM (les fichiers sont étiquetés *fits* / *might fit* / *too large*).
 4. **Fournisseur cloud.** Le bouton **Utiliser un fournisseur cloud** ferme la fenêtre et vous emmène vers la page **Backends LLM** des paramètres pour brancher Anthropic, OpenAI ou Ollama. Une fois un backend ajouté, le parcours d'onboarding se rouvre automatiquement à cette même étape.
 
-`[SCREENSHOT: téléchargement Qwen3 8B en cours, barre de progression à 42%, débit 8.4 MB/s, bouton X pour annuler]`
+![Téléchargement Qwen3 en cours avec barre de progression et débit, plus modèle Whisper téléchargé en parallèle](../_screenshots/installation-configurer-votre-profil-4.png)
 
 Une fois la configuration LLM réussie (badge vert **Configuré** ou liste de backends détectée), le bouton **Continuer** en bas devient actif.
 
@@ -86,7 +86,7 @@ Vous pouvez sauter cette section et l'activer plus tard depuis **Paramètres →
 
 L'agent d'onboarding s'ouvre dans la fenêtre. Il vous pose jusqu'à 4 questions, progressivement.
 
-`[SCREENSHOT: étape Calibrage avec 4 pips de progression en haut, 2 messages agent et 2 réponses utilisateur dans le flux de chat]`
+![Étape Calibrage avec 4 pips de progression en haut, l'agent onboarding pose la première question et l'utilisateur répond en présentant son rôle](../_screenshots/installation-configurer-votre-profil-5.png)
 
 Les questions couvrent :
 
@@ -115,7 +115,7 @@ Le nombre et la nature des cartes proposées dépendent de vos choix précédent
 | Supervision `Toujours valider` | aucune règle d'allow — chaque action sensible déclenchera une carte d'approbation |
 | Intégrations cochées (GitHub, Slack, Notion, Gmail) | `allow http_fetch` sur l'API correspondante (global) |
 
-`[SCREENSHOT: carte d'approbation d'une règle de permission générée par l'agent, boutons Approuver / Refuser visibles]`
+![Cartes de règles de permissions proposées par l'agent à la fin du calibrage : deny http_fetch sur api.openai.com et api.anthropic.com, allow file_read, boutons Ignorer et Appliquer sur chaque carte](../_screenshots/installation-configurer-votre-profil-6.png)
 
 Une fois toutes les cartes traitées, la fenêtre se ferme automatiquement. Apollia est prêt.
 
@@ -146,7 +146,9 @@ Le bouton **Réinitialisation d'usine** (zone danger, bas de page) supprime **to
 
 ## Vérification
 
-Une fois le parcours terminé, ouvrez un chat et posez une question relative à votre domaine. L'agent vous appelle par votre nom et adapte sa réponse à votre contexte. Dans **Paramètres → Permissions**, les règles proposées lors du calibrage sont visibles.
+Une fois le parcours terminé, ouvrez un chat et posez une question relative à votre domaine. L'agent vous appelle par votre nom et adapte sa réponse à votre contexte. Dans **Paramètres → Permissions**, les règles proposées lors du calibrage sont visibles, et dans **Paramètres → Profil** vous retrouvez l'ensemble des informations collectées, modifiables à tout moment.
+
+![Page Paramètres → Profil après onboarding, sections Identité (prénom, rôle, secteur), Objectifs, et Supervision des agents avec les niveaux HITL](../_screenshots/installation-configurer-votre-profil-7.png)
 
 ## Si ça ne marche pas
 

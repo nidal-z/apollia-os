@@ -15,7 +15,7 @@
    - **Décisions en attente** *(la plus large, à gauche)* — actions HITL en attente de votre décision. Compteur en en-tête. Liste compacte des premiers items (extraits d'inbox) ; un lien *« Voir tout → »* mène à la **Boîte de réception**.
    - **Livrables prêts** — tâches récemment complétées. Cliquez sur une ligne pour ouvrir l'onglet **Tâches**.
    - **Au travail** — agents actuellement actifs. Cliquez sur un agent pour ouvrir son détail.
-   `[SCREENSHOT: tableau de bord en mode opérateur — 3 cartes en grille, "Décisions en attente" à gauche occupe deux colonnes, "Livrables prêts" et "Au travail" à droite]`
+   ![tableau de bord en mode opérateur — 3 cartes en grille, "Décisions en attente" à gauche occupe deux colonne...](../_screenshots/observabilite-lire-le-digest-quotidien-1.png)
 
 3. Sous les trois cartes, la section **Activité récente** liste les dernières tâches (toutes statuts confondus) sous forme de mini-cartes. Cliquez pour ouvrir la page **Tâches**.
 

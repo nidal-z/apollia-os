@@ -1,5 +1,9 @@
 # Câbler votre propre serveur MCP
 
+::: warning Section en cours de refonte
+Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
+:::
+
 > Pour les operators et les équipes qui veulent brancher un serveur MCP (interne entreprise, communautaire, ou prototype local) à Apollia, sans modifier le code d'Apollia.
 
 ## Prérequis

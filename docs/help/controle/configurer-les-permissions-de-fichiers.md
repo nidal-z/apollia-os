@@ -16,7 +16,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
 1. Dans la sidebar, cliquez sur **Paramètres**.
 
 2. Dans le menu de gauche, sélectionnez **Autorisations**.
-   `[SCREENSHOT: page Settings > Autorisations, liste de cartes d'autorisation (PermissionRuleCard) avec badges de portée]`
+   ![page Settings > Autorisations, liste de cartes d'autorisation (PermissionRuleCard) avec badges de portée](../_screenshots/controle-configurer-les-permissions-de-fichiers-1.png)
 
 3. Le panneau central affiche toutes les règles actives sous forme de **liste de cartes**. Chaque carte indique :
    - le **nom de l'outil** autorisé (ex. : `bash`, `file_write`, `mcp_call`)
@@ -34,7 +34,7 @@ Les règles apparaissent automatiquement lorsqu'un agent demande l'accès à un 
 1. Repérez la carte correspondant à la règle à supprimer.
 2. Cliquez sur le bouton **Révoquer** (icône corbeille, à droite de la carte).
 3. Un message de confirmation apparaît brièvement. La carte disparaît immédiatement.
-   `[SCREENSHOT: carte d'autorisation avec bouton Révoquer visible, toast de confirmation "Règle bash révoquée"]`
+   ![carte d'autorisation avec bouton Révoquer visible, toast de confirmation "Règle bash révoquée"](../_screenshots/controle-configurer-les-permissions-de-fichiers-2.png)
 
 Une fois révoquée, l'outil concerné redemandera une approbation manuelle à la prochaine invocation.
 
@@ -44,7 +44,7 @@ La section **Sessions actives** liste les outils auto-approuvés via « Pour cet
 
 Chaque entrée indique le nom de l'outil, la session concernée (titre ou identifiant court), le mode (*Apollia Chat*, *Agent*, *Companion*) et un badge *Session* orange. Cliquez sur **Révoquer** pour retirer l'autorisation immédiatement. L'outil demandera de nouveau confirmation lors du prochain appel dans cette session.
 
-`[SCREENSHOT: section Sessions actives, liste d'entrées avec badge orange Session et bouton Révoquer]`
+![section Sessions actives, liste d'entrées avec badge orange Session et bouton Révoquer](../_screenshots/controle-configurer-les-permissions-de-fichiers-3.png)
 
 ## Révoquer toutes les autorisations d'un coup
 

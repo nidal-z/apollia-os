@@ -1,5 +1,9 @@
 # Gérer les tokens OAuth
 
+::: warning Section en cours de refonte
+Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
+:::
+
 > Pour les operators qui veulent savoir où Apollia stocke leurs tokens OAuth, comment les inspecter, les révoquer et basculer sur un stockage chiffré sur disque (Linux headless).
 
 ## Prérequis

@@ -6,7 +6,7 @@ const BOOK_URL = process.env.BOOK_URL || 'https://book.apollia.fr'
 const DOCS_URL = process.env.DOCS_URL || 'https://docs.apollia.fr'
 
 export default defineConfig({
-  title: 'Apollia — Centre d\'aide',
+  title: 'Apollia · Centre d\'aide',
   description: 'Comment faire dans Apollia : guides pas-à-pas pour utiliser l\'application au quotidien.',
   lang: 'fr-FR',
 
@@ -19,12 +19,27 @@ export default defineConfig({
   cleanUrls: true,
   metaChunk: true,
 
+  // Sitemap natif VitePress, généré automatiquement à chaque build dans dist/sitemap.xml
+  sitemap: {
+    hostname: 'https://help.apollia.fr',
+    transformItems: (items) =>
+      items.map((item) => ({
+        ...item,
+        // Pages d'index et home → priorité plus haute, autres pages → standard
+        changefreq: item.url === '' || item.url.endsWith('/') ? 'weekly' : 'monthly',
+        priority: item.url === '' ? 1.0 : 0.7
+      }))
+  },
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
     ['meta', { name: 'theme-color', content: '#5b8def' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'fr_FR' }],
     ['meta', { property: 'og:site_name', content: 'Apollia · centre d\'aide' }],
+    // Google Search Console — propriété URL-prefix `https://help.apollia.fr`.
+    // Décommenter et remplacer le token après avoir ajouté la propriété dans GSC.
+    // ['meta', { name: 'google-site-verification', content: 'REPLACE_WITH_GSC_TOKEN_FOR_HELP' }],
   ],
 
   themeConfig: {

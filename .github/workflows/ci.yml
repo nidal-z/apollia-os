@@ -233,4 +233,6 @@ jobs:
       - uses: taiki-e/install-action@mdbook
       - name: Build book
         run: mdbook build book
+      - name: Generate sitemap.xml + robots.txt
+        run: bash book/scripts/gen-sitemap.sh book.apollia.fr target/book/html
       # deploy-pages désactivé — repo privé (réactiver lors du passage en public)

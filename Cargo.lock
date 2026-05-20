@@ -279,6 +279,7 @@ version = "0.1.0"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
+ "apollia-connectors",
  "apollia-core",
  "apollia-llm",
  "apollia-mcp",

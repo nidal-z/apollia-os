@@ -24,7 +24,7 @@ L'onglet actif est mémorisé entre les sessions (rafraîchir la page conserve v
 
 ## Onglet "À traiter"
 
-`[SCREENSHOT: onglet À traiter — barre d'onglets en haut avec compteurs en chip, chips de filtre (Tous / Approbations / Questions), sélecteur Agent à droite, items groupés par Aujourd'hui / Hier / Plus tôt, et section "Historique récent" en bas]`
+![onglet À traiter — barre d'onglets en haut avec compteurs en chip, chips de filtre (Tous / Approbations / Q...](../_screenshots/transversal-utiliser-l-inbox-1.png)
 
 ### Filtrer la liste
 
@@ -40,7 +40,7 @@ Cliquez sur une ligne d'approbation pour la déplier en carte de décision. Voir
 
 Quand un agent utilise l'outil `ask_user` pour vous interroger, l'item apparaît dans cet onglet sous le libellé **Question**. Cliquez pour déplier le formulaire dynamique.
 
-`[SCREENSHOT: formulaire ask_user déplié — contexte en encart bleu en haut, une question texte avec hint, une question à choix unique avec radios, une question à choix multiple avec cases à cocher, boutons "Refuser de répondre" et "Répondre" en bas à droite]`
+![formulaire ask_user déplié — contexte en encart bleu en haut, une question texte avec hint, une question à...](../_screenshots/transversal-utiliser-l-inbox-2.png)
 
 Le formulaire affiche, dans l'ordre :
 
@@ -63,7 +63,7 @@ Sous la liste des items en attente, une section **Historique récent (14 jours)*
 
 ## Onglet "Activité"
 
-`[SCREENSHOT: onglet Activité — 4 chips de filtre Toutes / Échecs / Dégradations / LLM, liste de cartes avec icône colorée à gauche, libellé humain, horodatage, bouton "Voir les logs" à droite]`
+![onglet Activité — 4 chips de filtre Toutes / Échecs / Dégradations / LLM, liste de cartes avec icône coloré...](../_screenshots/transversal-utiliser-l-inbox-3.png)
 
 Cet onglet liste les événements qui n'ont pas demandé d'action immédiate mais méritent un coup d'œil. Quatre catégories couvertes sur la fenêtre de 14 jours :
 
@@ -77,7 +77,7 @@ Filtrez avec les chips en haut. Chaque ligne propose un bouton **Voir les logs**
 
 ## Onglet "Notifications envoyées"
 
-`[SCREENSHOT: onglet Notifications envoyées — sélecteur de filtre par canal, tableau 4 colonnes Horodatage / Canal / Événement / Statut, badges verts "envoyé" / rouges "échoué"]`
+![onglet Notifications envoyées — sélecteur de filtre par canal, tableau 4 colonnes Horodatage / Canal / Évén...](../_screenshots/transversal-utiliser-l-inbox-4.png)
 
 Tableau des **50 dernières notifications** poussées vers vos canaux Desktop ou Webhook, avec :
 

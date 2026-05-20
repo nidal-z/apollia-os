@@ -32,7 +32,7 @@ Logique pratique : commencez par activer les événements qui vous intéressent 
 1. Dans la sidebar, cliquez sur **Notifications**.
 
 2. Repérez la section **Événements globaux** en haut de la page. Elle affiche une grille de cases à cocher, une par type d'événement, avec libellé humain, description courte et identifiant technique en sous-texte muted.
-   `[SCREENSHOT: section Événements globaux — grille de 6 cases à cocher avec libellé humain, description et identifiant en monospace]`
+   ![section Événements globaux — grille de 6 cases à cocher avec libellé humain, description et identifiant en...](../_screenshots/notifications-choisir-les-evenements-notifies-1.png)
 
 3. Cochez ou décochez les événements selon ce que vous voulez voir remonter.
 

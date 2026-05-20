@@ -14,7 +14,7 @@ Ce profil est **local**. Aucune donnée ne quitte votre machine.
 
 **Paramètres → Profil**, accessible depuis l'icône ⚙️ de la sidebar.
 
-`[SCREENSHOT: page Paramètres → Profil — 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier, Contraintes, Préférences), badges "Sensible" en orange sur Supervision et Contraintes, pastilles "vous" / "onboarding" / "agent" visibles à côté des champs renseignés]`
+![page Paramètres → Profil — 5 sections empilées (Identité, Supervision des agents, Outils & contexte métier,...](../_screenshots/memoire-gerer-mon-profil-1.png)
 
 L'écran est divisé en sections :
 

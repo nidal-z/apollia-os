@@ -1,5 +1,9 @@
 # Personnaliser le catalogue MCP
 
+::: warning Section en cours de refonte
+Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
+:::
+
 > Pour les operators et les administrateurs d'équipe qui veulent ajouter, désactiver ou modifier des entrées du catalogue MCP sans attendre une release d'Apollia.
 
 ## Prérequis

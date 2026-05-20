@@ -13,12 +13,12 @@
 1. Dans la sidebar, cliquez sur **Mes déclencheurs**. La page s'intitule **Automatisations**.
 
 2. Cliquez sur le bouton **Créer une automatisation** en haut à droite. Un assistant en **4 étapes** s'ouvre (Décrire → Planifier → Assistant → Aperçu).
-   `[SCREENSHOT: page Automatisations, bouton "Créer une automatisation" surligné en haut à droite, stepper 4 étapes visible dans la modale ouverte]`
+   ![page Automatisations, bouton "Créer une automatisation" surligné en haut à droite, stepper 4 étapes visible...](../_screenshots/automatisations-programmer-un-trigger-1.png)
 
 3. **Étape Décrire** — Décrivez **le quand** : à quel moment ou à quelle fréquence le déclencheur doit se déclencher. Exemples : *« Tous les matins à 8 h »*, *« Chaque lundi à 9 h pour préparer la semaine »*, *« Toutes les 30 minutes »*. Vous n'avez pas besoin de nommer un assistant à ce stade : un déclencheur est indépendant de l'assistant qui l'exécutera, vous choisirez cet assistant à l'étape **Assistant**. Cliquez sur **Suivant** ; Apollia analyse la phrase (l'étiquette du bouton passe à *« Analyse… »*).
 
 4. **Étape Planifier** — Apollia affiche sa lecture de votre phrase dans un encadré (par exemple *« Tous les jours à 08:00 »*) avec la **prochaine exécution prévue**. Si quelque chose vous semble inexact, ajustez en langage naturel dans le champ du bas (*« plutôt à 9 h »*) et appuyez sur Entrée — la planification se met à jour. Si Apollia a besoin d'une précision sur le calendrier (heure manquante, jour ambigu…), un bandeau orange affiche les points à clarifier ; complétez-les via le champ d'ajustement. L'absence d'assistant dans la description n'est pas bloquante à cette étape.
-   `[SCREENSHOT: étape Planifier — encadré schedule humain ("Tous les jours à 08:00"), ligne "Prochaine exécution : …", champ "Ajustez en langage naturel" dessous]`
+   ![étape Planifier — encadré schedule humain ("Tous les jours à 08:00"), ligne "Prochaine exécution : …", cham...](../_screenshots/automatisations-programmer-un-trigger-2.png)
 
 5. **Étape Assistant** — Sélectionnez l'assistant qui exécutera ce déclencheur. Un déclencheur lance toujours **un assistant à la fois**. Si votre phrase nommait un agent existant, il est pré-sélectionné et un sous-texte indique *« Reconnu automatiquement : … »*. Sinon, un encart orange rappelle qu'aucun assistant n'a été reconnu, et vous le choisissez dans la liste déroulante. Seuls les assistants installés apparaissent.
 

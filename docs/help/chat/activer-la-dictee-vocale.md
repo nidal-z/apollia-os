@@ -11,14 +11,14 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Reconnaissance vocale**.
-   `[SCREENSHOT: page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut]`
+   ![page Paramètres, section Reconnaissance vocale, état du modèle Whisper affiché en haut](../_screenshots/chat-activer-la-dictee-vocale-1.png)
 
 2. Vérifiez que le modèle Whisper apparaît avec une pastille verte **Chargé**. Sinon, retournez au Hub de modèles pour le télécharger.
 
 3. Sélectionnez la **langue** de dictée (français, anglais, espagnol, etc.) dans le sélecteur. Choisir la bonne langue améliore nettement la précision.
 
 4. Cliquez sur le champ **Raccourci global**. Une fenêtre invite à appuyer sur la combinaison de touches souhaitée (par exemple **Cmd + Shift + Espace**).
-   `[SCREENSHOT: fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée]`
+   ![fenêtre HotkeyCapture avec message "Appuyez sur la combinaison de touches" et combinaison capturée](../_screenshots/chat-activer-la-dictee-vocale-2.png)
 
 5. Activez l'interrupteur **Mode push-to-talk**. Avec ce mode, vous maintenez le raccourci pendant que vous parlez, et la transcription se déclenche au relâchement.
 

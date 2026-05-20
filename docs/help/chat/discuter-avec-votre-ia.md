@@ -11,7 +11,7 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Chat**. La liste de vos conversations s'affiche à gauche, la zone de saisie au centre.
-   `[SCREENSHOT: page Chat, sidebar conversations à gauche, zone vide au centre avec champ de saisie en bas]`
+   ![page Chat, sidebar conversations à gauche, zone vide au centre avec champ de saisie en bas](../_screenshots/chat-discuter-avec-votre-ia-1.png)
 
 2. Cliquez sur **Nouveau chat** en haut de la liste. Une conversation vierge s'ouvre.
 
@@ -20,12 +20,14 @@
 4. Tapez votre instruction en langage naturel dans le champ de saisie en bas. Soyez précis : *"Résume ce fichier en 5 points"* est plus efficace que *"Aide-moi"*.
 
 5. Appuyez sur **Entrée** ou cliquez sur **Envoyer**. La réponse s'affiche en streaming, mot après mot.
-   `[SCREENSHOT: conversation avec un message utilisateur et une réponse IA en cours de streaming, formatage markdown rendu]`
+   ![conversation avec un message utilisateur et une réponse IA en cours de streaming, formatage markdown rendu](../_screenshots/chat-discuter-avec-votre-ia-2.png)
+
+![conversation avec un message utilisateur et une réponse IA en cours de streaming, formatage markdown rendu (suite)](../_screenshots/chat-discuter-avec-votre-ia-2bis.png)
 
 6. Posez vos questions de suivi dans le même fil. L'IA conserve tout l'historique de la conversation.
 
 7. Si vous discutez avec un Assistant, les étapes de raisonnement s'affichent **inline** dans les bulles de message sous forme de cartes de raisonnement dépliables (pas dans un volet droit séparé).
-   `[SCREENSHOT: bulle de réponse avec carte de raisonnement dépliée montrant les étapes de l'agent]`
+   ![bulle de réponse avec carte de raisonnement dépliée montrant les étapes de l'agent](../_screenshots/chat-discuter-avec-votre-ia-3.png)
 
 8. Si l'IA veut effectuer une action sensible (écrire un fichier, lancer une commande), une carte d'approbation apparaît : voir [Approuver ou refuser une action](../controle/approuver-ou-refuser-une-action.md).
 

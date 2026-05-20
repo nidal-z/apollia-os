@@ -37,7 +37,10 @@ build_book() {
   rm -rf "$DIST/book"
   mkdir -p "$DIST/book"
   cp -R "$ROOT/target/book/." "$DIST/book/"
-  ok "→ $DIST/book"
+  # mdBook n'a pas de sitemap natif : on le génère sur le dossier final.
+  # `gen-sitemap.sh` crée aussi un robots.txt avec la directive Sitemap.
+  bash "$ROOT/book/scripts/gen-sitemap.sh" "${BOOK_HOST:-book.apollia.fr}" "$DIST/book"
+  ok "→ $DIST/book (avec sitemap.xml + robots.txt)"
 }
 
 build_vitepress() {

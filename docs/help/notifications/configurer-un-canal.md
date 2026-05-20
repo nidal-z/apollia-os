@@ -18,7 +18,7 @@ Apollia crée automatiquement un canal **Bureau** par défaut au tout premier d�
 1. Dans la sidebar, cliquez sur **Notifications**. La liste affiche vos canaux existants, plus une section *« Événements globaux »* en haut et l'historique d'envoi en bas.
 
 2. Cliquez sur **+ Nouveau canal** en haut à droite. Le dialog **Créer un canal** s'ouvre.
-   `[SCREENSHOT: page Notifications — section Événements globaux, liste de canaux, bouton "Nouveau canal" en haut à droite]`
+   ![page Notifications — section Événements globaux, liste de canaux, bouton "Nouveau canal" en haut à droite](../_screenshots/notifications-configurer-un-canal-1.png)
 
 3. **Nom** (premier champ, focus automatique) — saisissez un nom clair, libre (espaces, accents et emojis acceptés, 80 caractères max). Exemples : *Alertes Slack équipe*, *Webhook supervision*, *Bureau perso*. Ce nom apparaîtra dans la liste, dans l'historique d'envoi et dans les toasts.
 
@@ -64,7 +64,7 @@ Une fois créé, chaque canal est rendu sous forme de carte avec :
 - À l'extrême droite de la ligne d'événements, un petit indicateur **⏱ … s** apparaît si un throttling est configuré.
 - En pied de carte, séparé par un trait fin, **trois icônes d'action** côte à côte : avion en papier (Tester), crayon (Modifier), corbeille rouge (Supprimer). Survolez chaque icône pour voir son tooltip.
 
-`[SCREENSHOT: carte de canal — barre d'accent bleue en haut, icône Desktop dans une vignette ronde à gauche, nom + ID + badge Desktop, toggle on/off à droite, pastilles d'événements + indicateur ⏱ 60s, footer avec trois icônes ghost]`
+![carte de canal — barre d'accent bleue en haut, icône Desktop dans une vignette ronde à gauche, nom + ID + b...](../_screenshots/notifications-configurer-un-canal-2.png)
 
 ## Tester le canal
 

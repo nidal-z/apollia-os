@@ -11,7 +11,7 @@
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Paramètres**, puis sur la section **Hub de modèles**.
-   `[SCREENSHOT: page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État]`
+   ![page Hub de modèles, liste des modèles disponibles avec colonnes Nom, Taille, Type, État](../_screenshots/installation-telecharger-des-modeles-locaux-1.png)
 
 2. Filtrez la liste par type **GGUF** pour les modèles d'IA conversationnelle.
 
@@ -20,7 +20,7 @@
 3. Cliquez sur la ligne du modèle qui vous intéresse. Un panneau affiche la taille exacte, la durée estimée de téléchargement et la configuration matérielle recommandée.
 
 4. Cliquez sur **Télécharger**. Une barre de progression apparaît à côté du modèle.
-   `[SCREENSHOT: ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler]`
+   ![ligne modèle "Llama 3.1 8B" avec barre de progression à 42 % et bouton Annuler](../_screenshots/installation-telecharger-des-modeles-locaux-2.png)
 
 5. Laissez la fenêtre ouverte (le téléchargement peut prendre 5 à 30 minutes selon votre débit et la taille du modèle). Vous pouvez continuer à utiliser le reste d'Apollia. Le téléchargement ne s'interrompt pas en raison d'une durée trop longue — seul l'établissement de la connexion initiale est soumis à un délai (30 secondes).
 

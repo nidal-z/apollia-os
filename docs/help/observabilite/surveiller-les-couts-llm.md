@@ -18,7 +18,7 @@
    - **Moyenne / jour** — total divisé par le nombre de jours de la fenêtre.
    - **Jour le plus cher** — montant + date du jour qui a le plus consommé.
    - **Backend principal** — nom du backend qui pèse le plus, avec son total cumulé.
-   `[SCREENSHOT: onglet Coûts LLM — sélecteur de période en haut à droite, 4 KPI, histogramme empilé centré, légende en pastilles en bas]`
+   ![onglet Coûts LLM — sélecteur de période en haut à droite, 4 KPI, histogramme empilé centré, légende en past...](../_screenshots/observabilite-surveiller-les-couts-llm-1.png)
 
 4. Au centre, un **histogramme empilé** présente la période sélectionnée. Une barre par jour, chaque barre découpée en segments colorés par **backend** (Anthropic, OpenAI, etc.). L'axe vertical est en dollars avec des ticks arrondis ; l'axe horizontal indique la date (jour de la semaine + date courte pour les courtes fenêtres, date seule pour 30 j et plus).
 
