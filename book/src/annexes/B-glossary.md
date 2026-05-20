@@ -1,3 +1,3 @@
-# Annexe B — Glossaire
+# Annexe B. Glossaire
 
 > Chapitre en cours de rédaction (refonte 2026-05-20).

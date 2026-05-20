@@ -1,3 +1,3 @@
-# Annexe D — Roadmap
+# Annexe D. Roadmap
 
 > Chapitre en cours de rédaction (refonte 2026-05-20).

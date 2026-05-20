@@ -1,10 +1,10 @@
 # Le décorateur `@orchestrated`
 
-`@orchestrated` marque la classe entière comme **agent orchestré** : le runtime Rust (moteur ORIA — Observer, Reasoner, Actor) prend en charge la boucle d'exécution. L'auteur ne fournit que le `system_prompt` et, en option, un hook de post-traitement.
+`@orchestrated` marque la classe entière comme **agent orchestré** : le runtime Rust (moteur ORIA, pour Observer, Reasoner, Actor) prend en charge la boucle d'exécution. L'auteur ne fournit que le `system_prompt` et, en option, un hook de post-traitement.
 
-C'est la voie la plus déclarative du SDK : ORIA construit un plan à partir du `system_prompt`, l'exécute étape par étape, gère les appels d'outils, et restitue les résultats. L'auteur ne pilote ni la boucle ni le dispatch — il décrit l'intention et laisse le runtime jouer.
+C'est la voie la plus déclarative du SDK. ORIA construit un plan à partir du `system_prompt`, l'exécute étape par étape, gère les appels d'outils, et restitue les résultats. L'auteur ne pilote ni la boucle ni le dispatch. Il décrit l'intention et laisse le runtime jouer.
 
-> **Quand l'utiliser ?** Si vous voulez décrire un comportement complet en quelques phrases en langue naturelle (« trier ces emails en trois piles selon X, Y, Z et m'envoyer un résumé »), `@orchestrated` est le bon outil. Si vous voulez garder le contrôle de la boucle d'exécution — appels d'outils explicites, branches conditionnelles, ReAct customisé — préférez `@on_message` couplé à [`apollia.react`](../part-iii-the-ctx-protocol/14-ctx-a2a.md) (cf. [chapitre 4](../part-i-getting-started/04-quickstart-director.md)).
+> **Quand l'utiliser ?** Si vous voulez décrire un comportement complet en quelques phrases en langue naturelle (« trier ces emails en trois piles selon X, Y, Z et m'envoyer un résumé »), `@orchestrated` est le bon outil. Si vous voulez garder le contrôle de la boucle d'exécution (appels d'outils explicites, branches conditionnelles, ReAct customisé), préférez `@on_message` couplé à [`apollia.react`](../part-iii-the-ctx-protocol/14-ctx-a2a.md) (cf. [chapitre 4](../part-i-getting-started/04-quickstart-director.md)).
 
 ---
 
@@ -46,9 +46,9 @@ Un seul argument, obligatoire et keyword-only :
 
 | Paramètre | Type | Rôle |
 |---|---|---|
-| `system_prompt` | `str` | Description orchestrée — instructions naturelles que ORIA utilise pour planifier et exécuter. Doit être non vide. |
+| `system_prompt` | `str` | Description orchestrée : les instructions naturelles que ORIA utilise pour planifier et exécuter. Doit être non vide. |
 
-Le décorateur retourne la classe inchangée — il y attache simplement la configuration `{"system_prompt": ...}` lue plus tard par `@agent`.
+Le décorateur retourne la classe inchangée. Il y attache simplement la configuration `{"system_prompt": ...}` lue plus tard par `@agent`.
 
 ### Hook optionnel : `on_plan_complete`
 
@@ -72,7 +72,7 @@ def on_plan_complete(self, step_results: dict) -> str:
 
 `@orchestrated` est exclusif des deux autres handlers. La classe est entièrement pilotée par ORIA, donc :
 
-- pas de `@skill` dans la classe — `AgentConfigError` au load ;
+- pas de `@skill` dans la classe, sinon `AgentConfigError` au load ;
 - pas de `@on_message` non plus ;
 - inversement, si vous voulez le moindre `@skill` ou `@on_message`, retirez `@orchestrated`.
 
@@ -93,9 +93,9 @@ La règle est cohérente : ORIA gère son propre dispatcher ; cohabiter avec d'a
 
 ORIA (Observer, Reasoner, Actor) est le moteur de plan dynamique côté Rust. Il fonctionne en trois temps :
 
-1. **Observer** — lit le `system_prompt`, les outils disponibles (`tools_required` de `@agent`), et la tâche initiale.
-2. **Reasoner** — appelle le LLM pour produire un plan structuré (étapes, dépendances).
-3. **Actor** — exécute chaque étape via les outils, peut replanifier si une étape échoue (max 2 replanifications par défaut).
+1. **Observer** : lit le `system_prompt`, les outils disponibles (`tools_required` de `@agent`), et la tâche initiale.
+2. **Reasoner** : appelle le LLM pour produire un plan structuré (étapes, dépendances).
+3. **Actor** : exécute chaque étape via les outils, peut replanifier si une étape échoue (max 2 replanifications par défaut).
 
 Le détail (cache de plans, observations par étape, intégration HITL) est dans la [Partie VIII](../part-viii-runtime-rust/29-runtime-overview.md) et le wiki.
 
@@ -119,7 +119,7 @@ Le détail (cache de plans, observations par étape, intégration HITL) est dans
 
 ## Anti-patterns
 
-**Ne pas** appeler vous-même `ORIA` dans la classe — c'est le runtime qui pilote.
+**Ne pas** appeler vous-même `ORIA` dans la classe : c'est le runtime qui pilote.
 
 **Ne pas** muter `system_prompt` dynamiquement à chaque tour. Le manifeste est statique : ce que vous écrivez au décorateur est ce qui sera utilisé. Pour ajuster le contexte à l'exécution, exploitez `ctx.datasources` (cf. [chapitre 15](../part-iii-the-ctx-protocol/15-ctx-datasources-templates.md)).
 
@@ -129,6 +129,6 @@ Le détail (cache de plans, observations par étape, intégration HITL) est dans
 
 ## ADRs
 
-- [ADR-022](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-022-oria-mode-orchestre-option-b.md) — ORIA mode orchestré (architecture)
-- [ADR-035](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-035-per-step-observation-orchestrated.md) — Observation par étape
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) — Decorator-first
+- [ADR-022](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-022-oria-mode-orchestre-option-b.md) : ORIA mode orchestré (architecture)
+- [ADR-035](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-035-per-step-observation-orchestrated.md) : Observation par étape
+- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first

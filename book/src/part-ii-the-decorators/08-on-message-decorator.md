@@ -1,6 +1,6 @@
 # Le décorateur `@on_message`
 
-`@on_message` marque la méthode qui pilote le **mode conversationnel** d'un agent — l'interaction libre avec un humain dans l'app Desktop ou dans le chat CLI. C'est le pendant naturel de `@skill` : `@skill` répond à des invocations machine (CLI, A2A) avec des payloads structurés ; `@on_message` répond à du texte humain en flux.
+`@on_message` marque la méthode qui pilote le **mode conversationnel** d'un agent, c'est-à-dire l'interaction libre avec un humain dans l'app Desktop ou dans le chat CLI. C'est le pendant naturel de `@skill` : `@skill` répond à des invocations machine (CLI, A2A) avec des payloads structurés ; `@on_message` répond à du texte humain en flux.
 
 Un agent peut combiner les deux. Un assistant peut exposer un `@skill("inbox.summary")` pour les autres agents **et** un `@on_message` pour discuter avec l'utilisateur, sur la même classe.
 
@@ -55,7 +55,7 @@ async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str: ...
 
 La méthode doit :
 
-- être `async def` — sinon `AgentConfigError` au load ;
+- être `async def` ; sinon `AgentConfigError` au load ;
 - accepter `message: str`, `history: list[Message]` et `ctx: Ctx` ;
 - retourner une `str` (la réponse finale, même si elle a déjà été streamée token par token).
 
@@ -69,7 +69,7 @@ L'historique de la conversation sous forme de liste de `Message` (cf. `apollia.t
 
 ### `ctx`
 
-Le `Ctx` complet — 14 services disponibles. En conversationnel, vous utiliserez surtout `ctx.llm` (génération), `ctx.events.emit_token(...)` (streaming UI), `ctx.memory` (rappels), parfois `ctx.tools` ou `ctx.a2a` (cf. [Partie III](../part-iii-the-ctx-protocol/10-ctx-overview.md)).
+Le `Ctx` complet, avec ses 14 services. En conversationnel, vous utiliserez surtout `ctx.llm` (génération), `ctx.events.emit_token(...)` (streaming UI), `ctx.memory` (rappels), parfois `ctx.tools` ou `ctx.a2a` (cf. [Partie III](../part-iii-the-ctx-protocol/10-ctx-overview.md)).
 
 ---
 
@@ -156,5 +156,5 @@ async def chat_v2(self, ...): ...   # ⇒ AgentConfigError au @agent
 
 ## ADRs
 
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) — Decorator-first
-- [ADR-040](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-040-onboarding-conversational-agent.md) — Pattern agent conversationnel (préservé)
+- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first
+- [ADR-040](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-040-onboarding-conversational-agent.md) : Pattern agent conversationnel (préservé)

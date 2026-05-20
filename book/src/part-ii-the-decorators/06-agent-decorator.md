@@ -43,9 +43,9 @@ Trois éléments suffisent : une classe, un appel `@agent(...)`, et au moins une
 | `version` | `str` | Version sémantique (`"0.1.0"`, `"1.2.3"`). |
 | `description` | `str` | Phrase courte affichée dans `apollia inspect`, l'UI Desktop et les outils tiers. |
 
-Les trois doivent être des chaînes non vides — sinon `AgentConfigError` au load.
+Les trois doivent être des chaînes non vides. Sinon, `AgentConfigError` au load.
 
-### Optionnels — gating des ressources runtime
+### Optionnels : gating des ressources runtime
 
 | Paramètre | Type | Effet |
 |---|---|---|
@@ -57,7 +57,7 @@ Les trois doivent être des chaînes non vides — sinon `AgentConfigError` au l
 
 Toute ressource non déclarée est refusée à l'exécution. C'est volontaire : le manifeste est la liste exhaustive de ce que l'agent peut toucher.
 
-### Optionnels — métadonnées et garde-fous
+### Optionnels : métadonnées et garde-fous
 
 | Paramètre | Type | Effet |
 |---|---|---|
@@ -70,7 +70,7 @@ Toute ressource non déclarée est refusée à l'exécution. C'est volontaire : 
 
 ---
 
-## Exemple — worker avec dépendances et gating
+## Exemple : worker avec dépendances et gating
 
 ```python
 from apollia import agent, skill, DomainError
@@ -93,7 +93,7 @@ class PdfWorker:
         return {"text": _extract(path), "pages": _count(path)}
 ```
 
-Vous découvrirez le détail de chaque mécanisme dans les parties suivantes — `@skill` au [chapitre 7](07-skill-decorator.md), `ctx.datasources` au [chapitre 15](../part-iii-the-ctx-protocol/15-ctx-datasources-templates.md), `DomainError` au [chapitre 22](../part-v-error-handling/22-domain-errors.md).
+Vous découvrirez le détail de chaque mécanisme dans les parties suivantes : `@skill` au [chapitre 7](07-skill-decorator.md), `ctx.datasources` au [chapitre 15](../part-iii-the-ctx-protocol/15-ctx-datasources-templates.md), `DomainError` au [chapitre 22](../part-v-error-handling/22-domain-errors.md).
 
 ---
 
@@ -146,5 +146,5 @@ C'est ce que lit `apollia inspect`, ce que sérialise le bridge PyO3, et ce sur 
 
 ## ADRs
 
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) — Decorator-first comme contrat unifié
-- [ADR-107](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-107-sdk-auto-module-instance.md) — Auto-instanciation et exposition au module
+- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first comme contrat unifié
+- [ADR-107](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-107-sdk-auto-module-instance.md) : Auto-instanciation et exposition au module

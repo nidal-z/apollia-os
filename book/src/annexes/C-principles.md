@@ -1,4 +1,4 @@
-# Annexe C — Principes architecturaux
+# Annexe C. Principes architecturaux
 
 Les 8 principes non-négociables qui guident chaque décision dans Apollia OS. Chacun a été forgé par un problème réel rencontré dans la phase SaaS précédente ou par l'analyse rigoureuse des besoins du projet.
 
@@ -10,7 +10,7 @@ Les 8 principes non-négociables qui guident chaque décision dans Apollia OS. C
 
 Concrètement : runtime Rust entièrement local, mémoire SQLite locale, modèles d'embedding GGUF locaux, audit trail SQLite local, aucun telemetry.
 
-**Pourquoi :** L'architecture SaaS cloud précédente rendait impossible la souveraineté réelle des données. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous." La solution n'était pas d'améliorer les garanties contractuelles — c'était de rendre le cloud techniquement inutile.
+**Pourquoi :** L'architecture SaaS cloud précédente rendait impossible la souveraineté réelle des données. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous." La solution n'était pas d'améliorer les garanties contractuelles. Il fallait rendre le cloud techniquement inutile.
 
 **Conséquence architecturale :** Toute dépendance à un service externe est optionnelle et se dégrade gracieusement. SQLite remplace PostgreSQL/Redis/Qdrant.
 
@@ -56,7 +56,7 @@ Concrètement : validation stricte du manifest à `INITIALIZING`, résolution de
 
 **Formulation :** Le Runtime Core n'est pas un monolithe interne. Chaque responsabilité est un acteur Tokio distinct.
 
-Concrètement : `EventBus` diffuse uniquement, `AgentRegistry` inventorie uniquement, `TaskRouter` dispatche uniquement — chaque acteur communique par messages, jamais par état partagé.
+Concrètement : `EventBus` diffuse uniquement, `AgentRegistry` inventorie uniquement, `TaskRouter` dispatche uniquement. Chaque acteur communique par messages, jamais par état partagé.
 
 **Pourquoi :** Le projet SaaS précédent avait des services qui faisaient trop de choses. Quand un bug apparaissait, il était difficile de déterminer dans quelle couche il se trouvait. Le modèle acteur Tokio force la séparation des responsabilités par construction.
 
@@ -80,7 +80,7 @@ Concrètement : `ctx.memory.search` est appelé explicitement, le runtime ne pr�
 
 **Formulation :** Tout agent, quel que soit son code, est soumis aux limites du StepBudget et du ResilienceLayer.
 
-Concrètement : `max_steps`, `max_tool_calls`, et `wall_clock_timeout` sont appliqués par le runtime Rust — un agent ne peut pas se soustraire à ces limites depuis son code Python.
+Concrètement : `max_steps`, `max_tool_calls`, et `wall_clock_timeout` sont appliqués par le runtime Rust. Un agent ne peut pas se soustraire à ces limites depuis son code Python.
 
 **Pourquoi :** Les boucles infinies et les coûts LLM incontrôlés sont des risques fréquemment observés dans les déploiements d'agents IA. En production PME, ce type d'incident est inacceptable. Le runtime doit être la couche de sécurité sur laquelle on peut compter indépendamment de la qualité du code de l'agent.
 

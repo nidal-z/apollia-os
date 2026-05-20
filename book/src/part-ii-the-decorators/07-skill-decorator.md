@@ -1,6 +1,6 @@
 # Le décorateur `@skill`
 
-Un **skill** est une capacité atomique qu'un agent expose à l'extérieur — appelable par la CLI, l'API REST, l'app Desktop, ou un autre agent via A2A. `@skill` marque une méthode async d'une classe `@agent` pour la déclarer comme telle.
+Un **skill** est une capacité atomique qu'un agent expose à l'extérieur. Il est appelable par la CLI, l'API REST, l'app Desktop, ou un autre agent via A2A. `@skill` marque une méthode async d'une classe `@agent` pour la déclarer comme telle.
 
 La signature de la méthode **est** le schéma I/O. Pas de manifeste à écrire à la main : le SDK introspecte les annotations et produit le JSON Schema (cf. [Partie IV](../part-iv-llm-friendly-design/19-annotated-descriptions.md)).
 
@@ -60,11 +60,11 @@ Le `dot.namespace` permet de regrouper plusieurs skills d'un même domaine. Conv
 
 ### `description`
 
-Phrase courte affichée à l'invocant (autre agent, LLM, opérateur humain). Si elle est absente, le manifeste retombe sur la première ligne du docstring de la méthode. Toujours fournir l'une des deux — c'est ce que voit le LLM quand il décide d'appeler la skill.
+Phrase courte affichée à l'invocant (autre agent, LLM, opérateur humain). Si elle est absente, le manifeste retombe sur la première ligne du docstring de la méthode. Toujours fournir l'une des deux : c'est ce que voit le LLM quand il décide d'appeler la skill.
 
 ### `examples`
 
-Liste optionnelle de **payloads d'exemple**. Chaque entrée est un dict JSON-sérialisable représentant un appel réaliste. Le tool descriptor LLM les exposera tel quel — cf. [chapitre 20](../part-iv-llm-friendly-design/20-examples-payloads.md).
+Liste optionnelle de **payloads d'exemple**. Chaque entrée est un dict JSON-sérialisable représentant un appel réaliste. Le tool descriptor LLM les exposera tel quel (cf. [chapitre 20](../part-iv-llm-friendly-design/20-examples-payloads.md)).
 
 ```python
 @skill(
@@ -83,7 +83,7 @@ async def read_text(
 ) -> dict: ...
 ```
 
-Le SDK **ne valide pas** les exemples contre le schéma inféré — éviter une dépendance circulaire au moment de la construction du manifeste. L'auteur est responsable de la cohérence.
+Le SDK **ne valide pas** les exemples contre le schéma inféré : cela créerait une dépendance circulaire au moment de la construction du manifeste. L'auteur est responsable de la cohérence.
 
 ### `requires_approval` et `dangerous`
 
@@ -146,23 +146,23 @@ def bar(self, x: int, ctx): ...   # ⇒ AgentConfigError "must be 'async def'"
 **Ne pas** retourner un `AIPResult` à la main :
 
 ```python
-# OUI — retournez juste un dict
+# OK : retournez juste un dict
 async def bar(self, x: int, ctx) -> dict:
     return {"value": x * 2}
 
-# NON — AIPResult est interne au SDK
+# NON : AIPResult est interne au SDK
 async def bar(self, x: int, ctx):
     return AIPResult.completed({"value": x * 2}).to_dict()  # ⇒ erreur runtime
 ```
 
 Le boundary du dispatcher emballe automatiquement votre `dict` en `AIPResult.completed` et trappe vos exceptions en `AIPResult.failed` (cf. [chapitre 22](../part-v-error-handling/22-domain-errors.md)). Vous n'avez jamais à manipuler `AIPResult` directement.
 
-**Ne pas** réutiliser le même `skill_id` pour plusieurs méthodes — `AgentConfigError` au load.
+**Ne pas** réutiliser le même `skill_id` pour plusieurs méthodes : `AgentConfigError` au load.
 
 ---
 
 ## ADRs
 
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) — Decorator-first
-- [ADR-099](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-099-sdk-signature-inference-schema.md) — Signature inference comme schéma I/O
-- [ADR-109](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-109-sdk-aip-result-interne.md) — `AIPResult` interne au SDK
+- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first
+- [ADR-099](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-099-sdk-signature-inference-schema.md) : Signature inference comme schéma I/O
+- [ADR-109](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-109-sdk-aip-result-interne.md) : `AIPResult` interne au SDK

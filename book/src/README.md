@@ -1,16 +1,16 @@
 # Introduction
 
-Vous avez un agent Python. Il fonctionne sur votre machine, dans un notebook ou dans un script. Vous voudriez le faire tourner en production — de manière fiable, sécurisée, sans que vos données ne quittent votre infrastructure.
+Vous avez un agent Python. Il fonctionne sur votre machine, dans un notebook ou dans un script. Vous voudriez le faire tourner en production de manière fiable, sécurisée, sans que vos données ne quittent votre infrastructure.
 
 C'est exactement ce pour quoi Apollia OS a été construit.
 
-Ce book vous guide de l'installation à un projet multi-agent complet en production. Pas de théorie abstraite : chaque concept est introduit au moment où vous en avez besoin, ancré dans un agent que vous écrivez vous-même.
+Ce book vous guide de l'installation à un projet multi-agent complet en production. Pas de théorie abstraite. Chaque concept est introduit au moment où vous en avez besoin, ancré dans un agent que vous écrivez vous-même.
 
 ---
 
 ## Ce qu'est Apollia OS
 
-Apollia OS est un **runtime Rust** pour l'exécution souveraine d'agents IA autonomes. Il joue le rôle de couche d'exécution qui manque entre votre code Python et la production :
+Apollia OS est un runtime Rust pour l'exécution souveraine d'agents IA autonomes. Il joue le rôle de couche d'exécution entre votre code Python et la production :
 
 ```
 Vos agents Python (decorator-first, typed, async)
@@ -22,10 +22,10 @@ Vos agents Python (decorator-first, typed, async)
    Mémoire     │  HITL
    A2A         │  Triggers
             ↓
-     Votre machine — zéro cloud obligatoire
+     Votre machine, zéro cloud obligatoire
 ```
 
-Le contrat est minimal : vous écrivez une classe Python décorée avec `@agent`, vous annotez vos méthodes avec `@skill` ou `@on_message`, et votre agent devient un citoyen de première classe du runtime.
+Le contrat est minimal : vous écrivez une classe Python décorée avec `@agent`, vous annotez vos méthodes avec `@skill` ou `@on_message`, et le runtime sait charger, valider, isoler, et invoquer votre agent depuis la CLI, l'API REST, l'app Desktop, ou un autre agent via A2A.
 
 ```python
 from apollia import agent, skill, DomainError
@@ -40,7 +40,7 @@ class Hello:
         return {"message": f"Bonjour, {name} !"}
 ```
 
-C'est tout. Pas de fichier de configuration, pas d'héritage de classe, pas de boilerplate. La signature de la méthode devient un schéma JSON, les exceptions deviennent des résultats typés, et l'agent est immédiatement appelable depuis la CLI, l'API REST, l'app Desktop, ou un autre agent via A2A.
+Pas de fichier de configuration, pas d'héritage de classe, pas de boilerplate. La signature de la méthode devient un schéma JSON, les exceptions deviennent des résultats typés, et l'agent est immédiatement utilisable.
 
 ---
 
@@ -48,10 +48,10 @@ C'est tout. Pas de fichier de configuration, pas d'héritage de classe, pas de b
 
 Les solutions existantes couvrent bien deux cas extrêmes :
 
-- **Les frameworks** (LangGraph, CrewAI, AutoGen) vous aident à écrire la logique d'un agent. Ils ne gèrent ni l'isolation, ni les garde-fous runtime, ni l'audit. Vous construisez vous-même la couche opérationnelle.
-- **Les SaaS** (LangServe Cloud, Dify, Modal) gèrent l'infrastructure pour vous — mais vos données transitent par leurs serveurs. Pour une PME européenne ou tout contexte où la souveraineté des données compte, ce n'est souvent pas acceptable.
+- Les **frameworks** (LangGraph, CrewAI, AutoGen) vous aident à écrire la logique d'un agent. Ils ne gèrent ni l'isolation, ni les garde-fous runtime, ni l'audit. Vous construisez vous-même la couche opérationnelle.
+- Les **SaaS** (LangServe Cloud, Dify, Modal) gèrent l'infrastructure pour vous, mais vos données transitent par leurs serveurs. Pour une PME européenne ou tout contexte où la souveraineté des données compte, ce n'est souvent pas acceptable.
 
-Apollia OS occupe l'espace entre les deux : il s'exécute **sur votre machine**, en un seul binaire, sans Docker, sans Kubernetes, sans compte cloud obligatoire.
+Apollia OS occupe l'espace entre les deux. Il s'exécute sur votre machine, en un seul binaire, sans Docker, sans Kubernetes, sans compte cloud obligatoire.
 
 | Critère | Apollia OS | LangServe | Dify | CrewAI |
 |---|---|---|---|---|
@@ -63,15 +63,15 @@ Apollia OS occupe l'espace entre les deux : il s'exécute **sur votre machine**,
 
 **Quand l'utiliser :**
 
-- Vous voulez livrer des agents IA à des PME et garder leurs données sur leur machine
-- La souveraineté des données est un critère (RGPD, données sensibles)
-- Vous voulez des garde-fous (budget de steps, isolation, audit, HITL) sans les écrire vous-même
+- Vous voulez livrer des agents IA à des PME et garder leurs données sur leur machine.
+- La souveraineté des données est un critère (RGPD, données sensibles).
+- Vous voulez des garde-fous (budget de steps, isolation, audit, HITL) sans les écrire vous-même.
 
 **Quand ne pas l'utiliser :**
 
-- Vous voulez un SaaS entièrement managé et la souveraineté n'est pas une contrainte
-- Vous cherchez un framework de raisonnement (chaîne de prompts, graphes) — Apollia n'en est pas un, il s'appuie sur des LLM existants et expose le pattern ReAct comme utilitaire (`apollia.react`)
-- Vous avez besoin d'un cluster multi-nœuds dès maintenant — Apollia est single-node sur la v0.1
+- Vous voulez un SaaS entièrement managé et la souveraineté n'est pas une contrainte.
+- Vous cherchez un framework de raisonnement (chaîne de prompts, graphes). Apollia n'en est pas un. Il s'appuie sur des LLM existants et expose le pattern ReAct comme utilitaire (`apollia.react`).
+- Vous avez besoin d'un cluster multi-nœuds dès maintenant. Apollia est single-node sur la v0.1.
 
 ---
 
@@ -87,7 +87,7 @@ Vous prototypez avec un notebook ou un script. Vous voulez passer en production 
 
 Vous démarrez un nouveau projet et voulez adopter les bonnes pratiques dès le début.
 
-→ Lisez ce book de façon linéaire. Les quickstarts (Partie I) montrent chaque pattern de bout en bout, puis les Parties II–VII couvrent chaque brique en détail.
+→ Lisez ce book de façon linéaire. Les quickstarts (Partie I) montrent chaque pattern de bout en bout, puis les Parties II à VII couvrent chaque brique en détail.
 
 ### Le tech lead ou l'architecte
 
@@ -101,17 +101,25 @@ Vous évaluez Apollia pour votre équipe ou votre client.
 
 Le book suit le pattern de *The Rust Programming Language* : des chapitres courts, code-first, qui s'enchaînent.
 
-- **Partie I — Premiers pas** : installation + 4 quickstarts (un par pattern d'agent). Vous écrivez et lancez 4 agents fonctionnels.
-- **Partie II — Les décorateurs** : `@agent`, `@skill`, `@on_message`, `@orchestrated`. Le canon.
-- **Partie III — Le protocole Ctx** : les 14 services injectés dans chaque agent (`ctx.llm`, `ctx.memory`, `ctx.a2a`, …).
-- **Partie IV — Design LLM-friendly** : comment décrire vos skills pour qu'un LLM moyen génère des payloads valides du premier coup.
-- **Partie V — Gestion des erreurs** : `DomainError`, `NeedHumanInput`, le boundary.
-- **Partie VI — Tests** : `apollia.testing.mock` et les assertions isomorphiques.
-- **Partie VII — Outillage** : `apollia inspect`, `apollia new`.
-- **Partie VIII — Le runtime Rust** : ce qui se passe sous le capot (acteurs Tokio, API REST, sandbox, triggers).
-- **Partie IX — Projet capstone** : un projet multi-agent end-to-end qui consolide tout ce que vous avez appris.
+**Partie I, Premiers pas.** L'installation, puis quatre quickstarts (un par type d'agent : conversationnel, worker, director, orchestré). À la fin, vous avez quatre agents fonctionnels et vous savez lequel choisir pour quel besoin.
 
-> **Convention book ↔ wiki.** Le book est pédagogique : chaque concept est introduit avec 1-2 exemples concrets. La [référence technique exhaustive](https://github.com/nidal-z/apollia-os/wiki) (specs complètes, tables de paramètres, codes d'erreur) vit dans le wiki. Quand un chapitre couvre 80 % d'un sujet, un lien `> **Référence technique :** [Page-Name](https://github.com/nidal-z/apollia-os/wiki/Page-Name)` vous renvoie au reste.
+**Partie II, Les décorateurs.** Le contrat du SDK en quatre symboles : `@agent`, `@skill`, `@on_message`, `@orchestrated`. Ce que chacun fait, ce qu'il valide au load, ce qu'il interdit.
+
+**Partie III, Le protocole Ctx.** Les quatorze services injectés dans chaque agent (`ctx.llm`, `ctx.memory`, `ctx.tools`, `ctx.a2a`, `ctx.events`, etc.). Un chapitre par service, signatures + exemples + erreurs typiques.
+
+**Partie IV, Design LLM-friendly.** Comment annoter vos skills (`Annotated`, `examples`, `TypedDict`) pour qu'un LLM moyen génère des payloads valides du premier coup. Trois techniques, trois chapitres.
+
+**Partie V, Gestion des erreurs.** Le modèle d'exceptions : `DomainError` pour les erreurs métier connues, `NeedHumanInput` pour les pauses HITL. Le boundary du SDK fait le reste.
+
+**Partie VI, Tests.** Le mock `apollia.testing.mock(MyAgent)` et les assertions qui vont avec. Tests d'agents sans démarrer le runtime, sans LLM live, sans I/O réseau.
+
+**Partie VII, Outillage.** Les deux commandes CLI dédiées aux auteurs : `apollia inspect` (validation statique du manifeste) et `apollia new` (scaffolding d'un nouveau projet d'agent).
+
+**Partie VIII, Le runtime Rust.** Ce qui se passe sous le capot : acteurs Tokio, supervisor, API REST, sandbox, triggers, application Desktop, adaptateurs LangGraph/CrewAI. Utile pour l'opérateur et l'architecte.
+
+**Partie IX, Projet capstone.** Un projet multi-agent end-to-end (workers spécialisés + director) qui consolide tout ce que vous avez appris. Vous reconstituez une mini-application de production.
+
+> **Convention book et wiki.** Le book est pédagogique : chaque concept est introduit avec un ou deux exemples concrets. La [référence technique exhaustive](https://github.com/nidal-z/apollia-os/wiki) (specs complètes, tables de paramètres, codes d'erreur) vit dans le wiki. Quand un chapitre couvre 80 % d'un sujet, un lien `> **Référence technique :** [Page-Name](https://github.com/nidal-z/apollia-os/wiki/Page-Name)` vous renvoie au reste.
 
 ---
 
@@ -120,12 +128,12 @@ Le book suit le pattern de *The Rust Programming Language* : des chapitres court
 Les blocs de code sont exécutables tels quels :
 
 ```bash
-# Commandes shell — à lancer dans votre terminal
+# Commandes shell, à lancer dans votre terminal
 apollia inspect agents/my-worker/agent.py
 ```
 
 ```python
-# Code Python — fichier agent complet ou extrait
+# Code Python : fichier agent complet ou extrait
 from apollia import agent, skill
 from apollia.types import Ctx
 
@@ -136,7 +144,7 @@ class MyWorker:
         return {"echo": value}
 ```
 
-> **Note** : les encadrés comme celui-ci attirent l'attention sur un point important, une erreur courante, ou un lien vers la référence wiki.
+> **Note :** les encadrés comme celui-ci attirent l'attention sur un point important, une erreur courante, ou un lien vers la référence wiki.
 
 Les termes introduits pour la première fois apparaissent en **gras**. L'[Annexe B (Glossaire)](annexes/B-glossary.md) en donne la définition formelle.
 
@@ -145,7 +153,7 @@ Les termes introduits pour la première fois apparaissent en **gras**. L'[Annexe
 ## Pré-requis
 
 - Python 3.10+
-- Rust (pour compiler depuis les sources) — ou téléchargez le binaire précompilé
+- Rust (pour compiler depuis les sources), ou téléchargez le binaire précompilé
 - Un LLM accessible : llama.cpp en local (bundled), Ollama, ou une clé API (Anthropic, OpenAI, …)
 
 Pas de Docker. Pas de Kubernetes. Pas de compte cloud.
