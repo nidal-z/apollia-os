@@ -33,6 +33,26 @@ from typing import Annotated, Any
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
 
+# Resolve ``schemas`` from the worker dir even when another agent has
+# previously populated ``sys.modules['schemas']`` from its own folder.
+import sys as _sys
+from pathlib import Path as _PathForBootstrap
+_WORKER_DIR = str(_PathForBootstrap(__file__).resolve().parent)
+if _WORKER_DIR in _sys.path:
+    _sys.path.remove(_WORKER_DIR)
+_sys.path.insert(0, _WORKER_DIR)
+_sys.modules.pop("schemas", None)
+
+# Canonical input TypedDicts — structural input_schema for mid-market LLMs.
+# DocxBlock is a polymorphic union (discriminated by ``type``) — rendered as
+# ``anyOf`` in the JSON Schema so the LLM sees every block variant.
+from schemas import (  # type: ignore[import-not-found]  # noqa: E402
+    DocxBlock,
+    DocumentSetup,
+    SectionWriteSpec,
+    StyleSpec,
+)
+
 MAX_FILE_BYTES: int = 100 * 1024 * 1024  # 100 MiB
 PAPER_SIZES: tuple[str, ...] = ("A4", "Letter", "Legal", "A3", "A5")
 SUPPORTED_IMAGE_EXTS: tuple[str, ...] = (".png", ".jpg", ".jpeg", ".gif", ".tiff", ".tif", ".bmp")
@@ -147,37 +167,9 @@ class DocxWorker:
     async def write_docx(
         self,
         output_path: Annotated[str, "Filesystem path of the .docx to create."],
-        sections: Annotated[
-            list[dict[str, Any]],
-            (
-                "Ordered list of section specs. Each section dict supports: "
-                "paper_size ('A4' | 'Letter' | 'Legal' | 'A3' | 'A5')?, "
-                "orientation ('portrait' | 'landscape')?, margins_cm {top, bottom, left, right}?, "
-                "header_text (str)?, footer_text (str)?, "
-                "blocks (list[Block], required). "
-                "Block = {type: 'paragraph' | 'heading' | 'table' | 'list' | 'image' | 'page_break', ...}. "
-                "paragraph: {text | runs[{text, font?}], alignment?, style?}. "
-                "heading: {text, level: 1-9, style?}. "
-                "table: {rows: list[list[str]], column_widths_cm?, style?}. "
-                "list: {items: list[str], list_type: 'bullet' | 'number', style?}. "
-                "image: {path, width_cm?, height_cm?, alignment?}."
-            ),
-        ],
-        named_styles: Annotated[
-            dict[str, Any] | None,
-            (
-                "Mapping {style_id: StyleSpec} referenced via block.style. "
-                "StyleSpec keys: font {name?, size?, bold?, italic?, underline?, color?}, "
-                "paragraph {alignment?, line_spacing?, space_before?, space_after?}."
-            ),
-        ] = None,
-        document_setup: Annotated[
-            dict[str, Any] | None,
-            (
-                "Global document metadata/setup: title (str)?, author (str)?, subject (str)?, "
-                "default_font {name?, size?}?."
-            ),
-        ] = None,
+        sections: list[SectionWriteSpec],
+        named_styles: dict[str, StyleSpec] | None = None,
+        document_setup: DocumentSetup | None = None,
         overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
@@ -212,28 +204,13 @@ class DocxWorker:
     async def append_section(
         self,
         path: Annotated[str, "Filesystem path to the existing .docx file."],
-        blocks: Annotated[
-            list[dict[str, Any]],
-            (
-                "Ordered list of blocks to append. Same Block schema as docx.write: "
-                "{type: 'paragraph' | 'heading' | 'table' | 'list' | 'image' | 'page_break', ...}."
-            ),
-        ],
-        named_styles: Annotated[
-            dict[str, Any] | None,
-            "Mapping {style_id: StyleSpec} referenced via block.style — same shape as docx.write.named_styles.",
-        ] = None,
+        blocks: list[DocxBlock],
+        named_styles: dict[str, StyleSpec] | None = None,
         section_break_before: Annotated[
             bool,
             "Insert a new section break before appending the blocks.",
         ] = False,
-        new_section_setup: Annotated[
-            dict[str, Any] | None,
-            (
-                "Page setup of the new section when section_break_before=true: "
-                "{paper_size?, orientation?, margins_cm?, header_text?, footer_text?}."
-            ),
-        ] = None,
+        new_section_setup: SectionWriteSpec | None = None,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Ajoute des blocs à un .docx."""

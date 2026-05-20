@@ -25,6 +25,23 @@ from typing import Annotated, Any
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
 
+# Resolve ``schemas`` from the worker dir even when another agent has
+# previously populated ``sys.modules['schemas']`` from its own folder.
+import sys as _sys
+from pathlib import Path as _PathForBootstrap
+_WORKER_DIR = str(_PathForBootstrap(__file__).resolve().parent)
+if _WORKER_DIR in _sys.path:
+    _sys.path.remove(_WORKER_DIR)
+_sys.path.insert(0, _WORKER_DIR)
+_sys.modules.pop("schemas", None)
+
+# Canonical input TypedDicts — structural input_schema for mid-market LLMs.
+from schemas import (  # type: ignore[import-not-found]  # noqa: E402
+    CellUpdate,
+    SheetWriteSpec,
+    StyleSpec,
+)
+
 MAX_FILE_BYTES: int = 100 * 1024 * 1024     # 100 MiB
 EXCEL_ROW_LIMIT: int = 1_048_576            # Excel hard limit
 
@@ -198,24 +215,8 @@ class XlsxWorker:
     async def write_xlsx(
         self,
         output_path: Annotated[str, "Filesystem path of the .xlsx to create."],
-        sheets: Annotated[
-            list[dict[str, Any]],
-            (
-                "Per-sheet specs. Each dict supports: name (str, required), headers (list[str]?), "
-                "rows (list[list[Any]], required), column_widths ({col_letter: width})?, "
-                "row_heights ({row_num: height})?, freeze {row, col}?, auto_filter (bool)?, "
-                "styles_apply [{style, range | cell_ref}]?, conditional_formatting [...]?"
-            ),
-        ],
-        named_styles: Annotated[
-            dict[str, Any] | None,
-            (
-                "Mapping {style_id: StyleSpec} reused via sheets[*].styles_apply. "
-                "StyleSpec keys: font {name?, size?, bold?, italic?, underline?, color?}, "
-                "fill {color, pattern?}, border {top/bottom/left/right: {style, color}}, "
-                "alignment {horizontal?, vertical?, wrap_text?}, number_format (str)."
-            ),
-        ] = None,
+        sheets: list[SheetWriteSpec],
+        named_styles: dict[str, StyleSpec] | None = None,
         overwrite: Annotated[bool, "Allow overwriting an existing output file."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:
@@ -284,10 +285,7 @@ class XlsxWorker:
         self,
         path: Annotated[str, "Filesystem path to the existing .xlsx file."],
         sheet_name: Annotated[str, "Target sheet name (must exist)."],
-        updates: Annotated[
-            list[dict[str, Any]],
-            "List of {cell_ref: A1-style string (e.g. 'B2'), value: any cell value (formula strings start with '=')}.",
-        ],
+        updates: list[CellUpdate],
         ctx: Ctx = None,
     ) -> dict[str, Any]:
         """Patch ciblé."""

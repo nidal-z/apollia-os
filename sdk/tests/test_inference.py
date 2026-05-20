@@ -157,6 +157,32 @@ def test_annotation_typed_dict() -> None:
     assert set(schema["required"]) == {"a", "b"}
 
 
+def test_annotation_typed_dict_not_required() -> None:
+    """NotRequired[T] fields must appear in properties but not in required.
+
+    NOTE: ``__required_keys__`` is computed at class-creation time by walking
+    the raw ``__annotations__`` dict. Under ``from __future__ import
+    annotations`` (PEP 563), all annotations are strings and TypedDict cannot
+    detect ``NotRequired[T]``. Worker ``schemas.py`` files therefore avoid
+    PEP 563 — and so does ``_typeddict_fixtures.py``.
+    """
+    from tests._typeddict_fixtures import NotRequiredTD
+
+    schema = annotation_to_schema(NotRequiredTD)
+    assert schema["properties"]["color"] == {"type": "string"}
+    assert set(schema["required"]) == {"name", "data"}
+
+
+def test_annotation_typed_dict_required_total_false() -> None:
+    """Required[T] inside total=False TypedDict must mark the field as required."""
+    from tests._typeddict_fixtures import RequiredTotalFalseTD
+
+    schema = annotation_to_schema(RequiredTotalFalseTD)
+    assert schema["properties"]["name"] == {"type": "string"}
+    assert schema["properties"]["size"] == {"type": "integer"}
+    assert schema["required"] == ["name"]
+
+
 def test_annotation_namedtuple() -> None:
     class P(NamedTuple):
         x: int

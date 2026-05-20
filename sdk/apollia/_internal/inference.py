@@ -53,6 +53,19 @@ EXCLUDED_TYPE_NAMES: tuple[str, ...] = ("Ctx",)
 # ``types.UnionType`` only exists on Python 3.10+, which is our minimum.
 from types import UnionType as _UnionType
 
+# ``typing.NotRequired`` / ``typing.Required`` (Python 3.11+) are special forms
+# that wrap a TypedDict field type. They carry no runtime schema information of
+# their own — they only signal that the key is optional/required, which is
+# already exposed via ``TypedDict.__required_keys__`` / ``__optional_keys__``.
+# We unwrap them at the TypedDict-introspection layer so the SDK can produce a
+# structural schema for the inner type ``T``.
+try:  # pragma: no cover - both available on supported Pythons (3.11+)
+    from typing import NotRequired as _NotRequired
+    from typing import Required as _Required
+except ImportError:  # pragma: no cover
+    _NotRequired = None  # type: ignore[assignment]
+    _Required = None  # type: ignore[assignment]
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Schema inference
@@ -139,6 +152,13 @@ def _typeddict_schema(tp: type) -> dict[str, Any]:
     except Exception:
         hints = dict(getattr(tp, "__annotations__", {}))
     for name, ann in hints.items():
+        # Unwrap typing.NotRequired[T] / typing.Required[T] — the required-ness
+        # is tracked separately via ``__required_keys__`` / ``__optional_keys__``;
+        # the underlying T is what defines the field's schema.
+        if get_origin(ann) in (_NotRequired, _Required):
+            inner_args = get_args(ann)
+            if inner_args:
+                ann = inner_args[0]
         properties[name] = annotation_to_schema(ann)
     required_keys = getattr(tp, "__required_keys__", frozenset(hints.keys()))
     schema: dict[str, Any] = {

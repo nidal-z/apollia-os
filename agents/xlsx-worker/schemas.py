@@ -1,15 +1,17 @@
 """Schémas I/O documentaires pour xlsx-worker.
 
 Ce module utilise ``TypedDict`` (stdlib) pour documenter le contrat A2A des
-5 skills exposés. Aucune validation runtime — la validation est manuelle
-dans ``xlsx-worker.py``. Aligné Principe 2 (zéro dépendance pour les schemas).
+5 skills exposés ET pour **structurer les `input_schema`** générés par le
+SDK (les LLM mid-market voient ainsi la forme exacte des dicts d'entrée
+— ex. `sheets[i]`, `updates[i]` — sans avoir besoin de la structure dans
+le system prompt). Aligné Principe 2 (zéro dépendance externe : tout
+provient de la stdlib).
 
-Convention multi-skills : chaque payload inclut un champ ``op`` qui
-discrimine l'opération. Tant qu'Apollia v0.1.0 ne propage pas ``skill_id``
-côté Python, ce discriminateur reste obligatoire.
+**Pas de `from __future__ import annotations`** : sous PEP 563 les
+annotations sont des strings et ``TypedDict.__required_keys__`` ne peut
+pas détecter ``NotRequired[T]`` à la création de classe — ce qui rendrait
+tous les champs requis dans le JSON Schema final.
 """
-
-from __future__ import annotations
 
 from typing import Any, Literal, NotRequired, TypedDict
 
@@ -159,16 +161,21 @@ class ConditionalFormatSpec(TypedDict, total=False):
     style: str              # référence à named_styles
 
 
-class SheetWriteSpec(TypedDict, total=False):
-    name: str                              # requis
-    headers: list[str]                     # optionnel
-    rows: list[list[Any]]                  # requis
-    column_widths: dict[str, float]        # {col_letter: width}
-    row_heights: dict[str, float]          # {"1": 30, ...} keys are stringified row indices
-    freeze: FreezeSpec
-    auto_filter: bool
-    styles_apply: list[StyleApplyEntry]
-    conditional_formatting: list[ConditionalFormatSpec]
+class SheetWriteSpec(TypedDict):
+    """Spec d'une feuille à écrire.
+
+    ``name`` et ``rows`` sont requis ; tout le reste est ``NotRequired``.
+    """
+
+    name: str
+    rows: list[list[Any]]
+    headers: NotRequired[list[str]]
+    column_widths: NotRequired[dict[str, float]]
+    row_heights: NotRequired[dict[str, float]]
+    freeze: NotRequired[FreezeSpec]
+    auto_filter: NotRequired[bool]
+    styles_apply: NotRequired[list[StyleApplyEntry]]
+    conditional_formatting: NotRequired[list[ConditionalFormatSpec]]
 
 
 class WriteInput(TypedDict):

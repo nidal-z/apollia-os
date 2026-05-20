@@ -1,18 +1,21 @@
 """Schémas I/O documentaires pour chart-worker.
 
 Ce module utilise ``TypedDict`` (stdlib) pour documenter le contrat A2A des
-5 skills exposés. Aucune validation runtime — la validation est manuelle
-dans ``chart-worker.py``. Aligné Principe 2 (zéro dépendance pour les schemas).
-
-Convention multi-skills : chaque payload inclut un champ ``op`` qui
-discrimine l'opération. Tant qu'Apollia v0.1.0 ne propage pas ``skill_id``
-côté Python, ce discriminateur reste obligatoire.
+5 skills exposés et **structurer les `input_schema`** générés par le SDK
+(étape B optimisation : les LLM mid-market voient maintenant la forme exacte
+des dicts attendus dans `series[i]`, `data[i]`, etc.). Aligné Principe 2
+(zéro dépendance externe — `typing.TypedDict` est stdlib).
 
 Modes de sortie : ``file`` (écrit sur disque, retourne path) ou ``base64``
 (retourne content_base64 dans le JSON, pas d'écriture disque).
-"""
 
-from __future__ import annotations
+**Convention PEP 655 + PEP 563** : ce module n'utilise PAS
+``from __future__ import annotations`` car ``TypedDict.__required_keys__``
+est calculé à la création de la classe en inspectant les annotations brutes.
+Sous PEP 563 (stringified annotations), ``NotRequired[T]`` n'est pas
+détecté et tous les champs deviennent requis. Le SDK utilise
+``__required_keys__`` pour produire le bon ``"required": [...]``.
+"""
 
 from typing import Any, Literal, NotRequired, TypedDict
 
@@ -48,28 +51,33 @@ class CommonChartFields(TypedDict, total=False):
 # ─── chart.bar ─────────────────────────────────────────────────────────────
 
 
-class BarPoint(TypedDict):
-    x: Any
-    y: float
-
-
-class BarSeriesSpec(TypedDict, total=False):
-    name: str
-    data: list[Any]  # list[float] OU list[BarPoint]
-    color: str  # hex
-
-
 BarOrientation = Literal["vertical", "horizontal"]
 BarStyle = Literal["grouped", "stacked"]
 
 
-class BarInput(TypedDict, total=False):
-    series: list[BarSeriesSpec]
-    categories: list[str]
-    orientation: BarOrientation
-    bar_style: BarStyle
-    value_labels: bool
-    # + CommonChartFields ...
+class BarPoint(TypedDict):
+    """One {x, y} point used when bar data is provided as labelled values."""
+
+    x: Any
+    y: float
+
+
+class BarSeries(TypedDict):
+    """One bar group in a bar chart.
+
+    ``data`` is either a flat ``list[number]`` (paired with ``categories``
+    at the skill level) OR a ``list[{x, y}]`` where ``x`` becomes the
+    category label. ``color`` is optional; when omitted the theme palette
+    is used.
+    """
+
+    name: str
+    data: list[Any]  # list[float] OU list[BarPoint]
+    color: NotRequired[str]  # hex '#RRGGBB' ou 'RRGGBB'
+
+
+# Back-compat alias (older code referenced ``BarSeriesSpec``).
+BarSeriesSpec = BarSeries
 
 
 # ─── chart.line ────────────────────────────────────────────────────────────
@@ -81,43 +89,34 @@ XType = Literal["auto", "number", "datetime", "category"]
 
 
 class LinePoint(TypedDict):
+    """One {x, y} point in a line series. ``x`` may be number, ISO datetime, or category."""
+
     x: Any
     y: float
 
 
-class LineSeriesSpec(TypedDict, total=False):
+class LineSeries(TypedDict):
+    """One line in a line chart."""
+
     name: str
     data: list[LinePoint]
-    color: str
-    line_style: LineStyle
-    line_width: float
-    marker: LineMarker
+    color: NotRequired[str]
+    line_style: NotRequired[LineStyle]
+    line_width: NotRequired[float]
+    marker: NotRequired[LineMarker]
 
 
-class LineInput(TypedDict, total=False):
-    series: list[LineSeriesSpec]
-    x_type: XType
-    y_log_scale: bool
-    area_fill: bool
+LineSeriesSpec = LineSeries  # back-compat alias
 
 
 # ─── chart.pie ─────────────────────────────────────────────────────────────
 
 
 class PieSlice(TypedDict):
+    """One slice of a pie / donut chart. ``value`` must be non-negative."""
+
     label: str
     value: float
-
-
-class PieInput(TypedDict, total=False):
-    data: list[PieSlice]
-    donut: bool
-    hole_size: float
-    colors: list[str]
-    show_percent: bool
-    show_values: bool
-    explode: list[float]
-    start_angle: float
 
 
 # ─── chart.scatter ─────────────────────────────────────────────────────────
@@ -126,26 +125,24 @@ class PieInput(TypedDict, total=False):
 ScatterMarkerStyle = Literal["circle", "square", "triangle", "diamond", "x", "plus"]
 
 
-class ScatterPoint(TypedDict, total=False):
+class ScatterPoint(TypedDict):
+    """One scatter point. ``size`` overrides the series ``marker_size`` for bubble charts."""
+
     x: Any
     y: Any
-    size: float
+    size: NotRequired[float]
 
 
-class ScatterSeriesSpec(TypedDict, total=False):
+class ScatterSeries(TypedDict):
+    """One scatter series."""
+
     name: str
     data: list[ScatterPoint]
-    color: str
-    marker_style: ScatterMarkerStyle
+    color: NotRequired[str]
+    marker_style: NotRequired[ScatterMarkerStyle]
 
 
-class ScatterInput(TypedDict, total=False):
-    series: list[ScatterSeriesSpec]
-    x_type: Literal["number", "datetime"]
-    y_type: Literal["number", "datetime"]
-    regression: bool
-    marker_size: float
-    alpha: float
+ScatterSeriesSpec = ScatterSeries  # back-compat alias
 
 
 # ─── chart.heatmap ─────────────────────────────────────────────────────────
@@ -155,19 +152,6 @@ Colormap = Literal[
     "viridis", "plasma", "magma", "inferno",
     "Blues", "Reds", "Greens", "RdBu",
 ]
-
-
-class HeatmapInput(TypedDict, total=False):
-    matrix: list[list[float]]
-    row_labels: list[str]
-    col_labels: list[str]
-    colormap: Colormap
-    vmin: float
-    vmax: float
-    show_values: bool
-    value_format: str
-    colorbar: bool
-    colorbar_label: str
 
 
 # ─── Output ────────────────────────────────────────────────────────────────

@@ -22,6 +22,22 @@ from typing import Annotated, Any
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
 
+# Resolve ``schemas`` from the worker dir even when another agent has
+# previously populated ``sys.modules['schemas']`` from its own folder.
+import sys
+from pathlib import Path as _PathForBootstrap
+_WORKER_DIR = str(_PathForBootstrap(__file__).resolve().parent)
+if _WORKER_DIR in sys.path:
+    sys.path.remove(_WORKER_DIR)
+sys.path.insert(0, _WORKER_DIR)
+sys.modules.pop("schemas", None)
+
+# Canonical input TypedDicts — structural input_schema for mid-market LLMs.
+from schemas import (  # type: ignore[import-not-found]  # noqa: E402
+    MarginsCm,
+    SplitRangeSpec,
+)
+
 
 MAX_FILE_BYTES: int = 100 * 1024 * 1024
 ALLOWED_PAGE_SIZES: tuple[str, ...] = ("A4", "Letter", "Legal", "A3", "A5")
@@ -362,10 +378,7 @@ class PdfWorker:
             str,
             "Page orientation: 'portrait' (default) | 'landscape'.",
         ] = "portrait",
-        margins_cm: Annotated[
-            dict[str, Any] | None,
-            "Page margins in cm as {top, bottom, left, right} numbers. Missing keys use defaults.",
-        ] = None,
+        margins_cm: MarginsCm | None = None,
         title: Annotated[str | None, "PDF metadata title."] = None,
         author: Annotated[str | None, "PDF metadata author."] = None,
         subject: Annotated[str | None, "PDF metadata subject."] = None,
@@ -589,10 +602,7 @@ class PdfWorker:
         self,
         path: Annotated[str, "Filesystem path to the source .pdf file."],
         output_dir: Annotated[str, "Directory where the split parts are written (created if missing)."],
-        ranges: Annotated[
-            list[dict[str, Any]] | None,
-            "Named ranges: list of {name: str (output stem), pages: str (1-based, e.g. '1-3,7')}. Omit for page-by-page split.",
-        ] = None,
+        ranges: list[SplitRangeSpec] | None = None,
         overwrite: Annotated[bool, "Allow overwriting existing output files."] = False,
         ctx: Ctx = None,
     ) -> dict[str, Any]:

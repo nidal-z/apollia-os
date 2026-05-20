@@ -1,13 +1,15 @@
 """Schémas I/O documentaires pour pdf-worker.
 
-``TypedDict`` stdlib pour documenter le contrat A2A des 6 skills. Aucune
-validation runtime — validation manuelle dans ``pdf-worker.py``.
+``TypedDict`` stdlib pour documenter le contrat A2A des 6 skills ET pour
+**structurer les `input_schema`** générés par le SDK (les LLM mid-market
+voient ainsi la forme exacte des dicts d'entrée — ex. `margins_cm`,
+`ranges[i]` — sans avoir besoin de la structure dans le system prompt).
 
-Convention multi-skills : chaque payload inclut ``op`` qui discrimine
-l'opération (limitation v0.1.0 — skill_id non propagé côté Python).
+**Pas de `from __future__ import annotations`** : sous PEP 563 les
+annotations sont des strings et ``TypedDict.__required_keys__`` ne peut
+pas détecter ``NotRequired[T]`` à la création de classe, ce qui produit
+un `required: [...]` incorrect dans le JSON Schema.
 """
-
-from __future__ import annotations
 
 from typing import Any, Literal, NotRequired, TypedDict
 

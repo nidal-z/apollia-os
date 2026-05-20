@@ -42,6 +42,29 @@ except ImportError:  # pragma: no cover - matplotlib only required at runtime
 
 from apollia import DomainError, agent, skill
 from apollia.types import Ctx
+
+# Resolve ``schemas`` from the worker dir even when (a) loaded under bare
+# ``importlib`` (eval runners don't set sys.path) and (b) another agent has
+# already populated ``sys.modules['schemas']`` from its own folder. We push
+# our dir to the FRONT of sys.path and purge any stale ``schemas`` entry —
+# same pattern as veille-ia.
+import sys
+from pathlib import Path
+_WORKER_DIR = str(Path(__file__).resolve().parent)
+if _WORKER_DIR in sys.path:
+    sys.path.remove(_WORKER_DIR)
+sys.path.insert(0, _WORKER_DIR)
+sys.modules.pop("schemas", None)
+
+# Canonical input TypedDicts — drive the generated JSON Schema so mid-market
+# LLMs (Mistral Small, Haiku, Llama 70B) see the exact field shape and don't
+# need the structure pasted into the system prompt.
+from schemas import (  # type: ignore[import-not-found]  # noqa: E402
+    BarSeries,
+    LineSeries,
+    PieSlice,
+    ScatterSeries,
+)
 ALLOWED_FORMATS: tuple[str, ...] = ("png", "svg")
 ALLOWED_THEMES: tuple[str, ...] = ("default", "dark", "minimal")
 ALLOWED_COLORMAPS: tuple[str, ...] = (
@@ -104,10 +127,7 @@ class ChartWorker:
     )
     async def bar(
         self,
-        series: Annotated[
-            list[dict[str, Any]],
-            "List of {name: str, data: list[number] | list[{x, y}], color?: '#RRGGBB'} dicts — one per bar group.",
-        ],
+        series: list[BarSeries],
         output_path: Annotated[
             str | None,
             "Filesystem path to write the chart. Required when output_mode='file'.",
@@ -187,10 +207,7 @@ class ChartWorker:
     )
     async def line(
         self,
-        series: Annotated[
-            list[dict[str, Any]],
-            "List of {name: str, data: list[{x, y}], color?, line_style?, line_width?, marker?} dicts. data points are {x, y} objects.",
-        ],
+        series: list[LineSeries],
         output_path: Annotated[
             str | None,
             "Filesystem path to write the chart. Required when output_mode='file'.",
@@ -255,10 +272,7 @@ class ChartWorker:
     )
     async def pie(
         self,
-        data: Annotated[
-            list[dict[str, Any]],
-            "List of {label: str, value: number >= 0} dicts. Sum of values must be > 0.",
-        ],
+        data: list[PieSlice],
         output_path: Annotated[
             str | None,
             "Filesystem path to write the chart. Required when output_mode='file'.",
@@ -342,10 +356,7 @@ class ChartWorker:
     )
     async def scatter(
         self,
-        series: Annotated[
-            list[dict[str, Any]],
-            "List of {name: str, data: list[{x, y, size?}], color?, marker_style?} dicts. size overrides marker_size per point.",
-        ],
+        series: list[ScatterSeries],
         output_path: Annotated[
             str | None,
             "Filesystem path to write the chart. Required when output_mode='file'.",

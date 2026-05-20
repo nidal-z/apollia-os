@@ -1,12 +1,16 @@
 """Schémas I/O documentaires pour docx-worker.
 
 Ce module utilise ``TypedDict`` (stdlib) pour documenter le contrat A2A des
-5 skills exposés. Aucune validation runtime — la validation est manuelle
-dans ``docx-worker.py``. Aligné Principe 2 (zéro dépendance pour les schemas).
+5 skills exposés ET pour **structurer les `input_schema`** générés par le
+SDK (les LLM mid-market voient ainsi la forme exacte des dicts d'entrée
+— ex. `sections[i]`, `blocks[i]` polymorphe via union, `named_styles` —
+sans avoir besoin de la structure dans le system prompt). Aligné Principe 2
+(zéro dépendance externe : tout provient de la stdlib).
 
-Convention multi-skills : chaque payload inclut un champ ``op`` qui
-discrimine l'opération. Tant qu'Apollia v0.1.0 ne propage pas ``skill_id``
-côté Python, ce discriminateur reste obligatoire.
+**Pas de `from __future__ import annotations`** : sous PEP 563 les
+annotations sont des strings et ``TypedDict.__required_keys__`` ne peut
+pas détecter ``NotRequired[T]`` à la création de classe — ce qui rendrait
+tous les champs requis dans le JSON Schema final.
 
 Headers/footers placeholders (10) :
     {page}, {total_pages}                   — champs Word PAGE/NUMPAGES
@@ -16,9 +20,7 @@ Headers/footers placeholders (10) :
     {section_num}                           — index 1-based de la section
 """
 
-from __future__ import annotations
-
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict, Union
 
 
 # ─── Style spec ────────────────────────────────────────────────────────────
@@ -95,19 +97,23 @@ class RunSpec(TypedDict, total=False):
     font: FontSpec
 
 
-class ParagraphBlock(TypedDict, total=False):
+class ParagraphBlock(TypedDict):
+    """Paragraphe — ``text`` OU ``runs`` (mutuellement exclusif côté code)."""
+
     type: Literal["paragraph"]
-    text: str
-    runs: list[RunSpec]
-    style: str  # référence à named_styles
-    alignment: Literal["left", "center", "right", "justify"]
+    text: NotRequired[str]
+    runs: NotRequired[list[RunSpec]]
+    style: NotRequired[str]
+    alignment: NotRequired[Literal["left", "center", "right", "justify"]]
 
 
-class HeadingBlock(TypedDict, total=False):
+class HeadingBlock(TypedDict):
+    """Titre Word (Heading 1..9)."""
+
     type: Literal["heading"]
     text: str
     level: int  # 1-9
-    style: str
+    style: NotRequired[str]
 
 
 class CellMergeSpec(TypedDict, total=False):
@@ -127,37 +133,61 @@ class CellStyleApply(TypedDict, total=False):
     style: str
 
 
-class TableBlock(TypedDict, total=False):
+class TableBlock(TypedDict):
+    """Tableau."""
+
     type: Literal["table"]
     rows: list[list[Any]]  # liste de listes — chaque cell = str ou TableCellSpec
-    style: str
-    column_widths_cm: list[float]
-    header_row: bool
-    cell_styles: list[CellStyleApply]
+    style: NotRequired[str]
+    column_widths_cm: NotRequired[list[float]]
+    header_row: NotRequired[bool]
+    cell_styles: NotRequired[list[CellStyleApply]]
 
 
-class ListBlock(TypedDict, total=False):
+class ListBlock(TypedDict):
+    """Liste à puces / numérotée."""
+
     type: Literal["list"]
     items: list[Any]  # str ou {text, items: [...]} pour nested
-    list_type: Literal["bullet", "number"]
-    style: str
+    list_type: NotRequired[Literal["bullet", "number"]]
+    style: NotRequired[str]
 
 
-class ImageBlock(TypedDict, total=False):
+class ImageBlock(TypedDict):
+    """Image embarquée. Le chemin doit exister sur le disque local."""
+
     type: Literal["image"]
     path: str
-    width_cm: float
-    height_cm: float
-    alignment: Literal["left", "center", "right"]
+    width_cm: NotRequired[float]
+    height_cm: NotRequired[float]
+    alignment: NotRequired[Literal["left", "center", "right"]]
 
 
 class PageBreakBlock(TypedDict):
+    """Saut de page."""
+
     type: Literal["page_break"]
 
 
-class SectionBreakBlock(TypedDict, total=False):
+class SectionBreakBlock(TypedDict):
+    """Saut de section (changement de page setup)."""
+
     type: Literal["section_break"]
-    break_type: Literal["next_page", "continuous", "odd_page", "even_page"]
+    break_type: NotRequired[Literal["next_page", "continuous", "odd_page", "even_page"]]
+
+
+# Polymorphic block union — discriminé par ``type``. Le SDK rend cette union
+# en ``anyOf`` dans le JSON Schema, exposant toutes les variantes possibles
+# avec leurs champs au LLM.
+DocxBlock = Union[
+    ParagraphBlock,
+    HeadingBlock,
+    TableBlock,
+    ListBlock,
+    ImageBlock,
+    PageBreakBlock,
+    SectionBreakBlock,
+]
 
 
 # ─── docx.read ─────────────────────────────────────────────────────────────
@@ -230,13 +260,19 @@ class HeaderFooterSpec(TypedDict, total=False):
     right: str
 
 
-class SectionWriteSpec(TypedDict, total=False):
-    orientation: Literal["portrait", "landscape"]
-    margins_cm: MarginsCm
-    paper_size: Literal["A4", "Letter", "Legal", "A3", "A5"]
-    header: HeaderFooterSpec
-    footer: HeaderFooterSpec
-    blocks: list[dict[str, Any]]  # ParagraphBlock | HeadingBlock | TableBlock | ListBlock | ImageBlock | PageBreakBlock
+class SectionWriteSpec(TypedDict):
+    """Spec d'une section à écrire.
+
+    ``blocks`` est requis ; la page setup (orientation, marges, paper_size,
+    header/footer) est entièrement optionnelle.
+    """
+
+    blocks: list[DocxBlock]
+    orientation: NotRequired[Literal["portrait", "landscape"]]
+    margins_cm: NotRequired[MarginsCm]
+    paper_size: NotRequired[Literal["A4", "Letter", "Legal", "A3", "A5"]]
+    header: NotRequired[HeaderFooterSpec]
+    footer: NotRequired[HeaderFooterSpec]
 
 
 class WriteInput(TypedDict):
