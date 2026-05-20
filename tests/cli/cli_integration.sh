@@ -13,9 +13,18 @@
 # Exits 0 on success, 1 on the first failing assertion.
 set -euo pipefail
 
-BIN=${APOLLIA_BIN:-./target/debug/apollia-os}
-if [[ ! -x "$BIN" ]]; then
-    echo "FAIL: apollia-os binary not found at $BIN (cargo build first?)"
+# Resolve the apollia-os binary: explicit override > debug build > release build.
+if [[ -n "${APOLLIA_BIN:-}" ]]; then
+    BIN=$APOLLIA_BIN
+elif [[ -x ./target/debug/apollia-os ]]; then
+    BIN=./target/debug/apollia-os
+elif [[ -x ./target/release/apollia-os ]]; then
+    BIN=./target/release/apollia-os
+else
+    echo "FAIL: apollia-os binary not found."
+    echo "  Tried APOLLIA_BIN, ./target/debug/apollia-os, ./target/release/apollia-os."
+    echo "  Run \`cargo build -p apollia-cli\` or \`cargo build --release -p apollia-cli\`,"
+    echo "  or set APOLLIA_BIN=/absolute/path/to/apollia-os."
     exit 1
 fi
 
