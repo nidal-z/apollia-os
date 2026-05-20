@@ -103,6 +103,13 @@ Ces principes ne peuvent pas être violés sans créer un ADR explicite.
 - Déviation par rapport à la spec → note dans la story concernée
 - Jamais de TODO/FIXME dans le code — créer une story ou corriger maintenant
 
+### Skills A2A LLM-facing (SDK Apollia AgentKit)
+- `Annotated[T, "description courte"]` sur les params LLM-facing à valeurs énumérées ou structure non-évidente (skip pour params triviaux numériques/booléens)
+- `@skill(examples=[{...}])` : au moins 1 payload-modèle réaliste par skill, propagé au tool descriptor LLM-facing
+- TypedDict canoniques dans `<agent>/schemas.py` pour remplacer `list[dict[str, Any]]` / `dict[str, Any]` opaques — **sans** `from __future__ import annotations` (PEP 563 casse `TypedDict.__required_keys__`)
+- Validation : `python -m apollia inspect <agent.py> --json` doit montrer `description` sur chaque param + `examples` sur chaque skill + sous-schémas structurellement stricts
+- Référence : `docs/internal/release/AGENTKIT-REBUILD-2026-05-19.md` (section "Post-rebuild — Optimisations LLM tool descriptors") + commits `bed9e212`, `48f6cd83`, `566b79a1`
+
 **Convention book/wiki (sprint book-wiki-separation) :**
 - `book/src/` = contenu pédagogique ("The Rust Book") — apprendre en faisant, exemples concrets, 1-2 patterns
 - `docs/wiki/` = référence technique exhaustive ("docs.rs") — specs complètes, tables de paramètres, codes d'erreur

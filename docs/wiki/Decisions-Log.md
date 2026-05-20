@@ -1425,6 +1425,14 @@ Trois nettoyages ciblés sur `ctx.llm` et la boucle ReAct. (1) **Suppression** d
 
 [Détail → docs/adr/ADR-112-sdk-stream-cleanup-rename.md](adr/ADR-112-sdk-stream-cleanup-rename.md)
 
+## DEC-2026-05-20 — Optimisation tool descriptors pour LLM mid-market/petits
+
+**Date :** 2026-05-20 — **Statut :** Accepté
+
+Optimisation du SDK et du bridge pour que les LLM mid-market (Mistral Small, Haiku, Llama 70B) construisent un payload valide au premier appel de skill, sans dépendre du system prompt pour expliciter chaque structure. Bug observé en runtime sur chart-worker : un LLM tente d'appeler `chart.bar` avec `{type: "bar", options: {...}}` au lieu du format attendu `{series: [{name, data}], ...}` parce que `list[dict[str, Any]]` produit un schéma trop vague. Trois leviers actifs : (1) **`Annotated[T, "description"]`** propagé dans `input_schema.properties[param].description` (SDK introspecte au load time, cf. `sdk/apollia/_internal/inference.py`) ; (2) **`@skill(examples=[...])`** propagé au tool descriptor LLM-facing via le manifest (bridge Rust `crates/apollia-aip/src/bridge.rs`) — payloads-modèles minimaux mais réalistes ; (3) **TypedDict canoniques** pour remplacer `list[dict[str, Any]]` opaque — déclarés dans un `schemas.py` séparé sans `from __future__ import annotations` (PEP 563 casse `TypedDict.__required_keys__`). Fix SDK associé : unwrap `NotRequired[T]`/`Required[T]` (PEP 655) dans `_typeddict_schema`. Migration livrée : 25/25 skills des workers chart/pdf/xlsx/docx/archive + workers veille-ia (entity-extraction, synthesis). Aucun changement d'API publique (`Annotated` est stdlib, `examples=` optionnel, TypedDict est stdlib), backward compatible. Pas d'ADR formel : optimisation d'implémentation des contrats existants (ADR-099 — signature = schéma), pas une décision architecturale structurante.
+
+Référence : commits `bed9e212`, `48f6cd83`, `ee88ad44`, `26e0a719`, `566b79a1` + release doc `docs/internal/release/AGENTKIT-REBUILD-2026-05-19.md` section "Post-rebuild — Optimisations LLM tool descriptors".
+
 ---
 
 *Ce log est maintenu à jour à chaque décision architecturale significative.*

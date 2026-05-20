@@ -6,15 +6,40 @@ Worker A2A : reçoit articles + known_entities, retourne entités structurées
 Skill A2A : ``research.extract_entities``.
 """
 
-from __future__ import annotations
+# ⚠️ Pas de ``from __future__ import annotations`` : les signatures
+# référencent des TypedDicts définis dans ``worker_schemas`` et le SDK
+# Apollia introspecte ``TypedDict.__required_keys__`` qui se casse sous
+# PEP 563 (toutes les clés deviendraient requises). cf. ADR-099.
 
 import json
 import re
-from typing import Any
+import sys
+from pathlib import Path
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, react, skill
 from apollia.types import Ctx
 from apollia.utils.parsing import extract_json
+
+# Le worker vit dans agents/veille-ia/workers/ ; ``worker_schemas`` est un
+# cran au-dessus (agents/veille-ia/). On insère le dossier parent dans
+# sys.path AVANT l'import pour que le runtime PyO3 (qui charge via
+# ``PyModule::from_code``) résolve l'import absolu.
+_AGENT_DIR = Path(__file__).resolve().parent.parent
+if str(_AGENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_AGENT_DIR))
+
+# Force purge de cache module si un autre agent a déjà importé ses propres
+# ``worker_schemas`` (le bridge invalide ``apollia.*`` à chaque load mais
+# pas les modules d'agent — cf. veille-ia-agent.py).
+if "worker_schemas" in sys.modules:
+    del sys.modules["worker_schemas"]
+
+from worker_schemas import (  # noqa: E402
+    Article,
+    ArticleEntityMap,
+    Entity,
+)
 
 
 SYSTEM_PROMPT = """Tu es entity-extraction-worker, expert en extraction d'entités à partir d'articles de veille IA.
@@ -81,15 +106,47 @@ class EntityExtractionWorker:
             "Extrait les entités (companies, products, events, topics) "
             "depuis articles."
         ),
+        examples=[
+            {
+                "today": "2026-05-20",
+                "articles": [
+                    {
+                        "title": "Anthropic launches Claude Code 2.0",
+                        "url": "https://example.com/anthropic-claude-code-2",
+                        "source": "example.com",
+                        "excerpt": "Anthropic announced today...",
+                        "axis": "tech",
+                    },
+                ],
+                "known_entities": [
+                    {"id": "anthropic", "type": "company", "name": "Anthropic"},
+                ],
+            },
+        ],
     )
     async def extract_entities(
         self,
-        articles: list[dict[str, Any]],
-        known_entities: list[dict[str, Any]] | None = None,
-        today: str = "",
+        articles: Annotated[
+            list[Article],
+            "Articles de veille (sortie de research.search_and_extract). "
+            "Chaque article a au minimum {title, url, source, excerpt, axis}.",
+        ],
+        known_entities: Annotated[
+            list[Entity] | None,
+            "Entités déjà connues en mémoire (à réutiliser plutôt que recréer). "
+            "Format : [{id, type, name, ...}].",
+        ] = None,
+        today: Annotated[
+            str,
+            "Date ISO (YYYY-MM-DD) du run en cours — utilisée pour dater les signaux.",
+        ] = "",
         ctx: Ctx = None,
     ) -> dict[str, Any]:
-        """Extrait entités structurées + mapping article→entities."""
+        """Extrait entités structurées + mapping article→entities.
+
+        Retourne un dict ``{entities: [...], article_to_entities: {url: [entity_ids]}}``
+        conforme à ``worker_schemas.ExtractEntitiesOutput``.
+        """
         if ctx.llm is None:
             raise DomainError("NO_LLM", "Backend LLM requis")
 
@@ -132,4 +189,7 @@ class EntityExtractionWorker:
 
         parsed.setdefault("entities", [])
         parsed.setdefault("article_to_entities", {})
+        # Mapping article → entities : ``ArticleEntityMap`` est un alias
+        # de ``dict[str, list[str]]`` (clés URL dynamiques, pas de TypedDict).
+        _: ArticleEntityMap = parsed["article_to_entities"]
         return parsed

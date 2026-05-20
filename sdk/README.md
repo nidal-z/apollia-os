@@ -207,6 +207,102 @@ class MyAgent:
 
 `apollia inspect path/to/agent.py` shows the generated manifest before running.
 
+## Documenting parameters with `Annotated`
+
+Skills exposed via A2A are seen by LLM callers (Chat Libre, director ReAct loops, other workers) as **tools**. The richer the JSON Schema description, the higher the chance a mid-market LLM (Mistral Small, Haiku, Llama 70B) builds a valid payload on the first try.
+
+`typing.Annotated[T, "description"]` is the canonical way to document a parameter. The SDK introspects the second argument and propagates it into `input_schema.properties[param].description` — visible to every LLM that calls the skill as a tool.
+
+```python
+from typing import Annotated
+
+from apollia import agent, skill
+from apollia.types import Ctx
+
+
+@agent(name="chart-worker", version="0.1.0", description="Render charts to PNG/SVG.", agent_type="worker")
+class ChartWorker:
+    @skill("chart.bar", description="Render a bar chart.")
+    async def bar(
+        self,
+        series: list[dict],  # see "Structured payloads with TypedDict" below
+        format: Annotated[str, "'png' (default, raster) | 'svg' (vector)."] = "png",
+        orientation: Annotated[
+            str,
+            "'vertical' (bars rise from baseline) | 'horizontal' (bars extend right).",
+        ] = "vertical",
+        dpi: int = 150,  # trivial numeric — no Annotated, keeps signature readable
+        ctx: Ctx = None,
+    ) -> dict:
+        ...
+```
+
+Skip `Annotated` for trivial numerics/booleans (`dpi: int = 150`, `overwrite: bool = False`) — keep the signature readable.
+
+## Providing examples for the LLM
+
+`@skill(examples=[{...}])` attaches one or more **payload templates** to the skill. The SDK propagates them to the tool descriptor LLM-facing — the LLM sees not only the JSON Schema but also a concrete, valid call shape.
+
+```python
+@skill(
+    "pdf.read_text",
+    description="Extract text from a PDF, optionally limited to a page range.",
+    examples=[
+        {"path": "/tmp/report.pdf"},                              # minimal
+        {"path": "/tmp/report.pdf", "page_range": "1-10"},        # with range
+    ],
+)
+async def read_text(
+    self,
+    path: str,
+    page_range: str | None = None,
+    ctx: Ctx = None,
+) -> dict:
+    ...
+```
+
+Guidelines:
+- At least 1 realistic example per skill — must cover every `required` field.
+- Demonstrate the exact structure of complex parameters (`list[TypedDict]`, nested dicts).
+- The SDK does **not** validate examples against the inferred schema — author responsibility to keep them in sync.
+
+`apollia inspect <agent.py> --json` shows `manifest.skills[].examples` so you can confirm propagation.
+
+## Structured payloads with TypedDict
+
+When a parameter is a complex structure (`list[dict[str, Any]]`, nested config), the inferred JSON Schema is just `object` / `array of object` — opaque, no `properties`, no `required`. LLMs guess the shape and frequently get it wrong.
+
+Replace `list[dict[str, Any]]` with a `TypedDict` declared in a sibling `schemas.py`. The SDK introspects the TypedDict and produces a **structurally strict** sub-schema (`properties` + `required` + sub-types).
+
+```python
+# schemas.py — DO NOT add `from __future__ import annotations` !
+from typing import Literal, NotRequired, TypedDict
+
+
+BarOrientation = Literal["vertical", "horizontal"]
+
+
+class BarSeries(TypedDict):
+    """One bar group in a bar chart."""
+    name: str
+    data: list[float]
+    color: NotRequired[str]  # optional, hex #RRGGBB
+```
+
+```python
+# chart-worker.py
+from schemas import BarSeries  # type: ignore[import-not-found]
+
+
+@skill("chart.bar", description="...", examples=[...])
+async def bar(self, series: list[BarSeries], ctx: Ctx = None) -> dict:
+    ...
+```
+
+**Why no `from __future__ import annotations` in `schemas.py`** — PEP 563 turns all annotations into strings at class creation, which breaks `TypedDict.__required_keys__` (every field becomes "required"). The SDK uses `__required_keys__` to compute the `required: [...]` array of the JSON Schema, so under PEP 563 the schema lies about which fields are mandatory. Keep `schemas.py` free of `from __future__ import annotations`; the worker `.py` can still use it freely (only the TypedDict definitions are sensitive).
+
+Single source of truth: the TypedDict documents the contract for the LLM (via the schema), for callers (via type hints), and for tests / eval cases. No drift between schema, code, and docs.
+
 ## Testing — isomorphic mocks
 
 ```python

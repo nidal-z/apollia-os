@@ -7,15 +7,32 @@ schema Pydantic (le director rend ensuite via Jinja2).
 Skill A2A : ``research.synthesize_report``.
 """
 
-from __future__ import annotations
+# ⚠️ Pas de ``from __future__ import annotations`` (PEP 563 casse
+# ``TypedDict.__required_keys__``). cf. worker_schemas.py.
 
 import json
 import re
-from typing import Any
+import sys
+from pathlib import Path
+from typing import Annotated, Any
 
 from apollia import DomainError, agent, react, skill
 from apollia.types import Ctx
 from apollia.utils.parsing import extract_json
+
+_AGENT_DIR = Path(__file__).resolve().parent.parent
+if str(_AGENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_AGENT_DIR))
+
+if "worker_schemas" in sys.modules:
+    del sys.modules["worker_schemas"]
+
+from worker_schemas import (  # noqa: E402
+    Article,
+    ArticleEntityMap,
+    ScoringConfig,
+    UserContext,
+)
 
 
 SYSTEM_PROMPT = """Tu es synthesis-worker, expert en synthèse de veille technologique et concurrentielle.
@@ -92,18 +109,69 @@ class SynthesisWorker:
         description=(
             "Score les articles et produit un VeilleReport JSON validable Pydantic."
         ),
+        examples=[
+            {
+                "date": "2026-05-20",
+                "articles_tech": [
+                    {
+                        "title": "MCP spec 2026-03 lands",
+                        "url": "https://example.com/mcp-spec",
+                        "source": "example.com",
+                        "excerpt": "The Model Context Protocol gets...",
+                        "axis": "tech",
+                    },
+                ],
+                "articles_competitive": [],
+                "scoring": {
+                    "criteria": [
+                        {"id": "mcp-evolution", "weight": 3, "keywords": ["MCP", "Model Context Protocol"]},
+                    ],
+                    "critical_threshold": 5,
+                    "include_threshold": 2,
+                },
+                "user_context": {"user_role": "CTO"},
+                "article_to_entities": {
+                    "https://example.com/mcp-spec": ["entity:product:mcp"],
+                },
+            },
+        ],
     )
     async def synthesize_report(
         self,
-        articles_tech: list[dict[str, Any]],
-        articles_competitive: list[dict[str, Any]],
-        scoring: dict[str, Any],
-        user_context: dict[str, Any] | None = None,
-        article_to_entities: dict[str, Any] | None = None,
-        date: str = "",
+        articles_tech: Annotated[
+            list[Article],
+            "Articles bruts de l'axe technologique (depuis research.search_and_extract).",
+        ],
+        articles_competitive: Annotated[
+            list[Article],
+            "Articles bruts de l'axe concurrentiel.",
+        ],
+        scoring: Annotated[
+            ScoringConfig,
+            "Config de scoring (criteria pondérés + thresholds). "
+            "Chargée depuis datasources/scoring.yaml par le director.",
+        ],
+        user_context: Annotated[
+            UserContext | None,
+            "Snapshot du profil utilisateur (clés user_role/user_tech_stack/...). "
+            "Sert à adapter l'executive_summary (CTO → tech, founder → business).",
+        ] = None,
+        article_to_entities: Annotated[
+            ArticleEntityMap | None,
+            "Mapping URL d'article → liste d'entity IDs (sortie de "
+            "research.extract_entities), pour enrichir le field 'entities' de chaque article.",
+        ] = None,
+        date: Annotated[
+            str,
+            "Date ISO (YYYY-MM-DD) du rapport.",
+        ] = "",
         ctx: Ctx = None,
     ) -> dict[str, Any]:
-        """Synthèse VeilleReport JSON."""
+        """Synthèse VeilleReport JSON.
+
+        Output conforme à ``worker_schemas.SynthesizeReportOutput`` (et au
+        Pydantic ``VeilleReport`` côté director pour validation stricte).
+        """
         if ctx.llm is None:
             raise DomainError("NO_LLM", "Backend LLM requis")
 
