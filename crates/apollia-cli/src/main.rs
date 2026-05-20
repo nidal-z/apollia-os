@@ -22,6 +22,7 @@ use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
 use commands::chat;
+use commands::connector::ConnectorCommand;
 use commands::llm::LlmCommand;
 use commands::mcp::McpCommand;
 use commands::mcp_server::McpServerArgs;
@@ -295,6 +296,17 @@ enum Commands {
 
     /// Print the binary version (use `--json` for machine-readable output).
     Version,
+
+    /// Native SaaS connector management (list, accounts, test, revoke).
+    ///
+    /// Operates on the multi-account keyring without requiring the runtime
+    /// to be started. Use `apollia-os auth login <provider>` first to
+    /// connect an account.
+    Connector {
+        /// Connector subcommand.
+        #[command(subcommand)]
+        command: ConnectorCommand,
+    },
 }
 
 fn main() {
@@ -427,6 +439,7 @@ fn main() {
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
+            Commands::Connector { command } => commands::connector::run(&command, json).await,
         }
     });
 
