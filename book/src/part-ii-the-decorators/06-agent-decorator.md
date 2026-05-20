@@ -45,17 +45,23 @@ Trois éléments suffisent : une classe, un appel `@agent(...)`, et au moins une
 
 Les trois doivent être des chaînes non vides. Sinon, `AgentConfigError` au load.
 
-### Optionnels : gating des ressources runtime
+### Optionnels : dépendances déclarées
 
 | Paramètre | Type | Effet |
 |---|---|---|
 | `datasources` | `tuple[str, ...]` | Liste des YAML attendus dans `datasources/` (cf. [Partie III](../part-iii-the-ctx-protocol/15-ctx-datasources-templates.md)). |
 | `templates` | `tuple[str, ...]` | Liste des templates Jinja2 attendus dans `templates/`. |
 | `secrets` | `tuple[str, ...]` | Liste des secrets attendus dans `ctx.secrets.get(...)`. |
-| `tools_required` | `tuple[str, ...]` | Outils natifs Apollia que l'agent appelle (`("file_read", "bash")`). |
+| `tools_required` | `tuple[str, ...]` | Outils natifs dont l'agent dépend (`("file_read", "bash_executor")`). |
 | `packages` | `tuple[str, ...]` | Packages PyPI dont l'agent dépend, installés au boot dans le venv isolé. |
 
-Toute ressource non déclarée est refusée à l'exécution. C'est volontaire : le manifeste est la liste exhaustive de ce que l'agent peut toucher.
+Le comportement diffère selon la ressource :
+
+- **`datasources`, `templates`, `secrets`** : gating strict côté SDK Python. Tout accès à un nom non déclaré (`ctx.datasources.get("x")`) lève une erreur immédiate. Ces trois listes sont la définition exhaustive de ce que l'agent peut lire.
+- **`tools_required`** : déclaration de **disponibilité** validée au boot par le runtime Rust. Si un outil listé est absent du catalogue, l'agent ne démarre pas (`RequiredToolMissing`). C'est l'application du principe fail-fast au démarrage. Le gating runtime au moment de l'appel relève du moteur de permissions (cf. [chapitre 35](../part-viii-runtime-rust/35-tools-sandbox-permissions.md)), pas du manifeste seul.
+- **`packages`** : déclaration des dépendances PyPI installées dans le venv isolé de l'agent.
+
+Bonne pratique : déclarer explicitement tout outil que l'agent appelle, même si le moteur de permissions est plus permissif. Cela permet au boot de signaler immédiatement un outil manquant, à `apollia inspect` de présenter un manifeste lisible, et à l'opérateur de comprendre la surface d'attaque d'un agent installé.
 
 ### Optionnels : métadonnées et garde-fous
 
@@ -140,11 +146,13 @@ manifest = MyWorker.__apollia_manifest__
 
 C'est ce que lit `apollia inspect`, ce que sérialise le bridge PyO3, et ce sur quoi le runtime Rust appuie ses garde-fous.
 
-> **Référence technique :** la spec complète du manifeste, des règles de gating et du dispatch est dans [Briques-SDK](https://github.com/nidal-z/apollia-os/wiki/Briques-SDK).
+> **Référence technique :** la spec complète du manifeste, des règles de gating et du dispatch sera dans la page wiki `Briques-SDK` *(wiki disponible prochainement)*.
 
 ---
 
 ## ADRs
 
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first comme contrat unifié
-- [ADR-107](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-107-sdk-auto-module-instance.md) : Auto-instanciation et exposition au module
+- `ADR-098` : Decorator-first comme contrat unifié
+- `ADR-107` : Auto-instanciation et exposition au module
+
+*(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

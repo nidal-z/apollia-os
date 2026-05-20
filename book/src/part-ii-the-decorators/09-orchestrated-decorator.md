@@ -20,10 +20,10 @@ from apollia import agent, orchestrated
 )
 @orchestrated(
     system_prompt="""
-    You triage incoming emails using the available tools.
+    Sort and route incoming emails using the available tools.
 
-    For each email, decide between three actions: archive, reply with a
-    short acknowledgement, or flag for human review. Use the tools
+    For each email, choose one of three actions: archive, reply with a
+    short acknowledgement, or flag for human review. The tools are
     `inbox.list`, `inbox.archive`, `inbox.reply`, `inbox.flag`.
     """
 )
@@ -99,7 +99,7 @@ ORIA (Observer, Reasoner, Actor) est le moteur de plan dynamique côté Rust. Il
 
 Le détail (cache de plans, observations par étape, intégration HITL) est dans la [Partie VIII](../part-viii-runtime-rust/29-runtime-overview.md) et le wiki.
 
-> **Référence technique :** [Briques-ORIA-Engine](https://github.com/nidal-z/apollia-os/wiki/Briques-ORIA-Engine).
+> **Référence technique :** la page wiki `Briques-ORIA-Engine` détaillera plan cache, observations par étape, intégration HITL *(wiki disponible prochainement)*.
 
 ---
 
@@ -129,6 +129,8 @@ Le détail (cache de plans, observations par étape, intégration HITL) est dans
 
 ## ADRs
 
-- [ADR-022](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-022-oria-mode-orchestre-option-b.md) : ORIA mode orchestré (architecture)
-- [ADR-035](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-035-per-step-observation-orchestrated.md) : Observation par étape
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first
+- `ADR-022` : ORIA mode orchestré (architecture)
+- `ADR-035` : Observation par étape
+- `ADR-098` : Decorator-first
+
+*(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

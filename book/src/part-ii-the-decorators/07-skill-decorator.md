@@ -163,6 +163,8 @@ Le boundary du dispatcher emballe automatiquement votre `dict` en `AIPResult.com
 
 ## ADRs
 
-- [ADR-098](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-098-apollia-agentkit-decorator-first.md) : Decorator-first
-- [ADR-099](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-099-sdk-signature-inference-schema.md) : Signature inference comme schéma I/O
-- [ADR-109](https://github.com/nidal-z/apollia-os/blob/main/docs/adr/ADR-109-sdk-aip-result-interne.md) : `AIPResult` interne au SDK
+- `ADR-098` : Decorator-first
+- `ADR-099` : Signature inference comme schéma I/O
+- `ADR-109` : `AIPResult` interne au SDK
+
+*(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*
