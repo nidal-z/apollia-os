@@ -360,6 +360,18 @@ enum Commands {
         #[arg(long, default_value = "24h")]
         since: commands::digest::DigestWindow,
     },
+
+    /// Manage the Chat Libre configuration (system prompt, allowed tools, backend).
+    ///
+    /// Operates on `governance.db` directly; the runtime does not need to be
+    /// running. The session permission rules are managed via the standard
+    /// `apollia-os permissions` commands.
+    #[command(name = "chat-config")]
+    ChatConfig {
+        /// Chat-config subcommand.
+        #[command(subcommand)]
+        command: commands::chat_config::ChatConfigCommand,
+    },
 }
 
 fn main() {
@@ -507,6 +519,7 @@ fn main() {
                 commands::trace::run(&task_id, format_json, cli.socket, json).await
             }
             Commands::Digest { since } => commands::digest::run(since, cli.socket, json).await,
+            Commands::ChatConfig { command } => commands::chat_config::run(&command, json),
         }
     });
 
