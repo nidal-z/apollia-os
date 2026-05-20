@@ -417,7 +417,7 @@ fn main() {
                 }
             },
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
-            Commands::Model { command } => commands::model::run(&command, json),
+            Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }

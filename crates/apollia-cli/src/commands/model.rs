@@ -14,6 +14,29 @@ use crate::exit_codes;
 pub enum ModelCommand {
     /// List available .gguf model files in ~/.apollia/models/.
     List,
+    /// Search the HuggingFace registry through the runtime.
+    Search {
+        /// Free-text query (matches model id, description, tags).
+        query: String,
+        /// Maximum number of hits to return (default: 20).
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+    },
+    /// Fetch metadata + file list for a HuggingFace model.
+    Show {
+        /// Repository identifier in `org/repo` form.
+        repo: String,
+    },
+    /// Report the runtime's detected hardware profile (RAM, CPU, GPU).
+    Hardware,
+    /// Remove a local model file from `~/.apollia/models/`.
+    Delete {
+        /// File name relative to the models directory.
+        name: String,
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 /// Résultat d'un scan du dossier `~/.apollia/models/`.
@@ -117,10 +140,156 @@ fn parse_shard_name(file_name: &str) -> Option<(String, u32, u32)> {
 /// filesystem directly (Principle #4 — fail fast; Principle #2 — zero deps).
 ///
 /// Returns the process exit code: `0` = success, non-zero = error.
-pub fn run(cmd: &ModelCommand, json: bool) -> i32 {
+pub async fn run(cmd: &ModelCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     match cmd {
         ModelCommand::List => run_list(json),
+        ModelCommand::Search { query, limit } => run_search(socket, query, *limit, json).await,
+        ModelCommand::Show { repo } => run_show(socket, repo, json).await,
+        ModelCommand::Hardware => run_hardware(socket, json).await,
+        ModelCommand::Delete { name, confirm } => run_delete(name, *confirm, json),
     }
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+async fn run_search(socket: Option<PathBuf>, query: &str, limit: u32, json: bool) -> i32 {
+    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let client = crate::client::RuntimeClient::new(socket);
+    let q = urlencode(query);
+    let uri = format!("/api/v1/llm/registry/search?q={q}&limit={limit}");
+    match client.get(&uri).await {
+        Ok(resp) if resp.status < 400 => {
+            if json {
+                println!("{}", resp.body);
+            } else {
+                println!("{}", resp.body);
+            }
+            exit_codes::SUCCESS
+        }
+        Ok(resp) => {
+            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+async fn run_show(socket: Option<PathBuf>, repo: &str, json: bool) -> i32 {
+    let Some((org, name)) = repo.split_once('/') else {
+        eprintln!("Error: expected org/repo, got '{repo}'");
+        return exit_codes::GENERAL_ERROR;
+    };
+    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let client = crate::client::RuntimeClient::new(socket);
+    let uri = format!("/api/v1/llm/registry/model/{org}/{name}");
+    match client.get(&uri).await {
+        Ok(resp) if resp.status < 400 => {
+            println!("{}", resp.body);
+            let _ = json;
+            exit_codes::SUCCESS
+        }
+        Ok(resp) => {
+            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
+    let socket = socket.unwrap_or_else(|| PathBuf::from(crate::client::DEFAULT_SOCKET_PATH));
+    let client = crate::client::RuntimeClient::new(socket);
+    match client.get("/api/v1/llm/hardware").await {
+        Ok(resp) if resp.status < 400 => {
+            if json {
+                println!("{}", resp.body);
+            } else {
+                // Pretty-print summary if JSON value parses.
+                match serde_json::from_str::<serde_json::Value>(&resp.body) {
+                    Ok(v) => {
+                        if let Some(ram) = v.get("ram_gb").and_then(|x| x.as_f64()) {
+                            println!("  RAM       {ram:.1} GB");
+                        }
+                        if let Some(cpu) = v.get("cpu_threads").and_then(|x| x.as_i64()) {
+                            println!("  CPU       {cpu} threads");
+                        }
+                        if let Some(acc) = v.get("accelerator").and_then(|x| x.as_str()) {
+                            println!("  Accelerator {acc}");
+                        }
+                    }
+                    Err(_) => println!("{}", resp.body),
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Ok(resp) => {
+            eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn run_delete(name: &str, confirm: bool, json: bool) -> i32 {
+    if !confirm {
+        if json {
+            let out = serde_json::json!({"error": "use --confirm to delete without prompt"});
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+        } else {
+            eprintln!("Use --confirm to delete '{name}' without prompt.");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+    let dir = default_models_dir();
+    let path = dir.join(name);
+    if !path.exists() {
+        if json {
+            let out = serde_json::json!({"error": format!("{name} not found in {}", dir.display())});
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+        } else {
+            eprintln!("Error: {} not found in {}", name, dir.display());
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "removed": path.display().to_string(),
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * removed {}", path.display());
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("Error: failed to remove {}: {e}", path.display());
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+/// Minimal percent-encode for the query string.
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 /// `apollia-os model list` — list `.gguf` model files in `~/.apollia/models/`.
