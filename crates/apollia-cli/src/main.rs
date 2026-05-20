@@ -37,6 +37,7 @@ use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
 use commands::trigger::TriggerCommand;
+use commands::user_memory::UserMemoryCommand;
 use commands::workspace::WorkspaceCommand;
 
 /// Apollia OS — Sovereign AI Agent Runtime.
@@ -319,6 +320,19 @@ enum Commands {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+
+    /// User memory / profile management (show, set, forget, reset, export, import).
+    ///
+    /// Operates on `~/.apollia/user_memory.db` directly; no runtime required.
+    #[command(name = "user-memory")]
+    UserMemory {
+        /// User-memory subcommand.
+        #[command(subcommand)]
+        command: UserMemoryCommand,
+    },
+
+    /// Shortcut for `task list --pending-approval` — list pending HITL tasks.
+    Hitl,
 }
 
 fn main() {
@@ -453,6 +467,13 @@ fn main() {
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
             Commands::Config { command } => commands::config::run(&command, json),
+            Commands::UserMemory { command } => commands::user_memory::run(&command, json),
+            Commands::Hitl => {
+                let cmd = commands::task::TaskCommand::List {
+                    pending_approval: true,
+                };
+                commands::task::run(&cmd, cli.socket, json).await
+            }
         }
     });
 

@@ -29,5 +29,6 @@ pub mod task;
 pub mod tools;
 pub mod trigger;
 pub mod update;
+pub mod user_memory;
 pub mod version;
 pub mod workspace;
