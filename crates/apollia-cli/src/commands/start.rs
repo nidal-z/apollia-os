@@ -1024,9 +1024,51 @@ async fn port_is_in_use(port: u16) -> bool {
         .is_ok()
 }
 
-/// Returns `true` if a Unix socket file exists at `path`.
-fn socket_is_in_use(path: &std::path::Path) -> bool {
-    path.exists()
+/// Returns `true` only when a live runtime is currently listening on `path`.
+///
+/// A previous crash can leave a stale socket file behind. To distinguish it
+/// from a real running daemon we attempt a short-timeout connect: success
+/// means a process is bound, `ConnectionRefused` means the file is stale and
+/// safe to remove on the caller's side.
+async fn socket_is_in_use(path: &std::path::Path) -> bool {
+    if !path.exists() {
+        return false;
+    }
+    match tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        tokio::net::UnixStream::connect(path),
+    )
+    .await
+    {
+        Ok(Ok(_)) => true,
+        Ok(Err(_)) | Err(_) => false,
+    }
+}
+
+/// Remove a stale Unix socket file left over from a previous crashed runtime.
+///
+/// Called only after [`socket_is_in_use`] returned `false` for an existing
+/// path, so we know no live daemon is listening. Any error is logged but not
+/// propagated: the subsequent bind will surface the real cause.
+fn cleanup_stale_socket(path: &std::path::Path) {
+    if !path.exists() {
+        return;
+    }
+    match std::fs::remove_file(path) {
+        Ok(()) => {
+            tracing::info!(
+                socket = %path.display(),
+                "removed stale Unix socket file from a previous crashed runtime"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                socket = %path.display(),
+                error = %e,
+                "failed to remove stale Unix socket file"
+            );
+        }
+    }
 }
 
 /// Bootstrap and run the runtime in foreground.
@@ -1050,11 +1092,13 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             address: format!("localhost:{tcp_port}"),
         });
     }
-    if socket_is_in_use(&socket_path) {
+    if socket_is_in_use(&socket_path).await {
         return Err(StartError::AlreadyRunning {
             address: socket_path.display().to_string(),
         });
     }
+    // The file exists but nobody is listening: clean it up so the bind succeeds.
+    cleanup_stale_socket(&socket_path);
 
     let home = std::env::var("HOME")
         .map(PathBuf::from)
