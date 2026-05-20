@@ -32,7 +32,7 @@ Concrètement : pas de Docker requis, pas de Node.js, pas de base de données ex
 
 **Formulation :** Un agent existant doit pouvoir tourner dans Apollia OS avec moins de 10 lignes de code d'adaptation.
 
-Concrètement : AIP supporte le duck typing Python, `manifest()` et `run()` suffisent pour un agent minimal, wrappers fournis pour LangGraph et CrewAI.
+Concrètement : le SDK Python suit un design decorator-first, `@agent` + un handler (`@skill`, `@on_message` ou `@orchestrated`) suffisent pour un agent minimal, adaptateurs disponibles pour LangGraph et CrewAI (cf. chapitre 34).
 
 **Pourquoi :** Les runtimes qui imposent un framework ont une courbe d'adoption élevée. Apollia OS résout un problème d'infrastructure. Si adopter la solution nécessite de réécrire l'agent, la solution crée autant de travail qu'elle en économise.
 
