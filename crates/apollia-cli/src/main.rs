@@ -22,6 +22,7 @@ use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
 use commands::chat;
+use commands::config::ConfigCommand;
 use commands::connector::ConnectorCommand;
 use commands::llm::LlmCommand;
 use commands::mcp::McpCommand;
@@ -307,6 +308,17 @@ enum Commands {
         #[command(subcommand)]
         command: ConnectorCommand,
     },
+
+    /// Global apollia.toml management (get, set, validate, edit, show).
+    ///
+    /// Edits the on-disk config without touching the runtime. The section
+    /// helpers `tools config` and `stt config` remain available for their
+    /// respective slices.
+    Config {
+        /// Config subcommand.
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
 }
 
 fn main() {
@@ -440,6 +452,7 @@ fn main() {
             Commands::Logs(args) => commands::logs::run(&args, json).await,
             Commands::Version => commands::version::run(json),
             Commands::Connector { command } => commands::connector::run(&command, json).await,
+            Commands::Config { command } => commands::config::run(&command, json),
         }
     });
 

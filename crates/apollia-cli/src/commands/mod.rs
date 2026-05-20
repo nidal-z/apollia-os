@@ -4,6 +4,7 @@ pub mod agent;
 pub mod audit;
 pub mod auth;
 pub mod chat;
+pub mod config;
 pub mod connector;
 pub mod doctor;
 pub mod llm;
