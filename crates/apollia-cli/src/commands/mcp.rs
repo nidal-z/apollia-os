@@ -132,6 +132,33 @@ pub enum McpCommand {
         /// Nom du serveur.
         name: String,
     },
+
+    /// Mettre à jour la configuration brute d'un serveur MCP existant.
+    ///
+    /// Au moins un des champs `--command`, `--url`, ou `--require-approval`
+    /// doit être fourni. Les champs omis conservent leur valeur précédente.
+    Update {
+        /// Nom du serveur.
+        name: String,
+        /// Nouvelle commande stdio (transport stdio).
+        #[arg(long)]
+        command: Option<String>,
+        /// Nouvelle URL HTTP/SSE.
+        #[arg(long)]
+        url: Option<String>,
+        /// Activer / désactiver le verrou d'approbation HITL.
+        #[arg(long, value_name = "BOOL")]
+        require_approval: Option<bool>,
+    },
+
+    /// Afficher la configuration brute persistée d'un serveur MCP.
+    ///
+    /// Lit directement `mcp.db` via le runtime et renvoie la définition
+    /// originale (utile pour bisecter une régression de configuration).
+    RawConfig {
+        /// Nom du serveur.
+        name: String,
+    },
 }
 
 /// Errors returned by MCP subcommands.
@@ -260,6 +287,29 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
         McpCommand::Restart { name } => {
             let client = make_runtime_client(socket);
             run_restart_server(&client, name, json).await
+        }
+
+        McpCommand::Update {
+            name,
+            command,
+            url,
+            require_approval,
+        } => {
+            let client = make_runtime_client(socket);
+            run_update_server(
+                &client,
+                name,
+                command.as_deref(),
+                url.as_deref(),
+                *require_approval,
+                json,
+            )
+            .await
+        }
+
+        McpCommand::RawConfig { name } => {
+            let client = make_runtime_client(socket);
+            run_get_raw_config(&client, name, json).await
         }
     }
 }
@@ -464,6 +514,110 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
                 eprintln!("Error: serveur MCP '{name}' introuvable");
             }
             exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp update <name>` — patch a server configuration.
+///
+/// Fails when no patch field is supplied; otherwise forwards a partial body to
+/// `PUT /api/v1/mcp/servers/{name}/config`. The runtime merges with the
+/// existing stored definition.
+async fn run_update_server(
+    client: &RuntimeClient,
+    name: &str,
+    command: Option<&str>,
+    url: Option<&str>,
+    require_approval: Option<bool>,
+    json: bool,
+) -> i32 {
+    if command.is_none() && url.is_none() && require_approval.is_none() {
+        if json {
+            let out = serde_json::json!({
+                "error": "no patch field provided",
+                "hint": "supply at least one of --command, --url, --require-approval",
+            });
+            println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+        } else {
+            eprintln!("Error: provide at least one of --command, --url, --require-approval");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    let mut body = serde_json::Map::new();
+    if let Some(c) = command {
+        body.insert("command".to_string(), serde_json::Value::String(c.to_string()));
+    }
+    if let Some(u) = url {
+        body.insert("url".to_string(), serde_json::Value::String(u.to_string()));
+    }
+    if let Some(req) = require_approval {
+        body.insert(
+            "require_approval".to_string(),
+            serde_json::Value::Bool(req),
+        );
+    }
+
+    match client
+        .update_mcp_server_config(name, &serde_json::Value::Object(body))
+        .await
+    {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("* Serveur MCP '{name}' mis à jour");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: serveur MCP '{name}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp raw-config <name>` — read the persisted launch definition.
+async fn run_get_raw_config(client: &RuntimeClient, name: &str, json: bool) -> i32 {
+    let uri = format!("/api/v1/mcp/servers/{name}/raw_config");
+    match client.get(&uri).await {
+        Ok(resp) => {
+            if resp.status >= 400 {
+                if json {
+                    let out = serde_json::json!({"error": resp.body});
+                    println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+                } else {
+                    eprintln!("Error: {}", resp.body);
+                }
+                if resp.status == 404 {
+                    return exit_codes::GENERAL_ERROR;
+                }
+                return exit_codes::GENERAL_ERROR;
+            }
+            // Body is JSON already — pretty-print when --json, raw otherwise.
+            match serde_json::from_str::<serde_json::Value>(&resp.body) {
+                Ok(v) => {
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    } else {
+                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or(resp.body));
+                    }
+                }
+                Err(_) => {
+                    println!("{}", resp.body);
+                }
+            }
+            exit_codes::SUCCESS
         }
         Err(e) => handle_client_error(e, json),
     }
@@ -831,6 +985,59 @@ mod tests {
         match &cli.command {
             McpCommand::Restart { name } => assert_eq!(name, "code-tools"),
             other => panic!("expected Restart, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_update_with_url() {
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "code-tools",
+            "--url",
+            "http://localhost:9090",
+        ]);
+        match &cli.command {
+            McpCommand::Update {
+                name,
+                command,
+                url,
+                require_approval,
+            } => {
+                assert_eq!(name, "code-tools");
+                assert!(command.is_none());
+                assert_eq!(url.as_deref(), Some("http://localhost:9090"));
+                assert!(require_approval.is_none());
+            }
+            other => panic!("expected Update, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_update_require_approval_flag() {
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "srv",
+            "--require-approval",
+            "true",
+        ]);
+        match &cli.command {
+            McpCommand::Update {
+                require_approval, ..
+            } => {
+                assert_eq!(*require_approval, Some(true));
+            }
+            other => panic!("expected Update, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_raw_config_parses() {
+        let cli = TestCli::parse_from(["apollia-os", "raw-config", "code-tools"]);
+        match &cli.command {
+            McpCommand::RawConfig { name } => assert_eq!(name, "code-tools"),
+            other => panic!("expected RawConfig, got {other:?}"),
         }
     }
 
