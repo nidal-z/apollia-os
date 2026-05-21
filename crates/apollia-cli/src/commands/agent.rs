@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_aip::package_loader::{load_package, PackageLoaderError};
+use apollia_aip::package_loader::{load_manifest_only, PackageLoaderError};
 use apollia_runtime::agents::registry_remote::{self, parse_install_source, AgentInstallSource};
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::{AgentRepository, InstalledAgent, InstalledPackage, PackageRepository};
@@ -268,9 +268,34 @@ fn format_a2a_agent_list(resp: &serde_json::Value) {
     }
 }
 
-/// `apollia-os agent start <path>` — register a new agent.
-async fn run_start(client: &RuntimeClient, path: &str, json: bool) -> i32 {
-    match client.start_agent(path).await {
+/// `apollia-os agent start <path-or-name>` — register / re-load an agent.
+///
+/// Accepts either a filesystem path to a `.py` (legacy mode for ad-hoc
+/// agents) or the **name** of an already installed agent. In the latter case
+/// we look it up in `agents.db` and forward its `install_path` to the runtime,
+/// so operators don't have to remember where every package landed inside
+/// `~/.apollia/agents/`.
+async fn run_start(client: &RuntimeClient, arg: &str, json: bool) -> i32 {
+    let resolved_path = if looks_like_file_path(arg) {
+        arg.to_string()
+    } else {
+        match open_repository().and_then(|r| r.get(arg).ok().flatten()) {
+            Some(entry) => entry.install_path.to_string_lossy().to_string(),
+            None => {
+                let msg = format!(
+                    "agent '{arg}' not installed (and not a file path); install it first via \
+                     `apollia-os agent install <path>` or pass a `.py` path"
+                );
+                if json {
+                    println!("{}", serde_json::json!({"error": msg}));
+                } else {
+                    eprintln!("Error: {msg}");
+                }
+                return exit_codes::GENERAL_ERROR;
+            }
+        }
+    };
+    match client.start_agent(&resolved_path).await {
         Ok(resp) => {
             if json {
                 println!(
@@ -352,8 +377,103 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
             }
             exit_codes::SUCCESS
         }
+        // Disabled / not-yet-loaded agents are absent from the runtime
+        // registry but still present in `agents.db`. Fall back to the local
+        // repository so `apollia-os agent info` works on every installed
+        // agent regardless of its runtime state.
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            match local_agent_detail(agent_id) {
+                Some(detail) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&detail).unwrap_or_default()
+                        );
+                    } else {
+                        format_local_agent_detail(&detail);
+                    }
+                    exit_codes::SUCCESS
+                }
+                None => {
+                    let msg = format!("agent not found: {agent_id}");
+                    if json {
+                        println!("{}", serde_json::json!({"error": msg}));
+                    } else {
+                        eprintln!("Error: {msg}");
+                    }
+                    exit_codes::GENERAL_ERROR
+                }
+            }
+        }
         Err(e) => handle_error(e, json),
     }
+}
+
+/// Load a detailed snapshot of an installed agent from `agents.db`, bypassing
+/// the runtime registry. Returned as a JSON value so it can be either pretty-
+/// printed via `format_local_agent_detail` or emitted verbatim with `--json`.
+fn local_agent_detail(agent_id: &str) -> Option<serde_json::Value> {
+    let repo = open_repository()?;
+    let entry = repo.get(agent_id).ok().flatten()?;
+    let body = serde_json::json!({
+        "agent_id": null,
+        "name": entry.name,
+        "version": entry.version,
+        "state": if entry.enabled { "stopped" } else { "disabled" },
+        "supports_a2a": entry.manifest.supports_a2a,
+        "skills": entry.manifest.skills,
+        "manifest": entry.manifest,
+        "install_path": entry.install_path,
+        "installed_at": entry.installed_at,
+        "_source": "local agents.db (runtime registry has no live entry — agent is disabled or failed to load)",
+    });
+    Some(body)
+}
+
+/// Render the local-only agent detail in the same shape as the live runtime
+/// view so operators don't have to learn two layouts. Skills come from the
+/// manifest because they are unchanged across enable / disable transitions.
+fn format_local_agent_detail(detail: &serde_json::Value) {
+    let name = detail.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+    let version = detail.get("version").and_then(|v| v.as_str()).unwrap_or("?");
+    let state = detail.get("state").and_then(|v| v.as_str()).unwrap_or("?");
+    let installed_at = detail
+        .get("installed_at")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    let install_path = detail
+        .get("install_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
+    println!("  Name         : {name}");
+    println!("  Version      : {version}");
+    println!("  State        : {state}  (from local agents.db; not running in registry)");
+    println!("  Install path : {install_path}");
+    println!("  Installed at : {installed_at}");
+    if let Some(manifest) = detail.get("manifest") {
+        if let Some(skills) = manifest.get("skills").and_then(|s| s.as_array()) {
+            if !skills.is_empty() {
+                println!("  Skills ({}) :", skills.len());
+                for s in skills {
+                    let id = s.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+                    let n = s.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                    println!("    - {id} ({n})");
+                }
+            }
+        }
+        if let Some(tools) = manifest
+            .get("tools_required")
+            .and_then(|t| t.as_array())
+        {
+            let names: Vec<&str> = tools.iter().filter_map(|v| v.as_str()).collect();
+            if !names.is_empty() {
+                println!("  Tools (required) : {}", names.join(", "));
+            }
+        }
+    }
+    println!(
+        "  Hint         : run `apollia-os agent enable {name}` then `apollia-os agent start {name}` to load."
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -627,8 +747,12 @@ async fn run_install_package(
     json: bool,
     skip_tests: bool,
 ) -> i32 {
-    // Step 1: validate + duck-type all agents.
-    let pkg = match load_package(source_path) {
+    // Step 1: parse the manifest structure and verify each `.py` exists on
+    // disk. Strict duck-typing (`load_package`) is deferred to the per-agent
+    // loop below so a single broken worker (e.g. failing top-level Python
+    // import) doesn't tank the entire package install — partial installs
+    // mark the failing agents as DEGRADED and report a summary at the end.
+    let pkg = match load_manifest_only(source_path) {
         Ok(p) => p,
         Err(PackageLoaderError::ManifestNotFound(_)) => {
             return print_error_and_exit("agent.toml not found in directory", json);
@@ -660,9 +784,15 @@ async fn run_install_package(
         Err(e) => return print_error_and_exit(&e, json),
     };
 
-    // Step 3: register each agent.
+    // Step 3: register each agent (best-effort per agent).
+    //
+    // We *do not* abort the whole package on a single agent's validation
+    // failure: one broken worker (e.g. a stale top-level Python import)
+    // shouldn't make the rest of the package un-installable. Failed agents
+    // are reported in the final summary so the operator can fix and re-run.
     let now = now_rfc3339();
     let mut agent_count = 0;
+    let mut failed_agents: Vec<(String, String)> = Vec::new();
     for entry in &pkg.agents {
         let installed_entry_path = install_root.join(
             entry
@@ -675,10 +805,14 @@ async fn run_install_package(
         {
             Ok(m) => m,
             Err(e) => {
-                return print_error_and_exit(
-                    &format!("agent '{}' validation failed: {e}", entry.name),
-                    json,
+                let msg = e.to_string();
+                tracing::warn!(
+                    agent = %entry.name,
+                    error = %msg,
+                    "package install: agent validation failed, skipping"
                 );
+                failed_agents.push((entry.name.clone(), msg));
+                continue;
             }
         };
 
@@ -693,12 +827,25 @@ async fn run_install_package(
             updated_at: now.clone(),
         };
         if let Err(e) = agent_repo.save(&installed_agent) {
-            return print_error_and_exit(
-                &format!("failed to save agent '{}': {e}", entry.name),
-                json,
+            tracing::warn!(
+                agent = %entry.name,
+                error = %e,
+                "package install: failed to persist agent, skipping"
             );
+            failed_agents.push((entry.name.clone(), format!("save failed: {e}")));
+            continue;
         }
         agent_count += 1;
+    }
+
+    if agent_count == 0 {
+        return print_error_and_exit(
+            &format!(
+                "package validation failed: 0 of {} agents could be installed",
+                pkg.agents.len()
+            ),
+            json,
+        );
     }
 
     // Step 4: register the package itself.
@@ -741,6 +888,10 @@ async fn run_install_package(
     }
 
     if json {
+        let failed_view: Vec<serde_json::Value> = failed_agents
+            .iter()
+            .map(|(n, r)| serde_json::json!({ "agent": n, "reason": r }))
+            .collect();
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
@@ -749,6 +900,7 @@ async fn run_install_package(
                 "agent_count": agent_count,
                 "trigger_count": trigger_count,
                 "install_path": install_root.to_string_lossy(),
+                "failed_agents": failed_view,
             }))
             .unwrap_or_default()
         );
@@ -757,6 +909,16 @@ async fn run_install_package(
             "Package '{}' v{} installed: {} agents, {} triggers",
             pkg_name, pkg_version, agent_count, trigger_count,
         );
+        println!("  Install path : {}", install_root.display());
+        if !failed_agents.is_empty() {
+            println!(
+                "  ! {} agent(s) skipped due to validation errors:",
+                failed_agents.len()
+            );
+            for (name, reason) in &failed_agents {
+                println!("    - {name}: {reason}");
+            }
+        }
     }
     exit_codes::SUCCESS
 }
@@ -1489,15 +1651,15 @@ fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<ser
         .and_then(|a| a.as_array());
 
     println!(
-        "  {:<24} {:<10} {:<10} {:<9} INSTALLED",
-        "NAME", "VERSION", "STATUS", "ENABLED"
+        "  {:<24} {:<10} {:<12} {:<10} SOURCE",
+        "NAME", "VERSION", "STATUS", "AUTO-LOAD"
     );
 
     let mut has_entries = false;
 
     for agent in installed {
         has_entries = true;
-        let runtime_status = runtime_agents
+        let runtime_state = runtime_agents
             .and_then(|agents| {
                 agents.iter().find(|a| {
                     a.get("name")
@@ -1509,13 +1671,21 @@ fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<ser
                             .is_some_and(|n| n == agent.name)
                 })
             })
-            .and_then(|a| a.get("state").and_then(|s| s.as_str()))
-            .unwrap_or("-");
-        let enabled_str = if agent.enabled { "yes" } else { "no" };
+            .and_then(|a| a.get("state").and_then(|s| s.as_str()));
+
+        // Combine "loaded in registry" with "enabled in repo" into a single
+        // human-readable status so operators don't have to cross-reference
+        // two columns.
+        let status = match (runtime_state, agent.enabled) {
+            (Some(state), _) => state,         // active / degraded / initializing
+            (None, true) => "stopped",         // enabled but not in registry (load failed)
+            (None, false) => "disabled",       // explicitly disabled by operator
+        };
+        let auto_load = if agent.enabled { "yes" } else { "no" };
 
         println!(
-            "  {:<24} {:<10} {:<10} {:<9} yes",
-            agent.name, agent.version, runtime_status, enabled_str
+            "  {:<24} {:<10} {:<12} {:<10} installed",
+            agent.name, agent.version, status, auto_load
         );
     }
 
@@ -1542,7 +1712,10 @@ fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<ser
                     .and_then(|m| m.get("version"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("-");
-                println!("  {:<24} {:<10} {:<10} {:<9} no", name, version, state, "-");
+                println!(
+                    "  {:<24} {:<10} {:<12} {:<10} runtime-only",
+                    name, version, state, "-"
+                );
             }
         }
     }
@@ -1737,26 +1910,101 @@ fn run_validate(path: &Path, json: bool) -> i32 {
                 "name": manifest.name,
                 "version": manifest.version,
                 "description": manifest.description,
+                "execution_mode": manifest.execution_mode,
+                "memory_namespace": manifest.memory_namespace,
+                "max_concurrent_tasks": manifest.max_concurrent_tasks,
+                "supports_a2a": manifest.supports_a2a,
+                "supports_streaming": manifest.supports_streaming,
+                "dangerous_tools_allowed": manifest.dangerous_tools_allowed,
+                "user_memory_write": manifest.user_memory_write,
                 "tools_required": required,
                 "tools_optional": optional,
-                "supports_a2a": manifest.supports_a2a,
+                "tools_requiring_approval": manifest.tools_requiring_approval,
                 "step_budget": manifest.step_budget,
+                "skills": manifest.skills,
+                "tags": manifest.tags,
+                "packages": manifest.packages,
+                "datasources": manifest.datasources,
+                "templates": manifest.templates,
+                "secrets": manifest.secrets,
             }))
             .unwrap_or_default()
         );
     } else {
         println!("✔ Manifest valide");
-        println!("  Name        : {}", manifest.name);
-        println!("  Version     : {}", manifest.version);
+        println!("  Name             : {}", manifest.name);
+        println!("  Version          : {}", manifest.version);
         if !manifest.description.is_empty() {
-            println!("  Description : {}", manifest.description);
+            println!("  Description      : {}", manifest.description);
+        }
+        println!("  Execution mode   : {}", manifest.execution_mode);
+        if let Some(ns) = &manifest.memory_namespace {
+            println!("  Memory namespace : {ns}");
+        }
+        println!("  Max concurrency  : {}", manifest.max_concurrent_tasks);
+        let mut feature_flags = Vec::new();
+        if manifest.supports_a2a {
+            feature_flags.push("a2a");
+        }
+        if manifest.supports_streaming {
+            feature_flags.push("streaming");
+        }
+        if manifest.user_memory_write {
+            feature_flags.push("writes user memory");
+        }
+        if manifest.dangerous_tools_allowed {
+            feature_flags.push("dangerous tools allowed");
+        }
+        if !feature_flags.is_empty() {
+            println!("  Features         : {}", feature_flags.join(", "));
         }
         if !required.is_empty() {
-            println!("  Required tools : {}", required.join(", "));
+            println!("  Required tools   : {}", required.join(", "));
         }
         if !optional.is_empty() {
-            println!("  Optional tools : {}", optional.join(", "));
+            println!("  Optional tools   : {}", optional.join(", "));
             println!("  ⚠ Optional tools not checked — agent may start in DEGRADED mode if absent");
+        }
+        if !manifest.tools_requiring_approval.is_empty() {
+            println!(
+                "  HITL gated tools : {}",
+                manifest.tools_requiring_approval.join(", ")
+            );
+        }
+        if let Some(budget) = &manifest.step_budget {
+            println!(
+                "  Step budget      : {} steps, {} tool calls, {}s wall-clock",
+                budget.max_steps, budget.max_tool_calls, budget.wall_clock_secs
+            );
+        }
+        if !manifest.skills.is_empty() {
+            println!("  Skills ({})       :", manifest.skills.len());
+            for skill in &manifest.skills {
+                println!("    - {} ({})", skill.id, skill.name);
+            }
+        }
+        if !manifest.tags.is_empty() {
+            println!("  Tags             : {}", manifest.tags.join(", "));
+        }
+        if !manifest.packages.is_empty() {
+            println!("  Pip deps         : {}", manifest.packages.join(", "));
+        }
+        if !manifest.datasources.is_empty() {
+            println!("  Datasources      : {}", manifest.datasources.join(", "));
+        }
+        if !manifest.templates.is_empty() {
+            println!("  Templates        : {}", manifest.templates.join(", "));
+        }
+        if !manifest.secrets.is_empty() {
+            println!("  Secrets          : {}", manifest.secrets.join(", "));
+        }
+        if let Some(notes) = &manifest.setup_notes {
+            if !notes.is_empty() {
+                println!("  Setup notes      :");
+                for line in notes.lines() {
+                    println!("    {line}");
+                }
+            }
         }
     }
 
