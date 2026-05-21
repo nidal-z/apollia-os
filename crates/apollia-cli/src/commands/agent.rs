@@ -110,6 +110,16 @@ pub enum AgentCommand {
         /// Path to the Python agent module.
         path: PathBuf,
     },
+    /// Re-provision an installed agent's per-agent Python venv from its manifest.
+    ///
+    /// Reads `~/.apollia/agents/packages/<name>/agent.toml` (or the single-file
+    /// agent's manifest), then re-runs `setup_venv` with the declared `packages`
+    /// list. Useful when an agent was installed before per-agent venv
+    /// provisioning landed, or when a venv was deleted by hand.
+    Repair {
+        /// Installed agent name (as declared in the manifest).
+        name: String,
+    },
 }
 
 /// Package sub-subcommands: `apollia-os agent package <verb>`.
@@ -160,6 +170,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
             follow,
         } => run_logs(&client, agent_id, *last, *follow, json).await,
         AgentCommand::Validate { path } => run_validate(path, json),
+        AgentCommand::Repair { name } => run_repair(name, json).await,
     }
 }
 
@@ -2121,6 +2132,133 @@ fn run_validate(path: &Path, json: bool) -> i32 {
         }
     }
 
+    exit_codes::SUCCESS
+}
+
+/// `apollia-os agent repair <name>` — re-provision an installed agent's venv.
+///
+/// Looks the agent up in the package repository, parses the `manifest_json`
+/// stored for its owning package, finds the matching agent entry, then runs
+/// `PythonExecutor::setup_venv` against the declared `packages` list. Idempotent:
+/// safe to run on already-provisioned venvs (pip is a no-op when satisfied).
+async fn run_repair(name: &str, json: bool) -> i32 {
+    let data_dir = apollia_data_dir();
+    let pkg_repo = match open_package_repository_or_create(&data_dir) {
+        Ok(r) => r,
+        Err(e) => return print_error_and_exit(&e, json),
+    };
+
+    // Find the package owning this agent: list packages, parse each manifest,
+    // and match by agent name. The repository stores the resolved manifest JSON
+    // alongside the package row so we do not need to re-parse agent.toml from disk.
+    let packages = match pkg_repo.list() {
+        Ok(p) => p,
+        Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
+    };
+
+    let mut found: Option<(String, Vec<String>)> = None;
+    for pkg in &packages {
+        let manifest: serde_json::Value = match serde_json::from_str(&pkg.manifest_json) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let Some(agents) = manifest.get("agents").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for entry in agents {
+            let entry_name = entry.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if entry_name == name {
+                let pkgs: Vec<String> = entry
+                    .get("packages")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|s| s.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                found = Some((pkg.name.clone(), pkgs));
+                break;
+            }
+        }
+        if found.is_some() {
+            break;
+        }
+    }
+
+    let (package_name, declared) = match found {
+        Some(f) => f,
+        None => {
+            return print_error_and_exit(
+                &format!(
+                    "agent '{name}' not found in any installed package\n\
+                     Hint: run `apollia-os agent list` to see installed agents."
+                ),
+                json,
+            );
+        }
+    };
+
+    if declared.is_empty() {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "agent": name,
+                    "package": package_name,
+                    "venv_provisioned": false,
+                    "reason": "no pip dependencies declared in manifest",
+                }))
+                .unwrap_or_default()
+            );
+        } else {
+            println!("Agent '{name}' (package {package_name}) declares no pip packages.");
+            println!("Nothing to repair.");
+        }
+        return exit_codes::SUCCESS;
+    }
+
+    let venv_base = data_dir.join("venvs");
+    let executor =
+        match apollia_tools::tools::python_executor::PythonExecutor::new(name, &venv_base) {
+            Ok(e) => e,
+            Err(e) => {
+                return print_error_and_exit(&format!("could not init venv: {e}"), json);
+            }
+        };
+
+    if !json {
+        println!(
+            "Provisioning venv for '{name}' ({} package(s))…",
+            declared.len()
+        );
+    }
+
+    if let Err(e) = executor.setup_venv(&declared).await {
+        return print_error_and_exit(&format!("venv provisioning failed: {e}"), json);
+    }
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "agent": name,
+                "package": package_name,
+                "venv_provisioned": true,
+                "packages": declared,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!("OK venv for '{name}' provisioned at {}", venv_base.join(name).display());
+        println!("    Packages installed:");
+        for p in &declared {
+            println!("      - {p}");
+        }
+        println!();
+        println!("Restart the runtime to pick up the new venv:");
+        println!("    apollia-os stop && apollia-os start");
+    }
     exit_codes::SUCCESS
 }
 
