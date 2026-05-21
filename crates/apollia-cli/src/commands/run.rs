@@ -456,6 +456,19 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
                 exit_codes::RUNTIME_ERROR,
             );
         }
+        // 404 typically means the agent is installed-but-disabled (or never
+        // loaded into the runtime registry). Give the operator a precise
+        // recovery command instead of a bare "not found".
+        Err(ClientError::ServerError { status: 404, body }) => {
+            let hint = format!(
+                "{body}\n\
+                 Hint: install + enable + load the agent first:\n\
+                 \t apollia-os agent install <path>   # if it's not yet installed\n\
+                 \t apollia-os agent enable {agent_id} # if it's disabled\n\
+                 \t apollia-os agent list             # to see current state"
+            );
+            return output_error(&hint, json, exit_codes::GENERAL_ERROR);
+        }
         Err(e) => {
             return output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR);
         }

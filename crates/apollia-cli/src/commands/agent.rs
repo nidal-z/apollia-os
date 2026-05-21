@@ -145,7 +145,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
             run_install(source, &client, json, *skip_tests).await
         }
         AgentCommand::Uninstall { name } => run_uninstall(name, json),
-        AgentCommand::Enable { name } => run_enable(name, json),
+        AgentCommand::Enable { name } => run_enable(&client, name, json).await,
         AgentCommand::Disable { name } => run_disable(&client, name, json).await,
         AgentCommand::Update { name, path } => run_update(name, path, json),
         AgentCommand::New { name, r#type } => run_new(name, r#type, json),
@@ -1250,26 +1250,68 @@ fn run_uninstall(name: &str, json: bool) -> i32 {
 }
 
 /// `apollia-os agent enable <name>` — re-enable an installed agent.
-fn run_enable(name: &str, json: bool) -> i32 {
+///
+/// Two-phase, symmetric with [`run_disable`]:
+/// 1. Mark `enabled = true` in `agents.db` so the agent auto-starts at the
+///    next runtime boot.
+/// 2. Best-effort `POST /api/v1/agents` with the persisted `install_path`
+///    so the agent is loaded into the live registry immediately — without
+///    this, `apollia-os run <name>` returns 404 until the daemon is
+///    restarted.
+async fn run_enable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
         Ok(r) => r,
         Err(e) => return print_error_and_exit(&e, json),
     };
 
+    // Look up install_path BEFORE flipping the flag so we can short-circuit
+    // when the agent is unknown (operator typo) without persisting a stale
+    // `enabled=true` row.
+    let install_path = match repo.get(name) {
+        Ok(Some(entry)) => entry.install_path.to_string_lossy().to_string(),
+        Ok(None) => {
+            return print_error_and_exit(
+                &format!("Agent '{name}' not found in installed agents"),
+                json,
+            );
+        }
+        Err(e) => return print_error_and_exit(&format!("repository read failed: {e}"), json),
+    };
+
     match repo.set_enabled(name, true) {
         Ok(()) => {
+            let load_outcome = match client.start_agent(&install_path).await {
+                Ok(_) => "loaded",
+                Err(ClientError::ServerError { status: 409, .. }) => "already-loaded",
+                Err(ClientError::ConnectionRefused) => "runtime-offline",
+                Err(e) => {
+                    tracing::warn!(
+                        agent = %name,
+                        error = %e,
+                        "enable: failed to load into the live registry — agent remains enabled=true for next boot"
+                    );
+                    "load-failed"
+                }
+            };
             if json {
                 let output = serde_json::json!({
                     "name": name,
                     "enabled": true,
+                    "runtime_load": load_outcome,
                 });
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&output).unwrap_or_default()
                 );
             } else {
-                println!("Agent '{name}' enabled (will auto-start on boot)");
+                let suffix = match load_outcome {
+                    "loaded" => " and loaded into the runtime (`apollia-os run` works now)",
+                    "already-loaded" => " (already running in the runtime)",
+                    "runtime-offline" => " — runtime offline, load will happen on next start",
+                    _ => " — runtime load failed, retry with `apollia-os agent start <name>`",
+                };
+                println!("Agent '{name}' enabled (will auto-start on boot){suffix}");
             }
             exit_codes::SUCCESS
         }

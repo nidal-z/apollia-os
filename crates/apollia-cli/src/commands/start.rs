@@ -70,7 +70,12 @@ struct AIPAgentLoader;
 
 impl AgentLoader for AIPAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
-        let extras = venv_site_packages_for_path(path);
+        // Re-use the same sys.path assembly as `apollia-os agent
+        // install / validate` so the runtime's POST /api/v1/agents path
+        // resolves the SDK + the enclosing package root the same way
+        // (otherwise installed agents that validated fine through the CLI
+        // would 400 the moment the runtime tries to load them).
+        let extras = crate::community::validation_sys_paths(path);
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =
@@ -172,9 +177,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
     async fn run_agent(&self, agent_name: &str, task: AIPTask) -> Result<AIPResult, String> {
         let agent_path = self.data_dir.join("agents").join(agent_name);
 
-        // Load and validate agent via PyO3. Inject per-agent venv site-packages
-        // so top-level imports of pip-installed packages resolve correctly.
-        let extras = venv_site_packages_for_name(agent_name);
+        // Load and validate agent via PyO3. Re-use the shared community helper
+        // so the chat-agent runner sees the same sys.path as `agent install`
+        // (per-agent venv + enclosing package root + workspace SDK fallback).
+        let extras = crate::community::validation_sys_paths(&agent_path);
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(&agent_path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =
@@ -929,8 +935,9 @@ impl AgentBackendFactory for ProductionBackendFactory {
         };
 
         let result: Result<AIPProductionBackend, String> = (|| {
-            // Inject per-agent venv site-packages so top-level imports resolve.
-            let extras = venv_site_packages_for_name(&manifest.name);
+            // Re-use the community helper so the ProductionBackendFactory
+            // sees the same sys.path layering as `agent install / validate`.
+            let extras = crate::community::validation_sys_paths(agent_path);
             let module =
                 apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
                     .map_err(|e| e.to_string())?;
