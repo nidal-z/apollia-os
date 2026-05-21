@@ -101,6 +101,37 @@ fn emit_error(msg: impl Into<String>, json: bool) -> i32 {
     exit_codes::GENERAL_ERROR
 }
 
+/// Probe `server_url` to capture the `WWW-Authenticate` header advertised
+/// when the server requires OAuth. Returns `Ok(Some(header))` when the server
+/// answered 401 with the header, `Ok(None)` when it answered anything else,
+/// and `Err(...)` only when the request itself never reached the server.
+///
+/// Required for hosts whose Protected Resource Metadata lives behind the
+/// MCP endpoint (Notion, Linear) rather than at the well-known origin path.
+async fn probe_www_authenticate(server_url: &str) -> Result<Option<String>, reqwest::Error> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+    // Use a minimal POST so the server's auth middleware engages even when GET
+    // is unauthenticated; many MCP HTTP transports answer 200 on GET (health
+    // probe) but 401 on POST. The body is intentionally minimal — we only
+    // need the response headers.
+    let resp = client
+        .post(server_url)
+        .header("content-type", "application/json")
+        .body("{}")
+        .send()
+        .await?;
+    if resp.status() != reqwest::StatusCode::UNAUTHORIZED {
+        return Ok(None);
+    }
+    Ok(resp
+        .headers()
+        .get(reqwest::header::WWW_AUTHENTICATE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string()))
+}
+
 /// Resolve `~/.apollia/mcp.db` or honour an explicit override.
 fn resolve_mcp_db(override_path: Option<&std::path::Path>) -> PathBuf {
     if let Some(p) = override_path {
@@ -171,10 +202,25 @@ async fn run_login(
         .map(str::trim)
         .filter(|s| !s.is_empty());
 
+    // Probe the server first to capture the WWW-Authenticate header. Many MCP
+    // hosts (Notion, Linear, …) hide their Protected Resource Metadata behind
+    // an authenticated path and only advertise it via the 401 challenge, so
+    // letting `negotiate_token` discover PRM blindly fails with "PRM fetch
+    // returned 401". The probe is a cheap unauthenticated request — when the
+    // server returns 401 we read the header verbatim; on 200 / other we leave
+    // it as None and let the orchestrator's origin fallback do the work.
+    let www_authenticate = match probe_www_authenticate(&server_url).await {
+        Ok(header) => header,
+        Err(e) => {
+            tracing::debug!(server = %server, error = %e, "OAuth probe failed; falling back");
+            None
+        }
+    };
+
     let req = NegotiateRequest {
         server_name: server,
         server_url: &server_url,
-        www_authenticate: None,
+        www_authenticate: www_authenticate.as_deref(),
         scopes: scopes_opt,
         client_id_override,
     };
