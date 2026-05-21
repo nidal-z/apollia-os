@@ -102,6 +102,22 @@ impl MultiAccountStorage {
             serde_json::to_string(token).map_err(|e| AuthError::Serialization(e.to_string()))?;
         let entry = Entry::new(&keyring_service(provider), account_id.as_str())
             .map_err(|e| AuthError::Keyring(e.to_string()))?;
+        // Delete-then-set so the entry's macOS ACL is rebound to the current
+        // binary's identity. Without this, rebuilding the CLI rotates the
+        // signing identity and `set_password` silently falls through
+        // SecItemUpdate, leaving the daemon reading a stale token. Same
+        // pattern as `KeyringSecretStore::set`.
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(e) => {
+                tracing::warn!(
+                    provider = %provider.id(),
+                    account = %account_id.as_str(),
+                    error = %e,
+                    "keyring: pre-write delete failed; falling back to in-place update"
+                );
+            }
+        }
         entry
             .set_password(&json)
             .map_err(|e| AuthError::Keyring(e.to_string()))?;

@@ -244,12 +244,22 @@ mod tests {
         assert!(is_near_expiry(&token));
     }
 
+    /// Generate a unique account id per test so concurrent / repeated runs
+    /// don't collide on the same OS keychain entry (the keyring backend now
+    /// writes through to the real macOS keychain — ADR-todo).
+    fn unique_account(label: &str) -> AccountId {
+        AccountId::new(format!(
+            "apollia-test-{label}-{}@example.invalid",
+            uuid::Uuid::new_v4()
+        ))
+    }
+
     #[tokio::test]
     async fn test_get_valid_token_returns_cached_when_valid() {
         // GIVEN a manager with a freshly cached non-expired token
         let (manager, _dir) = temp_manager();
         let token = token_expiring_in(3600);
-        let account = AccountId::new("test@example.com");
+        let account = unique_account("cached-valid");
         manager
             .put_token(ConnectorProvider::Google, &account, token.clone())
             .await
@@ -272,7 +282,7 @@ mod tests {
         // GIVEN a stored + cached token
         let (manager, _dir) = temp_manager();
         let token = token_expiring_in(3600);
-        let account = AccountId::new("test@example.com");
+        let account = unique_account("revoke");
         manager
             .put_token(ConnectorProvider::Google, &account, token)
             .await
@@ -304,8 +314,8 @@ mod tests {
     #[tokio::test]
     async fn test_list_accounts_returns_registered_ones() {
         let (manager, _dir) = temp_manager();
-        let a = AccountId::new("a@example.com");
-        let b = AccountId::new("b@example.com");
+        let a = unique_account("list-a");
+        let b = unique_account("list-b");
         manager
             .put_token(ConnectorProvider::Google, &a, token_expiring_in(3600))
             .await
