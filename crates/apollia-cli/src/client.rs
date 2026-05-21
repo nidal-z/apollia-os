@@ -260,6 +260,53 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// List A2A skills via `GET /api/v1/a2a/skills`.
+    ///
+    /// Returns a flat list of every skill exposed by active Worker Agents,
+    /// each carrying `skill_id`, `agent_name`, and the input schema.
+    pub async fn list_a2a_skills(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/a2a/skills").await?;
+        if resp.status != 200 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Invoke an A2A Worker Agent skill via `POST /api/v1/a2a/invoke`.
+    ///
+    /// Routes by `skill_id` (not agent id) so the caller does not need to know
+    /// which worker provides it. `timeout_secs = None` falls back to the
+    /// runtime default (120 s).
+    pub async fn invoke_a2a_skill(
+        &self,
+        skill_id: &str,
+        input: serde_json::Value,
+        timeout_secs: Option<u64>,
+        caller: Option<&str>,
+    ) -> Result<serde_json::Value, ClientError> {
+        let mut body = serde_json::json!({
+            "skill_id": skill_id,
+            "input": input,
+        });
+        if let Some(t) = timeout_secs {
+            body["timeout_secs"] = serde_json::Value::from(t);
+        }
+        if let Some(c) = caller {
+            body["caller"] = serde_json::Value::String(c.to_string());
+        }
+        let resp = self.post("/api/v1/a2a/invoke", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Get task status via `GET /api/v1/tasks/{id}`.
     pub async fn get_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/tasks/{task_id}")).await?;

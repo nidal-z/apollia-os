@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use commands::a2a::A2aCommand;
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
@@ -97,12 +98,26 @@ enum Commands {
     Status,
 
     /// Submit a task to an agent and wait for the result.
+    ///
+    /// Use the positional `<INPUT>` for free-text input (react/conversational
+    /// agents). For worker agents that expect a typed skill payload, use
+    /// `apollia-os a2a invoke <skill_id> --args '<JSON>'` instead — or pass
+    /// `--input-json '<JSON>'` here to override the default text wrapping.
     Run {
         /// Agent identifier.
         agent_id: String,
 
-        /// Task input text.
+        /// Task input text (ignored when `--input-json` is provided).
+        #[arg(default_value = "")]
         input: String,
+
+        /// Raw JSON payload that bypasses the `parts:[text]` wrapper.
+        ///
+        /// Use this when the target agent expects a structured input shape
+        /// (e.g. an AIPInput with `data` parts, a worker skill envelope, or
+        /// any custom contract).
+        #[arg(long, value_name = "JSON", conflicts_with = "input")]
+        input_json: Option<String>,
 
         /// Stream task progress in real-time via SSE.
         #[arg(long)]
@@ -147,6 +162,17 @@ enum Commands {
         /// Agent subcommand.
         #[command(subcommand)]
         command: AgentCommand,
+    },
+
+    /// Agent-to-Agent skill discovery and direct invocation.
+    ///
+    /// Worker agents expose typed skills (not free-text prompts). Use these
+    /// sub-commands to discover skills (`a2a skills`) and invoke one with a
+    /// structured payload (`a2a invoke <skill_id> --args '<JSON>'`).
+    A2a {
+        /// A2A subcommand.
+        #[command(subcommand)]
+        command: A2aCommand,
     },
 
     /// Task management (list, status, cancel).
@@ -433,15 +459,25 @@ fn main() {
             Commands::Run {
                 agent_id,
                 input,
+                input_json,
                 stream,
                 detach,
                 alternatives,
                 allowed_tools,
                 disallowed_tools,
             } => {
+                if input.is_empty() && input_json.is_none() {
+                    eprintln!("Error: missing task input.");
+                    eprintln!("Usage:");
+                    eprintln!("  apollia-os run <AGENT_ID> \"<free-text input>\"");
+                    eprintln!("  apollia-os run <AGENT_ID> --input-json '<JSON>'");
+                    eprintln!("  apollia-os a2a invoke <SKILL_ID> --args '<JSON>'   # for workers");
+                    return exit_codes::GENERAL_ERROR;
+                }
                 commands::run::run(commands::run::RunCommandArgs {
                     agent_id: &agent_id,
                     input: &input,
+                    input_json: input_json.as_deref(),
                     socket: cli.socket,
                     json,
                     stream,
@@ -456,6 +492,7 @@ fn main() {
             Commands::Agent { command } => {
                 commands::agent::run(&command, cli.socket, json, quiet).await
             }
+            Commands::A2a { command } => commands::a2a::run(&command, cli.socket, json).await,
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,

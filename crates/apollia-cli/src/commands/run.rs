@@ -363,8 +363,14 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 pub struct RunCommandArgs<'a> {
     /// Target agent identifier.
     pub agent_id: &'a str,
-    /// Free-text task input.
+    /// Free-text task input (used when `input_json` is `None`).
     pub input: &'a str,
+    /// Raw JSON payload that bypasses the `parts:[text]` wrapper.
+    ///
+    /// Mutually exclusive with `input` at the clap layer. When set, this
+    /// value is parsed and forwarded to `submit_task` as-is, so the caller
+    /// can target any AIPInput shape (data parts, custom envelopes, etc.).
+    pub input_json: Option<&'a str>,
     /// Optional Unix socket path override.
     pub socket: Option<PathBuf>,
     /// Output machine-readable JSON.
@@ -394,6 +400,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     let RunCommandArgs {
         agent_id,
         input,
+        input_json,
         socket,
         json,
         stream,
@@ -433,11 +440,30 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         })
     };
 
-    // Submit the task using the A2A-aligned AIPInput format so Python agents can read
-    // parts[0]["text"] directly (see AIPPart::Text serialisation in apollia-core).
-    let mut input_value = serde_json::json!({
-        "parts": [{"type": "text", "text": input}]
-    });
+    // Build the AIPInput payload.
+    //
+    // - Default path: wrap the free-text input as a single AIPPart::Text so
+    //   Python agents can read `parts[0]["text"]` directly (see
+    //   AIPPart::Text serialisation in apollia-core).
+    // - `--input-json` escape hatch: parse the raw JSON and forward it
+    //   verbatim, so the operator can target any AIPInput shape (data
+    //   parts, worker skill envelopes, etc.) without the CLI second-guessing
+    //   the structure.
+    let mut input_value = match input_json {
+        Some(raw) => match serde_json::from_str::<serde_json::Value>(raw) {
+            Ok(v) => v,
+            Err(e) => {
+                return output_error(
+                    &format!("--input-json is not valid JSON: {e}"),
+                    json,
+                    exit_codes::GENERAL_ERROR,
+                );
+            }
+        },
+        None => serde_json::json!({
+            "parts": [{"type": "text", "text": input}]
+        }),
+    };
 
     if !session_filter.is_null() {
         if let Some(obj) = input_value.as_object_mut() {

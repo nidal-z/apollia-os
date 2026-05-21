@@ -1,5 +1,6 @@
 //! CLI command modules.
 
+pub mod a2a;
 pub mod agent;
 pub mod audit;
 pub mod auth;
