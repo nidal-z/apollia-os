@@ -186,7 +186,8 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             json: cmd_json,
         } => {
             let use_json = json || *cmd_json;
-            match run_list(*discover, config.as_deref(), use_json).await {
+            let client = make_runtime_client(socket.clone());
+            match run_list(&client, *discover, config.as_deref(), use_json).await {
                 Ok(output) => {
                     println!("{output}");
                     exit_codes::SUCCESS
@@ -626,11 +627,44 @@ async fn run_get_raw_config(client: &RuntimeClient, name: &str, json: bool) -> i
 // ─── list ────────────────────────────────────────────────────────────────────
 
 /// Implements `apollia-os mcp list [--discover]`.
+///
+/// Hits the runtime API first so the listing reflects the same servers the
+/// Desktop app sees (persisted in `mcp.db` via `apollia_mcp::McpServerRepository`).
+/// Falls back to reading the legacy `mcp.toml` on disk when:
+/// - `--config` is explicitly supplied (operator opted into the legacy path), or
+/// - the runtime is not running (so `mcp list` stays useful as a quick local probe).
 async fn run_list(
+    client: &RuntimeClient,
     discover: bool,
     config_path: Option<&std::path::Path>,
     json: bool,
 ) -> Result<String, McpCommandError> {
+    if config_path.is_none() {
+        match client.get("/api/v1/mcp/servers").await {
+            Ok(resp) if resp.status < 400 => {
+                let servers: serde_json::Value = serde_json::from_str(&resp.body)
+                    .map_err(|e| McpCommandError::ConfigLoad(e.to_string()))?;
+                return if json {
+                    format_runtime_list_json(&servers, discover).await
+                } else {
+                    format_runtime_list_human(&servers, discover).await
+                };
+            }
+            Ok(resp) => {
+                return Err(McpCommandError::ConfigLoad(format!(
+                    "runtime returned HTTP {}: {}",
+                    resp.status, resp.body
+                )));
+            }
+            Err(ClientError::ConnectionRefused) => {
+                // Runtime offline — fall through to the local mcp.toml fallback below.
+            }
+            Err(e) => {
+                return Err(McpCommandError::ConfigLoad(e.to_string()));
+            }
+        }
+    }
+
     let path = resolve_config_path(config_path);
     let config = McpConfig::load(&path).map_err(|e| McpCommandError::ConfigLoad(e.to_string()))?;
 
@@ -639,6 +673,77 @@ async fn run_list(
     } else {
         format_list_human(&config, discover).await
     }
+}
+
+/// Render `GET /api/v1/mcp/servers` as a JSON envelope including optional mDNS discovery.
+async fn format_runtime_list_json(
+    servers: &serde_json::Value,
+    discover: bool,
+) -> Result<String, McpCommandError> {
+    let discovered = if discover {
+        discovery::discover_mcp_servers().await?
+    } else {
+        vec![]
+    };
+    let envelope = serde_json::json!({
+        "servers": servers,
+        "discovered": discovered,
+        "source": "runtime",
+    });
+    Ok(serde_json::to_string_pretty(&envelope).unwrap_or_else(|_| "{}".to_string()))
+}
+
+/// Render `GET /api/v1/mcp/servers` as a human-readable table.
+async fn format_runtime_list_human(
+    servers: &serde_json::Value,
+    discover: bool,
+) -> Result<String, McpCommandError> {
+    let arr = servers
+        .get("servers")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_else(|| servers.as_array().cloned().unwrap_or_default());
+
+    let mut out = String::new();
+    if arr.is_empty() {
+        out.push_str("No MCP servers connected on the runtime.\n");
+    } else {
+        out.push_str("MCP servers (live, from runtime):\n");
+        out.push_str(&format!(
+            "  {:<24} {:<10} {:<12} TOOLS\n",
+            "NAME", "TRANSPORT", "STATUS"
+        ));
+        for s in &arr {
+            let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+            let transport = s.get("transport").and_then(|v| v.as_str()).unwrap_or("?");
+            let status = s.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+            let tools_count = s
+                .get("tools")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .or_else(|| s.get("tools_count").and_then(|v| v.as_u64()).map(|n| n as usize))
+                .unwrap_or(0);
+            out.push_str(&format!(
+                "  {name:<24} {transport:<10} {status:<12} {tools_count}\n"
+            ));
+        }
+    }
+
+    if discover {
+        out.push('\n');
+        out.push_str("Scanning local network for MCP servers (3s)...\n");
+        let discovered = discovery::discover_mcp_servers().await?;
+        if discovered.is_empty() {
+            out.push_str("No discovered servers on the local network.\n");
+        } else {
+            out.push_str("\nDiscovered (mDNS):\n");
+            for s in &discovered {
+                let addrs = s.addresses.join(", ");
+                out.push_str(&format!("  {}    {}:{}\n", s.name, addrs, s.port));
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Formats the list output as JSON.

@@ -61,15 +61,18 @@ fn format_text_status(agents_json: &serde_json::Value) {
     println!("  Runtime  ACTIVE");
     println!();
     println!("  AGENTS ({active_count} active)");
-    println!("  {:<20} {:<12}", "NOM", "STATE");
+    println!("  {:<30} {:<12}", "NAME", "STATE");
 
     if agents.is_empty() {
         println!("  (no agents registered)");
     } else {
         for agent in &agents {
-            let id = agent
-                .get("agent_id")
+            // Prefer the manifest name; fall back to UUID only when the
+            // registry response is missing it (older runtimes or unwired agents).
+            let label = agent
+                .get("name")
                 .and_then(|v| v.as_str())
+                .or_else(|| agent.get("agent_id").and_then(|v| v.as_str()))
                 .unwrap_or("?");
             let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
             let marker = match state {
@@ -77,7 +80,7 @@ fn format_text_status(agents_json: &serde_json::Value) {
                 "degraded" => "!",
                 _ => " ",
             };
-            println!("  {:<20} {marker} {state}", id);
+            println!("  {:<30} {marker} {state}", label);
         }
     }
 }

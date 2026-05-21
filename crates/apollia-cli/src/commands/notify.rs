@@ -305,8 +305,19 @@ fn format_channel_list(resp: &serde_json::Value) {
     }
 
     for ch in &channels {
-        let id = ch.get("channel_id").and_then(|v| v.as_str()).unwrap_or("?");
-        let kind = ch.get("type").and_then(|v| v.as_str()).unwrap_or("?");
+        // The runtime API exposes channels as ChannelResponse with `id` +
+        // `channel_type`. Older builds (or fallbacks) emitted `channel_id`
+        // + `type`, so accept both for forward / backward compat.
+        let id = ch
+            .get("id")
+            .or_else(|| ch.get("channel_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let kind = ch
+            .get("channel_type")
+            .or_else(|| ch.get("type"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
         let enabled = ch.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
         let events_list: Vec<&str> = ch
             .get("events")
