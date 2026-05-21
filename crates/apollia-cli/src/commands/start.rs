@@ -1343,9 +1343,16 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     }
 
     let elapsed = start.elapsed();
+    // Query the registry for an accurate count instead of hard-coding the old
+    // "3 native tools" string, which under-reports the ~60 native + connector
+    // + MCP tools the runtime actually registers at boot.
+    let tool_count_display = match handles.tool_registry_handle.list().await {
+        Ok(descriptors) => format!("{} tools", descriptors.len()),
+        Err(_) => "tool count unavailable".to_string(),
+    };
     println!("  * EventBus            ready");
     println!("  * AgentRegistry       ready");
-    println!("  * ToolRegistry        ready (3 native tools)");
+    println!("  * ToolRegistry        ready ({tool_count_display})");
     println!("  * LlmRouter           {llm_label}");
     println!("  * TaskRouter          ready");
     println!("  * TriggerEngine       ready (loaded from SQLite)");
