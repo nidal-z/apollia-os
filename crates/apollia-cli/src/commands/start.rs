@@ -875,12 +875,20 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let agent_id = manifest.name.clone();
 
         // Retrieve the lazily-initialized event bus and LLM router.
+        //
+        // The OnceLocks are populated by start.rs *after* the Supervisor has
+        // run its Phase 11 auto-load (which calls this factory). When that
+        // happens we return a placeholder NoopBackend and rely on
+        // [`rewire_auto_loaded_agents`] to replace it immediately. The
+        // diagnostic is therefore DEBUG (operator-relevant only when
+        // troubleshooting the rewire path), not ERROR.
         let event_bus = match self.event_bus.get() {
             Some(bus) => bus.clone(),
             None => {
-                tracing::error!(
+                tracing::debug!(
                     agent = %agent_id,
-                    "event bus not initialized — factory called before supervisor.start() returned"
+                    "factory invoked before runtime handles are populated — \
+                     emitting placeholder NoopBackend, will be rewired post-start"
                 );
                 return DynBackend::new(NoopBackend);
             }
