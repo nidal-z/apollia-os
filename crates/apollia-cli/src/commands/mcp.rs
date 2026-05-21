@@ -694,37 +694,31 @@ async fn format_runtime_list_json(
 }
 
 /// Render `GET /api/v1/mcp/servers` as a human-readable table.
+///
+/// The runtime endpoint only returns *connected* servers. We supplement with
+/// `~/.apollia/mcp.db` so disconnected ones (e.g. failed OAuth, missing
+/// command) still appear with a clear status — matching the Desktop view.
 async fn format_runtime_list_human(
     servers: &serde_json::Value,
     discover: bool,
 ) -> Result<String, McpCommandError> {
-    let arr = servers
-        .get("servers")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_else(|| servers.as_array().cloned().unwrap_or_default());
+    let live = parse_runtime_servers(servers);
+    let configured = read_configured_servers();
+    let merged = merge_runtime_and_configured(&live, &configured);
 
     let mut out = String::new();
-    if arr.is_empty() {
-        out.push_str("No MCP servers connected on the runtime.\n");
+    if merged.is_empty() {
+        out.push_str("No MCP servers configured.\n");
     } else {
-        out.push_str("MCP servers (live, from runtime):\n");
+        out.push_str("MCP servers:\n");
         out.push_str(&format!(
-            "  {:<24} {:<10} {:<12} TOOLS\n",
+            "  {:<24} {:<10} {:<14} TOOLS\n",
             "NAME", "TRANSPORT", "STATUS"
         ));
-        for s in &arr {
-            let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-            let transport = s.get("transport").and_then(|v| v.as_str()).unwrap_or("?");
-            let status = s.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-            let tools_count = s
-                .get("tools")
-                .and_then(|v| v.as_array())
-                .map(|a| a.len())
-                .or_else(|| s.get("tools_count").and_then(|v| v.as_u64()).map(|n| n as usize))
-                .unwrap_or(0);
+        for row in &merged {
             out.push_str(&format!(
-                "  {name:<24} {transport:<10} {status:<12} {tools_count}\n"
+                "  {:<24} {:<10} {:<14} {}\n",
+                row.name, row.transport, row.status, row.tools
             ));
         }
     }
@@ -744,6 +738,112 @@ async fn format_runtime_list_human(
         }
     }
     Ok(out)
+}
+
+/// Single row produced by [`merge_runtime_and_configured`] for table rendering.
+struct McpListRow {
+    name: String,
+    transport: String,
+    status: String,
+    tools: String,
+}
+
+/// Extract a `(name -> McpServerStatus)`-ish map from the raw runtime JSON.
+fn parse_runtime_servers(servers: &serde_json::Value) -> Vec<serde_json::Value> {
+    servers
+        .get("servers")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_else(|| servers.as_array().cloned().unwrap_or_default())
+}
+
+/// Open `~/.apollia/mcp.db` and list every persisted server config (enabled or not).
+/// Returns an empty vec on any error — the live runtime list still wins.
+fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerConfig> {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return Vec::new(),
+    };
+    let db = home.join(".apollia").join("mcp.db");
+    if !db.exists() {
+        return Vec::new();
+    }
+    match apollia_mcp::McpServerRepository::open(&db) {
+        Ok(repo) => repo.list().unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Build the final table rows from the live status list and the persisted
+/// configuration. Connected servers report `connected` + tools count; missing
+/// servers report `not connected` (or `disabled` when explicitly disabled in
+/// the config).
+fn merge_runtime_and_configured(
+    live: &[serde_json::Value],
+    configured: &[apollia_mcp::config::McpServerConfig],
+) -> Vec<McpListRow> {
+    use std::collections::BTreeMap;
+
+    let mut by_name: BTreeMap<String, McpListRow> = BTreeMap::new();
+
+    for cfg in configured {
+        let transport = if cfg.transport.is_empty() {
+            "stdio".to_string()
+        } else {
+            cfg.transport.clone()
+        };
+        by_name.insert(
+            cfg.name.clone(),
+            McpListRow {
+                name: cfg.name.clone(),
+                transport,
+                status: "not connected".to_string(),
+                tools: "-".to_string(),
+            },
+        );
+    }
+
+    for s in live {
+        let name = s
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let transport = s
+            .get("transport")
+            .and_then(|v| v.as_str())
+            .unwrap_or("stdio")
+            .to_string();
+        let connected = s
+            .get("connected")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let tools = s
+            .get("tools_count")
+            .and_then(|v| v.as_u64())
+            .map(|n| n.to_string())
+            .or_else(|| {
+                s.get("tools")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len().to_string())
+            })
+            .unwrap_or_else(|| "-".to_string());
+        let status = if connected { "connected" } else { "disconnected" };
+        by_name.insert(
+            name.clone(),
+            McpListRow {
+                name,
+                transport,
+                status: status.to_string(),
+                tools,
+            },
+        );
+    }
+
+    by_name.into_values().collect()
 }
 
 /// Formats the list output as JSON.
