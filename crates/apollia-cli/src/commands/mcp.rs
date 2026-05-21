@@ -159,6 +159,17 @@ pub enum McpCommand {
         /// Nom du serveur.
         name: String,
     },
+
+    /// Interactive OAuth (PKCE) management for HTTP/streamable-http MCP servers.
+    ///
+    /// Same keychain entries as the Desktop wizard
+    /// (`apollia-mcp-oauth/<server>`), so once a server is connected from one
+    /// surface the other inherits the token.
+    Oauth {
+        /// OAuth subcommand.
+        #[command(subcommand)]
+        command: crate::commands::mcp_oauth::McpOauthCommand,
+    },
 }
 
 /// Errors returned by MCP subcommands.
@@ -311,6 +322,10 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
         McpCommand::RawConfig { name } => {
             let client = make_runtime_client(socket);
             run_get_raw_config(&client, name, json).await
+        }
+
+        McpCommand::Oauth { command } => {
+            crate::commands::mcp_oauth::run(command, json).await
         }
     }
 }

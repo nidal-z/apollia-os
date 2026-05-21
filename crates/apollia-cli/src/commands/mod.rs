@@ -12,6 +12,7 @@ pub mod doctor;
 pub mod llm;
 pub mod logs;
 pub mod mcp;
+pub mod mcp_oauth;
 pub mod mcp_server;
 pub mod memory;
 pub mod model;
