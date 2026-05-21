@@ -149,6 +149,12 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
 }
 
 /// Verify that `apollia.toml` parses if present.
+///
+/// `apollia.toml` is **optional** — it only carries runtime tuning sections
+/// (`[api]`, `[runtime]`, `[hitl]`, `[tools]`, `[a2a]`, `[oria]`, `[llm]`).
+/// All operational data (triggers, notifications, agents, MCP servers, LLM
+/// backends, projects, ...) lives in SQLite and is managed via `apollia-os`
+/// subcommands or the Desktop app, so absence is expected for most setups.
 fn check_config_file(data_dir: &Path) -> CheckResult {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let local = cwd.join("apollia.toml");
@@ -162,11 +168,10 @@ fn check_config_file(data_dir: &Path) -> CheckResult {
     } else if user_cfg.exists() {
         user_cfg
     } else {
-        return CheckResult::warn(
+        return CheckResult::ok(
             "config_file",
             "Config file",
-            "apollia.toml not found (runtime will start with defaults)",
-            "Create apollia.toml in CWD or ~/.config/apollia/ to customize",
+            "no apollia.toml (optional — runtime tuning only; defaults are fine)",
         );
     };
 
