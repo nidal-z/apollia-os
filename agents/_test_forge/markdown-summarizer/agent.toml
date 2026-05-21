@@ -8,7 +8,7 @@ license = "MIT"
 [[agents]]
 name = "markdown-summarizer"
 entry = "markdown_summarizer.py"
-role = "standalone"
+role = "worker"
 agent_type = "user"
 execution_mode = "direct"
 memory_namespace = "markdown-summarizer"

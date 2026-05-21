@@ -146,7 +146,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
         }
         AgentCommand::Uninstall { name } => run_uninstall(name, json),
         AgentCommand::Enable { name } => run_enable(name, json),
-        AgentCommand::Disable { name } => run_disable(name, json),
+        AgentCommand::Disable { name } => run_disable(&client, name, json).await,
         AgentCommand::Update { name, path } => run_update(name, path, json),
         AgentCommand::New { name, r#type } => run_new(name, r#type, json),
         AgentCommand::Package { cmd } => match cmd {
@@ -790,7 +790,14 @@ async fn run_install_package(
     // failure: one broken worker (e.g. a stale top-level Python import)
     // shouldn't make the rest of the package un-installable. Failed agents
     // are reported in the final summary so the operator can fix and re-run.
+    //
+    // For each agent that declares pip dependencies we provision its venv
+    // *before* duck-typing — mirroring what the Supervisor does at boot —
+    // so top-level imports of declared packages resolve. Without this step
+    // the validator never finds pip-installed modules (incl. the apollia
+    // SDK when the agent imports it from a site-packages location).
     let now = now_rfc3339();
+    let venv_base = data_dir.join("venvs");
     let mut agent_count = 0;
     let mut failed_agents: Vec<(String, String)> = Vec::new();
     for entry in &pkg.agents {
@@ -800,6 +807,43 @@ async fn run_install_package(
                 .strip_prefix(source_path)
                 .unwrap_or(&entry.entry),
         );
+
+        // Read this agent's declared pip dependencies from the manifest.
+        let agent_packages: Vec<String> = pkg
+            .manifest
+            .agents
+            .iter()
+            .find(|a| a.name == entry.name)
+            .map(|a| a.packages.clone())
+            .unwrap_or_default();
+
+        if !agent_packages.is_empty() {
+            match apollia_tools::tools::python_executor::PythonExecutor::new(
+                &entry.name,
+                &venv_base,
+            ) {
+                Ok(executor) => {
+                    if let Err(e) = executor.setup_venv(&agent_packages).await {
+                        let msg = format!(
+                            "venv provisioning failed (the agent declares {} pip dep(s)): {e}",
+                            agent_packages.len()
+                        );
+                        tracing::warn!(
+                            agent = %entry.name,
+                            error = %msg,
+                            "package install: setup_venv failed, skipping agent"
+                        );
+                        failed_agents.push((entry.name.clone(), msg));
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    let msg = format!("could not initialise per-agent venv: {e}");
+                    failed_agents.push((entry.name.clone(), msg));
+                    continue;
+                }
+            }
+        }
 
         let agent_manifest = match validate_community_agent(&installed_entry_path, skip_tests).await
         {
@@ -1238,7 +1282,17 @@ fn run_enable(name: &str, json: bool) -> i32 {
 }
 
 /// `apollia-os agent disable <name>` — disable an installed agent.
-fn run_disable(name: &str, json: bool) -> i32 {
+///
+/// Two-phase operation:
+/// 1. Mark the agent `enabled = false` in `agents.db` so it won't auto-start
+///    at the next runtime boot.
+/// 2. Best-effort `DELETE /api/v1/agents/<name>` so the live registry stops
+///    holding an executor for it. This is what makes `apollia-os agent list`
+///    immediately show `disabled` instead of an outdated `active` state.
+///    A runtime that is offline (or has never had this agent loaded) is
+///    treated as a no-op for phase 2 — the persisted disable is what
+///    matters across reboots.
+async fn run_disable(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
         Ok(r) => r,
@@ -1247,17 +1301,37 @@ fn run_disable(name: &str, json: bool) -> i32 {
 
     match repo.set_enabled(name, false) {
         Ok(()) => {
+            let stop_outcome = match client.stop_agent(name).await {
+                Ok(_) => "stopped",
+                Err(ClientError::ServerError { status: 404, .. }) => "not-loaded",
+                Err(ClientError::ConnectionRefused) => "runtime-offline",
+                Err(e) => {
+                    tracing::warn!(
+                        agent = %name,
+                        error = %e,
+                        "disable: failed to stop live registry entry — agent remains enabled=false for next boot"
+                    );
+                    "stop-failed"
+                }
+            };
             if json {
                 let output = serde_json::json!({
                     "name": name,
                     "enabled": false,
+                    "runtime_stop": stop_outcome,
                 });
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&output).unwrap_or_default()
                 );
             } else {
-                println!("Agent '{name}' disabled (will not auto-start)");
+                let suffix = match stop_outcome {
+                    "stopped" => " and unloaded from the runtime",
+                    "not-loaded" => " (was not loaded in the runtime)",
+                    "runtime-offline" => " — runtime offline, change takes effect on next start",
+                    _ => "",
+                };
+                println!("Agent '{name}' disabled (will not auto-start){suffix}");
             }
             exit_codes::SUCCESS
         }

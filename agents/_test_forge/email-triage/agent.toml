@@ -8,7 +8,7 @@ license = "MIT"
 [[agents]]
 name = "email-triage"
 entry = "email_triage.py"
-role = "standalone"
+role = "director"
 agent_type = "user"
 execution_mode = "orchestrated"  # ORIA pilote
 memory_namespace = "email-triage"
