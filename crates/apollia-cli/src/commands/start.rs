@@ -25,7 +25,7 @@ use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_runtime::a2a::make_delegate_fn;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::api::APIServerConfig;
-use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
+use apollia_runtime::coordinator::{DynBackend, ExecutionBackend, ExecutionCoordinator};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::registry::AgentRegistryHandle;
 use apollia_runtime::router::TaskRouterHandle;
@@ -1155,6 +1155,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             }
         }
     };
+    // Keep a separate handle so we can rebuild auto-loaded backends after the
+    // Supervisor has finished and the factory OnceLocks are fully populated
+    // (workaround for the Phase 11 init-order race; see post-rewire below).
+    let agent_repository_for_rewire = agent_repository.clone();
 
     // Open PackageRepository for Phase 10.6 integrity check.
     let package_repository: Option<apollia_tools::PackageRepository> = {
@@ -1264,6 +1268,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         tools_config: tools_config.clone(),
         data_dir: data_dir_for_chat.clone(),
     });
+    // Keep a handle for the post-supervisor rewire pass.
+    let factory_for_rewire = factory.clone();
 
     // Concrete ChatAgentRunner for Chat Agent mode.
     let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> =
@@ -1307,6 +1313,25 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let _ = user_memory_lock.set(handles.user_memory.clone());
     if let Some(chat) = handles.chat_manager.as_ref() {
         let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
+    }
+
+    // Rewire auto-loaded agents now that the factory's OnceLocks are populated.
+    //
+    // The Supervisor's Phase 11 (auto-load) calls factory.create_for_agent
+    // BEFORE we get a chance to populate the OnceLocks the factory closes
+    // over. As a result every auto-loaded agent is initially registered with
+    // a NoopBackend that fails every task. Iterate the same repository the
+    // Supervisor used and reissue create_for_agent (now wired) + replace the
+    // coordinator in the router. Idempotent: register_coordinator inserts
+    // into a HashMap so the previous entry is dropped cleanly.
+    if let Some(ref repo) = agent_repository_for_rewire {
+        rewire_auto_loaded_agents(
+            repo,
+            &factory_for_rewire,
+            &handles,
+            &handles.event_sender,
+        )
+        .await;
     }
 
     let elapsed = start.elapsed();
@@ -1368,6 +1393,97 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     }
 
     Ok(interrupted)
+}
+
+/// Rewire every auto-loaded enabled agent so its TaskRouter coordinator uses
+/// a real `AIPProductionBackend` instead of the `NoopBackend` fallback that
+/// Supervisor Phase 11 installs when the factory OnceLocks are still empty.
+///
+/// This compensates for the construction order: the factory is built before
+/// the Supervisor runs, but the Supervisor populates the runtime handles
+/// only as part of its startup. Calling `register_coordinator` here is
+/// idempotent — the router replaces the existing entry in its `HashMap`.
+async fn rewire_auto_loaded_agents(
+    repo: &apollia_tools::AgentRepository,
+    factory: &Arc<dyn AgentBackendFactory>,
+    handles: &apollia_runtime::supervisor::SupervisorHandles<DynBackend>,
+    event_sender: &EventBusSender,
+) {
+    let installed = match repo.list_enabled() {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::warn!(error = %e, "rewire: failed to list installed agents — skipping");
+            return;
+        }
+    };
+    let mut rewired = 0usize;
+    for agent in installed {
+        if !agent.enabled {
+            continue;
+        }
+        let agent_id = match handles
+            .registry_handle
+            .find_by_name(&agent.manifest.name)
+            .await
+        {
+            Ok(Some(id)) => id,
+            Ok(None) => {
+                tracing::debug!(
+                    name = %agent.manifest.name,
+                    "rewire: agent not in registry (Supervisor skipped it), nothing to rewire"
+                );
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    name = %agent.manifest.name,
+                    error = %e,
+                    "rewire: registry lookup failed"
+                );
+                continue;
+            }
+        };
+        let dyn_backend = factory.create_for_agent(&agent.install_path, &agent.manifest);
+        let mut coordinator = ExecutionCoordinator::new(
+            agent_id.clone(),
+            agent.manifest.max_concurrent_tasks,
+            event_sender.clone(),
+            dyn_backend,
+        )
+        .with_agent_name(agent.manifest.name.clone());
+        if let Some(ref task_repo) = handles.task_repository {
+            coordinator = coordinator.with_task_repository(
+                Arc::clone(task_repo),
+                apollia_core::ObservabilityConfig::default(),
+            );
+        }
+        match handles
+            .router_handle
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+        {
+            Ok(()) => {
+                rewired += 1;
+                tracing::debug!(
+                    agent = %agent.manifest.name,
+                    "rewire: coordinator replaced with wired backend"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    agent = %agent.manifest.name,
+                    error = %e,
+                    "rewire: failed to replace coordinator"
+                );
+            }
+        }
+    }
+    if rewired > 0 {
+        tracing::info!(
+            count = rewired,
+            "auto-loaded agents rewired with fully-initialised backends"
+        );
+    }
 }
 
 /// Wait until a `RuntimeEvent::ShutdownRequested` event is received on the bus.

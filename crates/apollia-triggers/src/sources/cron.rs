@@ -39,8 +39,11 @@ impl CronTrigger {
                 Err(e) => {
                     tracing::error!(
                         trigger = %def.id,
+                        schedule = %schedule_str,
                         error = %e,
-                        "invalid cron schedule, source will not fire"
+                        "invalid cron schedule, source will not fire \
+                         (fix it with `apollia-os trigger update {} --detail \"<expr>\"`)",
+                        def.id
                     );
                     return;
                 }

@@ -220,7 +220,11 @@ pub enum McpConfigError {
     },
 
     /// An `${VAR}` placeholder in an env value has no corresponding environment variable.
-    #[error("server '{server}': unresolved environment variable: ${{{var}}}")]
+    ///
+    /// `${APOLLIA_OAUTH}` is a special MCP OAuth marker — when unresolved it means no
+    /// OAuth token is stored for the server yet. The display impl surfaces a more
+    /// actionable hint for that case.
+    #[error("{}", format_unresolved_env_var(server, var))]
     UnresolvedEnvVar { server: String, var: String },
 
     /// A stdio server's `command` looks like an npm/pypi package identifier
@@ -234,6 +238,18 @@ pub enum McpConfigError {
          use a launcher (e.g. `command = \"npx\"`, `args = [\"-y\", \"{command}\", ...]`)"
     )]
     PackageIdAsCommand { server: String, command: String },
+}
+
+/// Format the `UnresolvedEnvVar` display, with a dedicated hint for the
+/// `APOLLIA_OAUTH` marker that points to the MCP OAuth login flow.
+fn format_unresolved_env_var(server: &str, var: &str) -> String {
+    if var == "APOLLIA_OAUTH" {
+        format!(
+            "server '{server}': MCP OAuth token not yet stored — run `apollia-os mcp oauth login {server}` to authenticate"
+        )
+    } else {
+        format!("server '{server}': environment variable ${{{var}}} is not set")
+    }
 }
 
 impl McpConfig {

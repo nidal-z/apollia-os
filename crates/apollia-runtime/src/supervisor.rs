@@ -1090,11 +1090,11 @@ impl Supervisor {
                                 (Some(handle), api_repo)
                             }
                             Ok(Err(e)) => {
-                                error!(error = %e, "STT model loading failed — SttEngine disabled");
+                                warn!(error = %e, "STT engine disabled (model unavailable or backend not compiled)");
                                 (None, None)
                             }
                             Err(e) => {
-                                error!(error = %e, "STT model loading panicked — SttEngine disabled");
+                                warn!(error = %e, "STT engine disabled (loader panicked)");
                                 (None, None)
                             }
                         }

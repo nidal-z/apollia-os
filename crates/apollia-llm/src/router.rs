@@ -828,16 +828,11 @@ impl LlmRouter {
             }
         }
 
-        if !backends.contains_key(&default_name) {
-            return Err(LlmError::BackendUnavailable {
-                backend: default_name,
-                reason: "default backend failed to instantiate".to_string(),
-            });
-        }
+        let default = pick_default_or_fallback(default_name, &backends)?;
 
         Ok(Self {
             backends,
-            default: default_name,
+            default,
             routing: None,
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
@@ -892,16 +887,11 @@ impl LlmRouter {
             }
         }
 
-        if !backends.contains_key(&default_name) {
-            return Err(LlmError::BackendUnavailable {
-                backend: default_name,
-                reason: "default backend failed to instantiate".to_string(),
-            });
-        }
+        let default = pick_default_or_fallback(default_name, &backends)?;
 
         Ok(Self {
             backends,
-            default: default_name,
+            default,
             routing: None,
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
@@ -1070,6 +1060,38 @@ impl LlmRouter {
                 available: b.is_available(),
             })
             .collect()
+    }
+}
+
+/// Pick the effective default backend name with graceful fallback.
+///
+/// When the configured default is missing from the successfully-instantiated
+/// `backends` (e.g. the local feature isn't compiled or the API key is
+/// missing for a cloud backend), pick the first available alphabetical backend
+/// and emit a clear warning. Only fails entirely when no backend instantiated.
+fn pick_default_or_fallback(
+    configured_default: String,
+    backends: &HashMap<String, Arc<dyn CompletionModel>>,
+) -> Result<String, LlmError> {
+    if backends.contains_key(&configured_default) {
+        return Ok(configured_default);
+    }
+    let mut available: Vec<&String> = backends.keys().collect();
+    available.sort();
+    match available.first() {
+        Some(fallback) => {
+            tracing::warn!(
+                configured_default = %configured_default,
+                fallback = %fallback,
+                available = ?available,
+                "configured default LLM backend unavailable — falling back to first available backend"
+            );
+            Ok((*fallback).clone())
+        }
+        None => Err(LlmError::BackendUnavailable {
+            backend: configured_default,
+            reason: "no LLM backend instantiated successfully (default unreachable, no fallback available)".to_string(),
+        }),
     }
 }
 

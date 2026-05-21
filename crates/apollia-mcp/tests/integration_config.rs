@@ -30,8 +30,8 @@ fn test_config_duplicate_server_name_fails() {
 }
 
 /// An env value referencing an absent variable must be rejected at resolution time.
-#[test]
-fn test_config_unresolved_env_var_fails() {
+#[tokio::test]
+async fn test_config_unresolved_env_var_fails() {
     // GIVEN a server config whose env map references a variable absent from the environment
     let var_name = "APOLLIA_INT_TEST_MISSING_339";
     std::env::remove_var(var_name);
@@ -49,7 +49,7 @@ fn test_config_unresolved_env_var_fails() {
     };
 
     // WHEN env var resolution is requested
-    let result = config.resolve_env(None);
+    let result = config.resolve_env(None).await;
 
     // THEN an UnresolvedEnvVar error is returned
     assert!(matches!(

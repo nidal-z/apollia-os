@@ -308,11 +308,22 @@ impl McpClientManagerHandle {
                     sessions.insert(server_name, session);
                 }
                 Err(e) => {
-                    tracing::error!(
-                        server = %server_name,
-                        error = %e,
-                        "MCP server failed to start, skipping"
-                    );
+                    // OAuth-not-yet-configured is expected user state, not a runtime
+                    // failure — emit as warning so log scans for ERROR stay clean.
+                    let message = e.to_string();
+                    if message.contains("MCP OAuth token not yet stored") {
+                        tracing::warn!(
+                            server = %server_name,
+                            error = %e,
+                            "MCP server skipped — OAuth not yet configured"
+                        );
+                    } else {
+                        tracing::error!(
+                            server = %server_name,
+                            error = %e,
+                            "MCP server failed to start, skipping"
+                        );
+                    }
                 }
             }
         }
