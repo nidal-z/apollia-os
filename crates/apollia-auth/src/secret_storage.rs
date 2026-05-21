@@ -44,6 +44,32 @@ impl SecretStore for KeyringSecretStore {
     fn set(&self, service: &str, user: &str, value: &str) -> Result<(), AuthError> {
         let entry =
             keyring::Entry::new(service, user).map_err(|e| AuthError::Keyring(e.to_string()))?;
+        // Best-effort delete-then-set.
+        //
+        // macOS keychain entries carry an ACL bound to the *first* binary that
+        // wrote them. When the Apollia CLI is rebuilt (every `cargo build`
+        // for unsigned dev artefacts) its code signature changes, and
+        // `SecItemUpdate` silently fails to overwrite entries owned by the
+        // previous signature — the entry stays put with the old payload while
+        // `set_password` returns `Ok(())`. Downstream readers (daemon /
+        // chat runner) then see the stale value and OAuth flows appear to
+        // succeed but never actually refresh the keychain.
+        //
+        // Deleting first forces `SecItemAdd` rather than `SecItemUpdate`, so
+        // the new entry inherits the current binary's identity and any future
+        // read/update from the same identity succeeds. The delete is
+        // best-effort because `NoEntry` is the expected first-run case.
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(e) => {
+                tracing::warn!(
+                    service = %service,
+                    user = %user,
+                    error = %e,
+                    "keyring: pre-write delete failed; falling back to in-place update"
+                );
+            }
+        }
         entry
             .set_password(value)
             .map_err(|e| AuthError::Keyring(e.to_string()))
