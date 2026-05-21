@@ -210,9 +210,22 @@ async fn run_login(
     // server returns 401 we read the header verbatim; on 200 / other we leave
     // it as None and let the orchestrator's origin fallback do the work.
     let www_authenticate = match probe_www_authenticate(&server_url).await {
-        Ok(header) => header,
+        Ok(Some(header)) => {
+            tracing::debug!(server = %server, "probe captured WWW-Authenticate header");
+            Some(header)
+        }
+        Ok(None) => {
+            tracing::debug!(server = %server, "probe returned non-401, no WWW-Authenticate to extract");
+            None
+        }
         Err(e) => {
-            tracing::debug!(server = %server, error = %e, "OAuth probe failed; falling back");
+            // Surface this clearly on stderr because the orchestrator's
+            // origin fallback often points at an auth-gated 401, leaving
+            // the operator wondering why a perfectly reachable server
+            // refuses to authorise. The probe error is the real cause.
+            eprintln!(
+                "  ! probe of {server_url} failed: {e}\n    OAuth dance will use origin-based PRM discovery; may fail for hosts whose PRM lives behind /mcp."
+            );
             None
         }
     };
