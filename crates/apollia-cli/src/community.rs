@@ -25,6 +25,88 @@ fn community_venv_site_packages_for_path(agent_py_path: &Path) -> Vec<PathBuf> {
     apollia_tools::tools::python_executor::agent_venv_site_packages(&base, agent_name)
 }
 
+/// Best-effort lookup of the workspace Apollia SDK directory.
+///
+/// PyO3 is linked against the system `libpython` at build time, which on
+/// pyenv-managed machines isn't necessarily the same interpreter as the
+/// project's `.venv` where the SDK is pip-installed editable. So agents
+/// importing `from apollia import …` fail with `ImportError` even though
+/// `python3` would resolve it correctly in the operator's shell.
+///
+/// We work around that for dev builds by walking up from the running
+/// binary (or the `CARGO_MANIFEST_DIR` env var picked up at compile time)
+/// until we find a `sdk/apollia/__init__.py`. The discovered `sdk/` dir is
+/// prepended to `sys.path` so the SDK resolves regardless of which Python
+/// PyO3 is linked to.
+///
+/// Returns an empty vec on packaged installs (binary outside the workspace
+/// tree); in that case operators are expected to have `apollia-sdk`
+/// available in the runtime's Python environment.
+fn workspace_sdk_paths() -> Vec<PathBuf> {
+    fn locate_sdk(start: &Path) -> Option<PathBuf> {
+        let mut current = start.to_path_buf();
+        for _ in 0..6 {
+            let candidate = current.join("sdk").join("apollia").join("__init__.py");
+            if candidate.is_file() {
+                return Some(current.join("sdk"));
+            }
+            current = current.parent()?.to_path_buf();
+        }
+        None
+    }
+    let mut out = Vec::new();
+    // 1. Walk up from the running binary (covers `target/release/...`).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            if let Some(sdk) = locate_sdk(parent) {
+                out.push(sdk);
+            }
+        }
+    }
+    // 2. Fallback to `CARGO_MANIFEST_DIR` baked at build time. Useful when
+    // the binary lives outside the workspace tree (test runners, IDE).
+    if out.is_empty() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        if let Some(sdk) = locate_sdk(manifest_dir) {
+            out.push(sdk);
+        }
+    }
+    out
+}
+
+/// Walk up from `agent_py_path` until we find an `agent.toml`. Returns the
+/// directory containing it (the package root). `None` for single-file agents
+/// that aren't inside a package.
+///
+/// Adding this directory to `sys.path` lets workers nested under
+/// `<pkg>/workers/<worker>.py` import sibling modules at the package root
+/// (e.g. `worker_schemas.py`) without operators having to mangle the
+/// imports manually.
+fn enclosing_package_root(agent_py_path: &Path) -> Option<PathBuf> {
+    let mut current = agent_py_path.parent()?;
+    for _ in 0..6 {
+        if current.join("agent.toml").is_file() {
+            return Some(current.to_path_buf());
+        }
+        current = current.parent()?;
+    }
+    None
+}
+
+/// Combined sys.path extras for community-agent validation: per-agent venv
+/// site-packages + the enclosing package root (for cross-module imports
+/// inside a multi-file package) + workspace SDK fallback. The order matters
+/// — venv first so pip-pinned versions win, package root next so siblings
+/// resolve, SDK last so it acts as a fallback only.
+pub fn validation_sys_paths(agent_py_path: &Path) -> Vec<PathBuf> {
+    let mut paths = community_venv_site_packages_for_path(agent_py_path);
+    if let Some(root) = enclosing_package_root(agent_py_path) {
+        paths.push(root);
+    }
+    paths.extend(workspace_sdk_paths());
+    paths
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Error type
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,9 +155,10 @@ pub async fn validate_community_agent(
         return Err(AgentValidationError::FileNotFound(path.to_path_buf()));
     }
 
-    // Inject per-agent venv site-packages (if any) so top-level imports of
-    // pip-installed packages resolve during community-agent validation.
-    let extras = community_venv_site_packages_for_path(path);
+    // Inject per-agent venv site-packages + workspace SDK so top-level
+    // imports of pip-installed packages *and* `from apollia import …`
+    // resolve during community-agent validation.
+    let extras = validation_sys_paths(path);
     let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
         .map_err(|e| AgentValidationError::ManifestLoad(e.to_string()))?;
 

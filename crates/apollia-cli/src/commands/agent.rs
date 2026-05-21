@@ -1607,18 +1607,11 @@ struct CliAgentLoader;
 
 impl AgentLoader for CliAgentLoader {
     fn load_and_validate(&self, path: &Path) -> Result<apollia_core::AgentManifest, String> {
-        // Inject per-agent venv site-packages so top-level imports of
-        // pip-installed packages resolve during validation.
-        let agent_name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("");
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        let venv_base = std::path::PathBuf::from(home).join(".apollia").join("venvs");
-        let extras = apollia_tools::tools::python_executor::agent_venv_site_packages(
-            &venv_base,
-            agent_name,
-        );
+        // Share the community validation helper so `apollia-os agent
+        // validate` benefits from the same sys.path injection as
+        // `agent install`: per-agent venv + enclosing package root +
+        // workspace SDK fallback.
+        let extras = crate::community::validation_sys_paths(path);
         let module = apollia_aip::loader::load_agent_module_with_sys_paths(path, &extras)
             .map_err(|e| e.to_string())?;
         let validated =
@@ -1749,11 +1742,15 @@ fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<ser
 
         // Combine "loaded in registry" with "enabled in repo" into a single
         // human-readable status so operators don't have to cross-reference
-        // two columns.
-        let status = match (runtime_state, agent.enabled) {
-            (Some(state), _) => state,         // active / degraded / initializing
-            (None, true) => "stopped",         // enabled but not in registry (load failed)
-            (None, false) => "disabled",       // explicitly disabled by operator
+        // two columns. When the operator has explicitly disabled the agent
+        // (enabled=false) we surface 'disabled' over the registry state so
+        // it's clear the agent will not auto-start on the next boot — the
+        // registry might still report 'stopped' transiently for a moment.
+        let status = match (agent.enabled, runtime_state) {
+            (false, _) => "disabled",
+            (true, Some("stopped")) => "stopped",
+            (true, Some(state)) => state, // active / degraded / initializing
+            (true, None) => "stopped",
         };
         let auto_load = if agent.enabled { "yes" } else { "no" };
 
