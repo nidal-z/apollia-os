@@ -152,19 +152,53 @@ async fn get_server_raw_config<B: ExecutionBackend + Clone>(
 
 /// `POST /api/v1/mcp/servers/:name/restart` — Restart a specific MCP server session.
 ///
-/// Stops the current session and spawns a new one using the original configuration.
-/// Returns `404 Not Found` when no server with the given name is connected.
+/// Restarts an existing session or first-time-connects one declared in `mcp.db`.
+///
+/// Stops the current session and spawns a new one using the original
+/// configuration. When the server was declared in `mcp.db` but never
+/// connected (e.g. the previous start was blocked by a missing OAuth token,
+/// later supplied via `apollia-os mcp oauth login`), we fall back to a
+/// fresh `add_server` call using the persisted config — making this route
+/// the single "(re)connect this server now" endpoint operators need.
+/// Returns `404 Not Found` when the name is unknown to both the manager
+/// and the repository.
 /// Returns `503 Service Unavailable` when MCP is not configured.
 async fn restart_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
     let handle = require_mcp_handle(&state)?;
-    handle
-        .restart_server(&name)
-        .await
-        .map(Json)
-        .map_err(|e| json_err(StatusCode::NOT_FOUND, e))
+    match handle.restart_server(&name).await {
+        Ok(status) => Ok(Json(status)),
+        Err(restart_err) => {
+            // Fall back: lookup the persisted config and add_server.
+            let repo = require_mcp_repo(&state)?;
+            let config = {
+                let guard = repo.lock().map_err(|_| {
+                    json_err(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "mcp repository lock poisoned",
+                    )
+                })?;
+                guard
+                    .list()
+                    .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
+                    .into_iter()
+                    .find(|c| c.name == name)
+            };
+            match config {
+                Some(cfg) => handle
+                    .add_server(cfg)
+                    .await
+                    .map(Json)
+                    .map_err(|e| json_err(StatusCode::BAD_REQUEST, e)),
+                None => Err(json_err(
+                    StatusCode::NOT_FOUND,
+                    format!("server '{name}' not found (restart: {restart_err})"),
+                )),
+            }
+        }
+    }
 }
 
 // ─── mutation routes ──────────────────────────────────────────────────────────

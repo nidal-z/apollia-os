@@ -21,6 +21,7 @@ use apollia_auth::{
     McpOAuthError, NegotiateRequest,
 };
 
+use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
 
 /// Subcommands of `apollia-os mcp oauth`.
@@ -99,6 +100,55 @@ fn emit_error(msg: impl Into<String>, json: bool) -> i32 {
         eprintln!("Error: {s}");
     }
     exit_codes::GENERAL_ERROR
+}
+
+/// Outcome of the post-login runtime reconnect attempt. Recorded so the
+/// human-readable output can give precise next-step guidance instead of a
+/// generic "token stored" without telling the operator whether the server is
+/// actually live.
+#[derive(Debug)]
+enum ReconnectOutcome {
+    /// Runtime answered, server is now connected.
+    Connected,
+    /// Runtime not running — token is stored for the next boot.
+    RuntimeOffline,
+    /// Runtime answered but the reconnect attempt failed (parsed error in field).
+    Failed(String),
+    /// Runtime answered but said the server is unknown (404 fallback).
+    Skipped,
+}
+
+/// Hit `POST /api/v1/mcp/servers/<name>/restart` so the runtime picks up the
+/// freshly stored token. The route falls back to `add_server` when no session
+/// was ever started (the normal post-OAuth case for a server that boot-failed),
+/// so a single call covers both "session exists" and "first connection" paths.
+async fn reconnect_runtime_session(server: &str) -> ReconnectOutcome {
+    let client = RuntimeClient::new(PathBuf::from(DEFAULT_SOCKET_PATH));
+    let uri = format!("/api/v1/mcp/servers/{server}/restart");
+    match client.post(&uri, None).await {
+        Ok(resp) if resp.status < 400 => ReconnectOutcome::Connected,
+        Ok(resp) if resp.status == 404 => ReconnectOutcome::Skipped,
+        Ok(resp) => ReconnectOutcome::Failed(format!("HTTP {}: {}", resp.status, resp.body)),
+        Err(ClientError::ConnectionRefused) => ReconnectOutcome::RuntimeOffline,
+        Err(e) => ReconnectOutcome::Failed(e.to_string()),
+    }
+}
+
+impl serde::Serialize for ReconnectOutcome {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ReconnectOutcome::Connected => ser.serialize_str("connected"),
+            ReconnectOutcome::RuntimeOffline => ser.serialize_str("runtime_offline"),
+            ReconnectOutcome::Skipped => ser.serialize_str("skipped"),
+            ReconnectOutcome::Failed(reason) => {
+                use serde::ser::SerializeStruct;
+                let mut s = ser.serialize_struct("ReconnectOutcome", 2)?;
+                s.serialize_field("status", "failed")?;
+                s.serialize_field("reason", reason)?;
+                s.end()
+            }
+        }
+    }
 }
 
 /// Probe `server_url` to capture the `WWW-Authenticate` header advertised
@@ -264,6 +314,7 @@ async fn run_login(
     match result {
         Ok(token) => {
             if json {
+                let reconnect = reconnect_runtime_session(server).await;
                 let body = serde_json::json!({
                     "server": server,
                     "stored": true,
@@ -273,6 +324,7 @@ async fn run_login(
                         "email": token.identity_email,
                     },
                     "expires_at": token.expires_at,
+                    "runtime_reconnect": reconnect,
                 });
                 println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
             } else {
@@ -287,6 +339,32 @@ async fn run_login(
                 }
                 if let Some(exp) = token.expires_at {
                     println!("    expires  : unix {exp}");
+                }
+                // Triggers an immediate runtime reconnect — at boot the server
+                // failed because no token was stored yet, so without this the
+                // operator has to also stop+start the daemon manually.
+                match reconnect_runtime_session(server).await {
+                    ReconnectOutcome::Connected => {
+                        println!("  * runtime reconnected '{server}' (new token applied)");
+                    }
+                    ReconnectOutcome::RuntimeOffline => {
+                        println!(
+                            "  ! daemon offline — start it with `apollia-os start` and the server will pick up the token."
+                        );
+                    }
+                    ReconnectOutcome::Failed(reason) => {
+                        println!(
+                            "  ! token stored but runtime reconnect failed: {reason}\n    Retry with `apollia-os mcp restart {server}`."
+                        );
+                    }
+                    ReconnectOutcome::Skipped => {
+                        // Daemon present but the server was unknown to the
+                        // repo as well — extremely unlikely once we reached
+                        // this point because load_server_url succeeded.
+                        println!(
+                            "  ! token stored; could not reconnect (server not in runtime repo)."
+                        );
+                    }
                 }
             }
             exit_codes::SUCCESS
