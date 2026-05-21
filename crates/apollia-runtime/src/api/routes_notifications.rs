@@ -963,6 +963,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         }
     }
 

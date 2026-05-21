@@ -119,6 +119,27 @@ pub enum ResilienceError {
     UnknownTool(String),
 }
 
+/// Snapshot of a circuit breaker emitted by [`ResilienceLayer::snapshot`].
+///
+/// Serialisable so HTTP routes can hand it directly to JSON encoders without
+/// leaking the internal `Instant`-based representation.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CircuitBreakerSnapshot {
+    /// Canonical tool name (matches the registry).
+    pub tool_name: String,
+    /// Current state: `"closed"`, `"half_open"`, or `"open"`.
+    pub state: String,
+    /// Consecutive transient failures observed since the last success.
+    pub failure_count: u32,
+    /// Threshold beyond which the breaker opens.
+    pub failure_threshold: u32,
+    /// Configured cooldown in seconds.
+    pub cooldown_secs: u64,
+    /// Seconds left before the breaker auto-transitions to half-open.
+    /// `None` when the breaker is closed or half-open.
+    pub cooldown_remaining_secs: Option<u64>,
+}
+
 /// Resilience layer with independent circuit breakers per tool.
 ///
 /// Use [`register_tool`](Self::register_tool) to add tools, then
@@ -278,6 +299,82 @@ impl ResilienceLayer {
     /// Returns a mutable reference to a circuit breaker by tool name.
     pub fn get_mut(&mut self, tool_name: &str) -> Option<&mut CircuitBreaker> {
         self.circuit_breakers.get_mut(tool_name)
+    }
+
+    /// Produce an operator-friendly snapshot of every registered breaker.
+    ///
+    /// Returned in alphabetical order by `tool_name` so HTTP responses are
+    /// deterministic across calls (eases diffing in tests and dashboards).
+    /// Internal `Instant`s are converted to remaining-cooldown seconds for
+    /// safe JSON serialisation.
+    pub fn snapshot(&self) -> Vec<CircuitBreakerSnapshot> {
+        let mut names: Vec<&String> = self.circuit_breakers.keys().collect();
+        names.sort();
+        names
+            .into_iter()
+            .filter_map(|name| {
+                let cb = self.circuit_breakers.get(name)?;
+                let cooldown_remaining_secs = match cb.state {
+                    CircuitState::Open => cb.last_failure_at.and_then(|t| {
+                        let elapsed = t.elapsed();
+                        if elapsed >= cb.cooldown {
+                            Some(0)
+                        } else {
+                            Some((cb.cooldown - elapsed).as_secs())
+                        }
+                    }),
+                    _ => None,
+                };
+                Some(CircuitBreakerSnapshot {
+                    tool_name: cb.tool_name.clone(),
+                    state: match cb.state {
+                        CircuitState::Closed => "closed".to_string(),
+                        CircuitState::HalfOpen => "half_open".to_string(),
+                        CircuitState::Open => "open".to_string(),
+                    },
+                    failure_count: cb.failure_count,
+                    failure_threshold: cb.failure_threshold,
+                    cooldown_secs: cb.cooldown.as_secs(),
+                    cooldown_remaining_secs,
+                })
+            })
+            .collect()
+    }
+
+    /// Force-close a circuit breaker, regardless of its current state.
+    ///
+    /// Returns `Ok(true)` when the tool was registered and the breaker now
+    /// sits in `Closed` state. Returns `Ok(false)` when the tool is unknown
+    /// (caller can choose to register it lazily before retrying).
+    pub fn reset_breaker(&mut self, tool_name: &str) -> bool {
+        match self.circuit_breakers.get_mut(tool_name) {
+            Some(cb) => {
+                let was_open = !matches!(cb.state, CircuitState::Closed);
+                cb.state = CircuitState::Closed;
+                cb.failure_count = 0;
+                cb.last_failure_at = None;
+                if was_open {
+                    tracing::info!(
+                        tool = %cb.tool_name,
+                        "circuit breaker manually reset to Closed"
+                    );
+                }
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Register the tool implicitly when an event arrives for an unknown tool.
+    ///
+    /// Internal helper used by the runtime event subscriber that hydrates the
+    /// shared resilience layer from `ToolCallCompleted` / `ToolCallDenied`
+    /// events: tools never seen before still get tracked from their first
+    /// reported call instead of producing `UnknownTool` errors.
+    pub fn ensure_tool(&mut self, tool_name: &str) {
+        if !self.circuit_breakers.contains_key(tool_name) {
+            self.register_tool(tool_name);
+        }
     }
 
     /// Executes an operation with retry policy and circuit breaker integration.

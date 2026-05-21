@@ -515,6 +515,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -663,6 +664,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -764,6 +766,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -971,6 +974,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

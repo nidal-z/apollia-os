@@ -187,6 +187,14 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` en tests unitaires. Les routes `/api/v1/a2a/skills` et
     /// `/api/v1/a2a/invoke` retournent 503 quand `None`.
     pub a2a_invoker: Option<Arc<crate::a2a::A2AInvoker>>,
+    /// Shared circuit-breaker registry observed by the runtime event subscriber.
+    ///
+    /// `Some` once the Supervisor builds the layer + spawns the
+    /// `ToolCallCompleted` subscriber that mirrors per-tool successes /
+    /// transient failures into circuit breakers. `None` in unit tests or
+    /// when subscriber init failed; the resilience routes degrade to a
+    /// stable empty snapshot instead of returning a 503.
+    pub resilience_layer: Option<Arc<std::sync::Mutex<apollia_oria::ResilienceLayer>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -222,6 +230,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             llm_backend_repo: self.llm_backend_repo.clone(),
             stt_config_repo: self.stt_config_repo.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
+            resilience_layer: self.resilience_layer.clone(),
         }
     }
 }
@@ -359,6 +368,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         test_channels, update_channel,
     };
     use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
+    use super::routes_resilience::resilience_router;
     use super::routes_review::post_review;
     use super::routes_sse::stream_task;
     use super::routes_stt::{
@@ -468,6 +478,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
         .merge(model_hub_routes::<B>())
+        .merge(resilience_router::<B>())
         // Chat session routes
         .route(
             "/api/v1/sessions",
@@ -735,6 +746,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         }
     }
 

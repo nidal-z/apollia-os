@@ -1,13 +1,11 @@
 //! `apollia-os resilience` subcommands — circuit breaker inspection and management.
 //!
-//! **Status (v0.1.0):** the underlying HTTP routes
-//! (`/api/v1/resilience/{status,reset}`) are **not yet exposed by the runtime**.
-//! Per-task ORIA engines instantiate their own `ResilienceLayer` so there is no
-//! global state to query today. These subcommands therefore surface a friendly
-//! "not yet wired" message instead of a raw 404 until ADR-XXX exposes a shared
-//! resilience snapshot. They remain CLI-side to lock in the UX shape.
-//!
-//! Tracking: see `docs/internal/release/CLI-MATRIX.md` (resilience row).
+//! Connects to the runtime via Unix socket and queries the shared
+//! `ResilienceLayer` snapshot. The layer is hydrated by a `ToolCallCompleted`
+//! / `ToolCallDenied` event subscriber (see
+//! [`apollia_runtime::observability::spawn_resilience_subscriber`]) so the
+//! snapshot reflects actual production traffic without the engines having to
+//! synchronously update a global mutex.
 
 use std::path::PathBuf;
 
@@ -169,18 +167,18 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
             }
             exit_codes::RUNTIME_ERROR
         }
-        // The runtime hasn't wired the resilience routes yet — translate the
-        // raw 404 into a sentence operators can act on.
-        ClientError::ServerError { status: 404, .. } => {
-            let msg = "resilience routes are not exposed by this runtime build (deferred to v0.1.1); \
-                       circuit-breaker state lives per-task inside ORIA today";
-            if json {
-                println!(
-                    "{}",
-                    serde_json::json!({"error": msg, "status": 404, "deferred": "v0.1.1"})
-                );
+        // A 404 here means the tool name was never seen by the shared layer
+        // (no call attempted yet) — distinguish it from the runtime being off.
+        ClientError::ServerError { status: 404, body } => {
+            let msg = if body.is_empty() {
+                "tool not registered with a circuit breaker yet".to_string()
             } else {
-                eprintln!("Note: {msg}.");
+                body
+            };
+            if json {
+                println!("{}", serde_json::json!({"error": msg, "status": 404}));
+            } else {
+                eprintln!("Error: {msg}");
             }
             exit_codes::GENERAL_ERROR
         }

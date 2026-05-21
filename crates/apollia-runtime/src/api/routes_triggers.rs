@@ -871,6 +871,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         }
     }
 
@@ -1244,6 +1245,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
 
         let router = Router::new()

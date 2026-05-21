@@ -16,8 +16,10 @@
 
 pub mod persistor;
 pub mod repository;
+pub mod resilience_subscriber;
 
 pub use persistor::{
     spawn_runtime_events_subscriber, EventPersistorError, EventPersistorHandle,
 };
 pub use repository::{RuntimeEventRecord, RuntimeEventsRepository};
+pub use resilience_subscriber::spawn_resilience_subscriber;

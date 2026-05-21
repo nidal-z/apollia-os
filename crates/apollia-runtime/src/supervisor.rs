@@ -699,6 +699,22 @@ impl Supervisor {
             }
         }
 
+        // Phase 4d: shared ResilienceLayer + event subscriber.
+        //
+        // Per-task ORIA engines keep their own short-lived breakers, but the
+        // operator-facing `/api/v1/resilience/*` surface needs a stable
+        // snapshot. Hydrating it from the runtime event bus (`ToolCallCompleted`
+        // / `ToolCallDenied`) keeps the engines decoupled from a global mutex
+        // while still surfacing accurate per-tool circuit state.
+        let shared_resilience_layer = std::sync::Arc::new(std::sync::Mutex::new(
+            apollia_oria::ResilienceLayer::default(),
+        ));
+        crate::observability::spawn_resilience_subscriber(
+            shared_resilience_layer.clone(),
+            &event_sender,
+        );
+        info!("Supervisor: shared ResilienceLayer ready (event subscriber spawned)");
+
         // Phase 5 (pos 6): TaskRouter
         info!("Supervisor: starting TaskRouter");
         let router_handle: TaskRouterHandle<B> =
@@ -1145,6 +1161,7 @@ impl Supervisor {
             mcp_server_repo: mcp_server_repo.clone(),
             llm_backend_repo: llm_backend_repo.clone(),
             a2a_invoker: Some(a2a_invoker),
+            resilience_layer: Some(shared_resilience_layer.clone()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -2267,6 +2284,7 @@ mod tests {
             llm_backend_repo: None,
             stt_config_repo: None,
             a2a_invoker: None,
+            resilience_layer: None,
         };
 
         // WHEN on clone l'AppState

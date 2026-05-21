@@ -22,3 +22,8 @@ pub mod plan_repository;
 pub mod reasoner;
 pub mod resilience;
 pub mod topo;
+
+pub use resilience::{
+    CircuitBreaker, CircuitBreakerSnapshot, CircuitState, ErrorClass, ResilienceError,
+    ResilienceLayer,
+};
