@@ -197,7 +197,29 @@ async fn run_status(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
                 println!("  Task      : {task_id}");
                 println!("  Status    : {status}");
                 if let Some(error) = resp.get("error").and_then(|v| v.as_str()) {
-                    println!("  Error     : {error}");
+                    println!("  Error     :");
+                    for line in error.lines() {
+                        println!("    {line}");
+                    }
+                }
+                if let Some(result) = resp.get("result").and_then(|v| v.as_str()) {
+                    println!("  Result    :");
+                    for line in result.lines() {
+                        println!("    {line}");
+                    }
+                }
+                if let Some(budget) = resp.get("token_budget") {
+                    let input = budget
+                        .get("input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let output = budget
+                        .get("output_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    if input + output > 0 {
+                        println!("  Tokens    : {input} in / {output} out");
+                    }
                 }
             }
             exit_codes::SUCCESS

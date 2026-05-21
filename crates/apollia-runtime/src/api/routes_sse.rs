@@ -86,9 +86,20 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             // Include the agent output text in the "completed" event so that CLI
             // callers (both polling and SSE) can display the result without a
             // separate endpoint (GET /api/v1/tasks/:id never carries the output).
+            //
+            // For failures we surface the same text under `error` so the CLI
+            // can render an actionable message instead of falling back to a
+            // generic "unknown error". The coordinator already encodes
+            // `[CODE] message details=…` in `output` on failure, so this
+            // re-surfaces the worker-reported reason all the way to the
+            // operator.
             let mut data = serde_json::json!({ "success": success });
             if let Some(text) = output {
-                data["result"] = serde_json::Value::String(text.clone());
+                if *success {
+                    data["result"] = serde_json::Value::String(text.clone());
+                } else {
+                    data["error"] = serde_json::Value::String(text.clone());
+                }
             }
             Some((
                 SseTaskEvent {

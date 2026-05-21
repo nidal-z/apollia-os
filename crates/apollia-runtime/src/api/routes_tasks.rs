@@ -195,17 +195,28 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
                 s,
                 TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Canceled
             );
-            // Fetch stored output for completed tasks so the CLI can display it.
-            let result = if matches!(s, TaskStatus::Completed) {
+            // The router stores the *same* output text for both Completed and
+            // Failed tasks (the coordinator encodes [CODE] message details=…
+            // when a worker reports failure). Route it to `result` on success
+            // and `error` on failure so a single GET tells the CLI the full
+            // story without having to also tail the SSE stream.
+            let stored_output = if is_terminal {
                 state
                     .router_handle
                     .get_output(&task_id)
                     .await
                     .ok()
                     .flatten()
-                    .map(serde_json::Value::String)
             } else {
                 None
+            };
+            let (result, error) = match s {
+                TaskStatus::Completed => (
+                    stored_output.map(serde_json::Value::String),
+                    None,
+                ),
+                TaskStatus::Failed => (None, stored_output),
+                _ => (None, None),
             };
             // Fetch token budget for terminal tasks.
             let token_budget = if is_terminal {
@@ -220,7 +231,7 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
                     .and_then(|v| v.as_str().map(String::from))
                     .unwrap_or_else(|| format!("{s:?}")),
                 result,
-                error: None,
+                error,
                 token_budget,
             }))
         }
