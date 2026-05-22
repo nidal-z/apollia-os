@@ -10,7 +10,9 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use apollia_core::{A2AConfig, AIPResult, ProcessState, RuntimeEvent};
+use apollia_core::{
+    A2AConfig, AIPPart, AIPResult, DataPart, ProcessState, RuntimeEvent, TaskStatus,
+};
 
 use crate::a2a::telemetry::{make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle};
 use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn, DEFAULT_A2A_MAX_HOPS};
@@ -18,6 +20,32 @@ use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
+
+/// Reconstructs an [`AIPResult`] from the flattened text emitted by
+/// `RuntimeEvent::TaskCompleted`.
+///
+/// The coordinator serialises [`AIPPart::Data`] payloads to JSON when the
+/// agent returned a dict/list (cf. `coordinator::aip_result_to_text`).
+/// We try to recover the structured shape here so A2A callers (CLI, agent
+/// `ctx.a2a.invoke`) see the data part, not a text part wrapping JSON.
+fn build_aip_result_from_flattened_output(flattened: &str) -> AIPResult {
+    let trimmed = flattened.trim();
+    if !trimmed.is_empty() {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if value.is_object() || value.is_array() {
+                return AIPResult {
+                    task_id: String::new(),
+                    status: TaskStatus::Completed,
+                    output: vec![AIPPart::Data(DataPart { data: value })],
+                    error: None,
+                    artifacts: Vec::new(),
+                    input_required_data: None,
+                };
+            }
+        }
+    }
+    AIPResult::completed(flattened)
+}
 
 /// Configuration de contexte d'exécution pour un agent invoqué via A2A.
 ///
@@ -620,7 +648,7 @@ impl A2AInvoker {
             }
         };
 
-        let aip_result = AIPResult::completed(&delegate.output);
+        let aip_result = build_aip_result_from_flattened_output(&delegate.output);
 
         Ok(A2AInvocationResult {
             result: aip_result,

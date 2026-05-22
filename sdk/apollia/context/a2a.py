@@ -38,4 +38,20 @@ class A2AInterface(Protocol):
 
     async def list_skills(self) -> list[dict[str, Any]]: ...
 
-    def skill_as_tool(self, skill_id: str) -> dict[str, Any]: ...
+    async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:
+        """Return an LLM tool descriptor for an A2A skill.
+
+        The descriptor follows the Anthropic / OpenAI ``tool-use``
+        convention (``{"name", "description", "input_schema"}``) and is
+        intended to be passed to :func:`apollia.react` or directly to
+        ``ctx.llm.run_tools``.
+
+        The method is ``async``: the bridge resolves the skill against
+        the in-process A2A registry. Always call with ``await``::
+
+            tools = [
+                await ctx.a2a.skill_as_tool("pdf.read_text"),
+                await ctx.a2a.skill_as_tool("web.search"),
+            ]
+        """
+        ...

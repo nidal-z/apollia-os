@@ -88,8 +88,8 @@ class TestScaffoldAgent:
 
         agent_src = open(agent_path, encoding="utf-8").read()
         assert "class PlannerAgent:" in agent_src
-        assert "@orchestrated" in agent_src
-        assert 'execution_mode="orchestrated"' in agent_src
+        assert "@orchestrated(system_prompt=" in agent_src
+        assert "on_plan_complete" in agent_src
 
     def test_scaffold_invalid_type_raises(self, tmp_path: str) -> None:
         with pytest.raises(ValueError, match="Invalid agent type 'invalid'"):
@@ -153,10 +153,11 @@ class TestScaffoldWorkerAgent:
         assert "from apollia import DomainError, agent, skill" in src
         assert "@agent(" in src
         assert "class TestWorkerAgent:" in src
-        assert "RULES" in src
-        assert "supports_a2a=True" in src
+        assert 'agent_type="worker"' in src
         assert "@skill(" in src
-        assert "agent = agent_instance" in src
+        # No legacy `agent = MyClass()` trailer: the @agent decorator
+        # auto-instantiates the class (cf. ADR-107).
+        assert "agent_instance" not in src
 
     def test_scaffold_worker_agent_generated_is_valid_python(
         self, tmp_path: str,

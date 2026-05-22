@@ -56,13 +56,26 @@ class LlmProxy(Protocol):
         temperature: float = 0.7,
     ) -> LlmResponse: ...
 
-    def stream(
+    async def stream(
         self,
         messages: list[dict[str, Any]],
         *,
         backend: str | None = None,
         temperature: float = 0.7,
-    ) -> AsyncIterator[str]: ...
+    ) -> AsyncIterator[str]:
+        """Open a streaming completion.
+
+        The method itself is ``async`` (it must be ``await``-ed) and
+        returns an :class:`~collections.abc.AsyncIterator` over token
+        deltas. Typical usage::
+
+            stream = await ctx.llm.stream(messages=[...])
+            async for token in stream:
+                ctx.events.emit_token(token)
+
+        Cancellation propagates to the Rust backend on iterator close.
+        """
+        ...
 
     async def embed(
         self,

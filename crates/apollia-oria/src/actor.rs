@@ -1322,7 +1322,7 @@ impl ActorLoop {
         llm_router: &'a LlmRouter,
         budget: &'a StepBudget,
         reasoner: &'a Reasoner,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             self.replan_count += 1;
             let attempt = self.replan_count;
@@ -1396,7 +1396,7 @@ impl ActorLoop {
         llm_router: &'a LlmRouter,
         budget: &'a StepBudget,
         reasoner: &'a Reasoner,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + 'a>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + 'a>> {
         Box::pin(async move {
             let remaining: Vec<PlanStep> = self
                 .plan

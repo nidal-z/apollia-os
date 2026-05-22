@@ -343,12 +343,20 @@ fn now_rfc3339() -> String {
     )
 }
 
-/// Concatenates the text parts of an [`AIPResult`] into a single `String`.
+/// Flattens the parts of an [`AIPResult`] into a single `String` for the
+/// `output` field of [`RuntimeEvent::TaskCompleted`].
 ///
-/// Only [`AIPPart::Text`] parts contribute; file and data parts are ignored.
-/// Returns an empty string when the result contains no text parts.
+/// Strategy:
+/// - [`AIPPart::Text`] parts are concatenated with a single space separator.
+/// - When the result contains no `Text` part but does contain `Data`
+///   parts, the data is serialised as JSON so the caller (A2A invoker,
+///   audit trail, CLI) can still read the structured return value.
+/// - When both `Text` and `Data` are present, only the text is returned
+///   (callers that want the structured payload should consult the
+///   `AIPResult` directly, not the flattened text).
+/// - File parts are ignored.
 fn aip_result_to_text(result: &AIPResult) -> String {
-    result
+    let texts: Vec<&str> = result
         .output
         .iter()
         .filter_map(|part| {
@@ -358,8 +366,29 @@ fn aip_result_to_text(result: &AIPResult) -> String {
                 None
             }
         })
-        .collect::<Vec<_>>()
-        .join(" ")
+        .collect();
+    if !texts.is_empty() {
+        return texts.join(" ");
+    }
+
+    let data_values: Vec<&serde_json::Value> = result
+        .output
+        .iter()
+        .filter_map(|part| {
+            if let AIPPart::Data(dp) = part {
+                Some(&dp.data)
+            } else {
+                None
+            }
+        })
+        .collect();
+    if data_values.is_empty() {
+        return String::new();
+    }
+    if data_values.len() == 1 {
+        return serde_json::to_string(data_values[0]).unwrap_or_default();
+    }
+    serde_json::to_string(&data_values).unwrap_or_default()
 }
 
 #[cfg(test)]

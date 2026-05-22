@@ -521,6 +521,10 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
 struct AIPProductionBackend {
     bridge: Arc<AIPBridge>,
     agent_id: String,
+    /// Manifest snapshot captured at factory time. Used to drive the
+    /// `engine.execute_direct` vs `engine.execute_orchestrated_plan`
+    /// routing decision in [`AIPProductionBackend::execute`].
+    manifest: AgentManifest,
     allowed_tools: Vec<String>,
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
@@ -566,6 +570,7 @@ impl Clone for AIPProductionBackend {
         Self {
             bridge: Arc::clone(&self.bridge),
             agent_id: self.agent_id.clone(),
+            manifest: self.manifest.clone(),
             allowed_tools: self.allowed_tools.clone(),
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
@@ -603,6 +608,9 @@ struct BridgeRunner {
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
     agent_id: String,
+    /// Manifest snapshot — exposed via [`AIPAgent::manifest`] so ORIA
+    /// can drive the orchestrated path.
+    manifest: AgentManifest,
     allowed_tools: Vec<String>,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
@@ -798,6 +806,62 @@ impl AgentRunner for BridgeRunner {
     }
 }
 
+impl apollia_oria::engine::AIPAgent for BridgeRunner {
+    fn manifest(&self) -> AgentManifest {
+        self.manifest.clone()
+    }
+
+    fn has_on_plan_complete(&self) -> bool {
+        self.bridge.has_on_plan_complete()
+    }
+
+    fn call_on_plan_complete(
+        &self,
+        step_results: std::collections::HashMap<String, String>,
+    ) -> Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + '_>> {
+        // ORIA always calls this hook with an already-built ctx through the
+        // bridge. Here we build a minimal ctx — the orchestrated plan step
+        // outputs are formatted by the agent on its own, no `ctx.tools`
+        // need to be wired for the post-processing hook.
+        let bridge = Arc::clone(&self.bridge);
+        let agent_id = self.agent_id.clone();
+        let event_bus = self.event_bus.clone();
+
+        Box::pin(async move {
+            let ctx: PyObject = Python::with_gil(|py| {
+                let ctx = RuntimeContext::new_with_llm(
+                    None,
+                    Arc::new(StepBudgetView::unlimited()),
+                    Arc::new(ToolCallHelper::new(
+                        Arc::new(RouterModel(Arc::new(LlmRouter::empty()))),
+                        Arc::new(NoopToolInvoker),
+                    )),
+                    Arc::new(ObservabilityConfig::default()),
+                    event_bus,
+                    agent_id.clone().into(),
+                    None,
+                    None,
+                    None,
+                    agent_id.clone(),
+                    false,
+                    None,
+                    None,
+                    None,
+                    false,
+                );
+                Py::new(py, ctx)
+                    .map(|p| p.into_any())
+                    .expect("RuntimeContext PyObject construction failed")
+            });
+
+            match bridge.call_on_plan_complete(step_results, ctx).await {
+                Ok(result) => result,
+                Err(e) => AIPResult::failed("ON_PLAN_COMPLETE_FAILED", &e.to_string()),
+            }
+        })
+    }
+}
+
 impl ExecutionBackend for AIPProductionBackend {
     fn execute(
         &self,
@@ -808,6 +872,7 @@ impl ExecutionBackend for AIPProductionBackend {
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
             agent_id: self.agent_id.clone(),
+            manifest: self.manifest.clone(),
             allowed_tools: self.allowed_tools.clone(),
             tool_registry: self.tool_registry.clone(),
             audit_trail: self.audit_trail.clone(),
@@ -825,7 +890,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_data_dir: self.secrets_data_dir.clone(),
         };
 
-        // Build a per-task ORIAEngine wired with HITL components (execute_direct).
+        // Build a per-task ORIAEngine wired with HITL components.
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
         if let Some(pending) = self.pending_approvals.clone() {
             engine = engine.with_pending_approvals(pending);
@@ -834,13 +899,21 @@ impl ExecutionBackend for AIPProductionBackend {
             engine = engine.with_task_repository(repo);
         }
 
-        let budget = Arc::new(StepBudget::unlimited());
+        let execution_mode = self.manifest.execution_mode.clone();
 
         Box::pin(async move {
-            engine
-                .execute_direct(task, &runner, budget)
-                .await
-                .map_err(|e| e.to_string())
+            // Orchestrated agents (declared via `@orchestrated`) flow through
+            // ORIA's planning + ActorLoop. Everything else uses the direct
+            // path which invokes `__apollia_dispatch__` (skills, @on_message).
+            if execution_mode == "orchestrated" {
+                Ok(engine.execute(task, &runner).await)
+            } else {
+                let budget = Arc::new(StepBudget::unlimited());
+                engine
+                    .execute_direct(task, &runner, budget)
+                    .await
+                    .map_err(|e| e.to_string())
+            }
         })
     }
 }
@@ -958,6 +1031,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             Ok(AIPProductionBackend {
                 bridge,
                 agent_id: agent_id.clone(),
+                manifest: manifest.clone(),
                 allowed_tools,
                 llm_router,
                 event_bus,

@@ -444,7 +444,11 @@ impl ORIAEngine {
     /// ## Mode Orchestrated
     /// Délègue à [`execute_orchestrated_plan`] :
     /// validate → plan → persist → ActorLoop → concat outputs.
-    pub async fn execute(&self, task: AIPTask, agent: &dyn AIPAgent) -> AIPResult {
+    pub async fn execute(
+        &self,
+        task: AIPTask,
+        agent: &(dyn AIPAgent + Send + Sync),
+    ) -> AIPResult {
         let manifest = agent.manifest();
         let mode = classify(
             &task,
@@ -484,7 +488,7 @@ impl ORIAEngine {
     async fn execute_orchestrated_plan(
         &self,
         task: AIPTask,
-        agent: &dyn AIPAgent,
+        agent: &(dyn AIPAgent + Send + Sync),
         manifest: AgentManifest,
     ) -> AIPResult {
         // ── validate system_prompt ────────────────────────────────
@@ -691,7 +695,7 @@ impl ORIAEngine {
         &self,
         plan: ExecutionPlan,
         task: AIPTask,
-        agent: &dyn AIPAgent,
+        agent: &(dyn AIPAgent + Send + Sync),
         manifest: AgentManifest,
     ) -> AIPResult {
         let plan_id = plan.plan_id.clone();

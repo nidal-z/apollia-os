@@ -67,7 +67,7 @@ class MockA2A:
     async def list_skills(self) -> list[dict[str, Any]]:
         return list(self.skills_list)
 
-    def skill_as_tool(self, skill_id: str) -> dict[str, Any]:
+    async def skill_as_tool(self, skill_id: str) -> dict[str, Any]:
         card = self.skill_cards.get(skill_id, {})
         return {
             "name": f"a2a__{skill_id.replace('.', '__')}",
