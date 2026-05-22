@@ -514,6 +514,60 @@ fn merge_disabled(static_disabled: &[String], mut runtime_disabled: Vec<String>)
 // Real per-agent execution backend (AIPBridge + RuntimeContext)
 // ─────────────────────────────────────────────────────────────
 
+/// Wires an [`ORIAEngine`] with the LLM router and Reasoner needed for
+/// orchestrated execution. Extracted from
+/// [`AIPProductionBackend::execute`] so the BUG-004 regression
+/// (orchestrated agents falling through to `[NO_LLM]` because the
+/// Reasoner was never plugged in) has a unit-test guard.
+///
+/// Behaviour:
+/// - `llm_router == None` → engine returned unchanged, warning logged.
+///   Orchestrated execution will fail with `NO_LLM` at runtime.
+/// - `llm_router == Some(_)` and `route_precise` succeeds → engine
+///   gets both `with_llm_router` and `with_reasoner`. Orchestrated
+///   execution can plan.
+/// - `llm_router == Some(_)` but no `precise` backend resolved →
+///   engine gets `with_llm_router` only (step LLM calls work), no
+///   Reasoner. Orchestrated execution still fails with `NO_LLM` but
+///   any LLM step within `execute_direct` keeps working. Warning
+///   logged.
+fn wire_engine_with_llm(
+    mut engine: ORIAEngine,
+    llm_router: Option<Arc<LlmRouter>>,
+    agent_id: &str,
+    max_steps: u32,
+) -> ORIAEngine {
+    let Some(router_arc) = llm_router else {
+        tracing::warn!(
+            agent = %agent_id,
+            "no llm router configured — orchestrated execution will fail \
+             with NO_LLM if invoked"
+        );
+        return engine;
+    };
+    let owned_router: LlmRouter = match Arc::try_unwrap(router_arc) {
+        Ok(owned) => owned,
+        Err(shared) => (*shared).clone(),
+    };
+    match owned_router.route_precise() {
+        Ok(model) => {
+            engine = engine
+                .with_llm_router(owned_router)
+                .with_reasoner(model, max_steps);
+        }
+        Err(err) => {
+            tracing::warn!(
+                agent = %agent_id,
+                error = %err,
+                "no precise LLM backend resolved — orchestrated \
+                 execution will fail with NO_LLM if invoked"
+            );
+            engine = engine.with_llm_router(owned_router);
+        }
+    }
+    engine
+}
+
 /// Per-agent backend that calls Python via `AIPBridge`.
 ///
 /// Created once per agent at start time by `ProductionBackendFactory`.
@@ -908,37 +962,15 @@ impl ExecutionBackend for AIPProductionBackend {
             .unwrap_or(20);
 
         // Wire the Reasoner + LlmRouter so ORIA's orchestrated path can plan.
-        // Without this, engine.execute() fails with NO_LLM. We try to resolve
-        // the precise backend first (planning); if missing we still install
-        // the router so step LLM calls keep working, and emit a warning.
-        if let Some(router_arc) = self.llm_router.clone() {
-            let owned_router: LlmRouter = match Arc::try_unwrap(router_arc) {
-                Ok(owned) => owned,
-                Err(shared) => (*shared).clone(),
-            };
-            match owned_router.route_precise() {
-                Ok(model) => {
-                    engine = engine
-                        .with_llm_router(owned_router)
-                        .with_reasoner(model, step_budget_max);
-                }
-                Err(err) => {
-                    tracing::warn!(
-                        agent = %self.agent_id,
-                        error = %err,
-                        "no precise LLM backend resolved — orchestrated \
-                         execution will fail with NO_LLM if invoked"
-                    );
-                    engine = engine.with_llm_router(owned_router);
-                }
-            }
-        } else {
-            tracing::warn!(
-                agent = %self.agent_id,
-                "no llm router configured — orchestrated execution will fail \
-                 with NO_LLM if invoked"
-            );
-        }
+        // Extracted into `wire_engine_with_llm` for unit testing — see the
+        // BUG-004 regression guard in the test module at the bottom of this
+        // file.
+        engine = wire_engine_with_llm(
+            engine,
+            self.llm_router.clone(),
+            &self.agent_id,
+            step_budget_max,
+        );
 
         Box::pin(async move {
             // Orchestrated agents (declared via `@orchestrated`) flow through
@@ -1639,6 +1671,8 @@ async fn wait_for_shutdown_event(rx: &mut tokio::sync::broadcast::Receiver<Runti
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_core::TaskStatus;
+    use apollia_oria::engine::AIPAgent;
 
     #[test]
     fn test_noop_backend_is_clone() {
@@ -1652,5 +1686,152 @@ mod tests {
             apollia_runtime::supervisor::SupervisorError::ConfigError("bad config".to_string()),
         );
         assert!(err.to_string().contains("bad config"));
+    }
+
+    // ── BUG-004 regression guards ───────────────────────────────────────
+    //
+    // Two failure modes were reported by manual testing of orchestrated
+    // agents on the 0.5 runtime:
+    //
+    //  1. `apollia-os run <orchestrated>` returning
+    //     `[NO_HANDLER] agent has neither @skill nor @on_message handler`
+    //     — caused by AIPProductionBackend always dispatching to
+    //     `execute_direct` (which goes through __apollia_dispatch__) even
+    //     for orchestrated manifests. Fix: branch on
+    //     `manifest.execution_mode == "orchestrated"` and call
+    //     `engine.execute` instead.
+    //
+    //  2. `apollia-os run <orchestrated>` returning
+    //     `[NO_LLM] Orchestrated mode requires a configured LLM
+    //     (use with_reasoner())` — caused by the same fix routing to
+    //     `engine.execute` without wiring a Reasoner. Fix:
+    //     `wire_engine_with_llm` chains `.with_llm_router(...).
+    //     with_reasoner(model, ...)` whenever the LlmRouter exposes
+    //     a `precise` backend.
+    //
+    // The tests below cover the second mode at the engine boundary; the
+    // first mode is enforced by the explicit branch in
+    // `AIPProductionBackend::execute` (visible in the diff) and surfaces
+    // here as NO_LLM (engine-level error) rather than NO_HANDLER
+    // (SDK-level error) when no Reasoner is wired.
+
+    /// Without an LlmRouter, the engine returned by `wire_engine_with_llm`
+    /// has no Reasoner. Sanity check on the fast path.
+    #[test]
+    fn wire_engine_without_router_leaves_no_reasoner() {
+        let engine = ORIAEngine::new();
+        assert!(!engine.has_reasoner());
+
+        let wired = wire_engine_with_llm(engine, None, "agent-under-test", 20);
+        assert!(
+            !wired.has_reasoner(),
+            "wire_engine_with_llm(None) must not synthesise a Reasoner"
+        );
+    }
+
+    /// `LlmRouter::empty()` carries no `[llm.routing]` section, so
+    /// `route_precise()` errors out. The router is still attached (so
+    /// step LLM calls would surface a descriptive error rather than
+    /// silently noop), but no Reasoner is configured. Orchestrated
+    /// execution will fail with NO_LLM at engine.execute() time, which
+    /// is exactly what BUG-004's second mode reported.
+    #[test]
+    fn wire_engine_with_empty_router_attaches_router_but_no_reasoner() {
+        let engine = ORIAEngine::new();
+        let router = Arc::new(LlmRouter::empty());
+
+        let wired = wire_engine_with_llm(engine, Some(router), "agent-under-test", 20);
+
+        assert!(
+            !wired.has_reasoner(),
+            "an empty LlmRouter must not produce a Reasoner — \
+             would yield NO_LLM at runtime"
+        );
+    }
+
+    /// End-to-end behaviour: an orchestrated agent submitted to an
+    /// engine with no Reasoner must surface NO_LLM (not NO_HANDLER).
+    ///
+    /// Before the BUG-004 fix, `AIPProductionBackend::execute` routed
+    /// every task through `execute_direct`, which goes through the SDK
+    /// `__apollia_dispatch__`. An orchestrated manifest fell into the
+    /// `failed("NO_HANDLER", ...)` branch of `dispatch_task`. After the
+    /// fix, orchestrated tasks hit `engine.execute` directly; missing
+    /// LLM is the only remaining failure mode and it has a stable code.
+    #[tokio::test]
+    async fn orchestrated_without_reasoner_yields_no_llm_not_no_handler() {
+        let engine = ORIAEngine::new();
+        assert!(!engine.has_reasoner());
+
+        let manifest = AgentManifest {
+            name: "regression-orchestrated".to_string(),
+            version: "0.1.0".to_string(),
+            description: "BUG-004 regression guard".to_string(),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: false,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: None,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills: vec![],
+            execution_mode: "orchestrated".to_string(),
+            system_prompt: Some("You are a planning assistant.".to_string()),
+            tools_requiring_approval: vec![],
+            llm_backend: None,
+            packages: vec![],
+            memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
+            agent_class: None,
+            user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
+            secrets: vec![],
+        };
+
+        struct MockOrchestratedAgent {
+            manifest: AgentManifest,
+        }
+        impl AIPAgent for MockOrchestratedAgent {
+            fn manifest(&self) -> AgentManifest {
+                self.manifest.clone()
+            }
+        }
+        let agent = MockOrchestratedAgent {
+            manifest: manifest.clone(),
+        };
+
+        let task = AIPTask {
+            task_id: "test-task-bug004".to_string(),
+            ..AIPTask::default()
+        };
+
+        let result = engine.execute(task, &agent).await;
+
+        assert_eq!(
+            result.status,
+            TaskStatus::Failed,
+            "missing Reasoner must produce a Failed result"
+        );
+        let err = result.error.expect("Failed status must carry an AIPError");
+        assert_ne!(
+            err.code, "NO_HANDLER",
+            "regression: orchestrated agents must not fall through to \
+             SDK dispatch when the engine has no Reasoner"
+        );
+        assert!(
+            err.message.to_lowercase().contains("llm")
+                || err.code.to_uppercase().contains("LLM"),
+            "expected an LLM-related error, got code={} message={}",
+            err.code,
+            err.message
+        );
     }
 }

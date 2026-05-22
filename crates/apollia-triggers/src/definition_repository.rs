@@ -566,15 +566,21 @@ mod tests {
         );
     }
 
-    // ── Validation XOR agent/pipeline ────────────────────────────────
+    // ── Validation : agent obligatoire ─────────────────────────────────
+    //
+    // Historiquement, un trigger pouvait cibler soit un agent soit un
+    // pipeline (validation XOR). Les pipelines ont été absorbés dans
+    // les agents A2A (cf. ADR-049 et A2AInvoker) ; le champ `pipeline`
+    // a été retiré de `TriggerDefinitionRow`. Seul `agent` reste, et
+    // il est obligatoire.
 
     #[test]
-    fn test_validation_xor_agent_pipeline() {
+    fn test_validation_agent_required() {
         let (_dir, repo) = open_test_repo();
 
-        // GIVEN agent=None et pipeline=None
-        let def_neither = TriggerDefinitionRow {
-            id: "test-neither".to_string(),
+        // GIVEN agent=None
+        let def_no_agent = TriggerDefinitionRow {
+            id: "test-no-agent".to_string(),
             agent: None,
             enabled: true,
             on_busy: OnBusy::Queue,
@@ -585,17 +591,17 @@ mod tests {
             updated_at: String::new(),
         };
 
-        // WHEN insert → THEN erreur "agent or pipeline must be set"
-        let result = repo.insert(&def_neither);
+        // WHEN insert → THEN erreur "agent must be set"
+        let result = repo.insert(&def_no_agent);
         assert!(
-            matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("agent or pipeline must be set")),
-            "expected 'agent or pipeline must be set', got: {result:?}"
+            matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("agent must be set")),
+            "expected 'agent must be set', got: {result:?}"
         );
 
-        // GIVEN agent=Some et pipeline=Some
-        let def_both = TriggerDefinitionRow {
-            id: "test-both".to_string(),
-            agent: Some("a".to_string()),
+        // GIVEN agent=Some("") (chaîne vide) — même rejet attendu.
+        let def_empty_agent = TriggerDefinitionRow {
+            id: "test-empty-agent".to_string(),
+            agent: Some(String::new()),
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "cron".to_string(),
@@ -605,11 +611,10 @@ mod tests {
             updated_at: String::new(),
         };
 
-        // WHEN insert → THEN erreur "agent and pipeline are mutually exclusive"
-        let result = repo.insert(&def_both);
+        let result = repo.insert(&def_empty_agent);
         assert!(
-            matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("agent and pipeline are mutually exclusive")),
-            "expected 'mutually exclusive', got: {result:?}"
+            matches!(result, Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("agent must be set")),
+            "expected 'agent must be set' for empty agent, got: {result:?}"
         );
     }
 
