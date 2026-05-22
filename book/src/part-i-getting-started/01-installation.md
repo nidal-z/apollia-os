@@ -10,7 +10,7 @@ L'objectif : à la fin de ce chapitre, vous tapez `apollia --version` et obtenez
 
 - Python 3.10 ou supérieur
 - Rust toolchain (`rustup`) si vous compilez depuis les sources. Sinon, téléchargez le binaire précompilé pour votre OS.
-- Un système d'exploitation : macOS (Apple Silicon ou Intel), Linux (Debian / Ubuntu / Arch), Windows 11.
+- Un système d'exploitation : macOS (Apple Silicon ou Intel) ou Linux (Debian / Ubuntu / Arch). Sur Windows, utilisez WSL2 (cf. l'annexe G FAQ, section « Apollia tourne sur Windows ? »).
 
 Pas de Docker. Pas de Kubernetes. Pas de compte cloud.
 
@@ -26,17 +26,17 @@ cd apollia-os
 cargo build --release --workspace
 ```
 
-Le binaire est produit en `target/release/apollia`. Ajoutez-le à votre `PATH` :
+Le binaire est produit en `target/release/apollia-os`. Ajoutez-le à votre `PATH` :
 
 ```bash
-sudo cp target/release/apollia /usr/local/bin/   # macOS / Linux
+sudo cp target/release/apollia-os /usr/local/bin/   # macOS / Linux
 ```
 
 Vérification :
 
 ```bash
-apollia --version
-# apollia 0.1.0
+apollia-os --version
+# apollia-os 0.1.0
 ```
 
 ### Binaire précompilé
@@ -66,15 +66,17 @@ Le SDK est stdlib-only en surface : aucune dépendance PyPI lourde n'est tirée.
 
 ## Configurer un backend LLM
 
-Trois options, au choix selon votre contexte.
+La gestion des backends passe par `apollia-os llm backends`. Trois options, au choix selon votre contexte.
 
 ### Local (zéro réseau)
 
 Le runtime embarque `llama.cpp` et peut charger n'importe quel modèle GGUF. Téléchargez un modèle depuis Hugging Face (par exemple `mistral-7b-instruct-v0.2.Q4_K_M.gguf`) puis :
 
 ```bash
-apollia llm add local --path ~/models/mistral-7b.gguf
-apollia llm set-default local
+apollia-os llm backends create local \
+  --provider llama-cpp \
+  --model /chemin/absolu/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+apollia-os llm backends set-default local
 ```
 
 Pas de clé d'API à configurer. Vos prompts ne quittent pas la machine.
@@ -84,21 +86,38 @@ Pas de clé d'API à configurer. Vos prompts ne quittent pas la machine.
 Si vous avez déjà Ollama installé, déclarez-le :
 
 ```bash
-apollia llm add ollama --url http://localhost:11434 --model llama3:8b
-apollia llm set-default ollama
+apollia-os llm backends create ollama \
+  --provider ollama \
+  --model llama3:8b
+apollia-os llm backends set-default ollama
 ```
+
+Le runtime appelle Ollama sur `http://localhost:11434` par défaut. Pour pointer ailleurs, voyez `apollia-os llm backends create --help`.
 
 ### Cloud (Anthropic, OpenAI)
 
-Pour de la qualité ou des capacités multimodales (vision) :
+Pour la qualité ou les capacités multimodales (vision) :
 
 ```bash
-apollia secrets set anthropic_api_key=sk-ant-...
-apollia llm add anthropic --model claude-sonnet-4
-apollia llm set-default anthropic
+# Recommandé : passer la clé par variable d'environnement.
+export ANTHROPIC_API_KEY=sk-ant-...
+
+apollia-os llm backends create anthropic \
+  --provider anthropic \
+  --model claude-sonnet-4 \
+  --api-key-env ANTHROPIC_API_KEY
+apollia-os llm backends set-default anthropic
 ```
 
-Le secret est chiffré localement (keyring système). Aucune valeur n'apparaît dans les logs ni dans les manifests.
+`--api-key-env` est la voie recommandée : le runtime relit la clé depuis l'environnement à chaque appel, sans la persister en base. Si vous utilisez `--api-key <valeur>` directement, la clé est stockée en clair dans `~/.apollia/system.db` (déconseillé hors environnement de développement).
+
+### Diagnostiquer
+
+```bash
+apollia-os llm status                  # vue rapide : backends configurés, défaut, modèles prêts
+apollia-os llm backends list           # tableau des backends enregistrés
+apollia-os llm backends show <name>    # détail (provider, modèle, source de la clé)
+```
 
 ---
 
@@ -132,9 +151,9 @@ Si le rapport est vert, vous êtes prêt à passer aux quickstarts qui suivent.
 
 ## En cas de problème
 
-- **`apollia: command not found`** : le binaire n'est pas dans le `PATH`. Vérifiez avec `which apollia` puis ajoutez le bon dossier à votre `PATH` (souvent `/usr/local/bin` ou `~/.cargo/bin`).
-- **`ModuleNotFoundError: No module named 'apollia'`** : le SDK n'est pas installé dans l'environnement Python actif. Vérifiez avec `pip show apollia` et `python -c "import sys; print(sys.executable)"`.
-- **`apollia inspect` lève `AgentConfigError`** : un argument du décorateur `@agent` ou `@skill` est invalide. Le message indique précisément la cause. Voir le [chapitre 6](../part-ii-the-decorators/06-agent-decorator.md) pour les contraintes.
-- **Pas de réponse LLM** : vérifiez la configuration backend avec `apollia llm list`. Si vous utilisez un backend cloud, vérifiez le secret avec `apollia secrets list`.
+- **`apollia-os: command not found`** : le binaire n'est pas dans le `PATH`. Vérifiez avec `which apollia-os` puis ajoutez le bon dossier à votre `PATH` (souvent `/usr/local/bin` ou `~/.cargo/bin`).
+- **`ModuleNotFoundError: No module named 'apollia'`** : le SDK Python n'est pas installé dans l'environnement actif. Vérifiez avec `pip show apollia` et `python -c "import sys; print(sys.executable)"`.
+- **`python -m apollia inspect` lève `AgentConfigError`** : un argument du décorateur `@agent` ou `@skill` est invalide. Le message indique précisément la cause. Voir le [chapitre 6](../part-ii-the-decorators/06-agent-decorator.md) pour les contraintes.
+- **Pas de réponse LLM** : vérifiez la configuration backend avec `apollia-os llm status`. Si vous utilisez un backend cloud, vérifiez la source de la clé d'API avec `apollia-os llm backends show <name>`.
 
 Pour plus de détails sur la CLI, voir le [chapitre 33](../part-viii-runtime-rust/33-cli-complete.md). Pour la commande `apollia inspect` en détail, voir le [chapitre 27](../part-vii-tooling/27-apollia-inspect.md).

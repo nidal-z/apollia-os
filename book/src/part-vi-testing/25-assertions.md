@@ -111,7 +111,7 @@ async def test_audit_calls_bash_and_file_read():
 @pytest.mark.asyncio
 async def test_director_calls_pdf_worker():
     agent, ctx = mock(ResearchDirector)
-    ctx.a2a.responses = {"pdf.read_text": {"text": "...", "page_count": 5}}
+    ctx.a2a.invoke_responses = {"pdf.read_text": {"text": "...", "page_count": 5}}
     ctx.llm.run_tools_responses = ["Synthèse : ..."]
 
     await agent.invoke_message("Lis /tmp/report.pdf")

@@ -30,7 +30,8 @@ def emit_action_parse_error(
 Pousse un fragment de tokens vers l'app Desktop ou la CLI interactive. Le cas typique est `@on_message` qui boucle sur `ctx.llm.stream` :
 
 ```python
-async for chunk in ctx.llm.stream(messages=[...]):
+stream = await ctx.llm.stream(messages=[...])
+async for chunk in stream:
     ctx.events.emit_token(chunk)
 ```
 

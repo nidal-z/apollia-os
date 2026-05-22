@@ -23,108 +23,117 @@ Le Niveau 1 suffit pour opérer un système en production. Le Niveau 2 sert au d
 
 ## Commandes essentielles
 
-### `apollia start`
+### `apollia-os start`
 
 ```bash
-$ apollia start
-  Apollia OS v0.1.0 démarrage...
-  ✔ EventBus         prêt
-  ✔ AgentRegistry    prêt
-  ✔ Tool Registry    16 outils chargés
-  ✔ Memory Engine    prêt (FTS5)
-  ✔ LlmRouter        2 backends (local, anthropic)
-  ✔ TaskRouter       prêt
-  ✔ APIServer        /tmp/apollia.sock, localhost:7771
-  ─────────────────────────────────────────────────
-  ✔ Runtime prêt en 1.2s
+$ apollia-os start
 ```
 
-Si aucun backend LLM n'est configuré, le runtime démarre quand même avec un avertissement.
+Démarre le runtime en foreground. Les logs sortent sur stderr (`tracing` configurable via `RUST_LOG`). Si aucun backend LLM n'est configuré, le runtime démarre quand même avec un avertissement et `ctx.llm` lèvera une erreur à la première utilisation.
 
-### `apollia run`
+Pour stopper proprement : `Ctrl+C` ou `apollia-os stop` depuis un autre shell.
+
+### `apollia-os run`
 
 ```bash
-$ apollia run research-director "Analyse le rapport /tmp/q3.pdf"
-  → Tâche t-009 soumise
-  ⠿ Exécution en cours...
-  ✔ Terminé en 3.1s (4 étapes, 3 appels outils)
-
-  RÉSULTAT
-  Le rapport présente trois axes : ...
+$ apollia-os run research-director "Analyse le rapport /tmp/q3.pdf"
 ```
 
-Flags utiles : `--stream` (streaming token par token), `--json` (sortie machine), `--detach` (fire and forget).
+Soumet une tâche one-shot à l'agent et attend le résultat. Flags utiles : `--json` (sortie machine), `--verbose` (durée et compteurs de steps), `--debug` (traces ORIA sur stderr).
 
-### `apollia status`
+### `apollia-os status`
 
 ```bash
-$ apollia status
+$ apollia-os status
+  Runtime  ACTIVE
 
-  Apollia OS v0.1.0  ●  Running depuis 2h14m  ·  PID 12345
-
-  AGENTS (3 actifs)
-  ────────────────────────────────────────────────────────────
-  NOM                  ÉTAT       TÂCHES   DERNIÈRE ACTIVITÉ
-  research-director    ● actif    47       il y a 3min
-  pdf-worker           ● actif    12       il y a 1h
-  veille-ia            ○ dégradé   5       il y a 30min
-    └ ⚠ mcp_external indisponible (circuit ouvert)
-
-  SANTÉ OUTILS
-  ────────────────────────────────────────────────────────────
-  bash_executor    ✔  file_read     ✔  file_write    ✔
-  web_read         ✔  web_search    ✔  mcp_external  ✗  (retry dans 18s)
+  AGENTS (3 active)
+  NAME                   STATE
+  research-director      * active
+  pdf-worker             * active
+  veille-ia                stopped
 ```
 
-### `apollia inspect <agent.py>`
+Vue rapide de l'état du runtime + liste des agents enregistrés avec leur état (`* active`, ` stopped`, `! degraded`).
 
-Validation statique d'un fichier agent, sans démarrer le runtime (cf. [chapitre 27](../part-vii-tooling/27-apollia-inspect.md)).
+### `python -m apollia inspect <agent.py>`
 
-### `apollia new <name> --type <type>`
+Validation statique d'un fichier agent, sans démarrer le runtime (cf. [chapitre 27](../part-vii-tooling/27-apollia-inspect.md)). Disponible aussi via le binaire `apollia inspect` quand le SDK Python est installé dans le PATH.
+
+### `python -m apollia new <name> --type <type>`
 
 Scaffold d'un nouvel agent (cf. [chapitre 28](../part-vii-tooling/28-apollia-new-scaffolding.md)).
 
-### `apollia agent install`
+### `apollia-os agent install`
 
 ```bash
-$ apollia agent install ./my_worker.py
-  ✔ Manifest validé (worker, 2 skills)
-  ✔ Venv créé (pypdf>=4 installé)
-  ✔ Agent enregistré (état: ACTIVE)
-  ✔ Skills indexées (my.skill_a, my.skill_b)
+$ apollia-os agent install ./my_worker.py
+Agent 'my-worker' v0.1.0 installed successfully
 ```
 
-### `apollia invoke <agent> <skill> [args...]`
+Une ligne en cas de succès. En cas d'erreur, le message indique précisément la cause (`manifest invalid`, `venv setup failed`, etc.).
+
+Pour activer l'agent au prochain boot (et le rendre invocable immédiatement) :
 
 ```bash
-$ apollia invoke pdf-worker pdf.read_text path=/tmp/report.pdf
-  {"text": "...", "page_count": 12}
+$ apollia-os agent enable my-worker
 ```
 
-Convention : `key=value` à plat ou `--json` pour un payload JSON complet.
+### `apollia-os agent list`
 
-### `apollia permissions list`
+```bash
+$ apollia-os agent list
+  NAME                     VERSION    STATUS       AUTO-LOAD  SOURCE
+  apollia-guide            0.2.0      active       yes        installed
+  pdf-worker               0.1.0      active       yes        installed
+  veille-ia                0.2.0      active       yes        installed
+```
+
+Cinq colonnes : nom, version, statut runtime, auto-load au boot (oui/non), source d'installation (`installed`, `bundled`, `dev`).
+
+Pour la liste des skills A2A exposées par les workers actifs : `apollia-os a2a skills`.
+
+### `apollia-os a2a invoke <skill_id> --args '<JSON>'`
+
+```bash
+$ apollia-os a2a invoke pdf.read_text --args '{"path": "/tmp/report.pdf"}'
+  Skill     : pdf.read_text
+  Worker    : pdf-worker
+  Status    : completed
+  Duration  : 84 ms
+  Output    :
+    [
+      {
+        "type": "data",
+        "data": { "text": "...", "page_count": 12 }
+      }
+    ]
+```
+
+Le worker cible est résolu automatiquement à partir du `skill_id` (pas besoin de le nommer). `--args '<JSON>'` passe le payload, `--args-file` accepte un chemin (ou `-` pour stdin), `--json` retourne la sortie machine complète.
+
+### `apollia-os permissions list`
 
 Le moteur de permissions enregistre vos choix "Toujours autoriser" dans `governance.db`. La sous-commande `permissions` les inspecte et révoque.
 
 ```bash
-$ apollia permissions list
+$ apollia-os permissions list
   ID    OUTIL          PORTÉE    ARGUMENT             EXPIRATION   CRÉÉ LE
   1     file_write     project   /tmp/ @ /mon/proj    permanente   2026-04-25
   2     web_search     global    (tous)               permanente   2026-04-22
 
-$ apollia permissions revoke 1
+$ apollia-os permissions revoke 1
   ✔ Règle #1 révoquée
 ```
 
-### `apollia task resume <id>`
+### `apollia-os task resume <id>`
 
 ```bash
-$ apollia task list --pending-approval
+$ apollia-os task list --pending-approval
   ID        AGENT              DEPUIS   PROMPT
   t-042     invoice-router     14min    Où ranger la facture Acme Corp ?
 
-$ apollia task resume t-042 --approve --input "frais-bureau"
+$ apollia-os task resume t-042 --approve --input "frais-bureau"
   ✔ Tâche t-042 reprise
 ```
 
@@ -159,9 +168,9 @@ Les sorties humaines (tableaux, progress bars, couleurs) sont activées uniqueme
 Usage en script bash :
 
 ```bash
-apollia run research-director "..." --wait || {
+apollia-os run research-director "..." --wait || {
   echo "Tâche échouée (code: $?)"
-  apollia audit --last 1
+  apollia-os audit --last 1
 }
 ```
 
@@ -169,36 +178,40 @@ apollia run research-director "..." --wait || {
 
 ## Aide intégrée
 
-`apollia` sans arguments affiche un résumé. Pas besoin de mémoriser `--help` pour commencer :
+`apollia-os --help` liste les commandes disponibles. Extrait :
 
 ```
-Apollia OS v0.1.0, runtime d'agents IA autonomes souverains
+Usage: apollia-os [OPTIONS] <COMMAND>
 
-DÉMARRAGE RAPIDE
-  apollia start                       Démarrer le runtime
-  apollia agent install <agent.py>    Déployer un agent
-  apollia run <agent> "<tâche>"       Lancer une tâche
-  apollia status                      Vue d'ensemble
+Commands:
+  start        Start the runtime in foreground
+  stop         Stop a running runtime
+  status       Display runtime and agent status
+  run          Submit a task to an agent and wait for the result
+  auth         OAuth2 PKCE authentication management (login, status, logout)
+  agent        Agent management (list, start, stop, info, install, uninstall,
+               enable, disable, update, new)
+  a2a          Agent-to-Agent skill discovery and direct invocation
+  task         Task management (list, status, cancel)
+  tools        Native tool governance (list, enable, disable, config, reload,
+               credentials, describe)
+  audit        Audit trail (list, stats)
+  memory       Memory management
+  llm          LLM backend diagnostics (status, ping, chat)
+  model        Local model file management
+  trigger      Trigger management (reload)
+  notify       Notification channel management (test, list, logs)
+  stt          Speech-to-Text management
+  permissions  Permission rule management (list, revoke, audit)
+  chat         Interactive chat session with an LLM
+  mcp          MCP server management
+```
 
-TOUTES LES COMMANDES
-  start, stop, restart, status, run, health
-  agent       list | install | uninstall | info | logs | validate
-  task        list | status | result | cancel | retry | resume
-  tools       list | enable | disable | config | reload | describe
-  permissions list | revoke | audit
-  memory      inspect | list | clear | export | import
-  audit       list | stats | export
-  secrets     list | set | unset
-  llm         list | add | remove | set-default
-  trigger     list | add | enable | disable | fire
-  notify      test | list
-  stt         transcribe | status
+Côté SDK Python (sans runtime démarré) :
 
-DÉVELOPPEMENT (sous-module Python)
-  python -m apollia inspect <agent.py>
-  python -m apollia new <name> --type <worker|conversational|react|orchestrated>
-
-FLAGS GLOBAUX : --json, -q/--quiet, -v/--verbose, --debug, --no-color
+```
+python -m apollia inspect <agent.py>
+python -m apollia new <name> --type <worker|conversational|react|orchestrated>
 ```
 
 ---

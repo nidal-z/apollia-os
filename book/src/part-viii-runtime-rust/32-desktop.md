@@ -22,7 +22,7 @@ main() Tauri
 
 Conséquences pratiques :
 
-- Pas besoin de démarrer `apollia start` séparément.
+- Pas besoin de démarrer `apollia-os start` séparément.
 - La CLI reste fonctionnelle en parallèle via `/tmp/apollia.sock`.
 - Fermer la fenêtre masque l'interface mais le runtime continue en arrière-plan dans le system tray.
 
@@ -97,9 +97,9 @@ Un seul runtime, deux interfaces d'accès :
 
 ```bash
 # Depuis le terminal, pendant que le Desktop tourne
-apollia agent list       # lit via /tmp/apollia.sock
-apollia task list        # même runtime que le Desktop
-apollia trigger fire xyz # déclenché dans le même runtime
+apollia-os agent list       # lit via /tmp/apollia.sock
+apollia-os task list        # même runtime que le Desktop
+apollia-os trigger fire xyz # déclenché dans le même runtime
 ```
 
 Les deux interfaces voient le même état en temps réel. Un agent démarré via la CLI apparaît immédiatement dans la liste du Desktop.

@@ -61,10 +61,11 @@ Sous le capot, `chat` assemble `[{"role": "system", ...}, {"role": "user", ...}]
 
 ## `stream(messages)` : itération token par token
 
-`stream` retourne un `AsyncIterator[str]`. Chaque itération produit un fragment de tokens, dans l'ordre. La méthode elle-même est **synchrone** : c'est l'itération qui est `async for`.
+`stream` est une méthode **async** qui retourne un `AsyncIterator[str]`. Pattern : `await` la méthode pour obtenir l'itérateur, puis `async for` pour consommer les tokens.
 
 ```python
-async for token in ctx.llm.stream(messages=[...]):
+stream = await ctx.llm.stream(messages=[...])
+async for token in stream:
     ctx.events.emit_token(token)
 ```
 

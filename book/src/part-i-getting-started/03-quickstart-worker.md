@@ -99,12 +99,12 @@ Vous devriez voir un agent `pdf-quickstart` avec deux skills (`pdf.read_text`, `
 Installation et invocation :
 
 ```bash
-apollia agent install ./pdf_worker.py
-apollia invoke pdf-quickstart pdf.count_pages path=/tmp/some.pdf
-# {"page_count": 12}
+apollia-os agent install ./pdf_worker.py
+apollia-os agent enable pdf-quickstart
+apollia-os a2a invoke pdf.count_pages --args '{"path": "/tmp/some.pdf"}'
 ```
 
-Le runtime installe le worker (copie du fichier, création du venv isolé, installation de `pypdf`), résout les outils, puis dispatch l'invocation à la bonne skill.
+Le runtime installe le worker (copie du fichier, création du venv isolé, installation de `pypdf`), `enable` charge le manifeste dans le registre actif, puis `a2a invoke` route vers la skill cible. Le retour est le payload structuré `{"page_count": 12, ...}` produit par la méthode Python ; ajoutez `--json` pour la forme machine complète.
 
 ---
 
@@ -120,7 +120,7 @@ async def read_text(
         str | None,
         "1-based page selection, e.g. '1-5,7'. Omit to read all pages.",
     ] = None,
-    ctx: Ctx = None,
+    ctx: Ctx,
 ) -> dict:
     ...
 ```

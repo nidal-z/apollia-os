@@ -59,13 +59,14 @@ class Coach:
         ctx: Ctx,
     ) -> str:
         full = ""
-        async for token in ctx.llm.stream(
+        stream = await ctx.llm.stream(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 *history,
                 {"role": "user", "content": message},
             ],
-        ):
+        )
+        async for token in stream:
             ctx.events.emit_token(token)
             full += token
         await ctx.memory.record(
@@ -103,14 +104,17 @@ python -m apollia inspect coach.py
 
 Vous devriez voir un agent `coach` avec un `@on_message` détecté et aucune skill (normal, l'agent est purement conversationnel).
 
-Lancez ensuite le chat interactif :
+Installez l'agent et lancez une invocation :
 
 ```bash
-apollia chat coach.py
-> Comment fonctionne le pattern Director ?
+apollia-os agent install ./coach.py
+apollia-os agent enable coach
+apollia-os run coach "Comment fonctionne le pattern Director ?"
 ```
 
-Le runtime charge l'agent, configure votre backend LLM par défaut, et démarre une session. Vos questions partent à `chat`, le LLM répond en flux, l'UI affiche chaque token au fur et à mesure.
+Le runtime charge l'agent (création du venv isolé), `enable` l'active dans le registre, puis `run` envoie le message au handler `@on_message`. La réponse arrive en streaming.
+
+Pour une vraie session multi-tour, ouvrez l'app Desktop et sélectionnez l'agent dans la sidebar. `apollia-os run` est un appel one-shot, pratique pour scripter ou tester.
 
 ---
 

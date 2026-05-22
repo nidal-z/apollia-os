@@ -6,7 +6,7 @@ Questions récurrentes côté auteurs d'agents et opérateurs. Si la vôtre n'y 
 
 ## Côté SDK / écriture d'agents
 
-### Mon agent n'est pas trouvé après `apollia agent install`, pourquoi ?
+### Mon agent n'est pas trouvé après `apollia-os agent install`, pourquoi ?
 
 Trois causes courantes :
 
@@ -35,7 +35,7 @@ if ctx.budget.steps_remaining <= 0:
     raise DomainError("BUDGET_EXHAUSTED", "Step budget consumed")
 ```
 
-Pour arrêter une tâche depuis l'extérieur : `apollia task cancel <task-id>`.
+Pour arrêter une tâche depuis l'extérieur : `apollia-os task cancel <task-id>`.
 
 ### Comment partager du code entre deux workers ?
 
@@ -49,9 +49,9 @@ Trois options :
 
 Le boundary du dispatcher trappe automatiquement les `JSONDecodeError` issues du parsing de tool calls et émet `emit_action_parse_error`. Si vous parsez du JSON manuellement, catchez explicitement et levez `DomainError("INVALID_LLM_OUTPUT", ...)` pour ne pas remonter en erreur générique.
 
-### Pourquoi `ctx.a2a.skill_as_tool` n'est-il pas async ?
+### Pourquoi `ctx.a2a.skill_as_tool` est-il async ?
 
-Parce que la transformation `skill_id → tool descriptor` se fait en mémoire à partir du manifeste de l'agent cible déjà chargé. Pas d'I/O. Mettre `await` lève `TypeError`.
+Parce que le bridge interroge le registre A2A en interne (le runtime Rust enveloppe l'appel dans un `future_into_py`). Du point de vue de l'agent Python, la méthode est `async def` : oublier le `await` insère une coroutine dans la liste `tools=[...]` et le LLM router lèvera `tool spec dict missing 'name' key`. Toujours `await ctx.a2a.skill_as_tool(...)`.
 
 ### Quand utiliser `@orchestrated` vs `apollia.react` ?
 
@@ -89,14 +89,14 @@ Tout vit dans `~/.apollia/`. Sauvegardez ce dossier (rsync, time machine, restic
 
 ### Puis-je faire tourner Apollia sur un serveur sans UI ?
 
-Oui. La CLI `apollia start` démarre le runtime en arrière-plan. L'API REST sur `localhost:7771` permet de piloter depuis un script ou un autre service. Le Desktop est optionnel.
+Oui. La CLI `apollia-os start` démarre le runtime en arrière-plan. L'API REST sur `localhost:7771` permet de piloter depuis un script ou un autre service. Le Desktop est optionnel.
 
 ### Comment savoir ce qu'un agent a fait ?
 
 Trois outils :
 
-- `apollia audit --last N` : les N derniers appels d'outils, datés et résultatés.
-- `apollia task trace <task-id>` : la trajectoire complète d'une tâche (pensées, tool calls, observations).
+- `apollia-os audit --last N` : les N derniers appels d'outils, datés et résultatés.
+- `apollia-os task trace <task-id>` : la trajectoire complète d'une tâche (pensées, tool calls, observations).
 - `~/.apollia/memory/<agent>.db` : la mémoire propre à l'agent, consultable en SQLite.
 
 ### Combien Apollia coûte-t-il ?
@@ -106,20 +106,20 @@ Le runtime et le SDK sont open-source MIT, gratuit. Le coût d'opération vient 
 ### Comment déboguer un agent qui ne répond pas ?
 
 ```bash
-apollia agent logs <agent-name> --tail 100
+apollia-os agent logs <agent-name> --tail 100
 ```
 
-Affiche les logs `ctx.logger.*` du worker, plus les erreurs runtime. Combinez avec `apollia status` pour voir l'état (`ACTIVE`, `DEGRADED`, `STOPPED`) et `apollia task list --pending` pour voir les tâches bloquées.
+Affiche les logs `ctx.logger.*` du worker, plus les erreurs runtime. Combinez avec `apollia-os status` pour voir l'état (`ACTIVE`, `DEGRADED`, `STOPPED`) et `apollia-os task list --pending` pour voir les tâches bloquées.
 
 ### Mon agent reste en `STOPPING` éternellement
 
 Probablement une tâche qui ne se termine pas et qui dépasse le drain de 30s. Forcez :
 
 ```bash
-apollia stop --force
+apollia-os stop --force
 ```
 
-Puis investiguez avec `apollia task trace <last-task-id>` pour comprendre où elle s'est bloquée. Causes courantes : appel HTTP sans timeout, boucle infinie côté agent, deadlock avec un autre agent (A2A cyclique).
+Puis investiguez avec `apollia-os task trace <last-task-id>` pour comprendre où elle s'est bloquée. Causes courantes : appel HTTP sans timeout, boucle infinie côté agent, deadlock avec un autre agent (A2A cyclique).
 
 ### Comment intégrer Apollia dans une stack CI ?
 

@@ -87,7 +87,7 @@ class WebResearch:
         self,
         company_name: Annotated[str, "Legal or commercial name of the company."],
         max_signals: Annotated[int, "Maximum number of signals to return (default 5)."] = 5,
-        ctx: Ctx = None,
+        ctx: Ctx,
     ) -> dict:
         trusted = await ctx.datasources.get("trusted_news_sources")
 
@@ -228,7 +228,7 @@ class CrmLookup:
         self,
         contact_email: Annotated[str, "Email of the contact in CRM."],
         since_days: Annotated[int, "Look back window in days (default 365)."] = 365,
-        ctx: Ctx = None,
+        ctx: Ctx,
     ) -> dict:
         token = ctx.secrets.get("hubspot_api_token")
         if not token:
@@ -363,24 +363,29 @@ class MeetingPrep:
 ## Installation
 
 ```bash
-apollia agent install ./agents/web-research/web_research.py
-apollia agent install ./agents/crm-lookup/crm_lookup.py
-apollia agent install ./agents/meeting-prep/meeting_prep.py
+apollia-os agent install ./agents/web-research/web_research.py
+apollia-os agent install ./agents/crm-lookup/crm_lookup.py
+apollia-os agent install ./agents/meeting-prep/meeting_prep.py
 
-# Configurer le secret CRM
-apollia secrets set hubspot_api_token=pat-eu1-...
+# Configurer le secret CRM (prompt interactif)
+apollia-os tools credentials set
+# Saisir la clé : hubspot_api_token
+# Saisir la valeur : pat-eu1-...
 ```
 
 Vérification :
 
 ```bash
-apollia agent list
-# web-research    0.1.0    worker    [3 skills]
-# crm-lookup      0.1.0    worker    [2 skills]
-# meeting-prep    0.1.0    worker    [2 skills]
+apollia-os agent list
+#   NAME              VERSION    STATUS    AUTO-LOAD  SOURCE
+#   web-research      0.1.0      active    yes        installed
+#   crm-lookup        0.1.0      active    yes        installed
+#   meeting-prep      0.1.0      active    yes        installed
+
+apollia-os a2a skills | grep -E "^(web|crm|prep)\."
 ```
 
-Si l'un échoue, `apollia inspect` sur le fichier concerné donnera le détail.
+Si un agent échoue à l'installation, `python -m apollia inspect <fichier>.py` donnera le détail.
 
 ---
 
@@ -408,7 +413,8 @@ async def test_research_company_returns_basic_info():
     result = await agent.invoke_skill("web.research.company", company_name="Acme")
 
     assert_result_completed(result)
-    assert "Acme" in result["data"]["description"]
+    data = result["output"][0]["data"]
+    assert "Acme" in data["description"]
 
 
 @pytest.mark.asyncio

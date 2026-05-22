@@ -28,7 +28,7 @@ from apollia import agent, orchestrated
     """
 )
 class EmailTriage:
-    def on_plan_complete(self, step_results: dict) -> str:
+    async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
         return "\n\n".join(s.get("text", "") for s in step_results.values())
 ```
 
@@ -57,7 +57,7 @@ Si la classe définit une méthode `on_plan_complete(self, step_results: dict) -
 Par défaut (sans hook), ORIA concatène les textes des étapes dans l'ordre. Vous overridez si vous voulez formater, filtrer, ou agréger différemment.
 
 ```python
-def on_plan_complete(self, step_results: dict) -> str:
+async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
     counts = {"archived": 0, "replied": 0, "flagged": 0}
     for step in step_results.values():
         action = step.get("action")

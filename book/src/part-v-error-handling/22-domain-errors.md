@@ -85,8 +85,11 @@ Dict JSON-sérialisable optionnel. Contient les valeurs qu'un programme appelant
 Côté CLI :
 
 ```bash
-apollia invoke pdf-worker pdf.read_text path=/tmp/nope.pdf
-# Failed (FILE_NOT_FOUND): PDF not found: /tmp/nope.pdf
+apollia-os a2a invoke pdf.read_text --args '{"path": "/tmp/nope.pdf"}'
+#   Skill     : pdf.read_text
+#   Worker    : pdf-worker
+#   Status    : failed
+#   Error     : [FILE_NOT_FOUND] PDF not found: /tmp/nope.pdf
 # exit code: 1
 ```
 

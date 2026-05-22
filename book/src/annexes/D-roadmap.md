@@ -11,8 +11,8 @@ Stabilisation et qualité de vie.
 - **Templates `apollia new` raffraîchis.** Les templates actuels portent encore quelques résidus de la v0.4 (cf. [chapitre 28](../part-vii-tooling/28-apollia-new-scaffolding.md)). Un patch dédié alignera les 4 templates sur le canon decorator-first v0.5.
 - **Wiki technique publié.** Les pages référencées dans le book (`Briques-SDK`, `Briques-Tool-Registry`, `Briques-MCP-Client`, `Config-apollia-toml`, `API-HTTP-Reference`, `Briques-CLI`, `Briques-ORIA-Engine`, `Briques-HITL-Engine`) seront mises en ligne au fil des semaines suivant la release.
 - **ADRs publiées.** Les ADRs 001 à 112 (architecture decisions records) seront accessibles publiquement sur le repo GitHub.
-- **`apollia migrate` CLI.** Outil pour migrer un agent d'une version mineure à une autre (par exemple `apollia migrate v0.1 v0.2 <agent.py>`).
-- **`apollia eval` framework.** Premier squelette intégré pour les eval suites (cf. [chapitre 26](../part-vi-testing/26-eval-suites.md)). Standardise la structure et le reporting.
+- **`apollia-os migrate` CLI.** Outil pour migrer un agent d'une version mineure à une autre (par exemple `apollia-os migrate v0.1 v0.2 <agent.py>`).
+- **`apollia-os eval` framework.** Premier squelette intégré pour les eval suites (cf. [chapitre 26](../part-vi-testing/26-eval-suites.md)). Standardise la structure et le reporting.
 - **Vision multimodale étendue.** Aujourd'hui Anthropic et OpenAI seulement. Ajout d'Ollama vision, puis llama.cpp local quand un modèle GGUF compatible est packagé.
 - **STT amélioré.** Modèles whisper-rs supplémentaires, transcription incrémentale, support de plus de formats audio.
 
@@ -24,7 +24,7 @@ Extensions de surface.
 
 - **Plus de connecteurs natifs.** Gmail, Outlook, Google Drive, OneDrive, Notion, Slack. Aujourd'hui chacun se reconstruit via `web_read` + clés d'API. Demain, intégrations natives avec OAuth flow et cache local.
 - **Vector store local.** Aujourd'hui `ctx.memory` est full-text SQLite (FTS5). Ajout d'un index vectoriel local (sqlite-vss ou GGUF embeddings) pour la recherche sémantique sans dépendre d'un service externe.
-- **Marketplace d'agents.** Registre communautaire où des auteurs publient des agents, des templates de workspace, des recettes. Installation en une commande : `apollia agent install community:<name>`.
+- **Marketplace d'agents.** Registre communautaire où des auteurs publient des agents, des templates de workspace, des recettes. Installation en une commande : `apollia-os agent install community:<name>`.
 - **Multi-utilisateur.** Aujourd'hui chaque installation suppose un opérateur unique. Notion de profils utilisateur dans `governance.db`, permissions par utilisateur, partage d'agents avec ACL.
 - **API webhook sortants enrichis.** Notifications via Slack, Discord, Microsoft Teams, en plus des notifications desktop et webhook génériques.
 - **Pipeline DAG natif.** Aujourd'hui les pipelines sont déclaratifs côté TOML. Ajout d'une API REST pour les composer dynamiquement, et d'une UI Desktop pour les visualiser.

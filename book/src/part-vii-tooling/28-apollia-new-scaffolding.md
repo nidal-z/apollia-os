@@ -76,17 +76,16 @@ Vous éditez la skill, vous éditez le test, vous lancez `pytest test_my_agent.p
 
 ---
 
-## Status de l'outil dans v0.1.0
+## Conventions de fichier
 
-L'outil est fonctionnel mais les templates ont accumulé un peu de dette pendant la refonte SDK v0.5. Trois divergences connues à corriger dans une révision proche :
+Le squelette est posé selon le type :
 
-1. Certains templates ajoutent encore une ligne `agent = MyAgent()` à la fin du fichier, qui devient redondante avec l'auto-instanciation du décorateur `@agent` (cf. [chapitre 6](../part-ii-the-decorators/06-agent-decorator.md)).
-2. Le template `orchestrated` utilise une ancienne forme `@orchestrated` en method decorator (au lieu de class decorator).
-3. Le template `worker` passe certains arguments à `@skill` qui ne sont plus dans la signature courante (`name=`, `input_modes=`).
+- `--type worker` : `./agents/<name>.py` + `./agents/tests/test_<module>.py`.
+- `--type react`, `--type conversational`, `--type orchestrated` : `./<module>_agent.py` + `./test_<module>_agent.py` à la racine.
 
-**Recommandation pratique pour la release v0.1.0** : utilisez `apollia new` pour avoir le squelette de base, puis nettoyez à la main en suivant le pattern canonique du [chapitre correspondant de la Partie II](../part-ii-the-decorators/06-agent-decorator.md). Lancez `apollia inspect` après nettoyage pour vérifier que le manifeste est conforme.
+Le nom passé en argument est en kebab-case (`my-agent`). Le générateur dérive automatiquement le module Python (`my_agent`) et la classe (`MyAgentAgent`, avec le suffixe `Agent` ajouté quand il n'est pas déjà présent).
 
-Un patch dédié au raffraîchissement des templates est prévu pour une révision post-v0.1.0.
+Chaque squelette produit un fichier qui passe `python -m apollia inspect` immédiatement, sans modification.
 
 ---
 
@@ -108,7 +107,7 @@ Une fois le fichier généré, les étapes typiques :
 4. **Annoter les paramètres** avec `Annotated[T, "..."]` et `examples=` (cf. [Partie IV](../part-iv-llm-friendly-design/19-annotated-descriptions.md)).
 5. **Valider** : `python -m apollia inspect mon_agent.py`.
 6. **Tester** : `pytest test_mon_agent.py`.
-7. **Installer** : `apollia agent install ./mon_agent.py`.
+7. **Installer** : `apollia-os agent install ./mon_agent.py`.
 
 ---
 

@@ -45,8 +45,8 @@ class ResearchDirector:
             system=SYSTEM_PROMPT,
             user=message,
             tools=[
-                ctx.a2a.skill_as_tool("pdf.read_text"),
-                ctx.a2a.skill_as_tool("web.search"),
+                await ctx.a2a.skill_as_tool("pdf.read_text"),
+                await ctx.a2a.skill_as_tool("web.search"),
             ],
             max_steps=10,
         )
@@ -67,7 +67,7 @@ C'est tout. Pas de boucle manuelle, pas de parsing JSON, pas de gestion de tool 
 3. Le résultat du worker est ré-injecté dans le LLM.
 4. Boucle jusqu'à une réponse finale, ou jusqu'à `max_steps` (par défaut 15).
 
-`ctx.a2a.skill_as_tool(skill_id)` est **synchrone**. Elle transforme un id de skill (`"pdf.read_text"`) en descripteur tool au format Anthropic / OpenAI (cf. [chapitre 14](../part-iii-the-ctx-protocol/14-ctx-a2a.md)).
+`ctx.a2a.skill_as_tool(skill_id)` est **asynchrone** : le bridge consulte le registre A2A. Toujours préfixer par `await`. Elle transforme un id de skill (`"pdf.read_text"`) en descripteur tool au format Anthropic / OpenAI (cf. [chapitre 14](../part-iii-the-ctx-protocol/14-ctx-a2a.md)).
 
 **Aucun parsing manuel.** Le runtime LLM gère le format tool-use natif (Anthropic, OpenAI), Apollia n'utilise pas de parsing JSON dans des balises XML maison.
 
@@ -83,9 +83,13 @@ Ce director suppose que **deux workers sont installés** sur la machine :
 Vérifiez l'installation avant de lancer le director :
 
 ```bash
-apollia agent list
-# pdf-quickstart    0.1.0    worker    [skills: pdf.read_text, pdf.count_pages]
-# web-search        0.1.0    worker    [skills: web.search, web.fetch]
+apollia-os agent list
+#   NAME              VERSION    STATUS    AUTO-LOAD  SOURCE
+#   pdf-quickstart    0.1.0      active    yes        installed
+#   web-search        0.1.0      active    yes        installed
+
+# Pour les skills exposées :
+apollia-os a2a skills
 ```
 
 Si l'un des workers manque, l'agent démarre quand même (la déclaration A2A est résolue à l'invocation, pas au boot), mais le LLM aura les tools dans son contexte sans pouvoir les exécuter. Soit vous les installez, soit vous adaptez les `skill_as_tool` à des workers que vous avez.
@@ -96,7 +100,9 @@ Si l'un des workers manque, l'agent démarre quand même (la déclaration A2A es
 
 ```bash
 python -m apollia inspect research_director.py
-apollia chat research_director.py
+apollia-os agent install ./research_director.py
+apollia-os agent enable research-director
+apollia-os run research-director
 > Compare les approches de cache LLM décrites dans /tmp/paper1.pdf et /tmp/paper2.pdf.
 ```
 
@@ -112,7 +118,7 @@ L'UI affiche les étapes ReAct au fil de l'eau (chaque appel d'outil, chaque ré
 
 ```python
 all_skills = await ctx.a2a.list_skills()
-tools = [ctx.a2a.skill_as_tool(s["skill_id"]) for s in all_skills if s["skill_id"].startswith(("pdf.", "web."))]
+tools = [await ctx.a2a.skill_as_tool(s["skill_id"]) for s in all_skills if s["skill_id"].startswith(("pdf.", "web."))]
 ```
 
 **Réduire le budget :** `max_steps=5` force une réponse rapide même si le LLM voudrait fouiller plus. Utile pour des cas où la latence importe plus que l'exhaustivité.

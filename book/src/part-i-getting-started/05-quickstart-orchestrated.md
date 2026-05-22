@@ -40,7 +40,7 @@ briefing.
 )
 @orchestrated(system_prompt=SYSTEM_PROMPT)
 class Briefing:
-    def on_plan_complete(self, step_results: dict) -> str:
+    async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
         texts = [step.get("text", "") for step in step_results.values()]
         return "\n\n".join(t for t in texts if t)
 ```
@@ -69,8 +69,9 @@ Si vous ne définissez pas `on_plan_complete`, ORIA concatène les textes des é
 
 ```bash
 python -m apollia inspect briefing_agent.py
-apollia agent install ./briefing_agent.py
-apollia invoke briefing default "Donne-moi un briefing sur le Permanent Beta de Microsoft."
+apollia-os agent install ./briefing_agent.py
+apollia-os agent enable briefing
+apollia-os run briefing "Donne-moi un briefing sur le Permanent Beta de Microsoft."
 ```
 
 Le runtime ORIA :
@@ -106,7 +107,7 @@ Règle simple : si vous pouvez décrire la mission en 5 phrases d'intention, `@o
 **Custom `on_plan_complete` :** mettez en forme la réponse selon votre métier :
 
 ```python
-def on_plan_complete(self, step_results: dict) -> str:
+async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
     sections = []
     for step_id, step in step_results.items():
         if step.get("kind") == "fact":

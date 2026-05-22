@@ -175,7 +175,7 @@ Aucun acteur ne partage de mémoire mutable avec un autre, tout transite par les
 
 ## Le Supervisor
 
-Le Supervisor est le gardien du runtime. Il démarre les acteurs dans le bon ordre, surveille leur santé, les redémarre s'ils tombent, et orchestre l'arrêt graceful quand vous demandez `apollia stop`.
+Le Supervisor est le gardien du runtime. Il démarre les acteurs dans le bon ordre, surveille leur santé, les redémarre s'ils tombent, et orchestre l'arrêt graceful quand vous demandez `apollia-os stop`.
 
 ### Séquence de démarrage
 
@@ -198,7 +198,7 @@ Phase 11 : BundledAgents      : auto-installe les agents bundled si absents
 Si la phase N échoue, toutes les phases précédentes sont arrêtées en ordre inverse avant que le processus se termine. Aucun démarrage partiel silencieux.
 
 ```bash
-apollia start
+apollia-os start
 # ✔ EventBus         prêt
 # ✔ AgentRegistry    prêt
 # ✔ Tool Registry    16 outils chargés
@@ -233,7 +233,7 @@ Si un acteur dépasse `max_restarts` (défaut 5) dans `restart_window_secs` (dé
 ### Arrêt graceful (drain)
 
 ```
-SIGTERM / SIGINT / apollia stop
+SIGTERM / SIGINT / apollia-os stop
        │
        ▼
 EventBus.broadcast(ShutdownRequested)
@@ -258,7 +258,7 @@ exit(0)
 
 Timeout de drain : 30 secondes. Si une tâche n'est pas terminée dans ce délai, elle est annulée (`CANCELED`) et tracée dans l'audit log. Aucune tâche n'est perdue silencieusement.
 
-Pour forcer l'arrêt immédiat sans drain : `apollia stop --force`. À utiliser seulement en cas de blocage : les tâches HITL en attente d'approbation seront perdues.
+Pour forcer l'arrêt immédiat sans drain : `apollia-os stop --force`. À utiliser seulement en cas de blocage : les tâches HITL en attente d'approbation seront perdues.
 
 ---
 

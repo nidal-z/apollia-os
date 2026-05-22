@@ -28,13 +28,14 @@ class ApolliaGuide:
         ctx: Ctx,
     ) -> str:
         full = ""
-        async for token in ctx.llm.stream(
+        stream = await ctx.llm.stream(
             messages=[
                 {"role": "system", "content": self.SYSTEM_PROMPT},
                 *history,
                 {"role": "user", "content": message},
             ],
-        ):
+        )
+        async for token in stream:
             ctx.events.emit_token(token)
             full += token
         return full
@@ -81,7 +82,8 @@ Le contrat de retour est **une string finale**, mais la valeur ajoutée du mode 
 @on_message
 async def chat(self, message, history, ctx) -> str:
     full = ""
-    async for token in ctx.llm.stream(messages=[...]):
+    stream = await ctx.llm.stream(messages=[...])
+    async for token in stream:
         ctx.events.emit_token(token)
         full += token
     return full

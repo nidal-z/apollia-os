@@ -5,7 +5,7 @@
 Trois usages typiques :
 
 - **Pendant le développement** : à chaque modification du code de l'agent, lancer `inspect` pour vérifier que le manifeste reste valide et que les schémas inférés sont conformes à ce que vous voulez.
-- **Avant un commit** : pré-flight pour s'assurer qu'`apollia agent install` ne va pas refuser.
+- **Avant un commit** : pré-flight pour s'assurer qu'`apollia-os agent install` ne va pas refuser.
 - **En CI** : intégrer la commande dans le pipeline pour détecter une régression manifeste avant merge.
 
 ---
@@ -49,36 +49,35 @@ Tout problème lève `AgentConfigError` à l'import. `inspect` capture l'erreur 
 ```
 $ python -m apollia inspect pdf_worker.py
 
-✓ Module loaded: pdf_worker.PdfWorker (v0.1.0)
-
-Manifest:
-  name:        pdf-worker
-  version:     0.1.0
-  description: Read, extract and parse PDF files.
-  agent_type:  worker
-  packages:    pypdf>=4
-  tags:        pdf, worker
+╭─ Apollia Agent ────────────────────────────────────────────────╮
+│ Name:         pdf-worker
+│ Version:      0.1.0
+│ Description:  Read, extract and parse PDF files.
+│ Tags:         pdf, worker
+│ Packages:     pypdf>=4
+│ Execution:    direct
+│ Supports A2A: true
+╰─────────────────────────────────────────────────────────────────╯
 
 Skills (2):
-  ├── pdf.read_text
-  │     description: Extract text from a PDF, page by page.
-  │     input:  {path: str, page_range: str | None = None}
-  │     output: {type: object}
-  │     examples: 1 (use --json for details)
-  └── pdf.count_pages
-        description: Count the pages of a PDF file.
-        input:  {path: str}
-        output: {type: object}
-        examples: 1 (use --json for details)
+  • pdf.read_text — Extract text from a PDF, page by page.
+    Input:  {path: string!, page_range: string?}
+    Output: object
+  • pdf.count_pages — Count the pages of a PDF file.
+    Input:  {path: string!}
+    Output: object
 
-Datasources (0): none declared
-Templates (0): none declared
-Secrets (0): none declared
+Declared resources:
+  Datasources: (none)
+  Templates:   (none)
+  Secrets:     (none)
 
-✓ Inspection passed.
+Tools required: (none)
+
+Status: valid
 ```
 
-Code de sortie : `0`.
+Code de sortie : `0`. Le `!` suffixe les champs requis dans l'`Input`, le `?` suffixe les champs optionnels.
 
 ---
 
@@ -94,20 +93,36 @@ python -m apollia inspect pdf_worker.py --json | jq .
     "name": "pdf-worker",
     "version": "0.1.0",
     "description": "Read, extract and parse PDF files.",
-    "agent_type": "worker",
     "packages": ["pypdf>=4"],
     "tags": ["pdf", "worker"],
+    "datasources": [],
+    "templates": [],
+    "secrets": [],
+    "tools_required": [],
+    "agent_type": "worker",
+    "supports_a2a": true,
+    "execution_mode": "direct",
     "skills": [
       {
         "id": "pdf.read_text",
         "name": "pdf.read_text",
         "description": "Extract text from a PDF, page by page.",
+        "input_modes": ["data"],
+        "output_modes": ["data"],
         "input_schema": {
           "type": "object",
           "properties": {
-            "path": {"type": "string", "description": "Absolute filesystem path to the .pdf file."},
-            "page_range": {"type": "string", "nullable": true}
+            "path": {
+              "type": "string",
+              "description": "Absolute filesystem path to the .pdf file."
+            },
+            "page_range": {
+              "type": "string",
+              "nullable": true,
+              "description": "Optional 1-based range, e.g. '1-3,5'."
+            }
           },
+          "additionalProperties": false,
           "required": ["path"]
         },
         "output_schema": {"type": "object"},
@@ -115,9 +130,9 @@ python -m apollia inspect pdf_worker.py --json | jq .
         "requires_approval": false,
         "dangerous": false
       }
-    ],
-    "execution_mode": "direct"
+    ]
   },
+  "skills": [...],
   "warnings": []
 }
 ```
@@ -130,13 +145,9 @@ Pratique pour piper dans `jq`, intégrer dans un CI, ou nourrir un outil tiers.
 
 ```
 $ python -m apollia inspect broken_agent.py
+✗ Failed to load module: @skill 'broken.bad': method 'bad' must be 'async def'
 
-✗ Failed to load: broken_agent.py
-
-AgentConfigError: @skill 'pdf.read_text': method 'read_text' must be 'async def'
-  at broken_agent.py:18
-
-Exit code: 1
+# exit code: 1
 ```
 
 Le message indique précisément la cause et la ligne. C'est ce qui permet le fail-fast au boot du runtime : si `inspect` passe, l'agent chargera ; si `inspect` échoue, l'agent ne chargera pas non plus.

@@ -62,13 +62,13 @@ Retourne toutes les skills exposées par les agents installés et activés sur l
 ## `skill_as_tool` : convertir en tool descriptor LLM
 
 ```python
-descriptor = ctx.a2a.skill_as_tool("pdf.read_text")
+descriptor = await ctx.a2a.skill_as_tool("pdf.read_text")
 # descriptor : dict au format Anthropic / OpenAI tool-use
 #   {"name": "pdf.read_text", "description": "...",
 #    "input_schema": {...}, "examples": [...]}
 ```
 
-C'est la méthode **synchrone** qui transforme une skill A2A en descripteur compatible avec les `tools=[...]` que prennent les LLM. Cas d'usage principal : nourrir `apollia.react` (voir plus bas).
+C'est une méthode **asynchrone** : le bridge lit le registre A2A en interne, donc l'appel passe par `await`. Elle transforme une skill A2A en descripteur compatible avec les `tools=[...]` que prennent les LLM. Cas d'usage principal : nourrir `apollia.react` (voir plus bas).
 
 ---
 
@@ -97,9 +97,9 @@ class ResearchDirector:
             system=self.SYSTEM_PROMPT,
             user=message,
             tools=[
-                ctx.a2a.skill_as_tool("web.search_and_extract"),
-                ctx.a2a.skill_as_tool("web.summarize"),
-                ctx.a2a.skill_as_tool("research.synthesize"),
+                await ctx.a2a.skill_as_tool("web.search_and_extract"),
+                await ctx.a2a.skill_as_tool("web.summarize"),
+                await ctx.a2a.skill_as_tool("research.synthesize"),
             ],
             max_steps=15,
         )
@@ -120,7 +120,7 @@ async def react(
 ) -> str: ...
 ```
 
-- `tools` est une liste de descripteurs au format LLM tool-use. Vous l'assemblez avec `ctx.a2a.skill_as_tool(skill_id)` pour les workers A2A, ou avec `await ctx.tools.describe(name)` pour les outils natifs.
+- `tools` est une liste de descripteurs au format LLM tool-use. Vous l'assemblez avec `await ctx.a2a.skill_as_tool(skill_id)` pour les workers A2A, ou avec `await ctx.tools.describe(name)` pour les outils natifs.
 - `max_steps` est le plafond de tours LLM. Si dépassé, le runtime LLM lève une erreur.
 - `temperature` est informationnelle aujourd'hui (`run_tools` utilise le default du backend).
 - `stream=True` émet un `emit_thought` à l'entrée de la boucle pour les dashboards d'observabilité.
@@ -162,7 +162,7 @@ except DomainError as exc:
 
 ## Anti-patterns
 
-**Ne pas** appeler `await ctx.a2a.skill_as_tool(...)`. La méthode est synchrone. Le `await` lèvera `TypeError`.
+**Ne pas** oublier le `await` devant `ctx.a2a.skill_as_tool(...)`. Sans `await`, la liste `tools=[...]` contient des coroutines au lieu de descripteurs, et la validation côté LLM router lève `tool spec dict missing 'name' key`.
 
 **Ne pas** boucler manuellement sur `ctx.llm.complete` avec des prompts qui simulent du tool calling. Utilisez `apollia.react` qui parse les tool calls correctement et gère le step budget.
 

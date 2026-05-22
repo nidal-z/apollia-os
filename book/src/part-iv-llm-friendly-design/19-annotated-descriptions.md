@@ -16,7 +16,7 @@ async def read_text(
     self,
     path: str,
     page_range: str | None = None,
-    ctx: Ctx = None,
+    ctx: Ctx,
 ) -> dict:
     ...
 ```
@@ -49,7 +49,7 @@ async def read_text(
         str | None,
         "1-based page selection like '1-5,7,10-12'. Omit to read all pages.",
     ] = None,
-    ctx: Ctx = None,
+    ctx: Ctx,
 ) -> dict:
     ...
 ```

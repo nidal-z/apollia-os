@@ -79,7 +79,7 @@ async def read_text(
     self,
     path: str,
     page_range: str | None = None,
-    ctx: Ctx = None,
+    ctx: Ctx,
 ) -> dict: ...
 ```
 

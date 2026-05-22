@@ -76,7 +76,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-> Note : `_internal.build_real_ctx` n'est pas une API publique stabilisée à v0.5. Le pattern réel pour brancher un ctx réel dans une eval suite passe par `apollia invoke ... --json` en CLI, ou par un test d'intégration côté Rust. Cette mécanique sera documentée dans la page wiki `Testing-Patterns` *(wiki disponible prochainement)*.
+> Note : `_internal.build_real_ctx` n'est pas une API publique stabilisée à v0.5. Le pattern réel pour brancher un ctx réel dans une eval suite passe par `apollia-os a2a invoke <skill_id> --args '<JSON>' --json` (ou `apollia-os run <agent> "<prompt>" --json` pour les agents conversationnels), ou par un test d'intégration côté Rust. Cette mécanique sera documentée dans la page wiki `Testing-Patterns` *(wiki disponible prochainement)*.
 
 ---
 

@@ -21,7 +21,10 @@ async def test_pdf_read_text_returns_text():
     result = await agent.invoke_skill("pdf.read_text", path="/tmp/some.pdf")
 
     assert_result_completed(result)
-    assert "text" in result["data"]
+    # Le dict retourné par la skill est exposé en DataPart dans
+    # result["output"][0]. Le pattern d'accès canonique :
+    data = result["output"][0]["data"]
+    assert "text" in data
 ```
 
 Trois étapes :
@@ -78,7 +81,7 @@ assert ctx.tools.calls == [
 ### `ctx.a2a`
 
 ```python
-ctx.a2a.responses = {
+ctx.a2a.invoke_responses = {
     "pdf.read_text": {"text": "PDF content here", "page_count": 5},
 }
 
@@ -122,7 +125,7 @@ Tous instanciés avec des valeurs par défaut. Vous les ajustez si votre test en
 ```python
 ctx.profile.values = {"user.name": "Alice", "user.preferred_language": "fr"}
 ctx.workspace.rules_text = "# Project rules\n- Always be polite."
-ctx.budget.steps_remaining_value = 3
+ctx.budget.steps_remaining = 3
 ```
 
 ---

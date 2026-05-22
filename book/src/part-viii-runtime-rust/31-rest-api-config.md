@@ -151,13 +151,13 @@ flags CLI > variables d'environnement > apollia.toml > valeurs par défaut
 
 ```bash
 # Surcharger le port via flag
-apollia start --api-port 7772
+apollia-os start --api-port 7772
 
 # Surcharger via variable d'environnement
-APOLLIA_API_PORT=7772 apollia start
+APOLLIA_API_PORT=7772 apollia-os start
 
 # Utiliser un fichier de config alternatif
-apollia start --config ./dev.toml
+apollia-os start --config ./dev.toml
 ```
 
 ---
@@ -187,10 +187,10 @@ La raison de cette séparation : `apollia.toml` est lu au démarrage et ne chang
 cat ~/.apollia/apollia.toml
 
 # Ouvrir dans l'éditeur par défaut
-apollia config edit
+apollia-os config edit
 
 # Afficher la config effective (avec défauts appliqués)
-apollia config show --json
+apollia-os config show --json
 ```
 
 ---

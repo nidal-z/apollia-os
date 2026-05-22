@@ -55,7 +55,7 @@ Après création, le trigger est actif immédiatement, aucun redémarrage néces
 Variante CLI :
 
 ```bash
-apollia trigger add weekly-report \
+apollia-os trigger add weekly-report \
   --agent report-agent \
   --cron "0 8 * * MON" \
   --input "Generate the report for week {{week_iso}}"
@@ -79,7 +79,7 @@ Que se passe-t-il si le trigger se déclenche pendant que l'agent est déjà occ
 ## File watch
 
 ```bash
-apollia trigger add new-invoice \
+apollia-os trigger add new-invoice \
   --agent invoice-router \
   --file-watch "~/imports/*.pdf" \
   --on-busy queue \
@@ -99,7 +99,7 @@ Le file watcher utilise `notify` v6 côté Rust (inotify sur Linux, FSEvents sur
 ## Webhook
 
 ```bash
-apollia trigger add github-push \
+apollia-os trigger add github-push \
   --agent ci-runner \
   --webhook --secret "$(openssl rand -hex 32)" \
   --on-busy queue \
@@ -114,13 +114,13 @@ Le runtime expose alors `POST /webhooks/github-push` qui vérifie la signature H
 
 ```bash
 # Cron : 5 champs
-apollia trigger add nightly --agent backup --cron "0 2 * * *" --input "Run backup"
+apollia-os trigger add nightly --agent backup --cron "0 2 * * *" --input "Run backup"
 
 # Interval : durée
-apollia trigger add inbox-check --agent mail-agent --interval 30m --input "Check inbox"
+apollia-os trigger add inbox-check --agent mail-agent --interval 30m --input "Check inbox"
 
 # Oneshot : date-heure ISO 8601
-apollia trigger add migration --agent migrator --oneshot "2026-12-31T02:00:00Z" --input "Run migration"
+apollia-os trigger add migration --agent migrator --oneshot "2026-12-31T02:00:00Z" --input "Run migration"
 ```
 
 Variables disponibles : `{{now_iso}}`, `{{date}}`, `{{time}}`, `{{week_iso}}`, `{{day_of_week}}`.
@@ -130,7 +130,7 @@ Variables disponibles : `{{now_iso}}`, `{{date}}`, `{{time}}`, `{{week_iso}}`, `
 ## Lister et inspecter
 
 ```bash
-apollia trigger list
+apollia-os trigger list
 
 # ID                AGENT             TYPE       ENABLED  FIRES  SKIPS  LAST FIRE
 # weekly-report     report-agent      cron       ✓        42     3      2026-05-19 08:00
@@ -138,7 +138,7 @@ apollia trigger list
 # new-invoice       invoice-router    file_watch ✓        17     0      2026-05-20 11:15
 # github-push       ci-runner         webhook    ✓        8      1      2026-05-19 16:47
 
-apollia trigger status weekly-report
+apollia-os trigger status weekly-report
 ```
 
 ---
@@ -148,9 +148,9 @@ apollia trigger status weekly-report
 Pour modifier un trigger sans redémarrer le runtime :
 
 ```bash
-apollia trigger disable weekly-report
-apollia trigger update weekly-report --cron "0 9 * * MON"
-apollia trigger enable weekly-report
+apollia-os trigger disable weekly-report
+apollia-os trigger update weekly-report --cron "0 9 * * MON"
+apollia-os trigger enable weekly-report
 ```
 
 Ou par patch direct via API :

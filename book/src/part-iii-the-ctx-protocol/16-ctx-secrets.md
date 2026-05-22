@@ -69,7 +69,7 @@ class WeatherWorker:
 L'opérateur n'édite pas un fichier. Trois voies :
 
 - **App Desktop :** écran « Secrets », recherche par nom, saisie de la valeur. Stockage chiffré local.
-- **CLI :** `apollia secrets set openweather_api_key=...` (prompt interactif si la valeur n'est pas passée en argument).
+- **CLI :** `apollia-os tools credentials set` (prompt interactif pour la clé et la valeur). Alternative pour les secrets cloud LLM : variable d'environnement passée via `apollia-os llm backends create --api-key-env VAR_NAME`.
 - **Flow OAuth :** pour les intégrations OAuth (Google, Microsoft), l'opérateur clique sur « Connect » dans l'UI ; le runtime gère le flow PKCE et stocke le token.
 
 L'agent ne participe à aucun de ces flows. Il consomme la valeur au runtime via `ctx.secrets.get(...)`.

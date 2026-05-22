@@ -55,13 +55,13 @@ class MeetingDirector:
             system=SYSTEM_PROMPT,
             user=message,
             tools=[
-                ctx.a2a.skill_as_tool("web.research.company"),
-                ctx.a2a.skill_as_tool("web.research.signals"),
-                ctx.a2a.skill_as_tool("web.research.linkedin"),
-                ctx.a2a.skill_as_tool("crm.lookup.account"),
-                ctx.a2a.skill_as_tool("crm.lookup.history"),
-                ctx.a2a.skill_as_tool("prep.build_brief"),
-                ctx.a2a.skill_as_tool("prep.format_questions"),
+                await ctx.a2a.skill_as_tool("web.research.company"),
+                await ctx.a2a.skill_as_tool("web.research.signals"),
+                await ctx.a2a.skill_as_tool("web.research.linkedin"),
+                await ctx.a2a.skill_as_tool("crm.lookup.account"),
+                await ctx.a2a.skill_as_tool("crm.lookup.history"),
+                await ctx.a2a.skill_as_tool("prep.build_brief"),
+                await ctx.a2a.skill_as_tool("prep.format_questions"),
             ],
             max_steps=12,
         )
@@ -76,20 +76,23 @@ Environ 45 lignes. La logique est dans le `system_prompt` et dans la séquence d
 Installation :
 
 ```bash
-apollia agent install ./agents/meeting-director/director.py
-apollia agent list
-# meeting-director  0.1.0  (conversational)  [0 skills, on_message]
-# web-research      0.1.0  worker            [3 skills]
-# crm-lookup        0.1.0  worker            [2 skills]
-# meeting-prep      0.1.0  worker            [2 skills]
+apollia-os agent install ./agents/meeting-director/director.py
+apollia-os agent list
+#   NAME                VERSION    STATUS    AUTO-LOAD  SOURCE
+#   meeting-director    0.1.0      active    yes        installed
+#   web-research        0.1.0      active    yes        installed
+#   crm-lookup          0.1.0      active    yes        installed
+#   meeting-prep        0.1.0      active    yes        installed
 ```
 
 Chat :
 
 ```bash
-apollia chat meeting-director
-> Prépare-moi le RDV avec Acme Corp demain à 10h
+apollia-os agent enable meeting-director
+apollia-os run meeting-director "Prépare-moi le RDV avec Acme Corp demain à 10h"
 ```
+
+Pour une vraie session multi-tour, ouvrez l'app Desktop et discutez avec l'agent dans la vue Chat.
 
 Le director :
 
@@ -111,15 +114,15 @@ Pendant l'exécution, plusieurs surfaces de trace sont à votre disposition.
 
 L'app Desktop ou la CLI interactive affiche les étapes intermédiaires si vous êtes en mode développeur (`--debug`). Chaque `emit_thought` apparaît dans la timeline.
 
-### `apollia task trace`
+### `apollia-os task trace`
 
 Après le run, vous pouvez consulter la trajectoire complète :
 
 ```bash
-apollia task list --last 1
+apollia-os task list --last 1
 # t-abc123  meeting-director  completed  14.2s
 
-apollia task trace t-abc123
+apollia-os task trace t-abc123
 # step 1 : LLM thought : "Parsing request : Acme Corp, tomorrow 10:00"
 # step 2 : A2A web.research.company input={"company_name": "Acme Corp"}
 # step 3 : A2A web.research.signals input={"company_name": "Acme Corp", "max_signals": 5}
@@ -141,7 +144,7 @@ ctx.logger.info(
 )
 ```
 
-Les logs sont consultables via `apollia audit --task t-abc123` ou dans la timeline du Desktop.
+Les logs sont consultables via `apollia-os audit --task t-abc123` ou dans la timeline du Desktop.
 
 ### `ctx.budget`
 
@@ -227,7 +230,7 @@ Vous avez vu :
 - Trois workers spécialisés avec leurs TypedDict, leurs `Annotated`, leurs `DomainError`.
 - Le gating strict (datasources, templates, secrets).
 - Les tests isomorphiques pour chaque agent.
-- L'observabilité via `ctx.events`, `ctx.logger`, `apollia task trace`.
+- L'observabilité via `ctx.events`, `ctx.logger`, `apollia-os task trace`.
 
 C'est le pattern Apollia complet. Vous pouvez maintenant écrire vos propres projets de prestation : audit qualité, suivi commercial, veille concurrentielle, automatisation comptable, briefing exécutif. Le runtime fait le reste.
 

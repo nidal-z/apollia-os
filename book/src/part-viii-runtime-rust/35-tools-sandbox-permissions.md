@@ -181,17 +181,17 @@ Le mécanisme est conçu pour démarrer permissif (HITL à chaque appel inconnu)
 
 ```bash
 # Voir les règles persistées
-$ apollia permissions list
+$ apollia-os permissions list
   ID    OUTIL          PORTÉE    ARGUMENT             EXPIRATION   CRÉÉ LE
   1     file_write     project   /tmp/ @ /mon/proj    permanente   2026-04-25
   2     web_search     global    (tous)               permanente   2026-04-22
 
 # Révoquer une règle
-$ apollia permissions revoke 1
+$ apollia-os permissions revoke 1
   ✔ Règle #1 révoquée
 
 # Auditer les décisions automatiques
-$ apollia permissions audit --tool web_search --limit 10
+$ apollia-os permissions audit --tool web_search --limit 10
 ```
 
 La sous-commande opère directement sur `governance.db`, pas besoin de runtime démarré.
@@ -202,7 +202,7 @@ La sous-commande opère directement sur `governance.db`, pas besoin de runtime d
 
 Les outils préfixés `mcp:<server>/<name>` sont routés vers un serveur MCP connecté. Le runtime gère :
 
-- L'enregistrement des serveurs MCP via `apollia mcp enable <server>`.
+- L'enregistrement des serveurs MCP via `apollia-os mcp enable <server>`.
 - Le lifecycle de la connexion (stdio, HTTP, SSE).
 - Le marshalling des appels (JSON-RPC 2.0 selon spec MCP).
 - L'audit trail commun (les appels MCP apparaissent dans `audit.db` avec un préfixe distinctif).
@@ -218,7 +218,7 @@ Côté agent, **aucune différence** : `ctx.tools.call("mcp:github/list_issues",
 Chaque invocation d'outil est enregistrée dans `~/.apollia/audit.db` :
 
 ```bash
-$ apollia audit --last 5
+$ apollia-os audit --last 5
   HEURE          AGENT            TÂCHE    OUTIL         DURÉE   RÉSULTAT
   10:00:05       pdf-worker       t-xyz    file_write    12ms    ✔
   10:00:04       pdf-worker       t-xyz    file_read     8ms     ✔
