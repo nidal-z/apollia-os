@@ -38,12 +38,15 @@ case "$TARGET" in
         PBS_TRIPLE="aarch64-unknown-linux-gnu"
         ;;
     x86_64-pc-windows-msvc)
-        PBS_TRIPLE="x86_64-pc-windows-msvc-shared"
+        # Depuis PBS 2025+, le suffix `-shared` a été dropped pour les
+        # archives install_only (cf. probe URLs sur release 20260414).
+        # Format réel : cpython-X.Y.Z+TAG-x86_64-pc-windows-msvc-install_only.tar.gz
+        PBS_TRIPLE="x86_64-pc-windows-msvc"
         ;;
     aarch64-pc-windows-msvc)
-        # python-build-standalone ships aarch64 Windows depuis 20240909+.
+        # PBS ships aarch64 Windows depuis 20240909+.
         # Si la release pinned ne l'a pas, le téléchargement échouera bruyamment.
-        PBS_TRIPLE="aarch64-pc-windows-msvc-shared"
+        PBS_TRIPLE="aarch64-pc-windows-msvc"
         ;;
     universal-apple-darwin)
         echo "==> universal-apple-darwin: fetch both architectures and lipo-merge"
