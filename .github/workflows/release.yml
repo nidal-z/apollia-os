@@ -46,113 +46,80 @@ concurrency:
 
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
-  # CLI binaries (13 presets) — self-contained bundles avec Python embarqué
+  # Setup — calcule la matrice CLI filtrée (dynamic matrix).
+  #
+  # GH Actions ne supporte PAS `matrix.preset` dans le `if:` au niveau du job
+  # (limitation parser). Le contournement standard : un job léger qui sort
+  # le JSON de la matrice, ingéré ensuite via `fromJSON(needs.setup.outputs.matrix)`.
+  # ────────────────────────────────────────────────────────────────────────────
+  setup:
+    name: Setup matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.compute.outputs.matrix }}
+      run_desktop: ${{ steps.compute.outputs.run_desktop }}
+    steps:
+      - id: compute
+        env:
+          PRESETS_INPUT: ${{ github.event.inputs.presets || 'all' }}
+          SKIP_DESKTOP: ${{ github.event.inputs.skip_desktop || 'false' }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: bash
+        run: |
+          # Full preset matrix — single source of truth.
+          read -r -d '' FULL <<'JSON' || true
+          {
+            "include": [
+              {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal", "archive":"tar.gz"},
+              {"preset":"linux-x86-cpu",      "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true},
+              {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
+              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true, "allow_fail":true},
+              {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
+              {"preset":"windows-x86-cuda",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip", "needs_cuda":true},
+              {"preset":"windows-x86-rocm",   "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-rocm,stt-rocm",                    "archive":"zip", "needs_rocm":true, "allow_fail":true},
+              {"preset":"windows-x86-vulkan", "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"zip", "needs_vulkan":true},
+              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
+              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",  "triple":"aarch64-pc-windows-msvc",   "features":"cloud,local-cuda,stt-cuda",                    "archive":"zip", "needs_cuda":true, "allow_fail":true}
+            ]
+          }
+          JSON
+
+          if [[ "$EVENT_NAME" != "workflow_dispatch" || "$PRESETS_INPUT" == "all" || -z "$PRESETS_INPUT" ]]; then
+            MATRIX="$FULL"
+          else
+            # jq filter on PRESETS_INPUT (comma-separated)
+            MATRIX=$(echo "$FULL" | jq -c --arg p "$PRESETS_INPUT" \
+              '{include: [.include[] | select(.preset as $x | $p | split(",") | index($x))]}')
+          fi
+
+          echo "Matrix selected:"
+          echo "$MATRIX" | jq -r '.include[] | "  · " + .preset'
+
+          # GH Actions output: compact JSON (single line).
+          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
+
+          # Desktop gate.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$SKIP_DESKTOP" == "true" ]]; then
+            echo "run_desktop=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_desktop=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # CLI binaries (13 presets max) — self-contained bundles avec Python embarqué
   # ────────────────────────────────────────────────────────────────────────────
   cli:
     name: CLI ${{ matrix.preset }}
+    needs: setup
+    if: needs.setup.outputs.matrix != '' && fromJSON(needs.setup.outputs.matrix).include[0] != null
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - preset: macos-silicon
-            runner: macos-latest
-            triple: aarch64-apple-darwin
-            features: "cloud,local-metal,local-accelerate,stt-metal"
-            archive: tar.gz
-
-          - preset: linux-x86-cpu
-            runner: ubuntu-latest
-            triple: x86_64-unknown-linux-gnu
-            features: "cloud,local-cpu,stt-whisper-cpp"
-            archive: tar.gz
-
-          - preset: linux-x86-cuda
-            runner: ubuntu-latest
-            triple: x86_64-unknown-linux-gnu
-            features: "cloud,local-cuda,stt-cuda"
-            needs_cuda: true
-            archive: tar.gz
-
-          - preset: linux-x86-rocm
-            runner: ubuntu-latest
-            triple: x86_64-unknown-linux-gnu
-            features: "cloud,local-rocm,stt-rocm"
-            needs_rocm: true
-            archive: tar.gz
-
-          - preset: linux-x86-vulkan
-            runner: ubuntu-latest
-            triple: x86_64-unknown-linux-gnu
-            features: "cloud,local-vulkan,stt-whisper-cpp"
-            needs_vulkan: true
-            archive: tar.gz
-
-          - preset: linux-arm-cpu
-            runner: ubuntu-24.04-arm
-            triple: aarch64-unknown-linux-gnu
-            features: "cloud,local-cpu,stt-whisper-cpp"
-            archive: tar.gz
-
-          - preset: linux-arm-cuda
-            runner: ubuntu-24.04-arm
-            triple: aarch64-unknown-linux-gnu
-            features: "cloud,local-cuda,stt-cuda"
-            needs_cuda: true
-            archive: tar.gz
-            allow_fail: true
-
-          - preset: windows-x86-cpu
-            runner: windows-latest
-            triple: x86_64-pc-windows-msvc
-            features: "cloud,local-cpu,stt-whisper-cpp"
-            archive: zip
-
-          - preset: windows-x86-cuda
-            runner: windows-latest
-            triple: x86_64-pc-windows-msvc
-            features: "cloud,local-cuda,stt-cuda"
-            needs_cuda: true
-            archive: zip
-
-          - preset: windows-x86-rocm
-            runner: windows-latest
-            triple: x86_64-pc-windows-msvc
-            features: "cloud,local-rocm,stt-rocm"
-            needs_rocm: true
-            archive: zip
-            allow_fail: true
-
-          - preset: windows-x86-vulkan
-            runner: windows-latest
-            triple: x86_64-pc-windows-msvc
-            features: "cloud,local-vulkan,stt-whisper-cpp"
-            needs_vulkan: true
-            archive: zip
-
-          - preset: windows-arm-cpu
-            runner: windows-11-arm
-            triple: aarch64-pc-windows-msvc
-            features: "cloud,local-cpu,stt-whisper-cpp"
-            archive: zip
-
-          - preset: windows-arm-cuda
-            runner: windows-11-arm
-            triple: aarch64-pc-windows-msvc
-            features: "cloud,local-cuda,stt-cuda"
-            needs_cuda: true
-            archive: zip
-            allow_fail: true
-
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.allow_fail || false }}
-
-    # Filtrage workflow_dispatch presets (vide ou 'all' → tout)
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.presets == '' ||
-      github.event.inputs.presets == 'all' ||
-      contains(github.event.inputs.presets, matrix.preset)
-
     steps:
       - uses: actions/checkout@v5
 
@@ -333,10 +300,9 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   desktop-macos:
     name: Desktop macOS (ARM64)
+    needs: setup
+    if: needs.setup.outputs.run_desktop == 'true'
     runs-on: macos-latest
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.skip_desktop != 'true'
     steps:
       - uses: actions/checkout@v5
 
