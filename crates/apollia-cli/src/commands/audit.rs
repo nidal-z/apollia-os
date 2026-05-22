@@ -109,7 +109,31 @@ async fn run_list(client: &RuntimeClient, limit: u32, json: bool) -> i32 {
             serde_json::to_string_pretty(&parsed).unwrap_or_default()
         );
     } else {
-        format_audit_list(&parsed);
+        // Best-effort agent_id → name lookup. We never block the audit
+        // display on the agents endpoint: missing entries fall back to a
+        // short UUID prefix in the formatter.
+        let agent_names = client
+            .list_agents()
+            .await
+            .ok()
+            .and_then(|v| {
+                v.get("agents")
+                    .or_else(|| Some(&v))
+                    .and_then(|x| x.as_array())
+                    .cloned()
+            })
+            .map(|agents| {
+                agents
+                    .iter()
+                    .filter_map(|a| {
+                        let id = a.get("agent_id").or_else(|| a.get("id"))?.as_str()?;
+                        let name = a.get("name")?.as_str()?;
+                        Some((id.to_string(), name.to_string()))
+                    })
+                    .collect::<std::collections::HashMap<String, String>>()
+            })
+            .unwrap_or_default();
+        format_audit_list(&parsed, &agent_names);
     }
     exit_codes::SUCCESS
 }
@@ -145,7 +169,14 @@ async fn run_stats(client: &RuntimeClient, json: bool) -> i32 {
 }
 
 /// Format audit events as a human-readable table.
-fn format_audit_list(resp: &serde_json::Value) {
+///
+/// `agent_names` is populated upstream from `GET /api/v1/agents`; unknown
+/// IDs fall back to the first UUID segment so the column still aligns and
+/// the operator can still copy-paste the value.
+fn format_audit_list(
+    resp: &serde_json::Value,
+    agent_names: &std::collections::HashMap<String, String>,
+) {
     let events = resp
         .get("events")
         .and_then(|e| e.as_array())
@@ -153,8 +184,8 @@ fn format_audit_list(resp: &serde_json::Value) {
         .unwrap_or_default();
 
     println!(
-        "  {:<24} {:<24} {:<20} {:<8} {:<8}",
-        "TIMESTAMP", "AGENT_ID", "TOOL", "STATUS", "MS"
+        "  {:<19} {:<24} {:<20} {:<8} {:<8}",
+        "TIMESTAMP", "AGENT", "TOOL", "STATUS", "MS"
     );
 
     if events.is_empty() {
@@ -168,10 +199,15 @@ fn format_audit_list(resp: &serde_json::Value) {
                 // Trim to 23 chars (drop sub-second precision) for compact display
                 .map(|s| s.get(..19).unwrap_or(s))
                 .unwrap_or("?");
-            let agent = event
+            let agent_id = event
                 .get("agent_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?");
+            let agent = agent_names
+                .get(agent_id)
+                .cloned()
+                .unwrap_or_else(|| short_uuid_prefix(agent_id));
+            let agent = agent.as_str();
             let tool = event
                 .get("tool_name")
                 .and_then(|v| v.as_str())
@@ -187,11 +223,16 @@ fn format_audit_list(resp: &serde_json::Value) {
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "-".to_string());
             println!(
-                "  {:<24} {:<24} {:<20} {:<8} {:<8}",
+                "  {:<19} {:<24} {:<20} {:<8} {:<8}",
                 ts, agent, tool, status, ms
             );
         }
     }
+}
+
+/// Shorten a UUID to its first hyphen-separated segment for display.
+fn short_uuid_prefix(uuid: &str) -> String {
+    uuid.split('-').next().unwrap_or(uuid).to_string()
 }
 
 /// Format audit stats as human-readable text.

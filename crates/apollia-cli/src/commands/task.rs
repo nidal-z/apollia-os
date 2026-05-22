@@ -74,7 +74,7 @@ pub enum TaskCommand {
         #[clap(long, requires = "reject")]
         reason: Option<String>,
     },
-    /// Lister les approbations HITL résolues (acceptées ou refusées).
+    /// List resolved HITL approvals (accepted or rejected).
     Approvals {
         /// Inclure aussi les approbations en attente.
         #[arg(long)]
@@ -301,7 +301,7 @@ async fn run_resume(
 
     // HTTP 409 means the task is not in input_required state.
     if resp.status == 409 {
-        let msg = extract_error_message(&resp, "la tâche n'est pas en attente d'approbation");
+        let msg = extract_error_message(&resp, "task is not awaiting approval");
         if json {
             let output = serde_json::json!({ "error": msg });
             println!(
@@ -309,7 +309,7 @@ async fn run_resume(
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Erreur : la tâche {task_id} n'est pas en attente d'approbation");
+            eprintln!("Error: task {task_id} is not awaiting approval");
         }
         return exit_codes::GENERAL_ERROR;
     }
@@ -340,9 +340,9 @@ async fn run_resume(
         let status = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("?");
 
         if approved {
-            println!("✔ Tâche {task_id} approuvée — {agent} › {status}...");
+            println!("✔ Task {task_id} approved — {agent} › {status}...");
         } else {
-            println!("✔ Tâche {task_id} rejetée — {agent} › terminé ({status})");
+            println!("✔ Task {task_id} rejected — {agent} › done ({status})");
         }
     }
     exit_codes::SUCCESS
@@ -588,19 +588,19 @@ pub fn build_resume_body(approved: bool, reason: Option<&str>) -> serde_json::Va
 /// its status icon, description, tool hint, output (truncated to 120 chars), and error if any.
 fn display_plan_human(plan: &PlanWithSteps) {
     println!();
-    println!("  Tâche       : {}", plan.task_id);
+    println!("  Task        : {}", plan.task_id);
     println!("  Agent       : {}", plan.agent_name);
-    println!("  Mode        : orchestré");
-    println!("  Statut      : {}", plan.status);
-    println!("  Créé        : {}", plan.created_at);
-    println!("  Replanif.   : {}/2", plan.replan_count);
+    println!("  Mode        : orchestrated");
+    println!("  Status      : {}", plan.status);
+    println!("  Created     : {}", format_rfc3339_compact(&plan.created_at));
+    println!("  Replans     : {}/2", plan.replan_count);
     println!();
-    println!("  Plan d'exécution :");
+    println!("  Execution plan:");
 
     for step in &plan.steps {
         let icon = step_status_icon(&step.status);
         let replan_marker = if step.step_id.ends_with('b') || step.step_id.ends_with('c') {
-            "  [replanifié]"
+            "  [replanned]"
         } else {
             ""
         };
@@ -613,7 +613,7 @@ fn display_plan_human(plan: &PlanWithSteps) {
 
         if let Some(ref tool) = step.tool_hint {
             println!(
-                "          outil : {} | durée : {}",
+                "          tool: {} | duration: {}",
                 tool,
                 step_duration(step)
             );
@@ -621,17 +621,31 @@ fn display_plan_human(plan: &PlanWithSteps) {
 
         if let Some(ref output) = step.output {
             let truncated = truncate_output(output);
-            println!("          output : \"{truncated}\"");
+            println!("          output: \"{truncated}\"");
         }
 
         if let Some(ref error) = step.error {
-            println!("          erreur : \"{error}\"");
+            println!("          error: \"{error}\"");
             if step.status == "failed" {
-                println!("          → replanification déclenchée");
+                println!("          → replanning triggered");
             }
         }
     }
     println!();
+}
+
+/// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS` for compact display.
+///
+/// Falls back to the raw value when parsing fails — the formatter must
+/// never lose information just because the runtime grew a new format.
+fn format_rfc3339_compact(raw: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|dt| {
+            dt.with_timezone(&chrono::Utc)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_else(|_| raw.to_string())
 }
 
 /// Serialize a plan with its steps to a `serde_json::Value` for `--json` output.
@@ -701,8 +715,8 @@ fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
         } else {
             let approved = a.get("approved").and_then(|v| v.as_bool());
             match approved {
-                Some(true) => "approuvé".to_string(),
-                Some(false) => "rejeté".to_string(),
+                Some(true) => "approved".to_string(),
+                Some(false) => "rejected".to_string(),
                 None => "?".to_string(),
             }
         };

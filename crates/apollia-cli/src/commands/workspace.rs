@@ -14,42 +14,42 @@ use apollia_workspace::git::GitContextCollector;
 
 use crate::exit_codes;
 
-/// Template injecté par `apollia workspace init`.
-const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md — Instructions pour les agents IA\n\
+/// Template written by `apollia workspace init`.
+const APOLLIA_MD_TEMPLATE: &str = "# APOLLIA.md — Instructions for AI agents\n\
 \n\
-## Contexte du projet\n\
-<!-- Décrivez ici votre projet : objectif, stack technique, contraintes. -->\n\
+## Project context\n\
+<!-- Describe your project here: goal, tech stack, constraints. -->\n\
 \n\
-## Règles pour les agents\n\
-<!-- Conventions de code, style, règles de commit, etc. -->\n\
+## Rules for the agents\n\
+<!-- Coding conventions, style, commit rules, etc. -->\n\
 \n\
-## Fichiers importants\n\
-<!-- Liste des fichiers/répertoires clés que l'agent doit connaître. -->\n\
+## Important files\n\
+<!-- List the key files/directories the agent should know about. -->\n\
 \n\
-## Commandes utiles\n\
-<!-- Exemples : `cargo test`, `make build`, `npm run dev`. -->\n";
+## Useful commands\n\
+<!-- Examples: `cargo test`, `make build`, `npm run dev`. -->\n";
 
-/// Sous-commande `apollia workspace` avec deux actions.
+/// `apollia workspace` subcommand with two actions.
 #[derive(Debug, clap::Subcommand)]
 pub enum WorkspaceCommand {
-    /// Affiche le statut du workspace courant.
+    /// Show the status of the current workspace.
     Status,
-    /// Initialise APOLLIA.md dans le répertoire courant.
+    /// Initialise APOLLIA.md in the current directory.
     Init {
-        /// Écraser APOLLIA.md s'il existe déjà.
+        /// Overwrite APOLLIA.md if it already exists.
         #[arg(long, default_value_t = false)]
         force: bool,
     },
 }
 
-/// Erreurs de la sous-commande workspace.
+/// Errors emitted by the `workspace` subcommand.
 #[derive(Debug, Error)]
 pub enum WorkspaceCliError {
-    /// APOLLIA.md existe déjà et `--force` n'a pas été passé.
-    #[error("APOLLIA.md existe déjà. Utilisez --force pour écraser.")]
+    /// APOLLIA.md already exists and `--force` was not supplied.
+    #[error("APOLLIA.md already exists. Use --force to overwrite.")]
     FileExists,
-    /// Erreur de lecture/écriture du système de fichiers.
-    #[error("erreur I/O : {0}")]
+    /// Filesystem read/write error.
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
@@ -76,7 +76,7 @@ async fn run_workspace_status(json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error: impossible d'obtenir le répertoire courant : {e}");
+            eprintln!("Error: unable to read current directory: {e}");
             return exit_codes::GENERAL_ERROR;
         }
     };
@@ -87,7 +87,7 @@ async fn run_workspace_status(json: bool) -> i32 {
         match serde_json::to_string_pretty(&status) {
             Ok(s) => println!("{s}"),
             Err(e) => {
-                eprintln!("Error: sérialisation JSON : {e}");
+                eprintln!("Error: JSON serialisation: {e}");
                 return exit_codes::GENERAL_ERROR;
             }
         }
@@ -103,7 +103,7 @@ async fn run_workspace_init(force: bool, json: bool) -> i32 {
     let cwd = match std::env::current_dir() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Error: impossible d'obtenir le répertoire courant : {e}");
+            eprintln!("Error: unable to read current directory: {e}");
             return exit_codes::GENERAL_ERROR;
         }
     };
@@ -120,7 +120,7 @@ async fn run_workspace_init(force: bool, json: bool) -> i32 {
                     serde_json::to_string_pretty(&output).unwrap_or_default()
                 );
             } else {
-                println!("APOLLIA.md créé : {}", path.display());
+                println!("APOLLIA.md created: {}", path.display());
             }
             exit_codes::SUCCESS
         }
@@ -166,25 +166,25 @@ fn print_workspace_status(s: &WorkspaceStatusOutput) {
     println!("Workspace : {}", s.workspace_root);
     match &s.git_branch {
         Some(branch) => println!("Branch git: {branch}"),
-        None => println!("Branch git: (hors dépôt git)"),
+        None => println!("Branch git: (not a git repository)"),
     }
     if s.modified_files.is_empty() {
-        println!("Fichiers modifiés : (aucun)");
+        println!("Modified files: (none)");
     } else {
-        println!("Fichiers modifiés :");
+        println!("Modified files:");
         for f in &s.modified_files {
             println!("  {f}");
         }
     }
     println!(
-        "APOLLIA.md : {}",
+        "APOLLIA.md: {}",
         if s.apollia_md_found {
-            "trouvé"
+            "found"
         } else {
-            "absent"
+            "missing"
         }
     );
-    println!("Fichiers : {}", s.file_count);
+    println!("Files: {}", s.file_count);
 }
 
 /// Extrait la liste des chemins modifiés depuis la sortie de `git status --short`.

@@ -24,106 +24,106 @@ use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::config::parse_apollia_toml;
 use crate::exit_codes;
 
-/// Sous-commandes de `apollia-os tools`.
+/// Subcommands of `apollia-os tools`.
 #[derive(Debug, Subcommand)]
 pub enum ToolsCommand {
-    /// Affiche l'état de chaque outil natif (actif, backend, credentials).
+    /// Show the status of each native tool (active, backend, credentials).
     List,
-    /// Active l'outil *name* (supprime un éventuel disabled en `governance.db`).
+    /// Enable the *name* tool (clears any disabled flag in `governance.db`).
     Enable {
-        /// Nom canonique de l'outil natif.
+        /// Canonical name of the native tool.
         name: String,
     },
-    /// Désactive l'outil *name* (ajoute `enabled = FALSE` en `governance.db`).
+    /// Disable the *name* tool (sets `enabled = FALSE` in `governance.db`).
     Disable {
-        /// Nom canonique de l'outil natif.
+        /// Canonical name of the native tool.
         name: String,
     },
-    /// Lecture/modification de la configuration `[tools.<name>]` dans `apollia.toml`.
+    /// Read or update the `[tools.<name>]` configuration in `apollia.toml`.
     Config {
-        /// Sous-commande config.
+        /// Config subcommand.
         #[command(subcommand)]
         command: ToolsConfigCmd,
     },
-    /// Recharge le snapshot de gouvernance et affiche l'état effectif.
+    /// Reload the governance snapshot and print the effective state.
     Reload,
-    /// Gestion des credentials chiffrés associés à un outil.
+    /// Manage the encrypted credentials attached to a tool.
     Credentials {
-        /// Sous-commande credentials.
+        /// Credentials subcommand.
         #[command(subcommand)]
         command: ToolsCredentialsCmd,
     },
-    /// Affiche le descripteur d'un outil enregistré dans le runtime.
+    /// Show the descriptor of a tool registered with the runtime.
     Describe {
-        /// Nom de l'outil.
+        /// Tool name.
         tool_name: String,
     },
-    /// Consultation de la file HITL côté tool registry.
+    /// Inspect the HITL queue from the tool registry's side.
     Approvals {
-        /// Sous-commande approvals.
+        /// Approvals subcommand.
         #[command(subcommand)]
         command: ToolsApprovalsCmd,
     },
 }
 
-/// Sous-commandes de `apollia-os tools approvals`.
+/// Subcommands of `apollia-os tools approvals`.
 #[derive(Debug, Subcommand)]
 pub enum ToolsApprovalsCmd {
-    /// Liste les approbations en attente (tasks en `input_required`).
+    /// List approvals pending decision (tasks in `input_required`).
     Pending,
-    /// Liste les approbations résolues dans la fenêtre `--days`.
+    /// List approvals resolved within the `--days` window.
     Resolved {
-        /// Nombre de jours d'historique à inclure (défaut: 7).
+        /// Days of history to include (default: 7).
         #[arg(long, default_value_t = 7)]
         days: u32,
-        /// Nombre maximum d'entrées à retourner (défaut: 50).
+        /// Maximum number of entries to return (default: 50).
         #[arg(long, default_value_t = 50)]
         limit: u32,
     },
 }
 
-/// Sous-commandes de `apollia-os tools config`.
+/// Subcommands of `apollia-os tools config`.
 #[derive(Debug, Subcommand)]
 pub enum ToolsConfigCmd {
-    /// Affiche la configuration effective de *name*.
+    /// Show the effective configuration of *name*.
     Get {
-        /// Nom de l'outil natif (`web_search`, `web_read`, …).
+        /// Native tool name (`web_search`, `web_read`, …).
         name: String,
     },
-    /// Modifie une clé de configuration `<tool>.<chemin>` dans `apollia.toml`.
+    /// Update a configuration key `<tool>.<path>` in `apollia.toml`.
     Set {
-        /// Chemin de clé pointée, ex. `web_search.backend` ou `web_search.brave.timeout_secs`.
+        /// Dotted key path, e.g. `web_search.backend` or `web_search.brave.timeout_secs`.
         key_path: String,
-        /// Nouvelle valeur (parsée selon le type attendu).
+        /// New value (parsed according to the expected type).
         value: String,
     },
 }
 
-/// Sous-commandes de `apollia-os tools credentials`.
+/// Subcommands of `apollia-os tools credentials`.
 #[derive(Debug, Subcommand)]
 pub enum ToolsCredentialsCmd {
-    /// Liste les credentials enregistrées (valeurs masquées).
+    /// List stored credentials (values masked).
     List {
-        /// Filtre optionnel sur un outil.
+        /// Optional filter on a tool name.
         tool: Option<String>,
     },
-    /// Stocke une credential `(tool, key)` après prompt interactif masqué.
+    /// Store a credential `(tool, key)` after an interactive masked prompt.
     Set {
-        /// Nom de l'outil propriétaire.
+        /// Owning tool name.
         tool: String,
-        /// Nom logique de la clé (ex. `brave.api_key`).
+        /// Logical key name (e.g. `brave.api_key`).
         key: String,
     },
-    /// Supprime la credential `(tool, key)`.
+    /// Delete the credential `(tool, key)`.
     Delete {
-        /// Nom de l'outil propriétaire.
+        /// Owning tool name.
         tool: String,
-        /// Nom logique de la clé.
+        /// Logical key name.
         key: String,
     },
-    /// Teste la validité d'une credential par un appel live au backend concerné.
+    /// Validate a credential with a live call against the backend it targets.
     Test {
-        /// Nom de l'outil dont les credentials doivent être vérifiées.
+        /// Tool whose credentials should be checked.
         tool: String,
     },
 }
@@ -417,7 +417,7 @@ fn credentials_text(tool: &str, credentials: Option<&[CredentialEntry]>) -> Stri
                 .iter()
                 .any(|e| e.tool_name == tool && e.key_name == *key);
             if present {
-                format!("{key}: présent")
+                format!("{key}: present")
             } else {
                 format!("{key}: absent ⚠")
             }
@@ -450,7 +450,7 @@ fn run_set_enabled(name: &str, enabled: bool, json: bool) -> i32 {
     if let Err(e) = registry.set_enabled(name, enabled) {
         return emit_error(format!("registry update failed: {e}"), json);
     }
-    let action = if enabled { "activé" } else { "désactivé" };
+    let action = if enabled { "enabled" } else { "disabled" };
     if json {
         println!(
             "{}",
@@ -562,7 +562,7 @@ fn run_config_set(key_path: &str, value: &str, json: bool) -> i32 {
     let parts: Vec<&str> = key_path.split('.').collect();
     if parts.len() < 2 {
         return emit_error(
-            format!("clé invalide '{key_path}' — format attendu : <tool>.<clé>"),
+            format!("invalid key '{key_path}' — expected format: <tool>.<key>"),
             json,
         );
     }
@@ -631,7 +631,7 @@ fn parse_value_for(tool: &str, key_segments: &[&str], raw: &str) -> Result<Value
         ("web_read", "max_response_kb") => parse_int_in(raw, 64, 32_768),
         ("web_read", "ssrf_guard") => parse_bool(raw),
         _ => Err(format!(
-            "clé inconnue '{tool}.{key}'\n{}",
+            "unknown key '{tool}.{key}'\n{}",
             valid_keys_help(tool)
         )),
     }
@@ -639,11 +639,11 @@ fn parse_value_for(tool: &str, key_segments: &[&str], raw: &str) -> Result<Value
 
 fn valid_keys_help(tool: &str) -> String {
     match tool {
-        "web_search" => "clés valides : backend, require_configured, brave.api_key_env_var, \
+        "web_search" => "valid keys: backend, require_configured, brave.api_key_env_var, \
                          brave.timeout_secs, brave.max_results, duckduckgo.timeout_secs, \
                          duckduckgo.max_response_kb"
             .to_string(),
-        "web_read" => "clés valides : timeout_secs, max_response_kb, ssrf_guard".to_string(),
+        "web_read" => "valid keys: timeout_secs, max_response_kb, ssrf_guard".to_string(),
         _ => "outil sans configuration TOML — outils configurables : web_search, web_read"
             .to_string(),
     }
@@ -653,14 +653,14 @@ fn parse_bool(raw: &str) -> Result<Value, String> {
     match raw {
         "true" => Ok(Value::from(true)),
         "false" => Ok(Value::from(false)),
-        _ => Err(format!("booléen attendu (true|false), reçu '{raw}'")),
+        _ => Err(format!("boolean expected (true|false), got '{raw}'")),
     }
 }
 
 fn parse_int_in(raw: &str, min: i64, max: i64) -> Result<Value, String> {
     let n: i64 = raw
         .parse()
-        .map_err(|_| format!("entier attendu, reçu '{raw}'"))?;
+        .map_err(|_| format!("integer expected, got '{raw}'"))?;
     if n < min || n > max {
         return Err(format!("valeur {n} hors bornes [{min}, {max}]"));
     }
@@ -726,24 +726,24 @@ fn run_reload(json: bool) -> i32 {
             serde_json::to_string_pretty(&payload).unwrap_or_default()
         );
     } else {
-        println!("✔ Snapshot de gouvernance rechargé");
+        println!("✔ Governance snapshot reloaded");
         if snapshot.disabled_tools.is_empty() {
-            println!("  Outils désactivés : (aucun)");
+            println!("  Disabled tools    : (none)");
         } else {
             println!(
-                "  Outils désactivés : {}",
+                "  Disabled tools    : {}",
                 snapshot.disabled_tools.join(", ")
             );
         }
         let brave = if snapshot.brave_api_key.is_some() {
-            "présente"
+            "present"
         } else {
-            "absente"
+            "absent"
         };
-        println!("  Clé Brave         : {brave}");
+        println!("  Brave API key     : {brave}");
         println!(
-            "  Note : le runtime relit ce snapshot à chaque exécution d'agent — \
-             aucun redémarrage requis."
+            "  Note: the runtime rereads this snapshot on every agent run — \
+             no restart required."
         );
     }
     exit_codes::SUCCESS
@@ -769,7 +769,7 @@ fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
         Some(s) => s,
         None => {
             return emit_error(
-                "impossible d'ouvrir le credential store — vérifiez ~/.apollia".to_string(),
+                "unable to open the credential store — check ~/.apollia".to_string(),
                 json,
             );
         }
@@ -796,7 +796,7 @@ fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
                 .unwrap_or_default()
         );
     } else if entries.is_empty() {
-        println!("  (aucune credential enregistrée)");
+        println!("  (no credential stored)");
     } else {
         println!(
             "  {:<14} {:<18} {:<12} DERNIÈRE UTILISATION",
@@ -828,10 +828,10 @@ fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
     let prompt = format!("Valeur pour {tool}/{key} : ");
     let value = match rpassword::prompt_password(&prompt) {
         Ok(v) => v,
-        Err(e) => return emit_error(format!("lecture du prompt échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to read prompt: {e}"), json),
     };
     if value.is_empty() {
-        return emit_error("valeur vide — credential non enregistrée".to_string(), json);
+        return emit_error("empty value — credential not stored".to_string(), json);
     }
     let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
         Ok(s) => s,
@@ -851,7 +851,7 @@ fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ credential {tool}/{key} enregistrée (chiffrée)");
+        println!("✔ credential {tool}/{key} stored (encrypted)");
     }
     exit_codes::SUCCESS
 }
@@ -880,9 +880,9 @@ fn run_credentials_delete(tool: &str, key: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else if removed {
-        println!("✔ credential {tool}/{key} supprimée");
+        println!("✔ credential {tool}/{key} deleted");
     } else {
-        println!("ℹ aucune credential {tool}/{key} enregistrée");
+        println!("ℹ no credential {tool}/{key} stored");
     }
     exit_codes::SUCCESS
 }
@@ -890,7 +890,7 @@ fn run_credentials_delete(tool: &str, key: &str, json: bool) -> i32 {
 async fn run_credentials_test(tool: &str, json: bool) -> i32 {
     if tool != "web_search" {
         return emit_error(
-            format!("test credentials non implémenté pour '{tool}' (seul web_search est supporté)"),
+            format!("credential test not implemented for '{tool}' (only web_search is supported)"),
             json,
         );
     }
@@ -906,12 +906,12 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
         Ok(Some(k)) => k,
         Ok(None) => {
             return emit_error(
-                "aucune brave.api_key enregistrée — utilisez `apollia-os tools credentials set web_search brave.api_key`"
+                "no brave.api_key stored — use `apollia-os tools credentials set web_search brave.api_key`"
                     .to_string(),
                 json,
             );
         }
-        Err(e) => return emit_error(format!("lecture credential échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to read credential: {e}"), json),
     };
 
     let cfg = load_tools_config(json);
@@ -950,7 +950,7 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
             } else if status.is_success() {
                 println!("✔ brave.api_key valide ({elapsed_ms}ms, HTTP {status})");
             } else {
-                println!("✗ brave.api_key rejetée (HTTP {status}, {elapsed_ms}ms)");
+                println!("✗ brave.api_key rejected (HTTP {status}, {elapsed_ms}ms)");
             }
             if status.is_success() {
                 exit_codes::SUCCESS
@@ -958,7 +958,7 @@ async fn run_credentials_test(tool: &str, json: bool) -> i32 {
                 exit_codes::GENERAL_ERROR
             }
         }
-        Err(e) => emit_error(format!("appel Brave échoué : {e}"), json),
+        Err(e) => emit_error(format!("Brave call failed: {e}"), json),
     }
 }
 
@@ -1080,7 +1080,7 @@ fn load_tools_config(json: bool) -> ToolsConfig {
             Err(e) => {
                 if !json {
                     eprintln!(
-                        "Avertissement : apollia.toml illisible ({e}) — valeurs par défaut utilisées"
+                        "Warning: apollia.toml unreadable ({e}) — using defaults"
                     );
                 }
                 ToolsConfig::default()
@@ -1148,7 +1148,7 @@ fn format_unix_date(ts: i64) -> String {
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ConnectionRefused => {
-            emit_error("runtime non démarré (connection refused)".to_string(), json)
+            emit_error("runtime not started (connection refused)".to_string(), json)
         }
         other => emit_error(other.to_string(), json),
     }
@@ -1186,8 +1186,8 @@ mod tests {
     fn parse_value_for_unknown_key_returns_help() {
         // GIVEN une clé inconnue.
         let err = parse_value_for("web_search", &["plouf"], "x").unwrap_err();
-        // THEN le message liste les clés valides.
-        assert!(err.contains("clés valides"));
+        // THEN the message lists the valid keys.
+        assert!(err.contains("valid keys"));
     }
 
     #[test]

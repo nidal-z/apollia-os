@@ -95,18 +95,18 @@ pub fn handle_alternatives(
     config: &ORIAConfig,
 ) -> Result<ChosenPlan, String> {
     println!(
-        "\n--- Plan A (conservateur, température {:.1}) ---",
+        "\n--- Plan A (conservative, temperature {:.1}) ---",
         config.plan_alternatives_temp_a
     );
     for (i, step) in alternatives.plan_a.steps.iter().enumerate() {
         println!("  {}. {}", i + 1, step.description);
     }
     if alternatives.plan_a.steps.is_empty() {
-        println!("  (aucun step)");
+        println!("  (no step)");
     }
 
     println!(
-        "\n--- Plan B (exploratoire, température {:.1}) ---",
+        "\n--- Plan B (exploratory, temperature {:.1}) ---",
         config.plan_alternatives_temp_b
     );
     for (i, step) in alternatives.plan_b.steps.iter().enumerate() {
@@ -174,11 +174,11 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             }
             "plan_failed" => {
                 let reason = event.data["reason"].as_str().unwrap_or("Erreur inconnue");
-                eprintln!("  ✗ Plan échoué : {reason}");
+                eprintln!("  ✗ Plan failed: {reason}");
                 true
             }
             "canceled" => {
-                eprintln!("  Tâche annulée.");
+                eprintln!("  Task cancelled.");
                 true
             }
             _ => false,
@@ -192,7 +192,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             state.step_count = step_count;
             state.plan_id = event.data["plan_id"].as_str().map(String::from);
             eprintln!();
-            println!("  Plan généré ({step_count} étapes) :");
+            println!("  Plan generated ({step_count} steps):");
             if let Some(steps) = event.data["steps"].as_array() {
                 let last = steps.len().saturating_sub(1);
                 for (i, step) in steps.iter().enumerate() {
@@ -238,7 +238,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let duration_ms = event.data["duration_ms"].as_u64().unwrap_or(0);
             let secs = duration_ms as f64 / 1000.0;
             println!(
-                "\r  ✔ [{}/{}] (complété)  {:.1}s",
+                "\r  ✔ [{}/{}] (completed)  {:.1}s",
                 state.current_num, state.step_count, secs
             );
             false
@@ -255,7 +255,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
                 state.current_num, state.step_count, secs
             );
             if !retryable {
-                eprintln!("  Erreur non-récupérable.");
+                eprintln!("  Unrecoverable error.");
             }
             false
         }
@@ -265,7 +265,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let attempt = event.data["attempt"].as_u64().unwrap_or(1);
             let failed_step = event.data["failed_step"].as_str().unwrap_or("?");
             let reason = event.data["reason"].as_str().unwrap_or("?");
-            println!("  ↻ Replanification ({attempt}/2) — step {failed_step} échoué : {reason}");
+            println!("  ↻ Replanning ({attempt}/2) — step {failed_step} failed: {reason}");
             false
         }
 
@@ -275,15 +275,15 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             let duration_ms = event.data["duration_ms"].as_u64().unwrap_or(0);
             let secs = duration_ms as f64 / 1000.0;
             println!();
-            println!("  ✔ Plan complété — {step_count} steps en {secs:.1}s");
+            println!("  ✔ Plan completed — {step_count} steps in {secs:.1}s");
             false
         }
 
         // ── Orchestrated: plan failed (unrecoverable) — terminal ──────────
         "plan_failed" => {
-            let reason = event.data["reason"].as_str().unwrap_or("Erreur inconnue");
+            let reason = event.data["reason"].as_str().unwrap_or("unknown error");
             eprintln!();
-            eprintln!("  ✗ Plan échoué : {reason}");
+            eprintln!("  ✗ Plan failed: {reason}");
             true
         }
 
@@ -306,7 +306,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 
         // ── Common: task canceled — terminal ──────────────────────────────
         "canceled" => {
-            eprintln!("  Tâche annulée.");
+            eprintln!("  Task cancelled.");
             true
         }
 
@@ -341,7 +341,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
                                 ChosenPlan::PlanA => "Plan A (conservateur)",
                                 ChosenPlan::PlanB => "Plan B (exploratoire)",
                             };
-                            println!("  -> {label} sélectionné.");
+                            println!("  -> {label} selected.");
                             state.chosen_plan = Some(chosen);
                         }
                         Err(e) => {

@@ -41,9 +41,9 @@ pub enum SttCommand {
         #[command(subcommand)]
         command: SttModelCommand,
     },
-    /// Gérer la configuration STT (backend, modèle, langue).
+    /// Manage STT configuration (backend, model, language).
     Config {
-        /// Sous-commande config.
+        /// Config subcommand.
         #[command(subcommand)]
         command: SttConfigCommand,
     },
@@ -58,9 +58,9 @@ pub enum TranscriptionsCommand {
         #[arg(long, default_value = "20")]
         limit: u32,
     },
-    /// Supprimer une transcription par son ID.
+    /// Delete a transcription by its ID.
     Delete {
-        /// Identifiant de la transcription.
+        /// Transcription identifier.
         id: String,
     },
 }
@@ -68,17 +68,17 @@ pub enum TranscriptionsCommand {
 /// STT configuration subcommands.
 #[derive(Debug, Subcommand)]
 pub enum SttConfigCommand {
-    /// Afficher la configuration STT courante.
+    /// Show the current STT configuration.
     Get,
-    /// Modifier la configuration STT.
+    /// Update the STT configuration.
     Update {
-        /// Backend à utiliser (whisper, disabled).
+        /// Backend to use (whisper, disabled).
         #[arg(long)]
         backend: Option<String>,
-        /// Chemin du modèle Whisper.
+        /// Path to the Whisper model.
         #[arg(long)]
         model_path: Option<String>,
-        /// Langue (fr, en, auto).
+        /// Language (fr, en, auto).
         #[arg(long)]
         language: Option<String>,
     },
@@ -551,7 +551,7 @@ async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool)
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Transcription '{id}' supprimée");
+                println!("✔ Transcription '{id}' deleted");
             }
             exit_codes::SUCCESS
         }
@@ -628,7 +628,7 @@ async fn run_config_update(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Configuration STT mise à jour");
+                println!("✔ STT configuration updated");
             }
             exit_codes::SUCCESS
         }

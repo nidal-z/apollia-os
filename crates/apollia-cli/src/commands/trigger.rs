@@ -15,84 +15,84 @@ use crate::exit_codes;
 
 // ─── Subcommands ──────────────────────────────────────────────────────────
 
-/// Trigger subcommands : `apollia-os trigger <verb>`.
+/// Trigger subcommands: `apollia-os trigger <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum TriggerCommand {
-    /// Lister tous les triggers avec leur état.
+    /// List all triggers with their status.
     List,
-    /// Afficher le statut détaillé d'un trigger.
+    /// Show the detailed status of a trigger.
     Status {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
-    /// Déclencher immédiatement un trigger (debug/test).
+    /// Fire a trigger immediately (debug/test).
     Fire {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
-    /// Activer un trigger désactivé.
+    /// Enable a disabled trigger.
     Enable {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
-    /// Désactiver un trigger sans modifier apollia.toml.
+    /// Disable a trigger without editing apollia.toml.
     Disable {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
     },
-    /// Afficher l'historique des déclenchements depuis SQLite.
+    /// Show the firing history from SQLite.
     Logs {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
-        /// Nombre maximum d'entrées à afficher.
+        /// Maximum number of entries to display.
         #[arg(long, default_value = "20")]
         last: usize,
     },
-    /// Recharger la config triggers depuis apollia.toml (hot reload).
+    /// Reload trigger config from apollia.toml (hot reload).
     ///
     /// Rereads `[[triggers]]` from `apollia.toml`, validates the new definitions,
     /// and restarts modified sources. Invalid TOML or invalid trigger configuration
     /// returns an error without interrupting the currently-running triggers.
     Reload,
-    /// Créer un nouveau trigger (CRUD — complète le hot-reload via apollia.toml).
+    /// Create a new trigger (CRUD — complements hot-reload via apollia.toml).
     Create {
-        /// Identifiant unique du trigger.
+        /// Unique trigger identifier.
         id: String,
-        /// Agent cible.
+        /// Target agent.
         #[arg(long)]
         agent: String,
-        /// Type : cron, interval, filewatch, webhook.
+        /// Type: cron, interval, filewatch, webhook.
         #[arg(long, value_name = "TYPE")]
         kind: String,
-        /// Détail du trigger (expression cron, intervalle, chemin, etc.).
+        /// Trigger detail (cron expression, interval, path, etc.).
         #[arg(long)]
         detail: Option<String>,
-        /// Politique si l'agent est occupé (skip, queue, preempt).
+        /// Policy when the agent is busy (skip, queue, preempt).
         #[arg(long, default_value = "skip")]
         on_busy: String,
-        /// Payload d'entrée envoyé à l'agent lors du déclenchement.
+        /// Input payload sent to the agent when fired.
         #[arg(long)]
         input: Option<String>,
     },
-    /// Mettre à jour un trigger existant.
+    /// Update an existing trigger.
     Update {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
-        /// Nouveau détail (expression cron, intervalle, etc.).
+        /// New detail (cron expression, interval, etc.).
         #[arg(long)]
         detail: Option<String>,
-        /// Nouvelle politique on-busy.
+        /// New on-busy policy.
         #[arg(long)]
         on_busy: Option<String>,
-        /// Nouveau payload d'entrée.
+        /// New input payload.
         #[arg(long)]
         input: Option<String>,
     },
-    /// Supprimer un trigger.
+    /// Delete a trigger.
     Delete {
-        /// Identifiant du trigger.
+        /// Trigger identifier.
         id: String,
-        /// Confirmer sans prompt interactif.
+        /// Confirm deletion without an interactive prompt.
         #[arg(long)]
         confirm: bool,
     },
@@ -213,7 +213,7 @@ async fn run_fire(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                 );
             } else {
                 let task_id = resp.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
-                println!("✔ Trigger '{id}' déclenché → task {task_id}");
+                println!("✔ Trigger '{id}' fired → task {task_id}");
             }
             exit_codes::SUCCESS
         }
@@ -240,7 +240,7 @@ async fn run_enable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' activé");
+                println!("✔ Trigger '{id}' enabled");
             }
             exit_codes::SUCCESS
         }
@@ -267,7 +267,7 @@ async fn run_disable(client: &RuntimeClient, id: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' désactivé");
+                println!("✔ Trigger '{id}' disabled");
             }
             exit_codes::SUCCESS
         }
@@ -322,7 +322,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
                 );
             } else {
                 let count = resp.get("reloaded").and_then(|v| v.as_u64()).unwrap_or(0);
-                println!("✔ Triggers rechargés — {count} actif(s)");
+                println!("✔ Triggers reloaded — {count} active");
             }
             exit_codes::SUCCESS
         }
@@ -375,11 +375,42 @@ fn format_trigger_list(resp: &serde_json::Value) {
         };
         let fires = t.get("fire_count").and_then(|v| v.as_u64()).unwrap_or(0);
         let skips = t.get("skip_count").and_then(|v| v.as_u64()).unwrap_or(0);
-        let last = t.get("last_fired").and_then(|v| v.as_str()).unwrap_or("—");
+        let last = t
+            .get("last_fired")
+            .and_then(|v| v.as_str())
+            .map(format_relative_time)
+            .unwrap_or_else(|| "—".to_string());
         println!(
             "  {:<24} {:<20} {:<12} {:<8} {:<6} {:<6} {}",
             id, agent, kind, enabled, fires, skips, last
         );
+    }
+}
+
+/// Render an RFC3339 timestamp as a compact relative duration ("3m ago").
+///
+/// Falls back to the raw string when parsing fails. Used by the trigger
+/// list / status outputs to surface "last fired" without dumping a full
+/// RFC3339 string into the table.
+fn format_relative_time(ts: &str) -> String {
+    let parsed = chrono::DateTime::parse_from_rfc3339(ts).ok();
+    let Some(dt) = parsed else {
+        return ts.to_string();
+    };
+    let secs = chrono::Utc::now()
+        .signed_duration_since(dt.with_timezone(&chrono::Utc))
+        .num_seconds();
+    if secs < 0 {
+        return ts.to_string();
+    }
+    if secs < 60 {
+        format!("{secs}s ago")
+    } else if secs < 3600 {
+        format!("{}m ago", secs / 60)
+    } else if secs < 86_400 {
+        format!("{}h ago", secs / 3600)
+    } else {
+        format!("{}d ago", secs / 86_400)
     }
 }
 
@@ -484,7 +515,7 @@ async fn run_create(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' créé ({kind} → {agent})");
+                println!("✔ Trigger '{id}' created ({kind} → {agent})");
             }
             exit_codes::SUCCESS
         }
@@ -522,7 +553,7 @@ async fn run_update(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' mis à jour");
+                println!("✔ Trigger '{id}' updated");
             }
             exit_codes::SUCCESS
         }
@@ -564,7 +595,7 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Trigger '{id}' supprimé");
+                println!("✔ Trigger '{id}' deleted");
             }
             exit_codes::SUCCESS
         }

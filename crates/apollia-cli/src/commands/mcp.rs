@@ -91,72 +91,72 @@ pub enum McpCommand {
         json: bool,
     },
 
-    /// Ajouter un serveur MCP au runtime (persiste dans la config).
+    /// Register a new MCP server with the runtime (persisted in the config).
     Add {
-        /// Nom unique du serveur.
+        /// Unique server name.
         name: String,
-        /// Commande à lancer (transport stdio) ou URL (transport HTTP/SSE).
+        /// Command to launch (stdio transport) or URL (HTTP/SSE transport).
         #[arg(long)]
         command: Option<String>,
-        /// URL de connexion HTTP/SSE.
+        /// HTTP/SSE connection URL.
         #[arg(long)]
         url: Option<String>,
-        /// Exiger une approbation HITL pour chaque outil.
+        /// Require HITL approval for every tool call.
         #[arg(long)]
         require_approval: bool,
     },
 
-    /// Retirer un serveur MCP du runtime.
+    /// Remove an MCP server from the runtime.
     Remove {
-        /// Nom du serveur.
+        /// Server name.
         name: String,
-        /// Confirmer sans prompt interactif.
+        /// Confirm without an interactive prompt.
         #[arg(long)]
         confirm: bool,
     },
 
-    /// Afficher les détails d'un serveur MCP.
+    /// Show the details of an MCP server.
     Get {
-        /// Nom du serveur.
+        /// Server name.
         name: String,
     },
 
-    /// Tester la connexion à un serveur MCP.
+    /// Test the connection to an MCP server.
     Test {
-        /// URL ou commande à tester.
+        /// URL or command to test.
         target: String,
     },
 
-    /// Redémarrer un serveur MCP.
+    /// Restart an MCP server.
     Restart {
-        /// Nom du serveur.
+        /// Server name.
         name: String,
     },
 
-    /// Mettre à jour la configuration brute d'un serveur MCP existant.
+    /// Update the raw configuration of an existing MCP server.
     ///
-    /// Au moins un des champs `--command`, `--url`, ou `--require-approval`
-    /// doit être fourni. Les champs omis conservent leur valeur précédente.
+    /// At least one of `--command`, `--url`, or `--require-approval` must
+    /// be supplied. Fields that are omitted keep their previous value.
     Update {
-        /// Nom du serveur.
+        /// Server name.
         name: String,
-        /// Nouvelle commande stdio (transport stdio).
+        /// New stdio command (stdio transport).
         #[arg(long)]
         command: Option<String>,
-        /// Nouvelle URL HTTP/SSE.
+        /// New HTTP/SSE URL.
         #[arg(long)]
         url: Option<String>,
-        /// Activer / désactiver le verrou d'approbation HITL.
+        /// Enable / disable the HITL approval lock.
         #[arg(long, value_name = "BOOL")]
         require_approval: Option<bool>,
     },
 
-    /// Afficher la configuration brute persistée d'un serveur MCP.
+    /// Show the raw persisted configuration of an MCP server.
     ///
-    /// Lit directement `mcp.db` via le runtime et renvoie la définition
-    /// originale (utile pour bisecter une régression de configuration).
+    /// Reads `mcp.db` directly via the runtime and returns the original
+    /// definition (useful for bisecting a configuration regression).
     RawConfig {
-        /// Nom du serveur.
+        /// Server name.
         name: String,
     },
 
@@ -395,7 +395,7 @@ async fn run_add(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Serveur MCP '{name}' ajouté au runtime");
+                println!("✔ MCP server '{name}' added to the runtime");
             }
             exit_codes::SUCCESS
         }
@@ -426,7 +426,7 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Serveur MCP '{name}' retiré du runtime");
+                println!("✔ MCP server '{name}' removed from the runtime");
             }
             exit_codes::SUCCESS
         }
@@ -491,13 +491,13 @@ async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -
                 let ok = resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
                 let latency = resp.get("latency_ms").and_then(|v| v.as_u64()).unwrap_or(0);
                 if ok {
-                    println!("✔ Connexion réussie ({latency}ms)");
+                    println!("✔ Connection succeeded ({latency}ms)");
                 } else {
                     let err = resp
                         .get("error")
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
-                    println!("✗ Connexion échouée: {err}");
+                    println!("✗ Connection failed: {err}");
                 }
             }
             exit_codes::SUCCESS
@@ -516,7 +516,7 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Serveur MCP '{name}' redémarré");
+                println!("✔ MCP server '{name}' restarted");
             }
             exit_codes::SUCCESS
         }
@@ -584,7 +584,7 @@ async fn run_update_server(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("* Serveur MCP '{name}' mis à jour");
+                println!("* MCP server '{name}' updated");
             }
             exit_codes::SUCCESS
         }
@@ -931,7 +931,7 @@ async fn format_list_human(config: &McpConfig, discover: bool) -> Result<String,
     let discovered = discovery::discover_mcp_servers().await?;
 
     if discovered.is_empty() {
-        out.push_str("Aucun serveur MCP découvert sur le réseau local.\n");
+        out.push_str("No MCP server discovered on the local network.\n");
     } else {
         out.push_str("\nDiscovered MCP servers:\n");
         for s in &discovered {

@@ -9,152 +9,152 @@ use std::path::{Path, PathBuf};
 
 use clap::{Subcommand, ValueEnum};
 
-/// Type de mémoire à cibler pour les opérations de vidage.
+/// Memory type targeted by wipe operations.
 #[derive(Debug, Clone, ValueEnum)]
 pub enum MemoryType {
-    /// Mémoires épisodiques.
+    /// Episodic memories.
     Episodic,
-    /// Mémoires sémantiques.
+    /// Semantic memories.
     Semantic,
-    /// Mémoires procédurales.
+    /// Procedural memories.
     Procedural,
-    /// Tous les types de mémoire.
+    /// All memory types.
     All,
 }
 
-/// Commandes de gestion de la memoire.
+/// Memory management commands.
 #[derive(Debug, Subcommand)]
 pub enum MemoryCommand {
-    /// Inspecter l'etat d'un namespace memoire.
+    /// Inspect the state of a memory namespace.
     Inspect {
-        /// Nom du namespace a inspecter.
+        /// Namespace name to inspect.
         namespace: String,
 
-        /// Repertoire des fichiers memoire (defaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
 
-        /// Sortie JSON.
+        /// JSON output.
         #[arg(long)]
         json: bool,
     },
 
-    /// Lister tous les namespaces memoire presents sur le disque.
+    /// List every memory namespace present on disk.
     List {
-        /// Filtrer par nom d'agent/namespace.
+        /// Filter by agent/namespace name.
         #[arg(long, value_name = "NAME")]
         agent: Option<String>,
 
-        /// Repertoire des fichiers memoire (defaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
 
-    /// Vider la memoire d'un agent.
+    /// Wipe an agent's memory.
     Clear {
-        /// Nom du namespace/agent a vider.
+        /// Namespace/agent name to wipe.
         #[arg(long, value_name = "NAME")]
         agent: String,
 
-        /// Type de memoire a vider.
+        /// Memory type to wipe.
         #[arg(long, value_enum, default_value = "all")]
         r#type: MemoryType,
 
-        /// Confirmer sans invite interactive.
+        /// Confirm without an interactive prompt.
         #[arg(long)]
         confirm: bool,
 
-        /// Repertoire des fichiers memoire (defaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
 
-    /// Purger les entrees memoire plus anciennes qu'un seuil en jours.
+    /// Purge memory entries older than a day threshold.
     ///
-    /// Exemple : `apollia memory purge --namespace mon-agent --older-than 30`
-    /// Exemple avec filtre : `apollia memory purge --namespace mon-agent --type episodic --older-than 7`
+    /// Example: `apollia memory purge --namespace my-agent --older-than 30`
+    /// Filtered: `apollia memory purge --namespace my-agent --type episodic --older-than 7`
     Purge {
-        /// Namespace cible.
+        /// Target namespace.
         #[arg(long, value_name = "NAME")]
         namespace: String,
 
-        /// Supprimer les entrees creees il y a plus de N jours.
+        /// Delete entries created more than N days ago.
         #[arg(long, value_name = "DAYS")]
         older_than: u32,
 
-        /// Limiter la purge a un seul type (defaut: tous les types).
+        /// Restrict the purge to a single type (default: all types).
         #[arg(long, value_enum)]
         r#type: Option<MemoryType>,
 
-        /// Repertoire des fichiers memoire (defaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
 
-    /// Enregistrer une procédure dans la mémoire procédurale d'un namespace.
+    /// Record a procedure in a namespace's procedural memory.
     ///
-    /// Exemple : `apollia memory learn-procedure --namespace agent-x --trigger "analyser un rapport" --steps "1. Ouvrir, 2. Lire, 3. Résumer"`
+    /// Example: `apollia memory learn-procedure --namespace agent-x --trigger "analyse a report" --steps "1. Open, 2. Read, 3. Summarise"`
     LearnProcedure {
-        /// Namespace cible.
+        /// Target namespace.
         #[arg(long, value_name = "NAME")]
         namespace: String,
 
-        /// Déclencheur exact de la procédure.
+        /// Exact trigger phrase for the procedure.
         #[arg(long, value_name = "TEXT")]
         trigger: String,
 
-        /// Étapes de la procédure (séparées par des virgules ou point-virgules).
-        /// Exemple : "Ouvrir le PDF, Extraire le CA, Générer le résumé"
+        /// Procedure steps (comma- or semicolon-separated).
+        /// Example: "Open the PDF, Extract revenue, Generate summary"
         #[arg(long, value_name = "STEPS", required_unless_present = "file")]
         steps: Option<String>,
 
-        /// Fichier JSON contenant {"trigger": "...", "steps": [...]}.
+        /// JSON file containing {"trigger": "...", "steps": [...]}.
         #[arg(long, value_name = "FILE", required_unless_present = "steps")]
         file: Option<PathBuf>,
 
-        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
 
-    /// Exporter la mémoire d'un namespace vers un fichier JSON.
+    /// Export a namespace's memory to a JSON file.
     ///
-    /// Exemple : `apollia memory export --namespace agent-x --output ./backup.apollia-memory`
+    /// Example: `apollia memory export --namespace agent-x --output ./backup.apollia-memory`
     Export {
-        /// Namespace à exporter.
+        /// Namespace to export.
         #[arg(long, value_name = "NAME")]
         namespace: String,
 
-        /// Fichier de sortie (défaut: `<namespace>.apollia-memory` dans le répertoire courant).
+        /// Output file (default: `<namespace>.apollia-memory` in the current directory).
         #[arg(long, value_name = "FILE")]
         output: Option<PathBuf>,
 
-        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
 
-    /// Importer la mémoire depuis un fichier JSON vers un namespace.
+    /// Import memory from a JSON file into a namespace.
     ///
-    /// Exemple : `apollia memory import --namespace agent-x --input ./backup.apollia-memory --replace`
+    /// Example: `apollia memory import --namespace agent-x --input ./backup.apollia-memory --replace`
     Import {
-        /// Namespace cible.
+        /// Target namespace.
         #[arg(long, value_name = "NAME")]
         namespace: String,
 
-        /// Fichier d'entrée exporté par `memory export`.
+        /// Input file exported by `memory export`.
         #[arg(long, value_name = "FILE")]
         input: PathBuf,
 
-        /// Mode : remplacer le namespace existant (défaut: merge).
+        /// Mode: replace the existing namespace (default: merge).
         #[arg(long, conflicts_with = "merge")]
         replace: bool,
 
-        /// Mode : fusionner avec le namespace existant (défaut).
+        /// Mode: merge with the existing namespace (default).
         #[arg(long, conflicts_with = "replace")]
         merge: bool,
 
-        /// Répertoire des fichiers mémoire (défaut: ~/.apollia/memory/).
+        /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
@@ -546,7 +546,7 @@ pub fn execute_learn_procedure(
         return Ok(output);
     }
 
-    Ok(format!("Procédure enregistrée (id: {id})."))
+    Ok(format!("Procedure recorded (id: {id})."))
 }
 
 /// Execute la commande `memory export`.
@@ -594,7 +594,7 @@ pub fn execute_export(
     }
 
     Ok(format!(
-        "Mémoire exportée vers {} ({} épisodiques, {} sémantiques, {} procédurales).",
+        "Memory exported to {} ({} episodic, {} semantic, {} procedural).",
         out_path.display(),
         export.episodic.len(),
         export.semantic.len(),
@@ -638,7 +638,7 @@ pub fn execute_import(
     }
 
     Ok(format!(
-        "{count} entrée(s) importée(s) dans le namespace '{namespace}' (mode: {}).",
+        "{count} entry(ies) imported into namespace '{namespace}' (mode: {}).",
         if replace { "replace" } else { "merge" }
     ))
 }
@@ -1115,7 +1115,7 @@ mod tests {
         // THEN success
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert!(output.contains("enregistrée"));
+        assert!(output.contains("recorded"));
 
         // AND procedure is in the database
         let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();

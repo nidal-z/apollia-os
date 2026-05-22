@@ -28,126 +28,127 @@ pub enum LlmCommand {
         #[arg(long)]
         backend: Option<String>,
     },
-    /// Afficher l'utilisation et les coûts agrégés (tokens et coût estimé par backend).
+    /// Display aggregated usage and costs (tokens and estimated cost per backend).
     Costs,
-    /// Gérer les backends LLM configurés (list, create, update, delete, set-default).
+    /// Manage configured LLM backends (list, create, update, delete, set-default).
     Backends {
-        /// Sous-commande backends.
+        /// Backends subcommand.
         #[command(subcommand)]
         command: LlmBackendsCommand,
     },
-    /// Recharger le router LLM depuis `system.db` sans redémarrer le runtime.
+    /// Reload the LLM router from `system.db` without restarting the runtime.
     ///
-    /// Les mutations `backends create/update/delete/set-default` écrivent en
-    /// base mais le router en mémoire reste figé jusqu'à un reload. Cette
-    /// commande swap le router actif sans interrompre les tâches en cours.
+    /// `backends create/update/delete/set-default` write to the database but
+    /// the in-memory router stays frozen until a reload. This command swaps
+    /// the active router in place without interrupting running tasks.
     Reload,
 }
 
 /// Backends CRUD subcommands: `apollia-os llm backends <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum LlmBackendsCommand {
-    /// Lister tous les backends LLM configurés.
+    /// List all configured LLM backends.
     List,
-    /// Afficher la configuration complète d'un backend (config_json inclus).
+    /// Show the full configuration of a backend (including config_json).
     Show {
-        /// Nom du backend.
+        /// Backend name.
         name: String,
     },
-    /// Créer un nouveau backend LLM.
+    /// Create a new LLM backend.
     ///
-    /// Le `--provider` détermine la structure du `config_json` envoyée au
-    /// runtime. Pour `llama-cpp` (modèles locaux GGUF), `--model` doit être
-    /// un chemin absolu vers le fichier .gguf. Pour les providers cloud,
-    /// `--model` est l'identifiant (ex: `claude-sonnet-4-6`, `gpt-4o`).
+    /// `--provider` drives the shape of the `config_json` sent to the
+    /// runtime. For `llama-cpp` (local GGUF models), `--model` must be the
+    /// absolute path to the .gguf file. For cloud providers, `--model` is
+    /// the identifier (e.g. `claude-sonnet-4-6`, `gpt-4o`).
     Create {
-        /// Nom unique du backend (snake_case ou kebab-case).
+        /// Unique backend name (snake_case or kebab-case).
         name: String,
         /// Provider: `llama-cpp` (local GGUF), `anthropic`, `openai`,
-        /// `mistral`, `ollama`. Alias `--kind` accepté pour rétrocompat.
+        /// `mistral`, `ollama`. `--kind` is accepted as an alias for
+        /// backward compatibility.
         #[arg(long, alias = "kind", value_name = "PROVIDER")]
         provider: String,
-        /// Identifiant ou chemin du modèle (chemin absolu pour `llama-cpp`).
+        /// Model identifier or path (absolute path for `llama-cpp`).
         #[arg(long)]
         model: String,
-        /// Clé API (providers cloud uniquement). Stockée telle quelle dans
-        /// `config_json.api_key`. Préférer `--api-key-env VAR_NAME` pour
-        /// éviter de coucher la clé dans system.db.
+        /// API key (cloud providers only). Stored as-is in
+        /// `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid
+        /// persisting the key in system.db.
         #[arg(long, value_name = "KEY")]
         api_key: Option<String>,
-        /// Nom de la variable d'environnement contenant la clé API.
+        /// Environment variable name holding the API key.
         ///
-        /// Le runtime lit `std::env::var(NAME)` au boot. Recommandé pour
-        /// éviter de persister la clé dans system.db.
+        /// The runtime reads `std::env::var(NAME)` at boot. Recommended to
+        /// keep the key out of system.db.
         #[arg(long, value_name = "VAR_NAME")]
         api_key_env: Option<String>,
-        /// URL de base (Ollama, OpenAI-compatible self-hosted, etc.).
+        /// Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...).
         #[arg(long, value_name = "URL")]
         base_url: Option<String>,
-        /// Device pour les modèles `llama-cpp`: `metal` (Apple), `cuda`, `cpu`.
+        /// Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`.
         #[arg(long, value_name = "DEVICE", default_value = "metal")]
         device: String,
-        /// Timeout d'inférence en secondes (défaut: 60).
+        /// Inference timeout in seconds (default: 60).
         #[arg(long, value_name = "SECS", default_value = "60")]
         timeout_sec: u64,
-        /// Désactiver le backend après création.
+        /// Create the backend disabled.
         #[arg(long)]
         disabled: bool,
-        /// Marquer ce backend comme défaut (un seul à la fois).
+        /// Mark this backend as the default (only one at a time).
         #[arg(long, alias = "is-default")]
         default: bool,
     },
-    /// Mettre à jour un backend LLM existant.
+    /// Update an existing LLM backend.
     ///
-    /// Fonctionne en mode merge: les flags non spécifiés conservent leur
-    /// valeur actuelle. Le runtime expose `PUT` en mode replace, donc le
-    /// CLI lit d'abord la config existante et n'écrase que les champs
-    /// demandés.
+    /// Works in merge mode: flags that are not supplied keep their current
+    /// value. The runtime exposes `PUT` as replace, so the CLI fetches the
+    /// existing config first and only overwrites the fields the operator
+    /// changed.
     Update {
-        /// Nom du backend à modifier.
+        /// Backend name to update.
         name: String,
-        /// Nouveau provider (rarement utile, change l'implémentation backend).
+        /// New provider (rarely useful, changes the backend implementation).
         #[arg(long, alias = "kind", value_name = "PROVIDER")]
         provider: Option<String>,
-        /// Nouveau modèle (chemin absolu pour `llama-cpp`).
+        /// New model (absolute path for `llama-cpp`).
         #[arg(long)]
         model: Option<String>,
-        /// Nouvelle clé API (cloud providers).
+        /// New API key (cloud providers).
         #[arg(long, value_name = "KEY")]
         api_key: Option<String>,
-        /// Nouvelle variable d'environnement pour la clé API.
+        /// New environment variable name for the API key.
         #[arg(long, value_name = "VAR_NAME")]
         api_key_env: Option<String>,
-        /// Nouvelle URL de base.
+        /// New base URL.
         #[arg(long, value_name = "URL")]
         base_url: Option<String>,
-        /// Nouveau device pour `llama-cpp`.
+        /// New device for `llama-cpp`.
         #[arg(long, value_name = "DEVICE")]
         device: Option<String>,
-        /// Nouveau timeout d'inférence en secondes.
+        /// New inference timeout in seconds.
         #[arg(long, value_name = "SECS")]
         timeout_sec: Option<u64>,
-        /// Activer le backend.
+        /// Enable the backend.
         #[arg(long, conflicts_with = "disable")]
         enable: bool,
-        /// Désactiver le backend.
+        /// Disable the backend.
         #[arg(long, conflicts_with = "enable")]
         disable: bool,
-        /// Marquer comme défaut.
+        /// Mark as default.
         #[arg(long, alias = "is-default")]
         default: bool,
     },
-    /// Supprimer un backend LLM.
+    /// Delete an LLM backend.
     Delete {
-        /// Nom du backend à supprimer.
+        /// Backend name to delete.
         name: String,
-        /// Confirmer la suppression sans prompt interactif.
+        /// Confirm deletion without an interactive prompt.
         #[arg(long)]
         confirm: bool,
     },
-    /// Définir un backend comme backend par défaut.
+    /// Set a backend as the default backend.
     SetDefault {
-        /// Nom du backend à définir comme défaut.
+        /// Backend name to mark as default.
         name: String,
     },
 }
@@ -743,7 +744,7 @@ async fn run_backends_show(client: &RuntimeClient, name: &str, json: bool) -> i3
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: backend '{name}' introuvable");
+                eprintln!("Error: backend '{name}' not found");
                 eprintln!("Hint: run `apollia-os llm backends list` to see existing backends.");
             }
             exit_codes::GENERAL_ERROR
@@ -800,12 +801,12 @@ async fn run_backends_create(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("OK backend '{name}' créé (provider: {canonical}, modèle: {model})");
+                println!("OK backend '{name}' created (provider: {canonical}, model: {model})");
                 if is_default {
-                    println!("    marqué comme backend par défaut");
+                    println!("    marked as default backend");
                 }
                 if !enabled {
-                    println!("    désactivé (passer --enable pour activer)");
+                    println!("    disabled (pass --enable to activate)");
                 }
                 auto_reload_after_mutation(client, json).await;
             }
@@ -820,9 +821,9 @@ async fn run_backends_create(
                 if status == 422 {
                     eprintln!();
                     eprintln!(
-                        "Hint: providers acceptés: llama-cpp, anthropic, openai, mistral, ollama"
+                        "Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama"
                     );
-                    eprintln!("      (alias --kind toujours accepté pour rétrocompat)");
+                    eprintln!("      (the --kind alias is still accepted for backward compatibility)");
                 }
             }
             exit_codes::GENERAL_ERROR
@@ -860,7 +861,7 @@ async fn run_backends_update(
                 let out = serde_json::json!({"error": format!("backend '{name}' not found")});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: backend '{name}' introuvable");
+                eprintln!("Error: backend '{name}' not found");
                 eprintln!("Hint: run `apollia-os llm backends list` to see existing backends.");
             }
             return exit_codes::GENERAL_ERROR;
@@ -946,7 +947,7 @@ async fn run_backends_update(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("OK backend '{name}' mis à jour");
+                println!("OK backend '{name}' updated");
                 println!(
                     "    provider={new_provider}, model={new_model}, enabled={new_enabled}, default={new_default}"
                 );
@@ -977,7 +978,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Utiliser --confirm pour supprimer le backend '{name}' sans confirmation.");
+            eprintln!("Pass --confirm to delete backend '{name}' without an interactive prompt.");
         }
         return exit_codes::GENERAL_ERROR;
     }
@@ -990,7 +991,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("OK backend '{name}' supprimé");
+                println!("OK backend '{name}' deleted");
                 auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
@@ -1000,7 +1001,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: backend '{name}' introuvable");
+                eprintln!("Error: backend '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -1008,7 +1009,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
     }
 }
 
-/// `apollia-os llm backends set-default` — définir le backend par défaut.
+/// `apollia-os llm backends set-default` — set the default backend.
 async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.set_default_llm_backend(name).await {
         Ok(resp) => {
@@ -1018,7 +1019,7 @@ async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("OK backend '{name}' défini comme backend par défaut");
+                println!("OK backend '{name}' set as default backend");
                 auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
@@ -1028,7 +1029,7 @@ async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: backend '{name}' introuvable");
+                eprintln!("Error: backend '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }

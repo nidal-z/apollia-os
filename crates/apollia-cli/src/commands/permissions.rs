@@ -25,41 +25,41 @@ use clap::Subcommand;
 
 use crate::exit_codes;
 
-/// Sous-commandes de `apollia-os permissions`.
+/// Subcommands of `apollia-os permissions`.
 #[derive(Debug, Subcommand)]
 pub enum PermissionsCommand {
-    /// Liste les règles persistées (project + global).
+    /// List persisted rules (project + global).
     List {
-        /// Filtre par portée : `global`, `project` ou `session`.
+        /// Filter by scope: `global`, `project` or `session`.
         #[arg(long)]
         scope: Option<String>,
-        /// Filtre par nom d'outil.
+        /// Filter by tool name.
         #[arg(long)]
         tool: Option<String>,
     },
-    /// Révoque une règle par identifiant, ou toutes les règles via `--all`.
+    /// Revoke a rule by identifier, or every matching rule with `--all`.
     Revoke {
-        /// Identifiant numérique d'une règle persistée.
+        /// Numeric identifier of a persisted rule.
         ///
-        /// Les identifiants préfixés `s` désignent des règles de session — non
-        /// révocables depuis la CLI (utilisez l'app desktop ou redémarrez le daemon).
+        /// IDs prefixed with `s` denote session-scoped rules — they are not
+        /// revocable from the CLI (use the desktop app or restart the daemon).
         id: Option<String>,
-        /// Révoque toutes les règles correspondant à `--scope`.
+        /// Revoke every rule matching `--scope`.
         #[arg(long)]
         all: bool,
-        /// Scope ciblé par `--all` : `global` (défaut) ou `project`.
+        /// Scope targeted by `--all`: `global` (default) or `project`.
         #[arg(long)]
         scope: Option<String>,
-        /// Saute la confirmation interactive (utile pour les scripts).
+        /// Skip the interactive confirmation (useful for scripts).
         #[arg(long)]
         yes: bool,
     },
-    /// Affiche l'historique des décisions de permissions.
+    /// Show the permission decision history.
     Audit {
-        /// Filtre par nom d'outil.
+        /// Filter by tool name.
         #[arg(long)]
         tool: Option<String>,
-        /// Nombre maximal d'entrées affichées.
+        /// Maximum number of entries to display.
         #[arg(long, default_value = "50")]
         limit: u32,
     },
@@ -99,7 +99,7 @@ fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -
     };
     let engine = match PrefixRuleEngine::new(&db_path) {
         Ok(e) => e,
-        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to open governance.db: {e}"), json),
     };
 
     let rules = match load_rules(&engine, parsed_scope) {
@@ -125,7 +125,7 @@ fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -
     } else {
         print_rules_table(&filtered);
         println!(
-            "  (les règles 'session' vivent en mémoire du runtime — non listables depuis la CLI)"
+            "  (session-scoped rules live in the runtime memory — not listable from the CLI)"
         );
     }
     exit_codes::SUCCESS
@@ -137,7 +137,7 @@ fn load_rules(
 ) -> Result<Vec<PrefixRule>, String> {
     engine
         .list_rules_filtered(scope, None)
-        .map_err(|e| format!("lecture des règles échouée : {e}"))
+        .map_err(|e| format!("failed to read rules: {e}"))
 }
 
 fn print_rules_table(rules: &[PrefixRule]) {
@@ -146,7 +146,7 @@ fn print_rules_table(rules: &[PrefixRule]) {
         "ID", "OUTIL", "PORTÉE", "ARGUMENT", "EXPIRATION"
     );
     if rules.is_empty() {
-        println!("  (aucune règle persistée)");
+        println!("  (no persisted rule)");
         return;
     }
     for r in rules {
@@ -217,7 +217,7 @@ fn run_revoke(
         Some(s) => s.trim(),
         None => {
             return emit_error(
-                "identifiant requis (ou utilisez --all --scope <portée>)".to_string(),
+                "identifier required (or use --all --scope <scope>)".to_string(),
                 json,
             );
         }
@@ -226,8 +226,8 @@ fn run_revoke(
     if raw_id.starts_with('s') || raw_id.starts_with('S') {
         return emit_error(
             format!(
-                "{raw_id} désigne une règle de session vivant en mémoire du runtime — \
-                 utilisez l'app desktop ou redémarrez le daemon pour la retirer"
+                "{raw_id} denotes a session rule living in the runtime memory — \
+                 use the desktop app or restart the daemon to remove it"
             ),
             json,
         );
@@ -238,7 +238,7 @@ fn run_revoke(
         Err(_) => return emit_error(format!("identifiant invalide : '{raw_id}'"), json),
     };
 
-    if !confirm(&format!("Révoquer la règle #{parsed} ? [o/N] "), yes, json) {
+    if !confirm(&format!("Revoke rule #{parsed}? [y/N] "), yes, json) {
         return cancelled(json);
     }
 
@@ -248,16 +248,16 @@ fn run_revoke(
     };
     let mut engine = match PrefixRuleEngine::new(&db_path) {
         Ok(e) => e,
-        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to open governance.db: {e}"), json),
     };
 
     let removed = match engine.remove_rule_checked(parsed) {
         Ok(b) => b,
-        Err(e) => return emit_error(format!("suppression échouée : {e}"), json),
+        Err(e) => return emit_error(format!("delete failed: {e}"), json),
     };
     if !removed {
         return emit_error(
-            format!("règle #{parsed} introuvable (déjà révoquée ?)"),
+            format!("rule #{parsed} not found (already revoked?)"),
             json,
         );
     }
@@ -272,7 +272,7 @@ fn run_revoke(
             .unwrap_or_default()
         );
     } else {
-        println!("✔ règle #{parsed} révoquée");
+        println!("✔ rule #{parsed} revoked");
     }
     exit_codes::SUCCESS
 }
@@ -282,7 +282,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
         Ok(Some(s)) => s,
         Ok(None) => {
             return emit_error(
-                "--all requiert --scope global|project (la CLI ne touche pas les règles de session)"
+                "--all requires --scope global|project (the CLI does not touch session rules)"
                     .to_string(),
                 json,
             );
@@ -291,7 +291,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
     };
     if matches!(scope, PermissionScope::Session) {
         return emit_error(
-            "--scope session inapplicable depuis la CLI (les règles vivent en mémoire du runtime)"
+            "--scope session not applicable from the CLI (those rules live in the runtime memory)"
                 .to_string(),
             json,
         );
@@ -303,12 +303,12 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
     };
     let mut engine = match PrefixRuleEngine::new(&db_path) {
         Ok(e) => e,
-        Err(e) => return emit_error(format!("ouverture de governance.db échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to open governance.db: {e}"), json),
     };
 
     let candidates = match engine.list_rules_filtered(Some(scope), None) {
         Ok(r) => r,
-        Err(e) => return emit_error(format!("lecture des règles échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to read rules: {e}"), json),
     };
     let count = candidates.len();
     if count == 0 {
@@ -322,13 +322,13 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
                 .unwrap_or_default()
             );
         } else {
-            println!("  (aucune règle {} à révoquer)", scope.as_str());
+            println!("  (no {} rule to revoke)", scope.as_str());
         }
         return exit_codes::SUCCESS;
     }
 
     if !confirm(
-        &format!("Révoquer {count} règle(s) {} ? [o/N] ", scope.as_str()),
+        &format!("Revoke {count} {} rule(s)? [y/N] ", scope.as_str()),
         yes,
         json,
     ) {
@@ -337,7 +337,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
 
     let removed = match engine.remove_rules_by_scope(scope, None) {
         Ok(n) => n,
-        Err(e) => return emit_error(format!("révocation en masse échouée : {e}"), json),
+        Err(e) => return emit_error(format!("bulk revoke failed: {e}"), json),
     };
 
     if json {
@@ -350,7 +350,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ {removed} règle(s) {} révoquée(s)", scope.as_str());
+        println!("✔ {removed} {} rule(s) revoked", scope.as_str());
     }
     exit_codes::SUCCESS
 }
@@ -364,11 +364,11 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
     };
     let log = match PermissionAuditLog::new(&db_path) {
         Ok(l) => l,
-        Err(e) => return emit_error(format!("ouverture du log d'audit échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to open audit log: {e}"), json),
     };
     let entries = match log.query(tool_filter, limit, 0) {
         Ok(e) => e,
-        Err(e) => return emit_error(format!("lecture du log d'audit échouée : {e}"), json),
+        Err(e) => return emit_error(format!("failed to read audit log: {e}"), json),
     };
 
     if json {
@@ -398,7 +398,7 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
             "TIMESTAMP", "OUTIL", "DÉCISION"
         );
         if entries.is_empty() {
-            println!("  (aucune décision enregistrée)");
+            println!("  (no decision recorded)");
         } else {
             for e in &entries {
                 let ts = format_unix_datetime(e.decided_at);
@@ -432,10 +432,10 @@ fn ensure_governance_db_path() -> Result<PathBuf, String> {
     let base = PathBuf::from(home).join(".apollia");
     if !base.exists() {
         std::fs::create_dir_all(&base)
-            .map_err(|e| format!("création de {} échouée : {e}", base.display()))?;
+            .map_err(|e| format!("failed to create {}: {e}", base.display()))?;
     }
     let db = GovernanceDb::open(&base)
-        .map_err(|e| format!("ouverture de governance.db échouée : {e}"))?;
+        .map_err(|e| format!("failed to open governance.db: {e}"))?;
     Ok(db.path().to_path_buf())
 }
 
@@ -467,7 +467,7 @@ fn cancelled(json: bool) -> i32 {
                 .unwrap_or_default()
         );
     } else {
-        println!("Annulé.");
+        println!("Cancelled.");
     }
     exit_codes::SUCCESS
 }

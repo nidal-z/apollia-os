@@ -17,73 +17,73 @@ use crate::exit_codes;
 /// Notify subcommands : `apollia-os notify <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum NotifyCommand {
-    /// Envoyer une notification de test sur tous les canaux actifs.
+    /// Send a test notification to every active channel.
     ///
-    /// Contacte le runtime pour déclencher un envoi de test sur chaque canal
-    /// activé dans `apollia.toml`. Le code de sortie est 0 si tous les canaux
-    /// actifs réussissent, 1 si au moins un retourne une erreur.
+    /// Asks the runtime to dispatch a test payload to each channel enabled
+    /// in `apollia.toml`. Exits 0 if every active channel succeeds, 1 if
+    /// any channel returns an error.
     Test,
-    /// Lister les canaux de notification configurés avec leur statut.
+    /// List configured notification channels with their status.
     ///
-    /// Affiche l'identifiant, le type, les événements acceptés et l'état
-    /// (actif / désactivé) de chaque canal déclaré dans `apollia.toml`.
+    /// Shows the identifier, type, accepted events and state
+    /// (enabled / disabled) for each channel declared in `apollia.toml`.
     List,
-    /// Afficher l'historique des notifications récentes depuis SQLite.
+    /// Show the recent notification history from SQLite.
     ///
-    /// Lit la table `notification_logs` dans `~/.apollia/hitl.db`.
-    /// Si la table n'existe pas encore, le résultat est vide.
+    /// Reads the `notification_logs` table in `~/.apollia/hitl.db`.
+    /// Returns an empty list if the table does not exist yet.
     Logs {
-        /// Nombre de lignes à afficher (défaut : 20).
+        /// Number of lines to display (default: 20).
         #[arg(long, default_value = "20")]
         last: usize,
     },
-    /// Créer un nouveau canal de notification.
+    /// Create a new notification channel.
     Create {
-        /// Type de canal : desktop, webhook.
+        /// Channel type: desktop, webhook.
         #[arg(long, value_name = "TYPE")]
         kind: String,
-        /// URL cible (pour webhook).
+        /// Target URL (for webhook).
         #[arg(long)]
         url: Option<String>,
-        /// Activer immédiatement.
+        /// Enable immediately.
         #[arg(long, default_value_t = true)]
         enabled: bool,
     },
-    /// Mettre à jour un canal de notification existant.
+    /// Update an existing notification channel.
     Update {
-        /// Identifiant du canal.
+        /// Channel identifier.
         id: String,
-        /// Nouvelle URL (pour webhook).
+        /// New URL (for webhook).
         #[arg(long)]
         url: Option<String>,
-        /// Activer ou désactiver.
+        /// Enable or disable.
         #[arg(long)]
         enabled: Option<bool>,
     },
-    /// Supprimer un canal de notification.
+    /// Delete a notification channel.
     Delete {
-        /// Identifiant du canal.
+        /// Channel identifier.
         id: String,
-        /// Confirmer sans prompt interactif.
+        /// Confirm without an interactive prompt.
         #[arg(long)]
         confirm: bool,
     },
-    /// Afficher ou modifier les types d'événements qui déclenchent les notifications.
+    /// Show or modify the event types that trigger notifications.
     Events {
-        /// Sous-commande events.
+        /// Events subcommand.
         #[command(subcommand)]
         command: NotifyEventsCommand,
     },
 }
 
-/// Sous-commandes pour la gestion des événements de notification.
+/// Subcommands for notification event management.
 #[derive(Debug, Subcommand)]
 pub enum NotifyEventsCommand {
-    /// Afficher les types d'événements configurés.
+    /// Show the configured event types.
     Get,
-    /// Modifier les types d'événements (liste séparée par virgules).
+    /// Set the active event types (comma-separated list).
     Set {
-        /// Types d'événements activés (ex: task_completed,task_failed,agent_error).
+        /// Enabled event types (e.g. task_completed,task_failed,agent_error).
         #[arg(value_delimiter = ',', value_name = "EVENT")]
         events: Vec<String>,
     },
@@ -270,15 +270,15 @@ fn format_test_results(results: &[serde_json::Value]) {
         let detail = match status {
             "ok" => {
                 if let Some(ms) = latency {
-                    format!("notification envoyée ({ms}ms)")
+                    format!("notification sent ({ms}ms)")
                 } else {
-                    "notification envoyée".to_string()
+                    "notification sent".to_string()
                 }
             }
             "error" => error
-                .map(|e| format!("erreur — {e}"))
-                .unwrap_or_else(|| "erreur inconnue".to_string()),
-            "disabled" => "désactivé".to_string(),
+                .map(|e| format!("error — {e}"))
+                .unwrap_or_else(|| "unknown error".to_string()),
+            "disabled" => "disabled".to_string(),
             other => other.to_string(),
         };
 
@@ -333,9 +333,9 @@ fn format_channel_list(resp: &serde_json::Value) {
         };
 
         let statut = if enabled {
-            "✔ actif"
+            "✔ active"
         } else {
-            "✗ désactivé"
+            "✗ disabled"
         };
 
         println!(
@@ -422,7 +422,7 @@ async fn run_create(
                     .get("channel_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("?");
-                println!("✔ Canal de notification '{id}' créé (type: {kind})");
+                println!("✔ Notification channel '{id}' created (type: {kind})");
             }
             exit_codes::SUCCESS
         }
@@ -454,7 +454,7 @@ async fn run_update_channel(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Canal '{id}' mis à jour");
+                println!("✔ Channel '{id}' updated");
             }
             exit_codes::SUCCESS
         }
@@ -494,7 +494,7 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Canal '{id}' supprimé");
+                println!("✔ Channel '{id}' deleted");
             }
             exit_codes::SUCCESS
         }
@@ -535,9 +535,9 @@ async fn run_events_get(client: &RuntimeClient, json: bool) -> i32 {
                     .map(|arr| arr.iter().filter_map(|e| e.as_str()).collect())
                     .unwrap_or_default();
                 if events.is_empty() {
-                    println!("  (aucun type d'événement configuré)");
+                    println!("  (no event type configured)");
                 } else {
-                    println!("  Événements actifs :");
+                    println!("  Active events:");
                     for e in &events {
                         println!("    - {e}");
                     }
@@ -560,7 +560,7 @@ async fn run_events_set(client: &RuntimeClient, events: &[String], json: bool) -
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Types d'événements mis à jour ({} actifs)", events.len());
+                println!("✔ Event types updated ({} active)", events.len());
             }
             exit_codes::SUCCESS
         }

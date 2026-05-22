@@ -67,11 +67,19 @@ fn run_stats(db_path: &Path, json: bool) -> i32 {
         println!("  Cache hits    : {}", stats.cache_hits);
         println!(
             "  Oldest entry  : {}",
-            stats.oldest_entry_at.as_deref().unwrap_or("(empty)")
+            stats
+                .oldest_entry_at
+                .as_deref()
+                .map(format_ts_compact)
+                .unwrap_or_else(|| "(empty)".to_string())
         );
         println!(
             "  Newest entry  : {}",
-            stats.newest_entry_at.as_deref().unwrap_or("(empty)")
+            stats
+                .newest_entry_at
+                .as_deref()
+                .map(format_ts_compact)
+                .unwrap_or_else(|| "(empty)".to_string())
         );
     }
     exit_codes::SUCCESS
@@ -176,6 +184,20 @@ fn print_error_and_exit(msg: &str, json: bool) -> i32 {
         eprintln!("Error: {msg}");
     }
     exit_codes::GENERAL_ERROR
+}
+
+/// Render an RFC3339 timestamp as `YYYY-MM-DD HH:MM:SS`.
+///
+/// Falls back to the raw string on parse failure so the operator still
+/// sees something usable when the stored value is malformed.
+fn format_ts_compact(raw: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|dt| {
+            dt.with_timezone(&chrono::Utc)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_else(|_| raw.to_string())
 }
 
 #[cfg(test)]
