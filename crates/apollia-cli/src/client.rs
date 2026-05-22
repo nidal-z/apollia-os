@@ -1038,6 +1038,27 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Fetch a single LLM backend via `GET /api/v1/llm/backends/{name}`.
+    ///
+    /// Returns the full configuration object including `provider`, `model`,
+    /// `config_json`, `enabled`, and `is_default`. Used by `llm backends show`
+    /// and by the CLI update path to merge partial flags with the existing
+    /// state before re-submitting a full body to the route (`PUT` is replace,
+    /// not patch).
+    pub async fn get_llm_backend(
+        &self,
+        name: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/llm/backends/{name}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Create a new LLM backend via `POST /api/v1/llm/backends`.
     pub async fn create_llm_backend(
         &self,
