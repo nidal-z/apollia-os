@@ -68,10 +68,7 @@ impl InjectionTracker {
     pub fn record(&mut self, turn_id: impl Into<String>, entry: InjectedEntry) {
         let turn_id = turn_id.into();
         let is_new = !self.by_turn.contains_key(&turn_id);
-        self.by_turn
-            .entry(turn_id.clone())
-            .or_default()
-            .push(entry);
+        self.by_turn.entry(turn_id.clone()).or_default().push(entry);
 
         if is_new {
             self.order.push_back(turn_id);

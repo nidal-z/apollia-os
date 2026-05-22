@@ -65,8 +65,8 @@ impl ChatLibreConfigRepository {
 
         match row {
             Ok((system_prompt, allowed_tools_json, llm_backend)) => {
-                let allowed_tools: Vec<String> = serde_json::from_str(&allowed_tools_json)
-                    .unwrap_or_default();
+                let allowed_tools: Vec<String> =
+                    serde_json::from_str(&allowed_tools_json).unwrap_or_default();
                 Ok(ChatLibreConfig {
                     system_prompt,
                     allowed_tools,

@@ -227,8 +227,7 @@ pub async fn get_task_timeline<B: ExecutionBackend + Clone>(
             events.push((
                 last_ts.clone(),
                 TimelineEvent::TaskCompleted {
-                    output_preview: output_text
-                        .map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
+                    output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
                     duration_ms,
                     timestamp: last_ts,
                 },
@@ -765,8 +764,7 @@ mod tests {
             events.push((
                 last_ts.clone(),
                 TimelineEvent::TaskCompleted {
-                    output_preview: output_text
-                        .map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
+                    output_preview: output_text.map(|t| truncate_preview(&t, MAX_OUTPUT_PREVIEW).0),
                     duration_ms,
                     timestamp: last_ts,
                 },
@@ -999,10 +997,7 @@ mod tests {
         // GIVEN un texte plus court que la limite
         // WHEN on tronque
         // THEN le texte est rendu tel quel et le drapeau truncated est false
-        assert_eq!(
-            truncate_preview("hello", 10),
-            ("hello".to_string(), false)
-        );
+        assert_eq!(truncate_preview("hello", 10), ("hello".to_string(), false));
     }
 
     #[test]

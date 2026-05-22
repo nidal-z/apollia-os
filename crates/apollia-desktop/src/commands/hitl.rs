@@ -366,9 +366,11 @@ pub async fn add_permission_prefix_rule(
                 "operator added global permission rule"
             );
         }
-        apollia_permissions::PermissionScope::Agent | apollia_permissions::PermissionScope::Session => {
+        apollia_permissions::PermissionScope::Agent
+        | apollia_permissions::PermissionScope::Session => {
             return Err(
-                "scope must be 'project' or 'global' (use authorize_chat_tool for agent scope)".to_string(),
+                "scope must be 'project' or 'global' (use authorize_chat_tool for agent scope)"
+                    .to_string(),
             );
         }
     }

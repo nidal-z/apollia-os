@@ -51,9 +51,9 @@ impl FileWatchTrigger {
         tokio::spawn(async move {
             // Guard : extraire path et recursive depuis la source
             let (raw_path, recursive) = match &def.source {
-                TriggerSourceConfig::FileWatch { path, recursive, .. } => {
-                    (path.clone(), *recursive)
-                }
+                TriggerSourceConfig::FileWatch {
+                    path, recursive, ..
+                } => (path.clone(), *recursive),
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
@@ -68,7 +68,9 @@ impl FileWatchTrigger {
             // Mode récursif uniquement pertinent pour les dossiers. Pour un chemin
             // de fichier, `notify` ignore silencieusement le mode mais on garde
             // NonRecursive par défaut pour rester explicite.
-            let path_is_dir = std::fs::metadata(&path).map(|m| m.is_dir()).unwrap_or(false);
+            let path_is_dir = std::fs::metadata(&path)
+                .map(|m| m.is_dir())
+                .unwrap_or(false);
             let mode = if recursive && path_is_dir {
                 RecursiveMode::Recursive
             } else {
@@ -313,7 +315,7 @@ mod tests {
                 path: dir.to_path_buf(),
                 events,
                 recursive: false,
-            follow_symlinks: false,
+                follow_symlinks: false,
                 exclude_patterns: vec![],
             },
             input_template: InputTemplate("{{filename}}".into()),
@@ -759,7 +761,7 @@ mod tests {
                 path: dir.path().to_path_buf(),
                 events: vec![FileEventKind::Any],
                 recursive: false,
-            follow_symlinks: false,
+                follow_symlinks: false,
                 exclude_patterns: vec![],
             },
             input_template: InputTemplate("{{filename}}".into()),

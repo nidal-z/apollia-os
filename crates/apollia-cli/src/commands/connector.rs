@@ -218,9 +218,7 @@ async fn run_accounts(filter: Option<&str>, json: bool) -> i32 {
         let total: usize = rows.iter().map(|(_, a)| a.len()).sum();
         if total == 0 {
             println!("No connected accounts.");
-            println!(
-                "  -> Run `apollia-os auth login <provider>` to connect an account."
-            );
+            println!("  -> Run `apollia-os auth login <provider>` to connect an account.");
             return exit_codes::SUCCESS;
         }
         println!("  Connected accounts:");
@@ -274,7 +272,10 @@ async fn run_test(provider: &str, account: &str, json: bool) -> i32 {
                     "detail": report.detail,
                     "granted_scopes": report.granted_scopes,
                 });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             } else {
                 let glyph = if report.reachable { "*" } else { "x" };
                 println!(
@@ -307,7 +308,10 @@ async fn run_test(provider: &str, account: &str, json: bool) -> i32 {
                     "ok": false,
                     "error": e.to_string(),
                 });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             } else {
                 eprintln!("Error: connector check failed: {e}");
             }
@@ -349,7 +353,10 @@ async fn run_revoke(provider: &str, account: &str, confirm: bool, json: bool) ->
                     "account": account,
                     "revoked": true,
                 });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             } else {
                 println!(
                     "  * {} / {} token revoked locally",

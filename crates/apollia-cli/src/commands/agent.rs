@@ -392,30 +392,28 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
         // registry but still present in `agents.db`. Fall back to the local
         // repository so `apollia-os agent info` works on every installed
         // agent regardless of its runtime state.
-        Err(ClientError::ServerError { status: 404, .. }) => {
-            match local_agent_detail(agent_id) {
-                Some(detail) => {
-                    if json {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&detail).unwrap_or_default()
-                        );
-                    } else {
-                        format_local_agent_detail(&detail);
-                    }
-                    exit_codes::SUCCESS
+        Err(ClientError::ServerError { status: 404, .. }) => match local_agent_detail(agent_id) {
+            Some(detail) => {
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&detail).unwrap_or_default()
+                    );
+                } else {
+                    format_local_agent_detail(&detail);
                 }
-                None => {
-                    let msg = format!("agent not found: {agent_id}");
-                    if json {
-                        println!("{}", serde_json::json!({"error": msg}));
-                    } else {
-                        eprintln!("Error: {msg}");
-                    }
-                    exit_codes::GENERAL_ERROR
-                }
+                exit_codes::SUCCESS
             }
-        }
+            None => {
+                let msg = format!("agent not found: {agent_id}");
+                if json {
+                    println!("{}", serde_json::json!({"error": msg}));
+                } else {
+                    eprintln!("Error: {msg}");
+                }
+                exit_codes::GENERAL_ERROR
+            }
+        },
         Err(e) => handle_error(e, json),
     }
 }
@@ -446,7 +444,10 @@ fn local_agent_detail(agent_id: &str) -> Option<serde_json::Value> {
 /// manifest because they are unchanged across enable / disable transitions.
 fn format_local_agent_detail(detail: &serde_json::Value) {
     let name = detail.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-    let version = detail.get("version").and_then(|v| v.as_str()).unwrap_or("?");
+    let version = detail
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("?");
     let state = detail.get("state").and_then(|v| v.as_str()).unwrap_or("?");
     let installed_at = detail
         .get("installed_at")
@@ -472,10 +473,7 @@ fn format_local_agent_detail(detail: &serde_json::Value) {
                 }
             }
         }
-        if let Some(tools) = manifest
-            .get("tools_required")
-            .and_then(|t| t.as_array())
-        {
+        if let Some(tools) = manifest.get("tools_required").and_then(|t| t.as_array()) {
             let names: Vec<&str> = tools.iter().filter_map(|v| v.as_str()).collect();
             if !names.is_empty() {
                 println!("  Tools (required) : {}", names.join(", "));
@@ -2250,7 +2248,10 @@ async fn run_repair(name: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("OK venv for '{name}' provisioned at {}", venv_base.join(name).display());
+        println!(
+            "OK venv for '{name}' provisioned at {}",
+            venv_base.join(name).display()
+        );
         println!("    Packages installed:");
         for p in &declared {
             println!("      - {p}");
@@ -2302,7 +2303,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 

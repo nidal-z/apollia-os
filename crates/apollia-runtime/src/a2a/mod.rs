@@ -357,11 +357,11 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         .submit_with_chain(&agent_id, input, Some(skill_id.to_string()), child_chain)
         .await
         .map_err(|e| match e {
-        SubmitError::ActorDead => A2aError::RouterDead,
-        other => A2aError::WorkerFailed {
-            reason: other.to_string(),
-        },
-    })?;
+            SubmitError::ActorDead => A2aError::RouterDead,
+            other => A2aError::WorkerFailed {
+                reason: other.to_string(),
+            },
+        })?;
 
     let task_id_str = task_id.to_string();
     info!(task_id = %task_id_str, agent = %agent_name, "A2A task submitted");
@@ -489,7 +489,8 @@ mod tests {
                 agent_class: None,
                 user_memory_write: false,
                 datasources: vec![],
-                templates: vec![],                secrets: vec![],
+                templates: vec![],
+                secrets: vec![],
             },
             process_state: state,
             registered_at: Instant::now(),

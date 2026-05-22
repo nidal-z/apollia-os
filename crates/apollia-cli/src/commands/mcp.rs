@@ -324,9 +324,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             run_get_raw_config(&client, name, json).await
         }
 
-        McpCommand::Oauth { command } => {
-            crate::commands::mcp_oauth::run(command, json).await
-        }
+        McpCommand::Oauth { command } => crate::commands::mcp_oauth::run(command, json).await,
     }
 }
 
@@ -563,16 +561,16 @@ async fn run_update_server(
 
     let mut body = serde_json::Map::new();
     if let Some(c) = command {
-        body.insert("command".to_string(), serde_json::Value::String(c.to_string()));
+        body.insert(
+            "command".to_string(),
+            serde_json::Value::String(c.to_string()),
+        );
     }
     if let Some(u) = url {
         body.insert("url".to_string(), serde_json::Value::String(u.to_string()));
     }
     if let Some(req) = require_approval {
-        body.insert(
-            "require_approval".to_string(),
-            serde_json::Value::Bool(req),
-        );
+        body.insert("require_approval".to_string(), serde_json::Value::Bool(req));
     }
 
     match client
@@ -846,7 +844,11 @@ fn merge_runtime_and_configured(
                     .map(|a| a.len().to_string())
             })
             .unwrap_or_else(|| "-".to_string());
-        let status = if connected { "connected" } else { "disconnected" };
+        let status = if connected {
+            "connected"
+        } else {
+            "disconnected"
+        };
         by_name.insert(
             name.clone(),
             McpListRow {
@@ -1235,13 +1237,8 @@ mod tests {
 
     #[test]
     fn test_mcp_update_require_approval_flag() {
-        let cli = TestCli::parse_from([
-            "apollia-os",
-            "update",
-            "srv",
-            "--require-approval",
-            "true",
-        ]);
+        let cli =
+            TestCli::parse_from(["apollia-os", "update", "srv", "--require-approval", "true"]);
         match &cli.command {
             McpCommand::Update {
                 require_approval, ..

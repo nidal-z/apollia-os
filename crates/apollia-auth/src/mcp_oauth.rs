@@ -95,12 +95,12 @@ fn split_header_parameters(s: &str) -> impl Iterator<Item = Option<(String, Stri
         let key = chunk[..eq].trim().to_string();
         let raw_value = chunk[eq + 1..].trim();
         // Strip surrounding double quotes if present.
-        let value = if raw_value.starts_with('"') && raw_value.ends_with('"') && raw_value.len() >= 2
-        {
-            raw_value[1..raw_value.len() - 1].to_string()
-        } else {
-            raw_value.to_string()
-        };
+        let value =
+            if raw_value.starts_with('"') && raw_value.ends_with('"') && raw_value.len() >= 2 {
+                raw_value[1..raw_value.len() - 1].to_string()
+            } else {
+                raw_value.to_string()
+            };
         Some((key, value))
     })
 }
@@ -160,7 +160,9 @@ pub fn as_metadata_candidates(issuer: &str) -> Vec<String> {
     let (root, path) = split_issuer(issuer);
     let mut out = Vec::new();
     if !path.is_empty() {
-        out.push(format!("{root}/.well-known/oauth-authorization-server/{path}"));
+        out.push(format!(
+            "{root}/.well-known/oauth-authorization-server/{path}"
+        ));
         out.push(format!("{root}/.well-known/openid-configuration/{path}"));
         out.push(format!("{root}/{path}/.well-known/openid-configuration"));
     }
@@ -319,7 +321,10 @@ impl McpDiscoveryClient {
     /// Per RFC 9728 §3, when a `WWW-Authenticate` header points to a specific
     /// URL, callers should pass it via [`fetch_prm_at`](Self::fetch_prm_at)
     /// instead.
-    pub async fn fetch_prm(&self, server_url: &str) -> Result<ProtectedResourceMetadata, AuthError> {
+    pub async fn fetch_prm(
+        &self,
+        server_url: &str,
+    ) -> Result<ProtectedResourceMetadata, AuthError> {
         let base = server_url.trim_end_matches('/');
         let url = format!("{base}/.well-known/oauth-protected-resource");
         self.fetch_prm_at(&url).await
@@ -355,10 +360,12 @@ impl McpDiscoveryClient {
         let mut last_err: Option<AuthError> = None;
         for url in &candidates {
             match self.http.get(url).send().await {
-                Ok(r) if r.status().is_success() => match r.json::<AuthorizationServerMetadata>().await {
-                    Ok(meta) => return Ok(meta),
-                    Err(e) => last_err = Some(AuthError::Serialization(e.to_string())),
-                },
+                Ok(r) if r.status().is_success() => {
+                    match r.json::<AuthorizationServerMetadata>().await {
+                        Ok(meta) => return Ok(meta),
+                        Err(e) => last_err = Some(AuthError::Serialization(e.to_string())),
+                    }
+                }
                 Ok(_) => {} // Try the next candidate.
                 Err(e) => last_err = Some(AuthError::HttpError(e.to_string())),
             }
@@ -428,7 +435,10 @@ mod tests {
     fn test_parse_www_authenticate_handles_unquoted_values() {
         let header = "Bearer resource_metadata=https://example.com/foo";
         let parsed = parse_www_authenticate(header).expect("parsed");
-        assert_eq!(parsed.resource_metadata.as_deref(), Some("https://example.com/foo"));
+        assert_eq!(
+            parsed.resource_metadata.as_deref(),
+            Some("https://example.com/foo")
+        );
     }
 
     #[test]
@@ -482,7 +492,8 @@ mod tests {
             "https://example.com/foo/bar/.well-known/openid-configuration"
         );
         // Then path-stripped fallbacks
-        assert!(urls.contains(&"https://example.com/.well-known/oauth-authorization-server".to_string()));
+        assert!(urls
+            .contains(&"https://example.com/.well-known/oauth-authorization-server".to_string()));
         assert!(urls.contains(&"https://example.com/.well-known/openid-configuration".to_string()));
     }
 
@@ -490,15 +501,23 @@ mod tests {
     fn test_as_metadata_candidates_root_issuer_yields_two_urls() {
         let urls = as_metadata_candidates("https://example.com");
         assert_eq!(urls.len(), 2);
-        assert!(urls.iter().any(|u| u.ends_with("oauth-authorization-server")));
+        assert!(urls
+            .iter()
+            .any(|u| u.ends_with("oauth-authorization-server")));
         assert!(urls.iter().any(|u| u.ends_with("openid-configuration")));
     }
 
     #[test]
     fn test_canonical_resource_uri_strips_trailing_slash() {
-        assert_eq!(canonical_resource_uri("https://x.com/api/"), "https://x.com/api");
+        assert_eq!(
+            canonical_resource_uri("https://x.com/api/"),
+            "https://x.com/api"
+        );
         assert_eq!(canonical_resource_uri("https://x.com"), "https://x.com");
-        assert_eq!(canonical_resource_uri("  https://x.com/  "), "https://x.com");
+        assert_eq!(
+            canonical_resource_uri("  https://x.com/  "),
+            "https://x.com"
+        );
     }
 
     #[test]

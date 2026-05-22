@@ -150,13 +150,7 @@ fn run_show(db_path: Option<&Path>, json: bool) -> i32 {
         println!("  {:<width$}  WRITTEN BY  VALUE", "KEY", width = kw);
         for e in &entries {
             let by = format_written_by(&e.written_by);
-            println!(
-                "  {:<width$}  {:<10}  {}",
-                e.key,
-                by,
-                e.value,
-                width = kw
-            );
+            println!("  {:<width$}  {:<10}  {}", e.key, by, e.value, width = kw);
         }
     }
     exit_codes::SUCCESS

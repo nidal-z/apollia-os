@@ -489,13 +489,12 @@ async fn resolve_single_var(
             server: server_name.to_string(),
             var: var_name.to_string(),
         })?;
-        let token = store
-            .resolve_oauth_bearer(server_name)
-            .await
-            .map_err(|_| McpConfigError::UnresolvedEnvVar {
+        let token = store.resolve_oauth_bearer(server_name).await.map_err(|_| {
+            McpConfigError::UnresolvedEnvVar {
                 server: server_name.to_string(),
                 var: var_name.to_string(),
-            })?;
+            }
+        })?;
         // MCP HTTP OAuth always issues Bearer tokens (spec MUST). Prefix here
         // so the placeholder is foolproof in the user-facing config — the
         // operator writes `Authorization = "${APOLLIA_OAUTH}"`, not
@@ -959,10 +958,7 @@ mod tests {
         let store = MockSecretStore::with(&[("oauth:linear", "at-12345")]);
         let config = server_with_env(
             "linear",
-            HashMap::from([(
-                "Authorization".to_string(),
-                "${APOLLIA_OAUTH}".to_string(),
-            )]),
+            HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]),
         );
         // WHEN
         let resolved = config.resolve_env(Some(&store)).await.unwrap();
@@ -976,10 +972,7 @@ mod tests {
         // GIVEN env = { Authorization = "${APOLLIA_OAUTH}" } and no store
         let config = server_with_env(
             "linear",
-            HashMap::from([(
-                "Authorization".to_string(),
-                "${APOLLIA_OAUTH}".to_string(),
-            )]),
+            HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]),
         );
         // WHEN / THEN — clear error, no panic
         assert!(matches!(
@@ -995,10 +988,7 @@ mod tests {
         let store = MockSecretStore::with(&[]);
         let config = server_with_env(
             "linear",
-            HashMap::from([(
-                "Authorization".to_string(),
-                "${APOLLIA_OAUTH}".to_string(),
-            )]),
+            HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]),
         );
         // WHEN / THEN
         assert!(matches!(
@@ -1024,10 +1014,7 @@ mod tests {
         let store = OnlyStatic;
         let config = server_with_env(
             "anyserver",
-            HashMap::from([(
-                "Authorization".to_string(),
-                "${APOLLIA_OAUTH}".to_string(),
-            )]),
+            HashMap::from([("Authorization".to_string(), "${APOLLIA_OAUTH}".to_string())]),
         );
         // WHEN / THEN
         let err = config.resolve_env(Some(&store)).await.unwrap_err();

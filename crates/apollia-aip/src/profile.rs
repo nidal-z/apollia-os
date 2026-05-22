@@ -25,7 +25,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use apollia_memory::manager::MemoryManager;
-use apollia_memory::user_memory::{ProfileEntry, USER_NAMESPACE, WrittenBy};
+use apollia_memory::user_memory::{ProfileEntry, WrittenBy, USER_NAMESPACE};
 
 /// Python-facing handle on the global user profile.
 #[pyclass]
@@ -106,12 +106,7 @@ impl ProfileInterface {
     /// raises `RuntimeError`.  The `user.` prefix on `key` is stripped to
     /// preserve compatibility with the historical `remember_user("user.X")`
     /// call sites.
-    fn set<'py>(
-        &self,
-        py: Python<'py>,
-        key: String,
-        value: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn set<'py>(&self, py: Python<'py>, key: String, value: String) -> PyResult<Bound<'py, PyAny>> {
         if !self.user_memory_writable {
             return Err(PyRuntimeError::new_err(
                 "user profile write not permitted: manifest must declare user_memory_write = true",
@@ -124,10 +119,12 @@ impl ProfileInterface {
             WrittenBy::Agent(self.agent_name.clone())
         };
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            tokio::task::spawn_blocking(move || profile_set(&user_manager, &key, &value, written_by))
-                .await
-                .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
-                .map_err(PyRuntimeError::new_err)?;
+            tokio::task::spawn_blocking(move || {
+                profile_set(&user_manager, &key, &value, written_by)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?
+            .map_err(PyRuntimeError::new_err)?;
             Ok(Python::with_gil(|py| py.None()))
         })
     }
@@ -211,8 +208,11 @@ impl ProfileInterface {
 // Pure Rust internals — testable without PyO3
 // ---------------------------------------------------------------------------
 
-fn lock_manager(mgr: &Arc<Mutex<MemoryManager>>) -> Result<std::sync::MutexGuard<'_, MemoryManager>, String> {
-    mgr.lock().map_err(|e| format!("user memory mutex poisoned: {e}"))
+fn lock_manager(
+    mgr: &Arc<Mutex<MemoryManager>>,
+) -> Result<std::sync::MutexGuard<'_, MemoryManager>, String> {
+    mgr.lock()
+        .map_err(|e| format!("user memory mutex poisoned: {e}"))
 }
 
 fn profile_get(
@@ -235,9 +235,7 @@ fn profile_get(
     }))
 }
 
-fn profile_list_all(
-    user_manager: &Arc<Mutex<MemoryManager>>,
-) -> Result<Vec<ProfileEntry>, String> {
+fn profile_list_all(user_manager: &Arc<Mutex<MemoryManager>>) -> Result<Vec<ProfileEntry>, String> {
     let db_path = {
         let mgr = lock_manager(user_manager)?;
         mgr.db_path_for(USER_NAMESPACE)

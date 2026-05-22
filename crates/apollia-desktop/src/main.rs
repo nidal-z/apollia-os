@@ -195,9 +195,8 @@ fn main() {
     let mailbox_handle_lock: Arc<std::sync::OnceLock<AgentMailboxHandle>> =
         Arc::new(std::sync::OnceLock::new());
     // Global user memory — used by Chat Agent runner to build `ctx.user_context`.
-    let user_memory_lock: Arc<
-        std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    > = Arc::new(std::sync::OnceLock::new());
+    let user_memory_lock: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>> =
+        Arc::new(std::sync::OnceLock::new());
     // Tools config (`[tools]` from apollia.toml) — drives web_search/web_read
     // params and statically-disabled tools. Populated from RuntimeHandle.
     let tools_config_lock: Arc<std::sync::OnceLock<ToolsConfig>> =

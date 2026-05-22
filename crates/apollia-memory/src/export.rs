@@ -327,14 +327,26 @@ mod tests {
         {
             let store = setup_namespace(&dir, "agent-y");
             let conn = store.conn();
-            conn.execute("DELETE FROM episodic_memories WHERE namespace = 'agent-y'", []).unwrap();
-            conn.execute("DELETE FROM semantic_memories WHERE namespace = 'agent-y'", []).unwrap();
-            conn.execute("DELETE FROM procedural_memories WHERE namespace = 'agent-y'", []).unwrap();
+            conn.execute(
+                "DELETE FROM episodic_memories WHERE namespace = 'agent-y'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "DELETE FROM semantic_memories WHERE namespace = 'agent-y'",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "DELETE FROM procedural_memories WHERE namespace = 'agent-y'",
+                [],
+            )
+            .unwrap();
         }
 
         // WHEN import with Replace mode
-        let count = import_namespace(dir.path(), "agent-y", &export, ImportMode::Replace)
-            .expect("import");
+        let count =
+            import_namespace(dir.path(), "agent-y", &export, ImportMode::Replace).expect("import");
 
         // THEN 3 entries restored
         assert_eq!(count, 3);

@@ -184,7 +184,10 @@ impl Connector for GoogleConnector {
         Ok(HealthReport {
             reachable: true,
             granted_scopes: token.scopes,
-            detail: format!("connected as {}", info.email.unwrap_or_else(|| "<unknown>".into())),
+            detail: format!(
+                "connected as {}",
+                info.email.unwrap_or_else(|| "<unknown>".into())
+            ),
         })
     }
 }
@@ -634,22 +637,20 @@ mod tests {
         let writes = ["gmail.send", "gcal.create_event", "gdrive.workspace_write"];
         for id in writes {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            assert!(
-                op.requires_approval(),
-                "expected {id} to require approval"
-            );
+            assert!(op.requires_approval(), "expected {id} to require approval");
         }
     }
 
     #[test]
     fn test_read_operations_auto_approve() {
-        let reads = ["gmail.list_drafts", "gcal.list_events", "gdrive.workspace_read"];
+        let reads = [
+            "gmail.list_drafts",
+            "gcal.list_events",
+            "gdrive.workspace_read",
+        ];
         for id in reads {
             let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            assert!(
-                op.is_read_only(),
-                "expected {id} to auto-approve"
-            );
+            assert!(op.is_read_only(), "expected {id} to auto-approve");
         }
     }
 
@@ -667,7 +668,12 @@ mod tests {
         // GIVEN the Google operations catalog
         // WHEN we collect every scope required
         // THEN none of the restricted scopes appear (per ADR-088 free-tier policy).
-        let restricted = ["mail.read_inbox", "mail.full", "drive.read_all", "drive.full"];
+        let restricted = [
+            "mail.read_inbox",
+            "mail.full",
+            "drive.read_all",
+            "drive.full",
+        ];
         for op in OPERATIONS {
             for scope in op.scopes_required {
                 assert!(

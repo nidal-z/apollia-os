@@ -49,13 +49,8 @@ pub async fn run(args: &LogsArgs, json: bool) -> i32 {
                 serde_json::to_string_pretty(&report).unwrap_or_default()
             );
         } else {
-            eprintln!(
-                "No log file at {}.",
-                path.display()
-            );
-            eprintln!(
-                "Apollia logs to stderr by default. To persist logs run:"
-            );
+            eprintln!("No log file at {}.", path.display());
+            eprintln!("Apollia logs to stderr by default. To persist logs run:");
             eprintln!("  mkdir -p ~/.apollia/logs");
             eprintln!("  apollia-os start 2>>~/.apollia/logs/runtime.log");
         }

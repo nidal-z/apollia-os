@@ -127,11 +127,7 @@ impl A2AInterface {
     ///
     /// Retourne un Python awaitable qui résout en `dict | None`.
     /// `None` si aucun agent disponible ne déclare le skill.
-    fn discover<'py>(
-        &self,
-        py: Python<'py>,
-        skill_id: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn discover<'py>(&self, py: Python<'py>, skill_id: String) -> PyResult<Bound<'py, PyAny>> {
         let invoker = self.invoker.clone().ok_or_else(|| {
             PyRuntimeError::new_err("A2A invoker not available in this runtime context")
         })?;
@@ -220,11 +216,7 @@ impl A2AInterface {
     /// Lève [`PyKeyError`] si `skill_id` est inconnu (aucun agent A2A actif
     /// ne l'expose). Lève [`PyRuntimeError`] si l'invoker n'est pas
     /// configuré.
-    fn skill_as_tool<'py>(
-        &self,
-        py: Python<'py>,
-        skill_id: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn skill_as_tool<'py>(&self, py: Python<'py>, skill_id: String) -> PyResult<Bound<'py, PyAny>> {
         let invoker = self.invoker.clone().ok_or_else(|| {
             PyRuntimeError::new_err("A2A invoker not available in this runtime context")
         })?;
@@ -264,17 +256,20 @@ async fn build_skill_tool_descriptor(
         .await
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-    let card = card_opt.ok_or_else(|| {
-        PyKeyError::new_err(format!("unknown A2A skill: '{skill_id}'"))
-    })?;
+    let card =
+        card_opt.ok_or_else(|| PyKeyError::new_err(format!("unknown A2A skill: '{skill_id}'")))?;
 
     // Find the matching skill in the agent card.
-    let skill = card.skills.iter().find(|s| s.id == skill_id).ok_or_else(|| {
-        PyKeyError::new_err(format!(
-            "skill '{skill_id}' not declared by agent '{}'",
-            card.name
-        ))
-    })?;
+    let skill = card
+        .skills
+        .iter()
+        .find(|s| s.id == skill_id)
+        .ok_or_else(|| {
+            PyKeyError::new_err(format!(
+                "skill '{skill_id}' not declared by agent '{}'",
+                card.name
+            ))
+        })?;
 
     // Default input schema: empty object accepting any properties.
     let default_schema = serde_json::json!({

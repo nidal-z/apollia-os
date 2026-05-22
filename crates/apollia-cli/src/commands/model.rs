@@ -253,7 +253,8 @@ fn run_delete(name: &str, confirm: bool, json: bool) -> i32 {
     let path = dir.join(name);
     if !path.exists() {
         if json {
-            let out = serde_json::json!({"error": format!("{name} not found in {}", dir.display())});
+            let out =
+                serde_json::json!({"error": format!("{name} not found in {}", dir.display())});
             println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
         } else {
             eprintln!("Error: {} not found in {}", name, dir.display());

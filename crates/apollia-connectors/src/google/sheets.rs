@@ -125,10 +125,7 @@ impl SheetsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!(
-            "{BASE}/{spreadsheet_id}/values/{}",
-            urlencode(range)
-        );
+        let url = format!("{BASE}/{spreadsheet_id}/values/{}", urlencode(range));
         self.http.get_json(&url, bearer, refresh).await
     }
 

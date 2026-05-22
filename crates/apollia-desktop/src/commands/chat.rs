@@ -1022,8 +1022,14 @@ mod tests {
         // GIVEN a raw LLM response with surrounding quotes and trailing punctuation
         // WHEN sanitised
         // THEN both wrappers are removed
-        assert_eq!(sanitize_session_title("  \"Plan de migration.\"  "), "Plan de migration");
-        assert_eq!(sanitize_session_title("«Idée d'article!»"), "Idée d'article");
+        assert_eq!(
+            sanitize_session_title("  \"Plan de migration.\"  "),
+            "Plan de migration"
+        );
+        assert_eq!(
+            sanitize_session_title("«Idée d'article!»"),
+            "Idée d'article"
+        );
         assert_eq!(sanitize_session_title("Refonte sidebar"), "Refonte sidebar");
     }
 
@@ -1065,9 +1071,18 @@ mod tests {
 
     #[test]
     fn test_sanitize_session_title_drops_preamble() {
-        assert_eq!(sanitize_session_title("Titre : Aide rédaction CV"), "Aide rédaction CV");
-        assert_eq!(sanitize_session_title("Voici le titre : Bug import CSV"), "Bug import CSV");
-        assert_eq!(sanitize_session_title("Title: Idée nom agent"), "Idée nom agent");
+        assert_eq!(
+            sanitize_session_title("Titre : Aide rédaction CV"),
+            "Aide rédaction CV"
+        );
+        assert_eq!(
+            sanitize_session_title("Voici le titre : Bug import CSV"),
+            "Bug import CSV"
+        );
+        assert_eq!(
+            sanitize_session_title("Title: Idée nom agent"),
+            "Idée nom agent"
+        );
     }
 
     #[test]

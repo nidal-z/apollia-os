@@ -167,9 +167,7 @@ pub fn run(cmd: &ProjectCommand, json: bool) -> i32 {
             workspace.clone(),
             json,
         ),
-        ProjectCommand::Delete { id, confirm, db } => {
-            run_delete(db.as_deref(), id, *confirm, json)
-        }
+        ProjectCommand::Delete { id, confirm, db } => run_delete(db.as_deref(), id, *confirm, json),
         ProjectCommand::Agents { command } => run_agents(command, json),
         ProjectCommand::Templates { command } => run_templates(command, json),
     }
@@ -317,11 +315,7 @@ fn run_update(
     workspace: Option<String>,
     json: bool,
 ) -> i32 {
-    if name.is_none()
-        && description.is_none()
-        && instructions.is_none()
-        && workspace.is_none()
-    {
+    if name.is_none() && description.is_none() && instructions.is_none() && workspace.is_none() {
         emit_error(
             "provide at least one of --name, --description, --instructions, --workspace",
             json,
@@ -394,16 +388,12 @@ fn run_delete(db: Option<&Path>, id: &str, confirm: bool, json: bool) -> i32 {
 fn run_agents(cmd: &ProjectAgentsCommand, json: bool) -> i32 {
     match cmd {
         ProjectAgentsCommand::List { project, db } => run_agents_list(db.as_deref(), project, json),
-        ProjectAgentsCommand::Add {
-            project,
-            agent,
-            db,
-        } => run_agents_add(db.as_deref(), project, agent, json),
-        ProjectAgentsCommand::Remove {
-            project,
-            agent,
-            db,
-        } => run_agents_remove(db.as_deref(), project, agent, json),
+        ProjectAgentsCommand::Add { project, agent, db } => {
+            run_agents_add(db.as_deref(), project, agent, json)
+        }
+        ProjectAgentsCommand::Remove { project, agent, db } => {
+            run_agents_remove(db.as_deref(), project, agent, json)
+        }
     }
 }
 
@@ -483,9 +473,7 @@ fn run_agents_remove(db: Option<&Path>, project: &str, agent: &str, json: bool) 
 fn run_templates(cmd: &ProjectTemplatesCommand, json: bool) -> i32 {
     match cmd {
         ProjectTemplatesCommand::List { db } => run_templates_list(db.as_deref(), json),
-        ProjectTemplatesCommand::SeedBuiltins { db } => {
-            run_templates_seed(db.as_deref(), json)
-        }
+        ProjectTemplatesCommand::SeedBuiltins { db } => run_templates_seed(db.as_deref(), json),
     }
 }
 
@@ -645,9 +633,6 @@ mod tests {
             run_agents_add(Some(&db), &pid, "agent-a", true),
             exit_codes::SUCCESS
         );
-        assert_eq!(
-            run_agents_list(Some(&db), &pid, true),
-            exit_codes::SUCCESS
-        );
+        assert_eq!(run_agents_list(Some(&db), &pid, true), exit_codes::SUCCESS);
     }
 }

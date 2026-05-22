@@ -4,8 +4,8 @@
 //! la mise à jour de l'application Tauri via `tauri-plugin-updater`.
 
 use serde::Serialize;
-use thiserror::Error;
 use tauri_plugin_updater::UpdaterExt;
+use thiserror::Error;
 
 /// Erreurs possibles lors de l'interrogation du plugin updater.
 #[derive(Debug, Error)]
@@ -136,10 +136,7 @@ mod tests {
         // GIVEN each variant of UpdateError
         // WHEN converted to string
         // THEN messages identify the failure kind for the frontend
-        assert_eq!(
-            UpdateError::NoUpdate.to_string(),
-            "no update available"
-        );
+        assert_eq!(UpdateError::NoUpdate.to_string(), "no update available");
         assert!(UpdateError::Plugin("boom".into())
             .to_string()
             .contains("boom"));

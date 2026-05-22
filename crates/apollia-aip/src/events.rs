@@ -122,12 +122,7 @@ impl EventsInterface {
     /// Mapping vers `RuntimeEvent::ActionParseError` :
     /// `raw → raw_content`, `fatal → repair_attempted`.
     #[pyo3(signature = (*, step, raw, fatal = false))]
-    fn emit_action_parse_error(
-        &self,
-        step: u32,
-        raw: String,
-        fatal: bool,
-    ) -> PyResult<()> {
+    fn emit_action_parse_error(&self, step: u32, raw: String, fatal: bool) -> PyResult<()> {
         let (Some(task_id), Some(bus)) = (self.task_id.as_ref(), self.event_bus.as_ref()) else {
             tracing::warn!(
                 target: "apollia.agent.action_parse_error",
@@ -178,7 +173,9 @@ mod tests {
     use apollia_core::events::{AgentId, TaskId};
     use tokio::sync::broadcast;
 
-    fn make_bus(cap: usize) -> (
+    fn make_bus(
+        cap: usize,
+    ) -> (
         apollia_core::events::EventBusSender,
         broadcast::Receiver<RuntimeEvent>,
     ) {
@@ -271,13 +268,7 @@ mod tests {
         pyo3::prepare_freethreaded_python();
         let (tx, mut rx) = make_bus(16);
         let task_id = TaskId::from("task-7".to_string());
-        let iface = EventsInterface::new(
-            Some(tx),
-            Some(task_id),
-            AgentId::new_v4(),
-            None,
-            None,
-        );
+        let iface = EventsInterface::new(Some(tx), Some(task_id), AgentId::new_v4(), None, None);
 
         iface
             .emit_action_parse_error(5, "{ broken".to_string(), true)

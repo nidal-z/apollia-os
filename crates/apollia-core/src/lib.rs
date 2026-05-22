@@ -34,8 +34,8 @@ pub mod review;
 pub mod sandbox;
 pub mod session_metrics;
 pub mod stt_config;
-pub mod temporal_context;
 pub mod task;
+pub mod temporal_context;
 pub mod token_budget;
 pub mod utils;
 pub mod workspace;
@@ -44,9 +44,8 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, BraveBackendConfig, ConfigError,
     DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, HitlConfig, JournalConfig,
-    LlmRoutingConfig, McpConfig, ORIAConfig, PermissionsConfig, RegistryConfig,
-    RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend,
-    WebSearchConfig,
+    LlmRoutingConfig, McpConfig, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig,
+    ToolsConfig, TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};

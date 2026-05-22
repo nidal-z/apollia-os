@@ -105,7 +105,10 @@ pub async fn get_global_timeline(
 
 /// Récupère un libellé lisible pour un identifiant brut (agent_id, name, …).
 fn label_for(agent_key: &str, labels: &std::collections::HashMap<String, String>) -> String {
-    labels.get(agent_key).cloned().unwrap_or_else(|| agent_key.to_string())
+    labels
+        .get(agent_key)
+        .cloned()
+        .unwrap_or_else(|| agent_key.to_string())
 }
 
 /// Tronque proprement une chaîne pour les résumés (max `max` chars + "…").
@@ -125,7 +128,9 @@ fn scan_audit_db(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("audit.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT id, agent_id, task_id, tool_name, started_at, duration_ms, exit_code, success, error_code
          FROM tool_invocations
@@ -182,7 +187,9 @@ fn scan_llm_calls_db(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("llm_calls.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT id, task_id, backend, model, prompt_tokens, completion_tokens, cost_usd, latency_ms, created_at
          FROM llm_calls
@@ -207,9 +214,25 @@ fn scan_llm_calls_db(
     });
     let Ok(iter) = rows else { return };
     for r in iter.flatten() {
-        let (id, task_id, backend, model, prompt_tokens, completion_tokens, cost_usd, latency_ms, ts) = r;
+        let (
+            id,
+            task_id,
+            backend,
+            model,
+            prompt_tokens,
+            completion_tokens,
+            cost_usd,
+            latency_ms,
+            ts,
+        ) = r;
         let cost_label = cost_usd
-            .map(|c| if c >= 0.01 { format!(" · ${c:.2}") } else { format!(" · ${c:.4}") })
+            .map(|c| {
+                if c >= 0.01 {
+                    format!(" · ${c:.2}")
+                } else {
+                    format!(" · ${c:.4}")
+                }
+            })
             .unwrap_or_default();
         let label = task_id
             .as_deref()
@@ -241,7 +264,9 @@ fn scan_hitl_tasks(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("hitl.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT task_id, agent_name, transitions_json, created_at, updated_at, duration_ms
          FROM tasks
@@ -270,12 +295,21 @@ fn scan_hitl_tasks(
         if let Some(json) = transitions {
             if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&json) {
                 for tr in arr {
-                    let status = tr.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let status = tr
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
                     let ts = tr.get("ts").and_then(|v| v.as_str()).unwrap_or("");
-                    if ts < cutoff_str { continue; }
+                    if ts < cutoff_str {
+                        continue;
+                    }
                     let dur = if status == "completed" {
-                        duration_ms.map(|ms| format!(" · {ms}ms")).unwrap_or_default()
-                    } else { String::new() };
+                        duration_ms
+                            .map(|ms| format!(" · {ms}ms"))
+                            .unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
                     events.push(GlobalTimelineEvent {
                         event_type: "task".to_string(),
                         timestamp: ts.to_string(),
@@ -300,7 +334,9 @@ fn scan_hitl_approvals(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("hitl.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     // The schema typically includes suspended_at + resolved_at.
     let mut stmt = match conn.prepare(
         "SELECT task_id, prompt, suspended_at, resolved_at, decision, reason
@@ -363,7 +399,9 @@ fn scan_chat_sessions(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("chat.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT id, mode, agent_name, status, created_at, closed_at, title
          FROM chat_sessions
@@ -432,7 +470,9 @@ fn scan_chat_approvals(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("chat.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT session_id, message_id, tool_name, decision, resolved_at, reason
          FROM chat_approval_log
@@ -477,7 +517,9 @@ fn scan_trigger_history(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("triggers.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     let mut stmt = match conn.prepare(
         "SELECT id, trigger_id, agent_name, fired_at, task_id, status, reason
          FROM trigger_history
@@ -532,7 +574,9 @@ fn scan_runtime_events(
     events: &mut Vec<GlobalTimelineEvent>,
 ) {
     let path = data_dir.join("runtime_events.db");
-    let Ok(conn) = rusqlite::Connection::open(&path) else { return };
+    let Ok(conn) = rusqlite::Connection::open(&path) else {
+        return;
+    };
     // Only surface kinds that aren't already covered by audit/llm/hitl scans
     // (else we'd double-count tool/LLM events).
     let mut stmt = match conn.prepare(
@@ -570,7 +614,8 @@ fn scan_runtime_events(
             "a2a_response" => ("a2a", format!("[{agent_label}] Réponse A2A")),
             other => ("task", format!("[{agent_label}] {other}")),
         };
-        let payload: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or(serde_json::json!({}));
+        let payload: serde_json::Value =
+            serde_json::from_str(&payload_json).unwrap_or(serde_json::json!({}));
         events.push(GlobalTimelineEvent {
             event_type: event_type.to_string(),
             timestamp: ts,

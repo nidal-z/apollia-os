@@ -109,7 +109,9 @@ fn flatten_body(body: &serde_json::Value) -> Option<String> {
     let content = body.get("content")?.as_array()?;
     let mut out = String::new();
     for el in content {
-        let Some(para) = el.get("paragraph") else { continue };
+        let Some(para) = el.get("paragraph") else {
+            continue;
+        };
         let Some(elements) = para.get("elements").and_then(|v| v.as_array()) else {
             continue;
         };

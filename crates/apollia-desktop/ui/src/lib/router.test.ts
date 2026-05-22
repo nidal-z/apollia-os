@@ -23,9 +23,10 @@ describe("settings router", () => {
       "configuration",
       "tools",
       "permissions",
+      "integrations",
       "system",
-      "memories",
       "shortcuts",
+      "observability",
       "danger",
     ]);
   });

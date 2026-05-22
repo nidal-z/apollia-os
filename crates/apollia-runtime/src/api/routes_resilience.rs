@@ -26,14 +26,8 @@ use crate::coordinator::ExecutionBackend;
 pub fn resilience_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/resilience/status", get(list_breakers::<B>))
-        .route(
-            "/api/v1/resilience/status/:tool",
-            get(get_breaker::<B>),
-        )
-        .route(
-            "/api/v1/resilience/reset/:tool",
-            post(reset_breaker::<B>),
-        )
+        .route("/api/v1/resilience/status/:tool", get(get_breaker::<B>))
+        .route("/api/v1/resilience/reset/:tool", post(reset_breaker::<B>))
 }
 
 /// Envelope for `GET /api/v1/resilience/status`.
@@ -139,8 +133,5 @@ pub async fn reset_breaker<B: ExecutionBackend + Clone>(
             }),
         ));
     }
-    Ok(Json(ResetResponse {
-        tool,
-        reset: true,
-    }))
+    Ok(Json(ResetResponse { tool, reset: true }))
 }

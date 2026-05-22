@@ -10,8 +10,7 @@ pub mod registry_client;
 pub mod secret_store;
 
 pub use enrichments::{
-    find_enrichment, load_builtin_enrichments, ConnectorEnrichment, CostKind, CostModel,
-    TrustLevel,
+    find_enrichment, load_builtin_enrichments, ConnectorEnrichment, CostKind, CostModel, TrustLevel,
 };
 pub use overrides::{apply_overrides, default_overrides_path, load_overrides_from, McpOverrides};
 pub use registry_client::{

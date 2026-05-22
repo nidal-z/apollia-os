@@ -291,9 +291,7 @@ pub async fn reset_onboarding(
         .ok_or_else(|| "user memory repository not initialized".to_string())?;
 
     tokio::task::spawn_blocking(move || {
-        let repo = repo
-            .lock()
-            .map_err(|e| format!("mutex poisoned: {e}"))?;
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
 
         // 1. Marqueurs internes du flow onboarding (préfixe `__`).
         let internal_keys = [
@@ -706,7 +704,12 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
         .parent()
         .unwrap_or(std::path::Path::new("."))
         .join("system.db");
-    let device = if cfg!(target_os = "macos") { "metal" } else { "cpu" }.to_string();
+    let device = if cfg!(target_os = "macos") {
+        "metal"
+    } else {
+        "cpu"
+    }
+    .to_string();
     let model_for_db = model_path_str.clone();
     let quant_for_db = quantization.clone();
 
@@ -768,7 +771,6 @@ fn infer_quantization(stem: &str) -> String {
     }
     "q4_k_m".to_string()
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -962,5 +964,4 @@ mod tests {
         // THEN the default is returned
         assert_eq!(infer_quantization("some-random-model"), "q4_k_m");
     }
-
 }

@@ -94,10 +94,7 @@ fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json
             // valeur en `description` brute pour rester safe vis-à-vis de
             // l'autoparser.
             let desc = field_def.as_str().unwrap_or("").to_string();
-            properties.insert(
-                field_name.clone(),
-                serde_json::json!({"description": desc}),
-            );
+            properties.insert(field_name.clone(), serde_json::json!({"description": desc}));
             continue;
         };
 
@@ -331,7 +328,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 

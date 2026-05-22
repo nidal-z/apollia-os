@@ -182,11 +182,13 @@ pub async fn negotiate_token(
 
     // 1-3. Discovery.
     let prm = fetch_prm(&discovery, req.server_url, req.www_authenticate).await?;
-    let as_url = prm.authorization_servers.first().cloned().ok_or(
-        McpOAuthError::NoAuthorizationServer {
-            server: req.server_name.to_string(),
-        },
-    )?;
+    let as_url =
+        prm.authorization_servers
+            .first()
+            .cloned()
+            .ok_or(McpOAuthError::NoAuthorizationServer {
+                server: req.server_name.to_string(),
+            })?;
     let as_metadata = discovery.fetch_as_metadata(&as_url).await?;
 
     // 4. PKCE S256 enforcement.
@@ -200,9 +202,7 @@ pub async fn negotiate_token(
     // `redirect_uri` matches the actual port we'll listen on. Order matters
     // for AS that strict-match (some do, even though loopback ports SHOULD be
     // wildcardable per RFC 8252 §7.3).
-    let (listener, port) = bind_ephemeral_port()
-        .await
-        .map_err(McpOAuthError::Auth)?;
+    let (listener, port) = bind_ephemeral_port().await.map_err(McpOAuthError::Auth)?;
     let redirect_uri = format!("http://127.0.0.1:{port}/oauth/callback");
 
     let client_id = resolve_client_id(
@@ -270,10 +270,7 @@ pub async fn negotiate_token(
         expires_at: token_response.expires_in.map(|secs| now + secs),
         scope: parse_scope_string(&token_response.scope, &scopes),
         resource_uri: resource,
-        as_url: as_metadata
-            .issuer
-            .clone()
-            .unwrap_or_else(|| as_url.clone()),
+        as_url: as_metadata.issuer.clone().unwrap_or_else(|| as_url.clone()),
         client_id,
         identity_sub: identity.sub,
         identity_email: identity.email,
@@ -476,10 +473,7 @@ fn pick_scopes(
 /// into a Vec. Falls back to the requested scopes when absent.
 fn parse_scope_string(reported: &Option<String>, requested: &[String]) -> Vec<String> {
     match reported {
-        Some(s) => s
-            .split_whitespace()
-            .map(String::from)
-            .collect::<Vec<_>>(),
+        Some(s) => s.split_whitespace().map(String::from).collect::<Vec<_>>(),
         None => requested.to_vec(),
     }
 }
@@ -547,9 +541,7 @@ async fn exchange_code(
             .text()
             .await
             .unwrap_or_else(|_| "<unreadable>".into());
-        return Err(AuthError::TokenExchangeFailed(format!(
-            "{status}: {body}"
-        )));
+        return Err(AuthError::TokenExchangeFailed(format!("{status}: {body}")));
     }
     response
         .json::<TokenResponse>()
@@ -594,9 +586,7 @@ async fn refresh_grant(
             .text()
             .await
             .unwrap_or_else(|_| "<unreadable>".into());
-        return Err(AuthError::TokenExchangeFailed(format!(
-            "{status}: {body}"
-        )));
+        return Err(AuthError::TokenExchangeFailed(format!("{status}: {body}")));
     }
     let token: TokenResponse = response
         .json()
@@ -891,7 +881,6 @@ mod tests {
         assert_eq!(cid, APOLLIA_CIMD_URL);
     }
 
-
     /// Spawn an in-process axum mock that simulates the AS endpoints we hit.
     async fn spawn_mock_as() -> (String, Arc<AsyncMutex<MockState>>) {
         let state = Arc::new(AsyncMutex::new(MockState::default()));
@@ -1012,10 +1001,8 @@ mod tests {
                 let state = parse_param(&url, "state").unwrap_or_default();
                 let redirect = parse_param(&url, "redirect_uri").unwrap_or_default();
                 let redirect_decoded = urlencoding::decode(&redirect).unwrap().to_string();
-                let callback_url = format!(
-                    "{}?code=auth-code-123&state={}",
-                    redirect_decoded, state
-                );
+                let callback_url =
+                    format!("{}?code=auth-code-123&state={}", redirect_decoded, state);
                 // Tiny delay so wait_for_callback has time to start the server.
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 let _ = reqwest::get(&callback_url).await;
@@ -1047,7 +1034,9 @@ mod tests {
         assert_eq!(form.get("grant_type").unwrap(), "authorization_code");
         assert_eq!(form.get("code_verifier").unwrap().len(), 43);
         assert!(
-            form.get("resource").unwrap().starts_with("http://127.0.0.1:"),
+            form.get("resource")
+                .unwrap()
+                .starts_with("http://127.0.0.1:"),
             "expected resource= to match the canonical MCP server URI, got {:?}",
             form.get("resource")
         );

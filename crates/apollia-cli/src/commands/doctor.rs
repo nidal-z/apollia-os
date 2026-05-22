@@ -124,7 +124,10 @@ fn check_apollia_home(data_dir: &Path) -> CheckResult {
         return CheckResult::warn(
             "apollia_home",
             "Apollia home",
-            format!("{} does not exist (will be created on first use)", data_dir.display()),
+            format!(
+                "{} does not exist (will be created on first use)",
+                data_dir.display()
+            ),
             "Run `apollia-os start` once to bootstrap the directory",
         );
     }
@@ -290,7 +293,10 @@ async fn check_runtime_socket(socket: Option<PathBuf>) -> CheckResult {
         return CheckResult::warn(
             "runtime_socket",
             "Runtime socket",
-            format!("{} not present (runtime not started)", socket_path.display()),
+            format!(
+                "{} not present (runtime not started)",
+                socket_path.display()
+            ),
             "Start the runtime with `apollia-os start`",
         );
     }

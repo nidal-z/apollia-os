@@ -211,10 +211,11 @@ impl AIPBridge {
                     let bridge_mod = py.import("apollia._internal.logger_bridge")?;
                     let configure = bridge_mod.getattr("configure_agent_logger")?;
                     // Récupère l'agent_name depuis le ctx pour nommer le logger.
-                    let agent_name: String =
-                        ctx.bind(py).getattr("agent_name")?.extract().unwrap_or_else(
-                            |_| "unknown".to_string(),
-                        );
+                    let agent_name: String = ctx
+                        .bind(py)
+                        .getattr("agent_name")?
+                        .extract()
+                        .unwrap_or_else(|_| "unknown".to_string());
                     configure.call1((ctx.bind(py), agent_name))?;
                     Ok(())
                 })();

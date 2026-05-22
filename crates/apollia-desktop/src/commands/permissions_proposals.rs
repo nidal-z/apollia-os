@@ -151,9 +151,8 @@ fn read_proposed_rules_raw(memory_dir: &Path) -> Result<Option<String>, String> 
         if !db_path.exists() {
             continue;
         }
-        let store = MemoryStore::open(&db_path).map_err(|e| {
-            format!("failed to open {}: {e}", db_path.display())
-        })?;
+        let store = MemoryStore::open(&db_path)
+            .map_err(|e| format!("failed to open {}: {e}", db_path.display()))?;
         let sem = SemanticMemory::new(&store);
         let entries = sem
             .recall_all(namespace, None)
@@ -172,10 +171,7 @@ fn read_proposed_rules_raw(memory_dir: &Path) -> Result<Option<String>, String> 
 }
 
 /// Re-writes (or deletes) the proposals list in the first existing namespace.
-fn write_proposed_rules(
-    memory_dir: &Path,
-    proposals: &[serde_json::Value],
-) -> Result<(), String> {
+fn write_proposed_rules(memory_dir: &Path, proposals: &[serde_json::Value]) -> Result<(), String> {
     for (filename, namespace) in NAMESPACE_CANDIDATES {
         let db_path = memory_dir.join(filename);
         if !db_path.exists() {

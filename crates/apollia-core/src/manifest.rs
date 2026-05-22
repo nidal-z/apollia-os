@@ -311,7 +311,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -352,7 +353,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -498,7 +500,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

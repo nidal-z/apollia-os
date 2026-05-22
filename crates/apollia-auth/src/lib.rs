@@ -42,8 +42,7 @@ pub use error::AuthError;
 pub use mcp_oauth::{
     as_metadata_candidates, canonical_resource_uri, parse_www_authenticate,
     AuthorizationServerMetadata, ClientIdMetadataDocument, DcrRequest, DcrResponse,
-    McpDiscoveryClient, ProtectedResourceMetadata, WwwAuthenticate, APOLLIA_CIMD,
-    APOLLIA_CIMD_URL,
+    McpDiscoveryClient, ProtectedResourceMetadata, WwwAuthenticate, APOLLIA_CIMD, APOLLIA_CIMD_URL,
 };
 pub use mcp_oauth_orchestrator::{
     ensure_fresh_token, negotiate_token, McpOAuthError, NegotiateRequest,
@@ -53,10 +52,10 @@ pub use mcp_token_store::{
     StoredMcpToken, MCP_OAUTH_SERVICE,
 };
 pub use multi_account::{AccountId, MultiAccountStorage};
+pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
+pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
 pub use secret_storage::{
     select_default as select_secret_store, AgeFileSecretStore, KeyringSecretStore, SecretStore,
 };
-pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
-pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
 pub use storage::KeyringStorage;
 pub use token::StoredToken;

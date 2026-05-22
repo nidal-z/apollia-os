@@ -17,13 +17,13 @@ jobs:
     name: Build macOS (ARM64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -76,21 +76,21 @@ jobs:
         run: shasum -a 256 *.dmg > SHA256SUMS
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-macos-arm64-dmg
           path: target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
       - name: Upload SHA256SUMS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-macos-arm64-sha256
           path: target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS
           if-no-files-found: error
 
       - name: Upload .app bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-macos-arm64-app
           path: target/aarch64-apple-darwin/release/bundle/macos/*.app
@@ -103,11 +103,11 @@ jobs:
     if: false  # Temporarily disabled
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -153,21 +153,21 @@ jobs:
           (cd deb      && shasum -a 256 *.deb      > SHA256SUMS || true)
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-linux-x86_64-appimage
           path: target/release/bundle/appimage/*.AppImage
           if-no-files-found: error
 
       - name: Upload .deb
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-linux-x86_64-deb
           path: target/release/bundle/deb/*.deb
           if-no-files-found: error
 
       - name: Upload SHA256SUMS
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: apollia-desktop-linux-x86_64-sha256
           path: |
@@ -184,7 +184,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
 

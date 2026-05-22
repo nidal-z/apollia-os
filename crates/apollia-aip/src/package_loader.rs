@@ -295,20 +295,17 @@ pub fn load_manifest_only(root: &Path) -> Result<AgentPackage, PackageLoaderErro
 ///
 /// Utilisé par le flow d'install après création du venv pour valider qu'un
 /// agent peut être importé avec ses packages pip installés.
-pub fn duck_type_agent(
-    path: &Path,
-    extra_sys_paths: &[PathBuf],
-) -> Result<(), PackageLoaderError> {
-    crate::loader::load_agent_module_with_sys_paths(path, extra_sys_paths).map(|_| ()).map_err(
-        |e: AIPLoaderError| PackageLoaderError::DuckTypingFailed {
+pub fn duck_type_agent(path: &Path, extra_sys_paths: &[PathBuf]) -> Result<(), PackageLoaderError> {
+    crate::loader::load_agent_module_with_sys_paths(path, extra_sys_paths)
+        .map(|_| ())
+        .map_err(|e: AIPLoaderError| PackageLoaderError::DuckTypingFailed {
             name: path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
                 .to_string(),
             reason: e.to_string(),
-        },
-    )
+        })
 }
 
 /// Valide les invariants du manifeste sans charger les `.py`.

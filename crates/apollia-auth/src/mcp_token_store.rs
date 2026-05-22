@@ -213,8 +213,7 @@ fn base64_url_decode(input: &str) -> Result<Vec<u8>, &'static str> {
     // re-export from a transitive dep. Apollia-auth already pulls in `base64`
     // via reqwest's TLS stack, but to stay decoupled we implement it locally —
     // ~30 lines, no new dep.
-    const ALPHABET: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut lookup = [0u8; 256];
     for (i, &b) in ALPHABET.iter().enumerate() {
         lookup[b as usize] = i as u8;

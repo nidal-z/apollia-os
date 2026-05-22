@@ -265,9 +265,10 @@ mod tests {
         // GIVEN a storage where we manually inject an index file
         let (storage, _dir) = temp_storage();
         let mut index = AccountIndex::default();
-        index
-            .accounts
-            .insert("google".into(), vec!["a@example.com".into(), "b@example.com".into()]);
+        index.accounts.insert(
+            "google".into(),
+            vec!["a@example.com".into(), "b@example.com".into()],
+        );
         storage.write_index(&index).expect("write index");
 
         // WHEN we list accounts
@@ -315,7 +316,10 @@ mod tests {
 
     #[test]
     fn test_keyring_service_naming_is_stable() {
-        assert_eq!(keyring_service(ConnectorProvider::Google), "apollia-connector-google");
+        assert_eq!(
+            keyring_service(ConnectorProvider::Google),
+            "apollia-connector-google"
+        );
         assert_eq!(
             keyring_service(ConnectorProvider::Microsoft),
             "apollia-connector-microsoft"

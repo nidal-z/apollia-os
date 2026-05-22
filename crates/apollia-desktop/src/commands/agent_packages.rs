@@ -304,54 +304,52 @@ pub async fn install_agent_package(
         .collect();
 
     // ── Step 4: venv + duck-type per agent. On failure, rollback. ──────────
-    let parsed_result: Result<Vec<(String, PathBuf, apollia_core::AgentManifest)>, String> = async {
-        let mut parsed: Vec<(String, PathBuf, apollia_core::AgentManifest)> =
-            Vec::with_capacity(install_plan.len());
+    let parsed_result: Result<Vec<(String, PathBuf, apollia_core::AgentManifest)>, String> =
+        async {
+            let mut parsed: Vec<(String, PathBuf, apollia_core::AgentManifest)> =
+                Vec::with_capacity(install_plan.len());
 
-        for (agent_name, installed_py, agent_pkgs) in install_plan {
-            // 4a: pip install in the agent's venv (if any packages declared).
-            if !agent_pkgs.is_empty() {
-                let executor =
-                    apollia_tools::tools::python_executor::PythonExecutor::new(&agent_name, &venvs_root)
-                        .map_err(|e| {
-                            format!("VENV_CREATE_FAILED for '{}': {}", agent_name, e)
-                        })?;
-                executor
-                    .setup_venv(&agent_pkgs)
-                    .await
-                    .map_err(|e| format!("PIP_INSTALL_FAILED for '{}': {}", agent_name, e))?;
-                created_venvs.push(venvs_root.join(&agent_name));
+            for (agent_name, installed_py, agent_pkgs) in install_plan {
+                // 4a: pip install in the agent's venv (if any packages declared).
+                if !agent_pkgs.is_empty() {
+                    let executor = apollia_tools::tools::python_executor::PythonExecutor::new(
+                        &agent_name,
+                        &venvs_root,
+                    )
+                    .map_err(|e| format!("VENV_CREATE_FAILED for '{}': {}", agent_name, e))?;
+                    executor
+                        .setup_venv(&agent_pkgs)
+                        .await
+                        .map_err(|e| format!("PIP_INSTALL_FAILED for '{}': {}", agent_name, e))?;
+                    created_venvs.push(venvs_root.join(&agent_name));
+                }
+
+                // 4b: compute venv site-packages directories for sys.path injection.
+                let venv_path = venvs_root.join(&agent_name).join("venv");
+                let venv_site_packages = find_venv_site_packages(&venv_path);
+
+                // 4c: duck-type the agent + extract its Python manifest in one PyO3 call.
+                let py_path_for_blk = installed_py.clone();
+                let name_for_blk = agent_name.clone();
+                let manifest_res = tokio::task::spawn_blocking(move || {
+                    load_agent_manifest_with_sys_paths(&py_path_for_blk, &venv_site_packages)
+                })
+                .await
+                .map_err(|e| format!("spawn error: {e}"))?;
+
+                let manifest = match manifest_res {
+                    Ok(m) => m,
+                    Err(e) => {
+                        return Err(format!("duck-typing failed for '{}': {}", name_for_blk, e));
+                    }
+                };
+
+                parsed.push((agent_name, installed_py, manifest));
             }
 
-            // 4b: compute venv site-packages directories for sys.path injection.
-            let venv_path = venvs_root.join(&agent_name).join("venv");
-            let venv_site_packages = find_venv_site_packages(&venv_path);
-
-            // 4c: duck-type the agent + extract its Python manifest in one PyO3 call.
-            let py_path_for_blk = installed_py.clone();
-            let name_for_blk = agent_name.clone();
-            let manifest_res = tokio::task::spawn_blocking(move || {
-                load_agent_manifest_with_sys_paths(&py_path_for_blk, &venv_site_packages)
-            })
-            .await
-            .map_err(|e| format!("spawn error: {e}"))?;
-
-            let manifest = match manifest_res {
-                Ok(m) => m,
-                Err(e) => {
-                    return Err(format!(
-                        "duck-typing failed for '{}': {}",
-                        name_for_blk, e
-                    ));
-                }
-            };
-
-            parsed.push((agent_name, installed_py, manifest));
+            Ok(parsed)
         }
-
-        Ok(parsed)
-    }
-    .await;
+        .await;
 
     // ── Step 5: rollback on failure ────────────────────────────────────────
     let parsed_manifests = match parsed_result {
@@ -755,8 +753,7 @@ fn load_agent_manifest_with_sys_paths(
 ) -> Result<apollia_core::AgentManifest, String> {
     let module = apollia_aip::loader::load_agent_module_with_sys_paths(py_path, extra_sys_paths)
         .map_err(|e| e.to_string())?;
-    let validated =
-        apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+    let validated = apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
     Ok(validated.manifest)
 }
 

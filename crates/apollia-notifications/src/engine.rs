@@ -652,7 +652,11 @@ async fn flush_recaps(
 /// ils seront représentatifs sur un agrégat homogène en pratique. Le
 /// `message` est traduit côté backend (FR uniquement à ce stade ; l'UI
 /// dispose des libellés humains par event_name si elle souhaite re-localiser).
-fn build_recap_notification(sample: &Notification, dropped_count: u32, window_seconds: u32) -> Notification {
+fn build_recap_notification(
+    sample: &Notification,
+    dropped_count: u32,
+    window_seconds: u32,
+) -> Notification {
     let total = dropped_count.saturating_add(1); // inclut le drop initial + ceux pendant la fenêtre
     let message = format!(
         "{} événements « {} » au cours des {} dernières secondes",
@@ -1155,9 +1159,30 @@ mod tests {
         let t0 = Instant::now();
 
         // WHEN we dispatch 3 events in rapid succession
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(5)).await;
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(30)).await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0,
+        )
+        .await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0 + Duration::from_secs(5),
+        )
+        .await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0 + Duration::from_secs(30),
+        )
+        .await;
 
         // THEN only the first one reached the channel; the other 2 were dropped
         assert_eq!(count.load(Ordering::SeqCst), 1);
@@ -1186,8 +1211,22 @@ mod tests {
         let t0 = Instant::now();
 
         // WHEN one notif passes, then we wait past the window
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(61)).await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0,
+        )
+        .await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0 + Duration::from_secs(61),
+        )
+        .await;
 
         // THEN both reached the channel — the second one re-armed the window
         assert_eq!(count.load(Ordering::SeqCst), 2);
@@ -1216,8 +1255,22 @@ mod tests {
         let t0 = Instant::now();
 
         // WHEN we send task.completed (consumed) then task.input_required immediately
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
-        dispatch_with_throttle(&config, &channels, &make_notif("task.input_required"), &mut throttle, t0 + Duration::from_millis(10)).await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0,
+        )
+        .await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.input_required"),
+            &mut throttle,
+            t0 + Duration::from_millis(10),
+        )
+        .await;
 
         // THEN both pass — throttle is per (channel, event) not per channel
         assert_eq!(count.load(Ordering::SeqCst), 2);
@@ -1271,14 +1324,35 @@ mod tests {
         let t0 = Instant::now();
 
         // 1 initial send + 3 drops
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0,
+        )
+        .await;
         for i in 1..=3 {
-            dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(i * 5)).await;
+            dispatch_with_throttle(
+                &config,
+                &channels,
+                &make_notif("task.completed"),
+                &mut throttle,
+                t0 + Duration::from_secs(i * 5),
+            )
+            .await;
         }
         assert_eq!(count.load(Ordering::SeqCst), 1);
 
         // WHEN we flush after the window elapsed
-        flush_recaps(&config, &channels, &mut throttle, None, t0 + Duration::from_secs(61)).await;
+        flush_recaps(
+            &config,
+            &channels,
+            &mut throttle,
+            None,
+            t0 + Duration::from_secs(61),
+        )
+        .await;
 
         // THEN the recap was emitted (+1 send)
         assert_eq!(count.load(Ordering::SeqCst), 2);
@@ -1306,12 +1380,33 @@ mod tests {
         let mut throttle = HashMap::new();
         let t0 = Instant::now();
 
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0).await;
-        dispatch_with_throttle(&config, &channels, &make_notif("task.completed"), &mut throttle, t0 + Duration::from_secs(10)).await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0,
+        )
+        .await;
+        dispatch_with_throttle(
+            &config,
+            &channels,
+            &make_notif("task.completed"),
+            &mut throttle,
+            t0 + Duration::from_secs(10),
+        )
+        .await;
         assert_eq!(count.load(Ordering::SeqCst), 1);
 
         // WHEN we flush only 30s after — still within window
-        flush_recaps(&config, &channels, &mut throttle, None, t0 + Duration::from_secs(30)).await;
+        flush_recaps(
+            &config,
+            &channels,
+            &mut throttle,
+            None,
+            t0 + Duration::from_secs(30),
+        )
+        .await;
 
         // THEN no recap was emitted (still 1 total send)
         assert_eq!(count.load(Ordering::SeqCst), 1);

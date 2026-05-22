@@ -700,9 +700,7 @@ mod tests {
         let payload = build_discord_payload(&notif);
 
         // THEN — un seul field (l'événement)
-        let fields = payload["embeds"][0]["fields"]
-            .as_array()
-            .expect("fields");
+        let fields = payload["embeds"][0]["fields"].as_array().expect("fields");
         assert_eq!(fields.len(), 1);
         assert_eq!(fields[0]["name"], "Événement");
     }

@@ -95,10 +95,18 @@ pub struct ComposeMessage {
     #[serde(rename = "toRecipients")]
     pub to_recipients: Vec<Recipient>,
     /// Optional CC.
-    #[serde(default, rename = "ccRecipients", skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        rename = "ccRecipients",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub cc_recipients: Vec<Recipient>,
     /// Optional BCC.
-    #[serde(default, rename = "bccRecipients", skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        rename = "bccRecipients",
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub bcc_recipients: Vec<Recipient>,
 }
 
@@ -226,7 +234,10 @@ impl OutlookMailClient {
             .send_with_retries(
                 Method::POST,
                 &url,
-                Some(serde_json::to_vec(&body).map_err(|e| ConnectorError::Decoding(e.to_string()))?),
+                Some(
+                    serde_json::to_vec(&body)
+                        .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
+                ),
                 bearer,
                 refresh,
             )
@@ -255,7 +266,10 @@ impl OutlookMailClient {
             .send_with_retries(
                 Method::POST,
                 &url,
-                Some(serde_json::to_vec(&body).map_err(|e| ConnectorError::Decoding(e.to_string()))?),
+                Some(
+                    serde_json::to_vec(&body)
+                        .map_err(|e| ConnectorError::Decoding(e.to_string()))?,
+                ),
                 bearer,
                 refresh,
             )
@@ -342,7 +356,10 @@ mod tests {
         let json = serde_json::to_value(&msg).expect("serialize");
         assert_eq!(json["subject"], "Hello");
         assert_eq!(json["body"]["contentType"], "text");
-        assert_eq!(json["toRecipients"][0]["emailAddress"]["address"], "alice@example.com");
+        assert_eq!(
+            json["toRecipients"][0]["emailAddress"]["address"],
+            "alice@example.com"
+        );
         // Empty CC / BCC vectors are skipped via skip_serializing_if.
         assert!(json.get("ccRecipients").is_none());
         assert!(json.get("bccRecipients").is_none());

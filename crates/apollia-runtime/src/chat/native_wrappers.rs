@@ -82,11 +82,7 @@ impl HitlFilesystemGuard {
     /// Wrap `inner` so every invocation routes through the HITL approval
     /// flow first. `op` must match the inner tool's logical filesystem
     /// operation — used to compute the rule key (`<op>:<level>`).
-    pub fn new(
-        inner: Box<dyn ToolExecutor>,
-        op: FilesystemOp,
-        ctx: HitlFilesystemContext,
-    ) -> Self {
+    pub fn new(inner: Box<dyn ToolExecutor>, op: FilesystemOp, ctx: HitlFilesystemContext) -> Self {
         Self { inner, op, ctx }
     }
 
@@ -125,7 +121,9 @@ impl HitlFilesystemGuard {
                 let after = serde_json::from_value::<FileWriteInput>(input.clone())
                     .map(|i| i.content)
                     .unwrap_or_default();
-                let before = tokio::fs::read_to_string(resolved).await.unwrap_or_default();
+                let before = tokio::fs::read_to_string(resolved)
+                    .await
+                    .unwrap_or_default();
                 truncate_diff(before, after)
             }
             "file_edit" => {
@@ -197,8 +195,7 @@ impl HitlFilesystemGuard {
             FsHitlDecision::Approve => Ok(()),
             FsHitlDecision::Deny { reason } => Err(ToolExecutionError::ExecutionFailed {
                 code: "user_denied".into(),
-                message: reason
-                    .unwrap_or_else(|| "User denied filesystem operation".to_string()),
+                message: reason.unwrap_or_else(|| "User denied filesystem operation".to_string()),
             }),
             FsHitlDecision::AlwaysAllow {
                 scope: _,
@@ -279,24 +276,23 @@ impl ToolExecutor for DynamicAllowlistHttpFetch {
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let parsed: HttpFetchInput = serde_json::from_value(input).map_err(|e| {
-            ToolExecutionError::InvalidInput {
+        let parsed: HttpFetchInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
                 message: format!("http_fetch: invalid arguments: {e}"),
-            }
-        })?;
-        let hostname = extract_hostname(&parsed.url).ok_or_else(|| {
-            ToolExecutionError::InvalidInput {
+            })?;
+        let hostname =
+            extract_hostname(&parsed.url).ok_or_else(|| ToolExecutionError::InvalidInput {
                 message: "http_fetch: cannot parse hostname from URL".into(),
-            }
-        })?;
+            })?;
 
         let tool = HttpFetch::new(Some(vec![hostname]));
-        let output = tool.run(parsed).await.map_err(|e| {
-            ToolExecutionError::ExecutionFailed {
+        let output = tool
+            .run(parsed)
+            .await
+            .map_err(|e| ToolExecutionError::ExecutionFailed {
                 code: "http_fetch".into(),
                 message: e.to_string(),
-            }
-        })?;
+            })?;
         serde_json::to_value(&output).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
@@ -337,7 +333,10 @@ mod tests {
             extract_hostname("http://localhost:8080/x").as_deref(),
             Some("localhost")
         );
-        assert_eq!(extract_hostname("api.example.com").as_deref(), Some("api.example.com"));
+        assert_eq!(
+            extract_hostname("api.example.com").as_deref(),
+            Some("api.example.com")
+        );
         assert_eq!(extract_hostname("").as_deref(), None);
     }
 

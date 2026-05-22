@@ -156,9 +156,7 @@ fn run_set(db: Option<&Path>, key: &str, value: &str, json: bool) -> i32 {
         }
         other => {
             emit_error(
-                format!(
-                    "unknown key '{other}' (use: system-prompt, allowed-tools, llm-backend)"
-                ),
+                format!("unknown key '{other}' (use: system-prompt, allowed-tools, llm-backend)"),
                 json,
             );
             return exit_codes::GENERAL_ERROR;

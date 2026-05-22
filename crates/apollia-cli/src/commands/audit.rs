@@ -42,7 +42,9 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
     match cmd {
         AuditCommand::List { limit } => run_list(&client, *limit, json).await,
         AuditCommand::Stats => run_stats(&client, json).await,
-        AuditCommand::Export { output, limit } => run_export(&client, output.as_deref(), *limit).await,
+        AuditCommand::Export { output, limit } => {
+            run_export(&client, output.as_deref(), *limit).await
+        }
     }
 }
 

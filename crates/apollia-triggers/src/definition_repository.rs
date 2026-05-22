@@ -692,5 +692,4 @@ mod tests {
         let got = repo.get("webhook-valid").expect("get").expect("exists");
         assert_eq!(got.source_type, "webhook");
     }
-
 }

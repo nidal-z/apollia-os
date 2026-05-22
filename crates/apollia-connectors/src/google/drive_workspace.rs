@@ -138,7 +138,9 @@ impl DriveWorkspaceClient {
         F: FnMut() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let parent_id = self.ensure_path_folder_id(root_path, bearer, &mut refresh).await?;
+        let parent_id = self
+            .ensure_path_folder_id(root_path, bearer, &mut refresh)
+            .await?;
         let agent = self
             .find_or_create_folder(agent_slug, parent_id.as_deref(), bearer, &mut refresh)
             .await?;
@@ -423,8 +425,8 @@ impl DriveWorkspaceClient {
             .bytes()
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
-        let updated: DriveFile = serde_json::from_slice(&bytes)
-            .map_err(|e| ConnectorError::Decoding(e.to_string()))?;
+        let updated: DriveFile =
+            serde_json::from_slice(&bytes).map_err(|e| ConnectorError::Decoding(e.to_string()))?;
         Ok(updated)
     }
 
@@ -527,8 +529,8 @@ impl DriveWorkspaceClient {
             .bytes()
             .await
             .map_err(|e| ConnectorError::Network(e.to_string()))?;
-        let updated: DriveFile = serde_json::from_slice(&bytes)
-            .map_err(|e| ConnectorError::Decoding(e.to_string()))?;
+        let updated: DriveFile =
+            serde_json::from_slice(&bytes).map_err(|e| ConnectorError::Decoding(e.to_string()))?;
         Ok(updated)
     }
 

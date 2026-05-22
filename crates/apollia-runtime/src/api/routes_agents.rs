@@ -88,7 +88,8 @@ impl AgentLoader for StubAgentLoader {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         })
     }
 }
@@ -602,7 +603,8 @@ mod tests {
                 agent_class: None,
                 user_memory_write: false,
                 datasources: vec![],
-                templates: vec![],                secrets: vec![],
+                templates: vec![],
+                secrets: vec![],
             })
         }
     }
@@ -646,7 +648,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 
@@ -1122,7 +1125,8 @@ mod tests {
                     agent_class: None,
                     user_memory_write: false,
                     datasources: vec![],
-                    templates: vec![],                    secrets: vec![],
+                    templates: vec![],
+                    secrets: vec![],
                 })
             }
         }
@@ -1184,7 +1188,8 @@ mod tests {
                     agent_class: None,
                     user_memory_write: false,
                     datasources: vec![],
-                    templates: vec![],                    secrets: vec![],
+                    templates: vec![],
+                    secrets: vec![],
                 })
             }
         }

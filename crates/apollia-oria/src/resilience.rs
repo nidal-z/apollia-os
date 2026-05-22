@@ -466,9 +466,7 @@ impl ResilienceLayer {
 
             if attempt > 1 {
                 if let Some(b) = bus {
-                    let last_reason = attempts
-                        .last()
-                        .and_then(|a| a.reason.clone());
+                    let last_reason = attempts.last().and_then(|a| a.reason.clone());
                     let _ = b.send(RuntimeEvent::ToolCallRetrying {
                         tool_call_id: tool_call_id.to_string(),
                         tool_name: tool_name.to_string(),
@@ -523,10 +521,7 @@ impl ResilienceLayer {
                         tokio::time::sleep(delay).await;
                     } else {
                         let _ = self.record_failure(tool_name, &ErrorClass::Transient);
-                        return (
-                            Err(ResilienceError::ExecutionFailed(err_msg)),
-                            attempts,
-                        );
+                        return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
                     }
                 }
             }

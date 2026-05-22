@@ -85,29 +85,24 @@ impl TemplatesInterface {
         let ctx_value: serde_json::Value = match context {
             Some(d) if !d.is_empty() => {
                 let json_mod = py.import("json")?;
-                let json_str: String = json_mod
-                    .call_method1("dumps", (d,))?
-                    .extract()
-                    .map_err(|e| {
-                        PyRuntimeError::new_err(format!(
-                            "context serialization failed: {e}"
-                        ))
-                    })?;
-                serde_json::from_str(&json_str).map_err(|e| {
-                    PyRuntimeError::new_err(format!("context parse failed: {e}"))
-                })?
+                let json_str: String =
+                    json_mod
+                        .call_method1("dumps", (d,))?
+                        .extract()
+                        .map_err(|e| {
+                            PyRuntimeError::new_err(format!("context serialization failed: {e}"))
+                        })?;
+                serde_json::from_str(&json_str)
+                    .map_err(|e| PyRuntimeError::new_err(format!("context parse failed: {e}")))?
             }
             _ => serde_json::Value::Object(serde_json::Map::new()),
         };
 
         let tmpl = self.env.get_template(name).map_err(|e| {
-            PyFileNotFoundError::new_err(format!(
-                "Template '{name}' not loaded: {e}"
-            ))
+            PyFileNotFoundError::new_err(format!("Template '{name}' not loaded: {e}"))
         })?;
-        tmpl.render(&ctx_value).map_err(|e| {
-            PyRuntimeError::new_err(format!("template '{name}' render failed: {e}"))
-        })
+        tmpl.render(&ctx_value)
+            .map_err(|e| PyRuntimeError::new_err(format!("template '{name}' render failed: {e}")))
     }
 
     /// Liste les noms logiques des templates déclarés au manifest.
@@ -117,8 +112,7 @@ impl TemplatesInterface {
 
     /// `True` si le template est déclaré ET chargé avec succès en mémoire.
     fn has(&self, name: &str) -> bool {
-        self.declared.iter().any(|d| d == name)
-            && self.env.get_template(name).is_ok()
+        self.declared.iter().any(|d| d == name) && self.env.get_template(name).is_ok()
     }
 }
 
@@ -300,10 +294,7 @@ mod tests {
         std::fs::create_dir_all(&tpl_dir).expect("mkdir");
         std::fs::write(tpl_dir.join("present.j2"), "ok").expect("write");
 
-        let mut iface = TemplatesInterface::new(vec![
-            "present".to_string(),
-            "missing".to_string(),
-        ]);
+        let mut iface = TemplatesInterface::new(vec!["present".to_string(), "missing".to_string()]);
         let loaded = iface.load_from_dir(tmp.path());
 
         assert_eq!(loaded, 1);

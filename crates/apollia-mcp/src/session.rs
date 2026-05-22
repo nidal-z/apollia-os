@@ -254,13 +254,14 @@ impl McpSession {
         config: McpServerConfig,
         secret_store: Option<&dyn SecretResolver>,
     ) -> Result<Self, McpSessionError> {
-        let resolved_env = config
-            .resolve_env(secret_store)
-            .await
-            .map_err(|e| McpSessionError::SpawnFailed {
-                server: config.name.clone(),
-                cause: e.to_string(),
-            })?;
+        let resolved_env =
+            config
+                .resolve_env(secret_store)
+                .await
+                .map_err(|e| McpSessionError::SpawnFailed {
+                    server: config.name.clone(),
+                    cause: e.to_string(),
+                })?;
 
         let transport: Arc<dyn McpTransport> =
             Arc::from(create_transport(&config, resolved_env).map_err(|e| {
@@ -606,7 +607,11 @@ impl McpSession {
         let params_value = serde_json::to_value(&params)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
         let response = self
-            .send_request("resources/read", Some(params_value), self.config.call_timeout_secs)
+            .send_request(
+                "resources/read",
+                Some(params_value),
+                self.config.call_timeout_secs,
+            )
             .await?;
         serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
             server: self.config.name.clone(),
@@ -658,7 +663,11 @@ impl McpSession {
         let params_value = serde_json::to_value(&params)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
         let response = self
-            .send_request("prompts/get", Some(params_value), self.config.call_timeout_secs)
+            .send_request(
+                "prompts/get",
+                Some(params_value),
+                self.config.call_timeout_secs,
+            )
             .await?;
         serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
             server: self.config.name.clone(),

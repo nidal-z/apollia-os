@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use apollia_memory::profile_schema::{PROFILE_SCHEMA, ProfileFieldType};
+use apollia_memory::profile_schema::{ProfileFieldType, PROFILE_SCHEMA};
 use apollia_memory::user_memory::{ProfileEntry, UserMemoryRepository, WrittenBy};
 use apollia_runtime::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
 use apollia_runtime::embedded::RuntimeHandle;

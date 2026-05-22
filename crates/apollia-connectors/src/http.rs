@@ -327,7 +327,10 @@ fn extract_error_message(raw: &str) -> String {
         {
             return truncate(msg, 512);
         }
-        if let Some(msg) = value.get("error_description").and_then(serde_json::Value::as_str) {
+        if let Some(msg) = value
+            .get("error_description")
+            .and_then(serde_json::Value::as_str)
+        {
             return truncate(msg, 512);
         }
     }
@@ -497,7 +500,8 @@ mod tests {
 
     #[test]
     fn test_extract_error_message_from_oauth_envelope() {
-        let raw = r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#;
+        let raw =
+            r#"{"error":"invalid_grant","error_description":"Token has been expired or revoked."}"#;
         assert_eq!(
             extract_error_message(raw),
             "Token has been expired or revoked."

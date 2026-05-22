@@ -115,10 +115,7 @@ impl SecretsInterface {
     /// Construit l'interface secrets avec le store partagé et la liste
     /// déclarée. Utilise le namespace par défaut
     /// ([`AGENT_SECRETS_NAMESPACE`]).
-    pub fn new(
-        store: Option<Arc<Mutex<ToolCredentialStore>>>,
-        declared: Vec<String>,
-    ) -> Self {
+    pub fn new(store: Option<Arc<Mutex<ToolCredentialStore>>>, declared: Vec<String>) -> Self {
         Self {
             store,
             declared,
@@ -176,9 +173,7 @@ mod tests {
         value: &str,
     ) -> Arc<Mutex<ToolCredentialStore>> {
         let _ = apollia_tools::GovernanceDb::open(dir.path()).expect("init governance.db");
-        let db = dir
-            .path()
-            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let db = dir.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
         let kf = dir.path().join(".keyfile");
         let mut store = ToolCredentialStore::new(&db, &kf).expect("open store");
         store
@@ -226,9 +221,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         // store ouvert (vide).
         let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
-        let db = tmp
-            .path()
-            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
         let kf = tmp.path().join(".keyfile");
         let store = ToolCredentialStore::new(&db, &kf).expect("open");
         let iface = SecretsInterface::new(
@@ -246,9 +239,7 @@ mod tests {
     fn test_with_namespace_isolates_secrets() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let _ = apollia_tools::GovernanceDb::open(tmp.path()).expect("init");
-        let db = tmp
-            .path()
-            .join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let db = tmp.path().join(apollia_tools::GOVERNANCE_DB_FILENAME);
         let kf = tmp.path().join(".keyfile");
         let mut store = ToolCredentialStore::new(&db, &kf).expect("open");
         store
@@ -262,9 +253,8 @@ mod tests {
         assert_eq!(default_iface.get("brave_api_key").expect("get"), None);
 
         // Namespace scopé — voit la valeur.
-        let scoped_iface =
-            SecretsInterface::new(Some(shared), vec!["brave_api_key".to_string()])
-                .with_namespace("agent::veille-ia");
+        let scoped_iface = SecretsInterface::new(Some(shared), vec!["brave_api_key".to_string()])
+            .with_namespace("agent::veille-ia");
         assert_eq!(
             scoped_iface.get("brave_api_key").expect("get"),
             Some("scoped-value".to_string())

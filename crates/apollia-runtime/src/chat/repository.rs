@@ -1032,7 +1032,14 @@ impl ChatSessionRepository {
                 "INSERT INTO chat_approval_log
                     (session_id, message_id, tool_name, decision, resolved_at, reason)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![session_id, message_id, tool_name, decision, resolved_at, reason],
+                params![
+                    session_id,
+                    message_id,
+                    tool_name,
+                    decision,
+                    resolved_at,
+                    reason
+                ],
             )
             .map_err(|e| ChatError::InternalError(format!("log_tool_approval: {e}")))?;
         Ok(())

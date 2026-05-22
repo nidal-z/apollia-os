@@ -307,7 +307,9 @@ pub async fn get_onboarding_state(
 pub async fn check_onboarding_finalized() -> Result<bool, String> {
     let memory_dir = {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        std::path::PathBuf::from(home).join(".apollia").join("memory")
+        std::path::PathBuf::from(home)
+            .join(".apollia")
+            .join("memory")
     };
 
     if !memory_dir.exists() {
@@ -731,9 +733,7 @@ fn write_str(repo: &UserMemoryRepository, key: &str, value: &str) -> Result<(), 
 }
 
 fn read_bool(repo: &UserMemoryRepository, key: &str) -> Result<bool, OnboardingError> {
-    Ok(read_str(repo, key)?
-        .map(|v| v == "true")
-        .unwrap_or(false))
+    Ok(read_str(repo, key)?.map(|v| v == "true").unwrap_or(false))
 }
 
 fn write_bool(repo: &UserMemoryRepository, key: &str, value: bool) -> Result<(), OnboardingError> {
@@ -957,7 +957,9 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
     // into fresh sessions and trigger the wrap-up panel before the user
     // could answer a single question.
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let memory_dir = std::path::PathBuf::from(home).join(".apollia").join("memory");
+    let memory_dir = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("memory");
 
     let candidates: [(&str, &str); 2] = [
         ("onboarding.db", "onboarding"),
@@ -983,8 +985,8 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
 
         for entry in entries {
             let is_user = entry.key.starts_with("user.");
-            let is_meta_to_clear = entry.key.starts_with("onboarding.")
-                && entry.key != "onboarding.active_profile";
+            let is_meta_to_clear =
+                entry.key.starts_with("onboarding.") && entry.key != "onboarding.active_profile";
             if !is_user && !is_meta_to_clear {
                 continue;
             }
@@ -999,7 +1001,6 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
         }
     }
 }
-
 
 /// Creates an onboarding chat session.
 ///

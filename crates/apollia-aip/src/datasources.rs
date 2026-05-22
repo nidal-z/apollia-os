@@ -233,11 +233,7 @@ mod tests {
     #[test]
     fn test_list_names_returns_declared_in_order() {
         // GIVEN three declared datasources
-        let ds = DatasourcesInterface::new(vec![
-            "a".to_string(),
-            "b".to_string(),
-            "c".to_string(),
-        ]);
+        let ds = DatasourcesInterface::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         // THEN list_names returns them in order
         assert_eq!(ds.list_names(), vec!["a", "b", "c"]);
     }
@@ -324,10 +320,8 @@ mod tests {
         std::fs::write(ds_dir.join("present.yaml"), "value: 42\n").expect("write");
 
         // WHEN we load both
-        let mut iface = DatasourcesInterface::new(vec![
-            "present".to_string(),
-            "missing".to_string(),
-        ]);
+        let mut iface =
+            DatasourcesInterface::new(vec!["present".to_string(), "missing".to_string()]);
         let loaded = iface.load_from_dir(tmp.path());
 
         // THEN only present was loaded — no panic on missing

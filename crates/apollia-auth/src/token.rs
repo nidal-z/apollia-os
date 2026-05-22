@@ -260,7 +260,10 @@ mod tests {
         let stored = parsed.into_stored(None).expect("into_stored");
         assert_eq!(stored.access_token, "ya29.xyz");
         assert_eq!(stored.refresh_token.as_deref(), Some("1//rt"));
-        assert_eq!(stored.scopes, vec!["https://www.googleapis.com/auth/gmail.send"]);
+        assert_eq!(
+            stored.scopes,
+            vec!["https://www.googleapis.com/auth/gmail.send"]
+        );
         assert!(stored.expires_at.is_some());
     }
 

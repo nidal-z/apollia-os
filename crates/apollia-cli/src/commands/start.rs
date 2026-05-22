@@ -233,40 +233,40 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             brave_api_key: snapshot.brave_api_key,
             web_search_config: self.tools_config.web_search.clone(),
             web_read_config: self.tools_config.web_read.clone(),
-            governance_db_path: Some(
-                self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-            ),
+            governance_db_path: Some(self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
         }));
 
         // Build A2A delegate + invoker so chat-agent Python agents can call
         // `ctx.a2a_invoke(...)` and `ctx.tools.invoke("a2a:<skill>")` on parity
         // with task-mode (triggers/API) — fixes the previous "not available in
         // chat mode" gap.
-        let (a2a_delegate, a2a_invoker) =
-            match (self.agent_registry.get().cloned(), self.task_router.get().cloned()) {
-                (Some(registry), Some(router)) => {
-                    let delegate = apollia_runtime::a2a::make_delegate_fn(
-                        registry.clone(),
-                        router.clone(),
-                        event_bus.clone(),
-                        apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
-                    );
-                    let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
-                        registry,
-                        router,
-                        event_bus.clone(),
-                        apollia_core::A2AConfig::default(),
-                    ));
-                    (Some(delegate), Some(invoker))
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_name,
-                        "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
-                    );
-                    (None, None)
-                }
-            };
+        let (a2a_delegate, a2a_invoker) = match (
+            self.agent_registry.get().cloned(),
+            self.task_router.get().cloned(),
+        ) {
+            (Some(registry), Some(router)) => {
+                let delegate = apollia_runtime::a2a::make_delegate_fn(
+                    registry.clone(),
+                    router.clone(),
+                    event_bus.clone(),
+                    apollia_runtime::a2a::DEFAULT_A2A_MAX_HOPS,
+                );
+                let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
+                    registry,
+                    router,
+                    event_bus.clone(),
+                    apollia_core::A2AConfig::default(),
+                ));
+                (Some(delegate), Some(invoker))
+            }
+            _ => {
+                tracing::warn!(
+                    agent = %agent_name,
+                    "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
+                );
+                (None, None)
+            }
+        };
 
         // Augment allowed_tools with live A2A virtual skills so the ToolProxy
         // accepts `a2a:*` calls (the registry filter would otherwise reject them).
@@ -938,9 +938,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             // Re-use the community helper so the ProductionBackendFactory
             // sees the same sys.path layering as `agent install / validate`.
             let extras = crate::community::validation_sys_paths(agent_path);
-            let module =
-                apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
-                    .map_err(|e| e.to_string())?;
+            let module = apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
+                .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
@@ -1141,7 +1140,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
                     reason: e.to_string(),
                 })?;
             }
-            (cfg.llm, cfg.api, cfg.runtime, cfg.hitl, cfg.tools, Some(path))
+            (
+                cfg.llm,
+                cfg.api,
+                cfg.runtime,
+                cfg.hitl,
+                cfg.tools,
+                Some(path),
+            )
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
@@ -1340,13 +1346,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // coordinator in the router. Idempotent: register_coordinator inserts
     // into a HashMap so the previous entry is dropped cleanly.
     if let Some(ref repo) = agent_repository_for_rewire {
-        rewire_auto_loaded_agents(
-            repo,
-            &factory_for_rewire,
-            &handles,
-            &handles.event_sender,
-        )
-        .await;
+        rewire_auto_loaded_agents(repo, &factory_for_rewire, &handles, &handles.event_sender).await;
     }
 
     let elapsed = start.elapsed();

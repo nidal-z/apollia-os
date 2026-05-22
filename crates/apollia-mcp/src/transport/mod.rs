@@ -119,12 +119,8 @@ pub fn create_transport(
 ) -> Result<Box<dyn McpTransport>, TransportError> {
     match config.transport.as_str() {
         "stdio" => {
-            let transport = StdioTransport::spawn(
-                &config.name,
-                &config.command,
-                &config.args,
-                resolved_env,
-            )?;
+            let transport =
+                StdioTransport::spawn(&config.name, &config.command, &config.args, resolved_env)?;
             Ok(Box::new(transport))
         }
         "streamable-http" => {

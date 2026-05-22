@@ -226,10 +226,7 @@ impl UserMemoryExtractor {
                     tracing::debug!(key = %entry.key, "duplicate skipped — same value");
                 }
                 Ok(Some(existing))
-                    if matches!(
-                        existing.written_by,
-                        WrittenBy::Onboarding | WrittenBy::User
-                    ) =>
+                    if matches!(existing.written_by, WrittenBy::Onboarding | WrittenBy::User) =>
                 {
                     tracing::debug!(
                         key = %entry.key,
@@ -250,10 +247,7 @@ impl UserMemoryExtractor {
     }
 
     /// Persists deduplicated entries tagged with the chat-extractor provenance.
-    fn store_new_entries(
-        &self,
-        entries: &[ExtractedEntry],
-    ) -> Result<usize, ExtractionError> {
+    fn store_new_entries(&self, entries: &[ExtractedEntry]) -> Result<usize, ExtractionError> {
         let repo = self
             .user_memory
             .lock()

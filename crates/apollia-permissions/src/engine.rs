@@ -393,7 +393,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 
@@ -586,10 +587,7 @@ mod tests {
     fn migrate_safe_list_imports_patterns_on_first_boot() {
         // GIVEN une config avec deux entrées safe_commands et une DB fraîche
         let db_file = NamedTempFile::new().expect("tempfile");
-        let config = config_with_safe_cmds(vec![
-            "bash_executor(git status)",
-            "file_read",
-        ]);
+        let config = config_with_safe_cmds(vec!["bash_executor(git status)", "file_read"]);
 
         // WHEN on construit le moteur
         let engine = PermissionEngine::new(&config, db_file.path()).expect("engine init");

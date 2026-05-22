@@ -187,7 +187,11 @@ impl UserMemoryRepository {
 
     /// Lists only canonical schema entries.
     pub fn list_schema(&self) -> Result<Vec<ProfileEntry>, UserMemoryError> {
-        Ok(self.list_all()?.into_iter().filter(|e| e.in_schema).collect())
+        Ok(self
+            .list_all()?
+            .into_iter()
+            .filter(|e| e.in_schema)
+            .collect())
     }
 
     /// Lists only free-form entries (not in schema).
@@ -248,11 +252,7 @@ impl UserMemoryRepository {
     }
 
     /// Full-text search across user-visible entries.
-    pub fn search(
-        &self,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<ProfileEntry>, UserMemoryError> {
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<ProfileEntry>, UserMemoryError> {
         let searcher = MemorySearch::new(&self.store);
         let sem = SemanticMemory::new(&self.store);
 
@@ -358,10 +358,7 @@ impl UserMemoryRepository {
         }
 
         let find = |k: &str| -> Option<String> {
-            entries
-                .iter()
-                .find(|e| e.key == k)
-                .map(|e| e.value.clone())
+            entries.iter().find(|e| e.key == k).map(|e| e.value.clone())
         };
 
         let name = find("name");
@@ -525,10 +522,7 @@ impl UserMemoryRepository {
                 } else {
                     ""
                 };
-                output.push_str(&format!(
-                    "- {}: {}{stale_marker}\n",
-                    entry.key, entry.value
-                ));
+                output.push_str(&format!("- {}: {}{stale_marker}\n", entry.key, entry.value));
             }
         }
 
@@ -808,7 +802,8 @@ mod tests {
     fn recall_persona_brief_reflects_canonical_keys() {
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
-        repo.set("role", "CTO fintech", WrittenBy::Onboarding).unwrap();
+        repo.set("role", "CTO fintech", WrittenBy::Onboarding)
+            .unwrap();
         repo.set("agents.hitl", "critical-only", WrittenBy::Onboarding)
             .unwrap();
         repo.set(
@@ -817,11 +812,16 @@ mod tests {
             WrittenBy::Onboarding,
         )
         .unwrap();
-        repo.set("domain.sector", "fintech", WrittenBy::User).unwrap();
-        repo.set("tech.proficiency", "expert", WrittenBy::User).unwrap();
+        repo.set("domain.sector", "fintech", WrittenBy::User)
+            .unwrap();
+        repo.set("tech.proficiency", "expert", WrittenBy::User)
+            .unwrap();
 
         let brief = repo.recall_persona_brief(20).unwrap();
-        assert!(brief.contains("Nidal"), "brief should contain name: {brief}");
+        assert!(
+            brief.contains("Nidal"),
+            "brief should contain name: {brief}"
+        );
         assert!(brief.contains("CTO fintech"), "{brief}");
         assert!(
             brief.contains("supervision sur actions critiques"),

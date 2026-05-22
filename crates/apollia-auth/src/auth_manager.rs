@@ -140,10 +140,12 @@ impl AuthManager {
                 return Ok(t);
             }
             Some(t) => t,
-            None => return Err(AuthError::UnknownProvider(format!(
-                "no token for {}/{account_id}",
-                provider.id()
-            ))),
+            None => {
+                return Err(AuthError::UnknownProvider(format!(
+                    "no token for {}/{account_id}",
+                    provider.id()
+                )))
+            }
         };
 
         // Refresh.
@@ -301,14 +303,12 @@ mod tests {
         };
         assert!(manager.cache.get(&key).is_none());
         // AND storage is empty
-        assert!(
-            manager
-                .storage
-                .load(ConnectorProvider::Google, &account)
-                .await
-                .expect("load")
-                .is_none()
-        );
+        assert!(manager
+            .storage
+            .load(ConnectorProvider::Google, &account)
+            .await
+            .expect("load")
+            .is_none());
     }
 
     #[tokio::test]

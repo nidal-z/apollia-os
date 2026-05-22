@@ -108,14 +108,21 @@ fn short_impact(op: &OperationSpec) -> String {
         "gcal.create_event" => "Creates a calendar event; may notify attendees.".into(),
         "gcal.update_event" => "Updates a calendar event; may re-notify attendees.".into(),
         "gcal.delete_event" => "Permanently removes a calendar event.".into(),
-        "gdrive.list_my_files" => "Lists files Apollia can see in Drive (its own + picker-granted).".into(),
-        "gdrive.find_by_name" => "Resolves a Drive file/folder by title — call this before asking the user for an ID.".into(),
+        "gdrive.list_my_files" => {
+            "Lists files Apollia can see in Drive (its own + picker-granted).".into()
+        }
+        "gdrive.find_by_name" => {
+            "Resolves a Drive file/folder by title — call this before asking the user for an ID."
+                .into()
+        }
         "gdrive.workspace_list" => "Lists files in the agent's Drive workspace folder.".into(),
         "gdrive.workspace_read" => "Reads the content of a workspace file.".into(),
         "gdrive.workspace_write" => "Writes a file under Drive/Apollia/<agent>/.".into(),
         "gdrive.workspace_delete" => "Moves a workspace file to Drive Trash.".into(),
         "gdrive.workspace_share" => "Grants reader access to an email address.".into(),
-        "gsheets.list_sheets" => "Lists the tabs of a spreadsheet — call before composing a range.".into(),
+        "gsheets.list_sheets" => {
+            "Lists the tabs of a spreadsheet — call before composing a range.".into()
+        }
         _ => "Calls a Google Workspace API on behalf of the connected account.".into(),
     }
 }
@@ -554,9 +561,7 @@ async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
         .await
         .map_err(|e| format!("auth: {e}"))?;
     if accounts.is_empty() {
-        return Err(
-            "no Google account connected — open Réglages → Intégrations to sign in".into(),
-        );
+        return Err("no Google account connected — open Réglages → Intégrations to sign in".into());
     }
     if accounts.len() > 1 {
         tracing::warn!(
@@ -861,10 +866,7 @@ async fn gdrive_list_my_files(
     input: &Value,
 ) -> Result<Value, String> {
     let explicit_folder_id = get_str_opt(input, "folder_id");
-    let all = input
-        .get("all")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let all = input.get("all").and_then(Value::as_bool).unwrap_or(false);
     let page_size = input
         .get("page_size")
         .and_then(Value::as_u64)
@@ -892,7 +894,8 @@ async fn gdrive_list_my_files(
         None
     } else if root_path.is_empty() {
         scope_note = Some(
-            "Scoped to My Drive root (the user explicitly set the configured root to Drive root).".into(),
+            "Scoped to My Drive root (the user explicitly set the configured root to Drive root)."
+                .into(),
         );
         Some("root".to_string())
     } else {
@@ -938,10 +941,7 @@ async fn gdrive_find_by_name(
 ) -> Result<Value, String> {
     let name = get_str(input, "name")?;
     let mime_filter = get_str_opt(input, "mime_type_filter");
-    let exact = input
-        .get("exact")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let exact = input.get("exact").and_then(Value::as_bool).unwrap_or(false);
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = bearer_for(connector, auth, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
@@ -1048,8 +1048,7 @@ async fn gdrive_workspace_delete(
 
 async fn gdrive_list_picked_folders(auth: &Arc<AuthManager>) -> Result<Value, String> {
     let account = resolve_account(auth).await?;
-    let folders =
-        apollia_auth::drive_prefs::list_picked_folders("google", account.as_str());
+    let folders = apollia_auth::drive_prefs::list_picked_folders("google", account.as_str());
     Ok(json!({
         "folders": folders.iter().map(|f| json!({
             "id": f.id,
@@ -1196,7 +1195,10 @@ async fn gsheets_create(
         .unwrap_or_default();
     let mut value = serde_json::to_value(&res).map_err(|e| e.to_string())?;
     if let Value::Object(ref mut map) = value {
-        map.insert("default_sheet_title".into(), Value::String(default_sheet_title.clone()));
+        map.insert(
+            "default_sheet_title".into(),
+            Value::String(default_sheet_title.clone()),
+        );
         map.insert(
             "usage_hint".into(),
             Value::String(format!(
@@ -1573,12 +1575,12 @@ impl DispatchableExecutor for GoogleOpExecutor {
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        dispatch_google_tool(self.op_id, &input).await.map_err(|msg| {
-            ToolExecutionError::ExecutionFailed {
+        dispatch_google_tool(self.op_id, &input)
+            .await
+            .map_err(|msg| ToolExecutionError::ExecutionFailed {
                 code: "google".into(),
                 message: msg,
-            }
-        })
+            })
     }
 }
 
@@ -1680,7 +1682,11 @@ mod tests {
             assert!(
                 matches!(
                     d.approval_risk_level,
-                    Some(ApprovalRiskLevel::Medium | ApprovalRiskLevel::High | ApprovalRiskLevel::Critical),
+                    Some(
+                        ApprovalRiskLevel::Medium
+                            | ApprovalRiskLevel::High
+                            | ApprovalRiskLevel::Critical
+                    ),
                 ),
                 "{name} should require approval"
             );

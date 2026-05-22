@@ -124,7 +124,10 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
                 });
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("No config file at {} — runtime will start with defaults.", path.display());
+                eprintln!(
+                    "No config file at {} — runtime will start with defaults.",
+                    path.display()
+                );
             }
             return exit_codes::SUCCESS;
         }
@@ -140,7 +143,10 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
             match toml::from_str::<toml::Value>(&content) {
                 Ok(v) => {
                     let json_v = toml_value_to_json(&v);
-                    println!("{}", serde_json::to_string_pretty(&json_v).unwrap_or_default());
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&json_v).unwrap_or_default()
+                    );
                 }
                 Err(e) => {
                     emit_error(format!("invalid TOML: {e}"), json);
@@ -165,7 +171,10 @@ fn run_get(key: Option<&str>, file: Option<&Path>, json: bool) -> i32 {
         Some(v) => {
             if json {
                 let json_v = toml_value_to_json(v);
-                println!("{}", serde_json::to_string_pretty(&json_v).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json_v).unwrap_or_default()
+                );
             } else {
                 println!("{}", render_scalar(v));
             }
@@ -268,7 +277,13 @@ fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
     } else {
-        println!("  * {}.{} = {} (written to {})", "config", key, value_str, path.display());
+        println!(
+            "  * {}.{} = {} (written to {})",
+            "config",
+            key,
+            value_str,
+            path.display()
+        );
     }
     exit_codes::SUCCESS
 }
@@ -427,7 +442,10 @@ fn run_show(file: Option<&Path>, json: bool) -> i32 {
             });
             println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
         } else {
-            println!("No config file at {} — runtime will start with defaults.", path.display());
+            println!(
+                "No config file at {} — runtime will start with defaults.",
+                path.display()
+            );
         }
         return exit_codes::SUCCESS;
     }
@@ -456,9 +474,15 @@ fn run_show(file: Option<&Path>, json: bool) -> i32 {
             "exists": true,
             "resolved": json_value,
         });
-        println!("{}", serde_json::to_string_pretty(&envelope).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&envelope).unwrap_or_default()
+        );
     } else {
-        println!("{}", serde_json::to_string_pretty(&json_value).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json_value).unwrap_or_default()
+        );
     }
     exit_codes::SUCCESS
 }

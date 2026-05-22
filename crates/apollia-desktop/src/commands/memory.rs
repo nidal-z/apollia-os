@@ -361,8 +361,7 @@ pub async fn memory_import_namespace(
 ) -> Result<String, String> {
     let base = memory_base_dir()?;
 
-    let content = std::fs::read_to_string(&input_path)
-        .map_err(|e| format!("read failed: {e}"))?;
+    let content = std::fs::read_to_string(&input_path).map_err(|e| format!("read failed: {e}"))?;
     let export: apollia_memory::export::MemoryExport =
         serde_json::from_str(&content).map_err(|e| format!("parse failed: {e}"))?;
 
@@ -375,7 +374,9 @@ pub async fn memory_import_namespace(
     let count = apollia_memory::export::import_namespace(&base, &namespace, &export, import_mode)
         .map_err(|e| format!("import failed: {e}"))?;
 
-    Ok(format!("{count} entries imported into namespace '{namespace}' (mode: {mode})"))
+    Ok(format!(
+        "{count} entries imported into namespace '{namespace}' (mode: {mode})"
+    ))
 }
 
 /// Returns the memory entries the agent injected into a specific turn.

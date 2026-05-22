@@ -183,7 +183,10 @@ pub async fn list_active_chat_session_authorizations(
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
     let entries = manager.list_session_authorizations().await;
-    Ok(entries.into_iter().map(SessionAuthorizationDto::from).collect())
+    Ok(entries
+        .into_iter()
+        .map(SessionAuthorizationDto::from)
+        .collect())
 }
 
 /// Retire une autorisation `scope = 'session'` d'une session active.

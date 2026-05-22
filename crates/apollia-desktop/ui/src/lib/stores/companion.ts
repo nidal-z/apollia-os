@@ -411,7 +411,11 @@ function createCompanionStore() {
       try {
         const enabled = await invoke<boolean>("get_companion_enabled");
         if (enabled) {
-          mutate((s) => ({ ...s, enabled: true }));
+          // Aligne enabled + visible : si l'user a déjà opt-in, on restaure
+          // la companion visible (cohérent avec toggleEnabled qui set les deux
+          // en sync). Sans cette ligne, l'user devrait re-cliquer manuellement
+          // pour afficher la fenêtre au démarrage.
+          mutate((s) => ({ ...s, enabled: true, visible: true }));
         }
       } catch {
         // Non-critical — companion defaults to disabled on error.

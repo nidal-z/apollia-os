@@ -91,10 +91,7 @@ pub async fn list_notification_channels(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let label = ch
-                .get("label")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            let label = ch.get("label").and_then(|v| v.as_str()).map(String::from);
             let min_interval_seconds = ch
                 .get("min_interval_seconds")
                 .and_then(|v| v.as_u64())

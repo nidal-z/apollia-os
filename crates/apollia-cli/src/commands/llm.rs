@@ -559,9 +559,7 @@ fn build_config_json(
         "ollama" => {
             cfg.insert(
                 "base_url".into(),
-                serde_json::Value::String(
-                    base_url.unwrap_or("http://localhost:11434").to_string(),
-                ),
+                serde_json::Value::String(base_url.unwrap_or("http://localhost:11434").to_string()),
             );
         }
         _ => {
@@ -730,7 +728,9 @@ async fn run_backends_create(
                 eprintln!("Error ({status}): {body}");
                 if status == 422 {
                     eprintln!();
-                    eprintln!("Hint: providers acceptés: llama-cpp, anthropic, openai, mistral, ollama");
+                    eprintln!(
+                        "Hint: providers acceptés: llama-cpp, anthropic, openai, mistral, ollama"
+                    );
                     eprintln!("      (alias --kind toujours accepté pour rétrocompat)");
                 }
             }

@@ -346,7 +346,9 @@ pub fn build_google_provider(scopes: &[GoogleScope]) -> ProviderConfig {
         name: "google",
         auth_url: "https://accounts.google.com/o/oauth2/v2/auth",
         token_url: "https://oauth2.googleapis.com/token",
-        client_id: ConnectorProvider::Google.resolve_client_id().unwrap_or_default(),
+        client_id: ConnectorProvider::Google
+            .resolve_client_id()
+            .unwrap_or_default(),
         client_secret: ConnectorProvider::Google.resolve_client_secret(),
         scopes: all_scopes,
     }
@@ -442,10 +444,9 @@ mod tests {
         assert!(cfg.scopes.contains(&"openid"));
         assert!(cfg.scopes.contains(&"email"));
         assert!(cfg.scopes.contains(&"profile"));
-        assert!(
-            cfg.scopes
-                .contains(&"https://www.googleapis.com/auth/gmail.send")
-        );
+        assert!(cfg
+            .scopes
+            .contains(&"https://www.googleapis.com/auth/gmail.send"));
     }
 
     #[test]

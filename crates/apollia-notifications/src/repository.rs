@@ -172,7 +172,15 @@ impl NotificationConfigRepository {
                  min_interval_seconds = ?6,
                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
              WHERE id = ?7",
-            params![ch.label, ch.channel_type, ch.enabled, config_str, events_str, ch.min_interval_seconds, id],
+            params![
+                ch.label,
+                ch.channel_type,
+                ch.enabled,
+                config_str,
+                events_str,
+                ch.min_interval_seconds,
+                id
+            ],
         )?;
 
         Ok(())

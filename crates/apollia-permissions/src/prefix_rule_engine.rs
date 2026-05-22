@@ -330,7 +330,12 @@ impl PrefixRuleEngine {
             ));
         }
         if rule.scope == PermissionScope::Agent
-            && rule.agent_id.as_deref().map(str::trim).unwrap_or("").is_empty()
+            && rule
+                .agent_id
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
         {
             return Err(PermissionError::InvalidRule(
                 "agent scope requires a non-empty agent_id".to_string(),
@@ -459,10 +464,7 @@ impl PrefixRuleEngine {
     /// # Errors
     ///
     /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
-    pub fn remove_rules_by_creator(
-        &mut self,
-        created_by: &str,
-    ) -> Result<u32, PermissionError> {
+    pub fn remove_rules_by_creator(&mut self, created_by: &str) -> Result<u32, PermissionError> {
         let affected = self.db.execute(
             "DELETE FROM permission_rules WHERE created_by = ?",
             params![created_by],
@@ -502,10 +504,7 @@ impl PrefixRuleEngine {
     /// # Errors
     ///
     /// Retourne [`PermissionError::Database`] en cas d'erreur SQLite.
-    pub fn list_rules_for_agent(
-        &self,
-        agent_id: &str,
-    ) -> Result<Vec<PrefixRule>, PermissionError> {
+    pub fn list_rules_for_agent(&self, agent_id: &str) -> Result<Vec<PrefixRule>, PermissionError> {
         let mut stmt = self.db.prepare(
             "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
                     scope, project_path, agent_id, expires_at \
@@ -937,11 +936,7 @@ mod tests {
         assert_eq!(rules.len(), 2);
     }
 
-    fn rule_with_creator(
-        tool: &str,
-        action: RuleAction,
-        creator: &str,
-    ) -> PrefixRule {
+    fn rule_with_creator(tool: &str, action: RuleAction, creator: &str) -> PrefixRule {
         PrefixRule {
             tool_name: tool.into(),
             action,
@@ -1128,7 +1123,10 @@ mod tests {
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_other, &[])
             .expect("check_with_scope");
-        assert!(hit.is_none(), "rule for apollia:chat must not match apollia:other");
+        assert!(
+            hit.is_none(),
+            "rule for apollia:chat must not match apollia:other"
+        );
 
         let ctx_chat = ScopeContext {
             agent_id: Some("apollia:chat".into()),
@@ -1309,7 +1307,12 @@ mod tests {
             agent_id: Some("apollia:chat".into()),
         };
         let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_no_project, &session)
+            .check_with_scope(
+                "bash_executor",
+                Some("git status"),
+                &ctx_no_project,
+                &session,
+            )
             .expect("check_with_scope");
         assert_eq!(hit, Some((agent_id_rule, RuleAction::Deny)));
 

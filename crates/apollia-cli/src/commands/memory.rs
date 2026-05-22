@@ -1135,7 +1135,8 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         // WHEN
-        let result = execute_learn_procedure("ghost", "trigger", &["step".to_string()], &dir, false);
+        let result =
+            execute_learn_procedure("ghost", "trigger", &["step".to_string()], &dir, false);
 
         // THEN NamespaceNotFound
         assert!(matches!(
@@ -1152,13 +1153,8 @@ mod tests {
         setup_test_db(&dir, "agent-j");
 
         // WHEN learn-procedure with json flag
-        let result = execute_learn_procedure(
-            "agent-j",
-            "mon trigger",
-            &["step1".to_string()],
-            &dir,
-            true,
-        );
+        let result =
+            execute_learn_procedure("agent-j", "mon trigger", &["step1".to_string()], &dir, true);
 
         // THEN valid JSON
         assert!(result.is_ok());

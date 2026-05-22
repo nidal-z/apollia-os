@@ -211,10 +211,7 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
                 None
             };
             let (result, error) = match s {
-                TaskStatus::Completed => (
-                    stored_output.map(serde_json::Value::String),
-                    None,
-                ),
+                TaskStatus::Completed => (stored_output.map(serde_json::Value::String), None),
                 TaskStatus::Failed => (None, stored_output),
                 _ => (None, None),
             };
@@ -553,7 +550,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 

@@ -143,37 +143,32 @@ mod tests {
         let base = load_builtin_enrichments();
         let initial_len = base.len();
         let mut overrides = McpOverrides::default();
-        overrides
-            .disable
-            .push("@notionhq/notion-mcp-server".into());
+        overrides.disable.push("@notionhq/notion-mcp-server".into());
 
         // WHEN overrides are applied
         let after = apply_overrides(base, &overrides);
 
         // THEN Notion is gone and the catalog is one shorter
         assert_eq!(after.len(), initial_len - 1);
-        assert!(
-            !after
-                .iter()
-                .any(|e| e.package_identifier == "@notionhq/notion-mcp-server")
-        );
+        assert!(!after
+            .iter()
+            .any(|e| e.package_identifier == "@notionhq/notion-mcp-server"));
     }
 
     #[test]
     fn test_add_appends_entries_to_catalog() {
         let base = load_builtin_enrichments();
         let initial_len = base.len();
-        let custom: ConnectorEnrichment =
-            serde_json::from_value(serde_json::json!({
-                "package_identifier": "internal-acme-mcp",
-                "operator_label": { "en": "ACME Internal", "fr": "ACME Interne" },
-                "category": "internal",
-                "icon_name": "building",
-                "trust_level": "custom",
-                "default_requires_approval": true,
-                "cost_model": { "kind": "free" }
-            }))
-            .expect("custom entry");
+        let custom: ConnectorEnrichment = serde_json::from_value(serde_json::json!({
+            "package_identifier": "internal-acme-mcp",
+            "operator_label": { "en": "ACME Internal", "fr": "ACME Interne" },
+            "category": "internal",
+            "icon_name": "building",
+            "trust_level": "custom",
+            "default_requires_approval": true,
+            "cost_model": { "kind": "free" }
+        }))
+        .expect("custom entry");
         let overrides = McpOverrides {
             add: vec![custom],
             ..McpOverrides::default()
@@ -182,11 +177,9 @@ mod tests {
         let after = apply_overrides(base, &overrides);
 
         assert_eq!(after.len(), initial_len + 1);
-        assert!(
-            after
-                .iter()
-                .any(|e| e.package_identifier == "internal-acme-mcp")
-        );
+        assert!(after
+            .iter()
+            .any(|e| e.package_identifier == "internal-acme-mcp"));
     }
 
     #[test]

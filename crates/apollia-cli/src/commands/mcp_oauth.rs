@@ -212,16 +212,12 @@ fn load_server_url(db_override: Option<&std::path::Path>, server: &str) -> Resul
         .into_iter()
         .find(|s| s.name == server)
         .ok_or_else(|| format!("server '{server}' not configured in {}", path.display()))?;
-    entry
-        .url
-        .clone()
-        .filter(|u| !u.is_empty())
-        .ok_or_else(|| {
-            format!(
-                "server '{server}' has no URL — only HTTP/streamable-http MCP servers \
+    entry.url.clone().filter(|u| !u.is_empty()).ok_or_else(|| {
+        format!(
+            "server '{server}' has no URL — only HTTP/streamable-http MCP servers \
                  require OAuth (stdio servers run a local subprocess)"
-            )
-        })
+        )
+    })
 }
 
 // ─── login ────────────────────────────────────────────────────────────────────
@@ -248,9 +244,7 @@ async fn run_login(
     } else {
         Some(scopes.to_vec())
     };
-    let client_id_override = client_id
-        .map(str::trim)
-        .filter(|s| !s.is_empty());
+    let client_id_override = client_id.map(str::trim).filter(|s| !s.is_empty());
 
     // Probe the server first to capture the WWW-Authenticate header. Many MCP
     // hosts (Notion, Linear, …) hide their Protected Resource Metadata behind
@@ -326,7 +320,10 @@ async fn run_login(
                     "expires_at": token.expires_at,
                     "runtime_reconnect": reconnect,
                 });
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             } else {
                 println!("  * OAuth token stored for '{server}'");
                 if let Some(email) = &token.identity_email {
@@ -369,12 +366,10 @@ async fn run_login(
             }
             exit_codes::SUCCESS
         }
-        Err(McpOAuthError::ReauthRequired { .. }) => {
-            emit_error(
-                "the authorisation server rejected the refresh — stored token deleted, re-run login",
-                json,
-            )
-        }
+        Err(McpOAuthError::ReauthRequired { .. }) => emit_error(
+            "the authorisation server rejected the refresh — stored token deleted, re-run login",
+            json,
+        ),
         Err(e) => emit_error(format!("OAuth flow failed: {e}"), json),
     }
 }
@@ -454,7 +449,10 @@ async fn run_status(
     } else if report.is_empty() {
         println!("  (no servers found in mcp.db)");
     } else {
-        println!("  {:<24} {:<10} {:<30} IDENTITY", "SERVER", "STORED", "SCOPES");
+        println!(
+            "  {:<24} {:<10} {:<30} IDENTITY",
+            "SERVER", "STORED", "SCOPES"
+        );
         for entry in &report {
             let s = entry.get("server").and_then(|v| v.as_str()).unwrap_or("?");
             let stored = entry
@@ -482,9 +480,7 @@ async fn run_status(
             } else {
                 scopes
             };
-            println!(
-                "  {s:<24} {stored_glyph:<10} {scopes_truncated:<30} {identity}"
-            );
+            println!("  {s:<24} {stored_glyph:<10} {scopes_truncated:<30} {identity}");
         }
     }
     exit_codes::SUCCESS
@@ -551,13 +547,7 @@ mod tests {
 
     #[test]
     fn parses_login_with_scopes() {
-        let cli = TestCli::parse_from([
-            "x",
-            "login",
-            "notion",
-            "--scopes",
-            "read,write,admin",
-        ]);
+        let cli = TestCli::parse_from(["x", "login", "notion", "--scopes", "read,write,admin"]);
         match cli.cmd {
             McpOauthCommand::Login { scopes, .. } => {
                 assert_eq!(scopes, vec!["read", "write", "admin"]);

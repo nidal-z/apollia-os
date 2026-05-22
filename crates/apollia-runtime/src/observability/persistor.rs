@@ -191,7 +191,10 @@ impl EventPersistorHandle {
     /// abandonné avec un `warn!` plutôt que de bloquer le thread d'agent.
     /// L'événement spécial `bus_lagged` du Lot 4 surfacera la perte côté UI.
     pub fn append(&self, record: RuntimeEventRecord) {
-        match self.sender.try_send(PersistorMessage::Append(Box::new(record))) {
+        match self
+            .sender
+            .try_send(PersistorMessage::Append(Box::new(record)))
+        {
             Ok(()) => {}
             Err(mpsc::error::TrySendError::Full(_)) => {
                 tracing::warn!("runtime_events persistor channel full, event dropped");
@@ -616,13 +619,22 @@ mod tests {
             .expect("list_for_task");
         assert_eq!(rows.len(), 2);
 
-        let started = rows.iter().find(|r| r.kind == "tool_call_started").expect("started");
-        let completed = rows.iter().find(|r| r.kind == "tool_call_completed").expect("completed");
+        let started = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_started")
+            .expect("started");
+        let completed = rows
+            .iter()
+            .find(|r| r.kind == "tool_call_completed")
+            .expect("completed");
 
         // Le started conserve son event_id explicite (générateur côté ToolProxy).
         assert_eq!(started.event_id, started_id);
         // Le completed pointe via parent_event_id vers le started.
-        assert_eq!(completed.parent_event_id.as_deref(), Some(started_id.as_str()));
+        assert_eq!(
+            completed.parent_event_id.as_deref(),
+            Some(started_id.as_str())
+        );
         // Le payload contient l'output et le succès.
         assert!(completed.payload_json.contains("\"success\":true"));
         assert!(completed.payload_json.contains("example.com"));
@@ -673,7 +685,10 @@ mod tests {
         assert_eq!(thought.step_num, Some(2));
         assert!(thought.payload_json.contains("web_search"));
 
-        let parse_err = rows.iter().find(|r| r.kind == "action_parse_error").expect("parse");
+        let parse_err = rows
+            .iter()
+            .find(|r| r.kind == "action_parse_error")
+            .expect("parse");
         assert_eq!(parse_err.step_num, Some(3));
         assert!(parse_err.payload_json.contains("repair_attempted"));
 

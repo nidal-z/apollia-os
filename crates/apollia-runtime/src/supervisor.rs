@@ -680,10 +680,7 @@ impl Supervisor {
             let db_path = self.config.data_dir.join("runtime_events.db");
             match crate::observability::EventPersistorHandle::open(&db_path).await {
                 Ok(handle) => {
-                    crate::observability::spawn_runtime_events_subscriber(
-                        handle,
-                        &event_sender,
-                    );
+                    crate::observability::spawn_runtime_events_subscriber(handle, &event_sender);
                     info!(
                         path = %db_path.display(),
                         "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
@@ -1604,7 +1601,9 @@ const SEEDED_DESKTOP_CHANNEL_MARKER: &str = "notifications_seeded_desktop";
 /// supervisor startup.
 fn seed_default_desktop_channel_if_needed(
     notif_repo: &NotificationConfigRepository,
-    user_memory: Option<&std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+    user_memory: Option<
+        &std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
+    >,
 ) {
     let Some(um_arc) = user_memory else {
         // No user memory available — can't track the marker safely. Skip.
@@ -2547,13 +2546,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let notif = NotificationConfigRepository::open(&dir.path().join("notifications.db"))
             .expect("notif repo");
-        let um = apollia_memory::user_memory::UserMemoryRepository::new(&dir.path().join("user_memory.db"))
-            .expect("user memory");
-        (
-            notif,
-            std::sync::Arc::new(std::sync::Mutex::new(um)),
-            dir,
+        let um = apollia_memory::user_memory::UserMemoryRepository::new(
+            &dir.path().join("user_memory.db"),
         )
+        .expect("user memory");
+        (notif, std::sync::Arc::new(std::sync::Mutex::new(um)), dir)
     }
 
     #[test]
@@ -2590,7 +2587,11 @@ mod tests {
         let (notif, um, _tmp) = make_seed_inputs();
         um.lock()
             .unwrap()
-            .set("name", "Nidal", apollia_memory::user_memory::WrittenBy::User)
+            .set(
+                "name",
+                "Nidal",
+                apollia_memory::user_memory::WrittenBy::User,
+            )
             .expect("set name");
 
         // WHEN the seed runs
@@ -2775,7 +2776,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 

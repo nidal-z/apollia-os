@@ -23,6 +23,13 @@ function baseForm(overrides: Partial<BackendFormState> = {}): BackendFormState {
     enabled: true,
     isDefault: false,
     extraJson: "",
+    // Generation params : `null` = use model defaults (sinon buildConfigJson
+    // les sérialise dans config_json même si undefined → overwrite extraJson).
+    temperature: null,
+    topK: null,
+    topP: null,
+    repeatPenalty: null,
+    contextSize: null,
     ...overrides,
   };
 }

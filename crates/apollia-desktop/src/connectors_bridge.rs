@@ -99,9 +99,8 @@ impl GoogleToolExecutor {
         if accounts.is_empty() {
             return Err(ToolExecutionError::ExecutionFailed {
                 code: "no_account".into(),
-                message:
-                    "no Google account connected — open Réglages → Intégrations to sign in"
-                        .into(),
+                message: "no Google account connected — open Réglages → Intégrations to sign in"
+                    .into(),
             });
         }
         if accounts.len() > 1 {
@@ -113,16 +112,17 @@ impl GoogleToolExecutor {
         Ok(accounts.into_iter().next().expect("len>=1"))
     }
 
-    async fn bearer_for(&self, scopes: &[GoogleScope]) -> Result<(AccountId, String), ToolExecutionError> {
+    async fn bearer_for(
+        &self,
+        scopes: &[GoogleScope],
+    ) -> Result<(AccountId, String), ToolExecutionError> {
         let account = self.resolve_account().await?;
-        let token = self
-            .connector
-            .bearer(&account, scopes)
-            .await
-            .map_err(|e| ToolExecutionError::ExecutionFailed {
+        let token = self.connector.bearer(&account, scopes).await.map_err(|e| {
+            ToolExecutionError::ExecutionFailed {
                 code: "token".into(),
                 message: e.to_string(),
-            })?;
+            }
+        })?;
         Ok((account, token))
     }
 
@@ -135,8 +135,8 @@ impl GoogleToolExecutor {
     ) -> impl FnMut() -> std::pin::Pin<
         Box<
             dyn std::future::Future<
-                Output = Result<String, apollia_connectors::error::ConnectorError>,
-            > + Send,
+                    Output = Result<String, apollia_connectors::error::ConnectorError>,
+                > + Send,
         >,
     > + Send {
         move || {
@@ -178,7 +178,10 @@ impl ToolExecutor for GoogleToolExecutor {
 // 3. calls the matching `GoogleConnector` method,
 // 4. serialises the response back to JSON.
 
-async fn dispatch_google(exec: &GoogleToolExecutor, input: Value) -> Result<Value, ToolExecutionError> {
+async fn dispatch_google(
+    exec: &GoogleToolExecutor,
+    input: Value,
+) -> Result<Value, ToolExecutionError> {
     match exec.op_id {
         "gmail.send" => gmail_send(exec, input).await,
         "gmail.compose_draft" => gmail_compose_draft(exec, input).await,
@@ -231,7 +234,10 @@ fn calendar_id_or_primary(input: &Value) -> String {
     input_get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string())
 }
 
-fn parse_rfc3339(s: &str, label: &str) -> Result<chrono::DateTime<chrono::Utc>, ToolExecutionError> {
+fn parse_rfc3339(
+    s: &str,
+    label: &str,
+) -> Result<chrono::DateTime<chrono::Utc>, ToolExecutionError> {
     chrono::DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&chrono::Utc))
         .map_err(|e| ToolExecutionError::InvalidInput {
@@ -262,11 +268,8 @@ async fn gmail_send(exec: &GoogleToolExecutor, input: Value) -> Result<Value, To
     let mail = extract_compose(&input)?;
     let scopes = [GoogleScope::MailSend];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let result = exec
         .connector
         .gmail()
@@ -283,11 +286,8 @@ async fn gmail_compose_draft(
     let mail = extract_compose(&input)?;
     let scopes = [GoogleScope::MailCompose];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let result = exec
         .connector
         .gmail()
@@ -304,22 +304,20 @@ async fn gmail_list_drafts(
     let max_results = input_get_u32_or(&input, "max_results", 20);
     let scopes = [GoogleScope::MailCompose];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let drafts = exec
         .connector
         .gmail()
         .list_drafts(max_results, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&drafts)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&drafts).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gmail_delete_draft(
@@ -329,11 +327,8 @@ async fn gmail_delete_draft(
     let draft_id = input_get_str(&input, "draft_id")?;
     let scopes = [GoogleScope::MailCompose];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     exec.connector
         .gmail()
         .delete_draft(&draft_id, &token, refresh)
@@ -408,22 +403,20 @@ async fn gcal_list_events(
     };
     let scopes = [GoogleScope::CalendarRead];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let events = exec
         .connector
         .calendar()
         .list_events(&cal, &filter, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&events)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&events).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gcal_get_event(
@@ -434,22 +427,20 @@ async fn gcal_get_event(
     let event_id = input_get_str(&input, "event_id")?;
     let scopes = [GoogleScope::CalendarRead];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let event = exec
         .connector
         .calendar()
         .get_event(&cal, &event_id, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&event)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gcal_create_event(
@@ -460,22 +451,20 @@ async fn gcal_create_event(
     let draft = build_event_draft(&input)?;
     let scopes = [GoogleScope::CalendarWrite];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let event = exec
         .connector
         .calendar()
         .create_event(&cal, &draft, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&event)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gcal_update_event(
@@ -487,22 +476,20 @@ async fn gcal_update_event(
     let draft = build_event_draft(&input)?;
     let scopes = [GoogleScope::CalendarWrite];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let event = exec
         .connector
         .calendar()
         .update_event(&cal, &event_id, &draft, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&event)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&event).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gcal_delete_event(
@@ -513,11 +500,8 @@ async fn gcal_delete_event(
     let event_id = input_get_str(&input, "event_id")?;
     let scopes = [GoogleScope::CalendarWrite];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     exec.connector
         .calendar()
         .delete_event(&cal, &event_id, &token, refresh)
@@ -532,44 +516,33 @@ fn resolve_drive_root(account_id: &AccountId) -> String {
     apollia_auth::drive_prefs::effective_folder_path("google", account_id.as_str())
 }
 
-async fn gdrive_list(
-    exec: &GoogleToolExecutor,
-    input: Value,
-) -> Result<Value, ToolExecutionError> {
+async fn gdrive_list(exec: &GoogleToolExecutor, input: Value) -> Result<Value, ToolExecutionError> {
     let agent_slug = input_get_str(&input, "agent_slug")?;
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = exec.bearer_for(&scopes).await?;
     let root_path = resolve_drive_root(&account);
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let files = exec
         .connector
         .drive()
         .workspace_list(&root_path, &agent_slug, &token, refresh)
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&files)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&files).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
-async fn gdrive_read(
-    exec: &GoogleToolExecutor,
-    input: Value,
-) -> Result<Value, ToolExecutionError> {
+async fn gdrive_read(exec: &GoogleToolExecutor, input: Value) -> Result<Value, ToolExecutionError> {
     let file_id = input_get_str(&input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let bytes = exec
         .connector
         .drive()
@@ -598,11 +571,8 @@ async fn gdrive_write(
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = exec.bearer_for(&scopes).await?;
     let root_path = resolve_drive_root(&account);
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let file = exec
         .connector
         .drive()
@@ -617,11 +587,12 @@ async fn gdrive_write(
         )
         .await
         .map_err(map_connector_err)?;
-    Ok(serde_json::to_value(&file)
-        .map_err(|e| ToolExecutionError::ExecutionFailed {
+    Ok(
+        serde_json::to_value(&file).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialise".into(),
             message: e.to_string(),
-        })?)
+        })?,
+    )
 }
 
 async fn gdrive_delete(
@@ -631,11 +602,8 @@ async fn gdrive_delete(
     let file_id = input_get_str(&input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     exec.connector
         .drive()
         .workspace_delete(&file_id, &token, refresh)
@@ -652,11 +620,8 @@ async fn gdrive_share(
     let email = input_get_str(&input, "email")?;
     let scopes = [GoogleScope::DriveWorkspace];
     let (account, token) = exec.bearer_for(&scopes).await?;
-    let refresh = GoogleToolExecutor::refresh_closure(
-        exec.connector.clone(),
-        account,
-        scopes.to_vec(),
-    );
+    let refresh =
+        GoogleToolExecutor::refresh_closure(exec.connector.clone(), account, scopes.to_vec());
     let permission_id = exec
         .connector
         .drive()

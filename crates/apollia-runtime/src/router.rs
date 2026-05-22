@@ -381,7 +381,8 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     /// cadre d'une délégation A2A (avec `skill_id` ciblé), utiliser
     /// [`Self::submit_with_chain`].
     pub async fn submit(&self, agent_id: &str, input: AIPInput) -> Result<TaskId, SubmitError> {
-        self.submit_with_chain(agent_id, input, None, Vec::new()).await
+        self.submit_with_chain(agent_id, input, None, Vec::new())
+            .await
     }
 
     /// Soumet une tache avec une chaîne de délégation A2A explicite et un
@@ -637,7 +638,8 @@ mod tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 

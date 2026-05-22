@@ -340,13 +340,25 @@ pub struct SamplingCreateMessageParams {
     /// Conversation context the server wants the LLM to complete.
     pub messages: Vec<serde_json::Value>,
     /// Optional model preferences (priority hints).
-    #[serde(rename = "modelPreferences", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "modelPreferences",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub model_preferences: Option<serde_json::Value>,
     /// Optional system prompt.
-    #[serde(rename = "systemPrompt", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "systemPrompt",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub system_prompt: Option<String>,
     /// Optional context inclusion policy (`none`, `thisServer`, `allServers`).
-    #[serde(rename = "includeContext", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "includeContext",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub include_context: Option<String>,
     /// Maximum tokens to generate.
     #[serde(rename = "maxTokens", default, skip_serializing_if = "Option::is_none")]
@@ -366,7 +378,11 @@ pub struct SamplingCreateMessageResult {
     /// Identifier of the model that produced the result.
     pub model: String,
     /// Optional reason the model stopped (`endTurn`, `stopSequence`, `maxTokens`, …).
-    #[serde(rename = "stopReason", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "stopReason",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub stop_reason: Option<String>,
 }
 

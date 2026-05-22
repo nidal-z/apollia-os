@@ -98,7 +98,10 @@ async fn run_skills(client: &RuntimeClient, json: bool) -> i32 {
     match client.list_a2a_skills().await {
         Ok(resp) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&resp).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
                 return exit_codes::SUCCESS;
             }
             let skills = resp.get("skills").and_then(|v| v.as_array());
@@ -118,19 +121,10 @@ async fn run_skills(client: &RuntimeClient, json: bool) -> i32 {
                 "SKILL_ID", "AGENT", "NAME"
             );
             for s in items {
-                let skill_id = s
-                    .get("skill_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?");
-                let agent = s
-                    .get("agent_name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?");
+                let skill_id = s.get("skill_id").and_then(|v| v.as_str()).unwrap_or("?");
+                let agent = s.get("agent_name").and_then(|v| v.as_str()).unwrap_or("?");
                 let name = s.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                let description = s
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let description = s.get("description").and_then(|v| v.as_str()).unwrap_or("");
                 println!(
                     "  {:<28} {:<22} {:<22} {}",
                     truncate(skill_id, 28),
@@ -191,7 +185,9 @@ async fn run_invoke(
         Err(e) => {
             eprintln!("Error: --args/--args-file is not valid JSON: {e}");
             eprintln!("Hint: wrap inline JSON in single quotes, e.g.");
-            eprintln!("      apollia-os a2a invoke {skill_id} --args '{{\"path\":\"/tmp/foo.pdf\"}}'");
+            eprintln!(
+                "      apollia-os a2a invoke {skill_id} --args '{{\"path\":\"/tmp/foo.pdf\"}}'"
+            );
             return exit_codes::GENERAL_ERROR;
         }
     };
@@ -202,11 +198,20 @@ async fn run_invoke(
     {
         Ok(resp) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&resp).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
                 return exit_codes::SUCCESS;
             }
-            let agent = resp.get("agent_name").and_then(|v| v.as_str()).unwrap_or("?");
-            let duration = resp.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            let agent = resp
+                .get("agent_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+            let duration = resp
+                .get("duration_ms")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             let result = resp.get("result");
             let status = result
                 .and_then(|r| r.get("status"))

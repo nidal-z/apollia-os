@@ -117,10 +117,8 @@ pub async fn get_task_trace(
             .get("payload_json")
             .and_then(|v| v.as_str())
             .unwrap_or("{}");
-        let payload: serde_json::Value =
-            serde_json::from_str(payload_str).unwrap_or_else(|_| {
-                serde_json::Value::String(payload_str.to_string())
-            });
+        let payload: serde_json::Value = serde_json::from_str(payload_str)
+            .unwrap_or_else(|_| serde_json::Value::String(payload_str.to_string()));
 
         events.push(RuntimeEventDto {
             event_id: ev

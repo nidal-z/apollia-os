@@ -238,11 +238,7 @@ impl Reasoner {
         let chosen = plan
             .steps
             .first()
-            .map(|s| {
-                s.tool_hint
-                    .clone()
-                    .unwrap_or_else(|| s.description.clone())
-            })
+            .map(|s| s.tool_hint.clone().unwrap_or_else(|| s.description.clone()))
             .unwrap_or_else(|| "(no step)".to_owned());
 
         if let Some(point) = orchestrator
@@ -379,7 +375,8 @@ impl Reasoner {
                         last_raw.clone(),
                         total_tokens,
                     );
-                    self.maybe_emit_decision_point(&turn_id, &last_raw, &plan).await;
+                    self.maybe_emit_decision_point(&turn_id, &last_raw, &plan)
+                        .await;
                     return Ok(plan);
                 }
                 Err(e) => {

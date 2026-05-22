@@ -481,7 +481,6 @@ impl LlmProxy {
             })
         })
     }
-
 }
 
 // ─────────────────────────────────────────────
@@ -539,8 +538,7 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
     if is_first_system {
         if let Some(first) = messages.first_mut() {
             if let MessageContent::Text(ref text) = first.content {
-                let merged =
-                    apollia_core::temporal_context::prepend_temporal_context(text);
+                let merged = apollia_core::temporal_context::prepend_temporal_context(text);
                 first.content = MessageContent::Text(merged);
             }
             // Non-text system content (rare) — leave untouched and prepend
@@ -549,9 +547,7 @@ fn inject_temporal_context_into_messages(mut messages: Vec<ChatMessage>) -> Vec<
     } else {
         messages.insert(
             0,
-            ChatMessage::system(
-                apollia_core::temporal_context::temporal_context_block(),
-            ),
+            ChatMessage::system(apollia_core::temporal_context::temporal_context_block()),
         );
     }
     messages
@@ -632,9 +628,9 @@ fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyR
             "'content' must be either a str or a list of content blocks",
         ));
     }
-    let list = content.downcast::<PyList>().map_err(|e| {
-        PyValueError::new_err(format!("'content' is not a valid list: {e}"))
-    })?;
+    let list = content
+        .downcast::<PyList>()
+        .map_err(|e| PyValueError::new_err(format!("'content' is not a valid list: {e}")))?;
 
     let json_mod = py
         .import("json")
@@ -663,9 +659,9 @@ fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyR
                 // full JSON is also captured (truncated) so a future vision-capable
                 // backend can reconstruct the payload if we expose a richer
                 // MessageContent variant later.
-                let source = item.get_item("source").map_err(|_| {
-                    PyValueError::new_err("image block missing 'source' key")
-                })?;
+                let source = item
+                    .get_item("source")
+                    .map_err(|_| PyValueError::new_err("image block missing 'source' key"))?;
                 let descriptor = source
                     .get_item("media_type")
                     .ok()
@@ -902,7 +898,9 @@ mod tests {
 
             let text_block = pyo3::types::PyDict::new(py);
             text_block.set_item("type", "text").unwrap();
-            text_block.set_item("text", "what is in this picture?").unwrap();
+            text_block
+                .set_item("text", "what is in this picture?")
+                .unwrap();
 
             let source = pyo3::types::PyDict::new(py);
             source.set_item("type", "base64").unwrap();

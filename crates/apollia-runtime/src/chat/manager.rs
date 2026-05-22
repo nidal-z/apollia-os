@@ -19,11 +19,11 @@ use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
-use apollia_tools::{ProjectRepository, ToolRegistryHandle};
+use apollia_permissions::prefix_rule_engine::RuleAction;
+use apollia_permissions::PrefixRuleEngine;
 use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
-use apollia_permissions::PrefixRuleEngine;
-use apollia_permissions::prefix_rule_engine::RuleAction;
+use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
 /// Identifiant logique de l'agent système "Apollia Chat".
 ///
@@ -2382,9 +2382,7 @@ async fn resolve_workspace_for_session(
     // SaaS connectors — Google today, Microsoft next.
     extra_executors.extend(crate::connectors_bridge::build_google_executors());
 
-    let sandbox_root = workspace_path
-        .clone()
-        .unwrap_or_else(std::env::temp_dir);
+    let sandbox_root = workspace_path.clone().unwrap_or_else(std::env::temp_dir);
 
     // Phase 3 — when the supervisor handed us a `ChatToolsConfig`, build the
     // full native dispatcher (same factory the Agent-mode + Triggers pipeline
@@ -2441,9 +2439,7 @@ async fn resolve_workspace_for_session(
             brave_api_key: cfg.brave_api_key.clone(),
             web_search_config: cfg.tools_config.web_search.clone(),
             web_read_config: cfg.tools_config.web_read.clone(),
-            governance_db_path: Some(
-                cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-            ),
+            governance_db_path: Some(cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
         };
 
         // Wrap the HITL-sensitive natives with the approval-flow guard.
@@ -2470,18 +2466,14 @@ async fn resolve_workspace_for_session(
                 ));
             };
 
-            if let Ok(t) =
-                apollia_tools::tools::file_write::FileWrite::new(sandbox_root.clone())
-            {
+            if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.clone()) {
                 push_hitl(
                     &mut extra_executors,
                     Box::new(t),
                     apollia_tools::FilesystemOp::Write,
                 );
             }
-            if let Ok(t) =
-                apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.clone())
-            {
+            if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.clone()) {
                 push_hitl(
                     &mut extra_executors,
                     Box::new(t),
@@ -2540,7 +2532,8 @@ async fn resolve_workspace_for_session(
         if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.clone()) {
             extra_executors.push(Box::new(t));
         }
-        if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.clone()) {
+        if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.clone())
+        {
             extra_executors.push(Box::new(t));
         }
         std::sync::Arc::new(apollia_tools::executor::ToolDispatcher::new(
@@ -3319,7 +3312,8 @@ mod tests {
                 agent_class: None,
                 user_memory_write: false,
                 datasources: vec![],
-                templates: vec![],                secrets: vec![],
+                templates: vec![],
+                secrets: vec![],
             })
         }
     }

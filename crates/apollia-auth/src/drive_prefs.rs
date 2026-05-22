@@ -150,11 +150,7 @@ pub fn lookup_folder_path(provider_id: &str, account_id: &str) -> Option<String>
 ///   root".
 /// - `Some("Documents/Apollia")` → user-specified path. Connector walks
 ///   each segment creating folders as needed.
-pub fn lookup_folder_path_at(
-    path: &Path,
-    provider_id: &str,
-    account_id: &str,
-) -> Option<String> {
+pub fn lookup_folder_path_at(path: &Path, provider_id: &str, account_id: &str) -> Option<String> {
     let file = load_from(path).ok().flatten()?;
     let map = match provider_id {
         "google" => &file.google,
@@ -310,11 +306,7 @@ pub fn add_picked_folder_at(
     folder: PickedFolder,
 ) -> Result<(), std::io::Error> {
     update_account(path, provider_id, account_id, |entry| {
-        if let Some(existing) = entry
-            .picked_folders
-            .iter_mut()
-            .find(|f| f.id == folder.id)
-        {
+        if let Some(existing) = entry.picked_folders.iter_mut().find(|f| f.id == folder.id) {
             existing.name = folder.name;
             existing.mime_type = folder.mime_type;
         } else {
@@ -471,7 +463,10 @@ mod tests {
 
     #[test]
     fn sanitise_strips_leading_trailing_slashes_and_whitespace() {
-        assert_eq!(sanitize_folder_path("  /Documents/  Apollia/ "), "Documents/Apollia");
+        assert_eq!(
+            sanitize_folder_path("  /Documents/  Apollia/ "),
+            "Documents/Apollia"
+        );
         assert_eq!(sanitize_folder_path("//"), "");
         assert_eq!(sanitize_folder_path(""), "");
         assert_eq!(sanitize_folder_path("Apollia"), "Apollia");

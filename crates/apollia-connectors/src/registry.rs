@@ -10,10 +10,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::{
-    manifest::ConnectorSummary,
-    trait_def::Connector,
-};
+use crate::{manifest::ConnectorSummary, trait_def::Connector};
 
 /// Thread-safe registry of [`Connector`] instances.
 #[derive(Default, Clone)]
@@ -76,7 +73,10 @@ impl ConnectorRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::ConnectorError, manifest::ConnectorManifest, operation::OperationSpec, trait_def::HealthReport};
+    use crate::{
+        error::ConnectorError, manifest::ConnectorManifest, operation::OperationSpec,
+        trait_def::HealthReport,
+    };
     use apollia_auth::AccountId;
     use async_trait::async_trait;
 

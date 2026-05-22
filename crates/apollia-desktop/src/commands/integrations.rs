@@ -342,7 +342,9 @@ pub async fn oauth_complete_flow(
 
 /// List the connected accounts for `provider`.
 #[tauri::command]
-pub async fn oauth_list_accounts(provider: String) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
+pub async fn oauth_list_accounts(
+    provider: String,
+) -> Result<Vec<OauthAccountInfo>, IntegrationsError> {
     let provider_id = provider_from_id(&provider)?;
     let manager = auth_manager().await?;
     let accounts = manager
@@ -625,20 +627,18 @@ pub async fn oauth_google_picker_session(
                 .await
                 .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
             accounts.into_iter().next().ok_or_else(|| {
-                IntegrationsError::Auth(
-                    "no Google account connected — sign in first".into(),
-                )
+                IntegrationsError::Auth("no Google account connected — sign in first".into())
             })?
         }
     };
 
-    let api_key = ConnectorProvider::Google
-        .resolve_api_key()
-        .ok_or_else(|| IntegrationsError::Auth(
+    let api_key = ConnectorProvider::Google.resolve_api_key().ok_or_else(|| {
+        IntegrationsError::Auth(
             "Google API key missing — set it in Settings → Integrations → Expert Mode \
              (Google Cloud → Credentials → API keys, restricted to Picker + Drive APIs)"
                 .into(),
-        ))?;
+        )
+    })?;
     let client_id = ConnectorProvider::Google
         .resolve_client_id()
         .ok_or_else(|| IntegrationsError::OauthClientNotConfigured("google".into()))?;
@@ -673,8 +673,7 @@ pub async fn oauth_google_picker_session(
 pub async fn oauth_list_picked_drive_folders(
     account_id: String,
 ) -> Result<Vec<PickedFolderView>, IntegrationsError> {
-    let folders =
-        apollia_auth::drive_prefs::list_picked_folders("google", account_id.trim());
+    let folders = apollia_auth::drive_prefs::list_picked_folders("google", account_id.trim());
     Ok(folders
         .into_iter()
         .map(|f| PickedFolderView {
@@ -715,12 +714,8 @@ pub async fn oauth_remove_picked_drive_folder(
     account_id: String,
     folder_id: String,
 ) -> Result<(), IntegrationsError> {
-    apollia_auth::drive_prefs::remove_picked_folder(
-        "google",
-        account_id.trim(),
-        folder_id.trim(),
-    )
-    .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
+    apollia_auth::drive_prefs::remove_picked_folder("google", account_id.trim(), folder_id.trim())
+        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
     Ok(())
 }
 
@@ -760,10 +755,7 @@ pub async fn oauth_reset_drive_folder(account_id: String) -> Result<(), Integrat
 /// alongside the client_id / client_secret in `~/.apollia/oauth-clients.toml`.
 /// Empty string clears the override.
 #[tauri::command]
-pub async fn oauth_set_api_key(
-    provider: String,
-    api_key: String,
-) -> Result<(), IntegrationsError> {
+pub async fn oauth_set_api_key(provider: String, api_key: String) -> Result<(), IntegrationsError> {
     let provider_id = provider_from_id(&provider)?;
     apollia_auth::oauth_clients_file::set_api_key(provider_id.id(), api_key.trim())
         .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
@@ -871,11 +863,9 @@ mod tests {
 
     #[test]
     fn test_unknown_scope_returns_err() {
-        let err = build_provider_with_scopes(
-            ConnectorProvider::Google,
-            &["drive.read_all".to_string()],
-        )
-        .unwrap_err();
+        let err =
+            build_provider_with_scopes(ConnectorProvider::Google, &["drive.read_all".to_string()])
+                .unwrap_err();
         match err {
             IntegrationsError::UnknownScope(name) => assert_eq!(name, "drive.read_all"),
             other => panic!("expected UnknownScope, got: {other:?}"),

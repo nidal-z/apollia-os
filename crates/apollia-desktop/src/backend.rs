@@ -465,11 +465,8 @@ impl AgentRunner for BridgeRunner {
             // ADR-087 — Build a dedicated MemoryManager for the __user__
             // namespace so we can expose ctx.profile alongside ctx.memory.
             let profile_interface = {
-                let user_manager = MemoryManager::new(
-                    &memory_base_dir,
-                    Some("__user__".to_string()),
-                    vec![],
-                );
+                let user_manager =
+                    MemoryManager::new(&memory_base_dir, Some("__user__".to_string()), vec![]);
                 let is_onboarding = agent_id == "onboarding-agent";
                 Some(apollia_aip::profile::ProfileInterface::new(
                     user_manager,
@@ -595,8 +592,7 @@ pub struct ProductionBackendFactory {
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
-    pub mcp_handle:
-        Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
+    pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
     /// Agent registry handle — required to build the A2A invoker so
     /// trigger-fired agents and manual fires can call `ctx.a2a_invoke(...)`
     /// on parity with Chat Libre.
@@ -642,39 +638,40 @@ impl AgentBackendFactory for ProductionBackendFactory {
 
         // Build A2A delegate + invoker when registry+router are available.
         // Same shape as `apollia-cli/src/commands/start.rs:716-742`.
-        let (a2a_delegate, a2a_invoker) =
-            match (self.agent_registry.get().cloned(), self.task_router.get().cloned()) {
-                (Some(registry), Some(router)) => {
-                    let delegate = make_delegate_fn(
-                        registry.clone(),
-                        router.clone(),
-                        event_bus.clone(),
-                        DEFAULT_A2A_MAX_HOPS,
-                    );
-                    let invoker = Arc::new(A2AInvoker::new(
-                        registry,
-                        router,
-                        event_bus.clone(),
-                        apollia_core::A2AConfig::default(),
-                    ));
-                    (Some(delegate), Some(invoker))
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_id,
-                        "A2A delegate/invoker not available — registry or router not yet initialized"
-                    );
-                    (None, None)
-                }
-            };
+        let (a2a_delegate, a2a_invoker) = match (
+            self.agent_registry.get().cloned(),
+            self.task_router.get().cloned(),
+        ) {
+            (Some(registry), Some(router)) => {
+                let delegate = make_delegate_fn(
+                    registry.clone(),
+                    router.clone(),
+                    event_bus.clone(),
+                    DEFAULT_A2A_MAX_HOPS,
+                );
+                let invoker = Arc::new(A2AInvoker::new(
+                    registry,
+                    router,
+                    event_bus.clone(),
+                    apollia_core::A2AConfig::default(),
+                ));
+                (Some(delegate), Some(invoker))
+            }
+            _ => {
+                tracing::warn!(
+                    agent = %agent_id,
+                    "A2A delegate/invoker not available — registry or router not yet initialized"
+                );
+                (None, None)
+            }
+        };
 
         let result: Result<AIPProductionBackend, String> = (|| {
             // Inject the per-agent venv site-packages into sys.path so top-level
             // imports of pip-installed packages resolve correctly at agent start.
             let extras = venv_site_packages_for_agent_name(&manifest.name);
-            let module =
-                apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
-                    .map_err(|e| e.to_string())?;
+            let module = apollia_aip::loader::load_agent_module_with_sys_paths(agent_path, &extras)
+                .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
@@ -789,8 +786,7 @@ pub struct ProductionChatAgentRunner {
     /// MCP client manager handle, populated after init_embedded() so the
     /// BridgeRunner can inject McpToolExecutor instances into the
     /// dispatcher at run time.
-    pub mcp_handle:
-        Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
+    pub mcp_handle: Arc<std::sync::OnceLock<apollia_mcp::manager::McpClientManagerHandle>>,
     /// Agent registry handle — required to build the A2A invoker so chat-agent
     /// Python agents can call `ctx.a2a_invoke(...)` like task-mode agents.
     pub agent_registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
@@ -799,8 +795,7 @@ pub struct ProductionChatAgentRunner {
     /// Inter-agent mailbox handle — exposed as `ctx.mailbox`.
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Global user memory repository — used to build `ctx.user_context`.
-    pub user_memory:
-        Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>>,
+    pub user_memory: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<UserMemoryRepository>>>>,
     /// Operator tools configuration (`[tools]` apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
 }
@@ -877,31 +872,33 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         // Build A2A delegate + invoker when registry+router are available —
         // gives chat-agent Python agents the same A2A capabilities as task-mode
         // and Chat Libre.
-        let (a2a_delegate, a2a_invoker) =
-            match (self.agent_registry.get().cloned(), self.task_router.get().cloned()) {
-                (Some(registry), Some(router)) => {
-                    let delegate = make_delegate_fn(
-                        registry.clone(),
-                        router.clone(),
-                        event_bus.clone(),
-                        DEFAULT_A2A_MAX_HOPS,
-                    );
-                    let invoker = Arc::new(A2AInvoker::new(
-                        registry,
-                        router,
-                        event_bus.clone(),
-                        apollia_core::A2AConfig::default(),
-                    ));
-                    (Some(delegate), Some(invoker))
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_name,
-                        "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
-                    );
-                    (None, None)
-                }
-            };
+        let (a2a_delegate, a2a_invoker) = match (
+            self.agent_registry.get().cloned(),
+            self.task_router.get().cloned(),
+        ) {
+            (Some(registry), Some(router)) => {
+                let delegate = make_delegate_fn(
+                    registry.clone(),
+                    router.clone(),
+                    event_bus.clone(),
+                    DEFAULT_A2A_MAX_HOPS,
+                );
+                let invoker = Arc::new(A2AInvoker::new(
+                    registry,
+                    router,
+                    event_bus.clone(),
+                    apollia_core::A2AConfig::default(),
+                ));
+                (Some(delegate), Some(invoker))
+            }
+            _ => {
+                tracing::warn!(
+                    agent = %agent_name,
+                    "A2A delegate/invoker not available for chat-agent runner — registry or router not yet initialized"
+                );
+                (None, None)
+            }
+        };
 
         // Build user_context from the global user memory store (chat mode only).
         let user_context = self.user_memory.get().and_then(|repo_mutex| {

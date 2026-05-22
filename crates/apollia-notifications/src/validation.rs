@@ -198,7 +198,9 @@ mod tests {
     #[test]
     fn test_validate_min_interval_over_cap_rejects() {
         let err = validate_min_interval(MAX_MIN_INTERVAL_SECONDS + 1).unwrap_err();
-        assert!(matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too large")));
+        assert!(
+            matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too large"))
+        );
     }
 
     #[test]

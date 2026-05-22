@@ -1011,9 +1011,9 @@ impl BuiltInChatAgent {
                                     // the LLM so it can correct course on the
                                     // next iteration instead of retrying blind.
                                     let refusal = match &reason {
-                                        Some(r) => format!(
-                                            "Outil refusé par l'utilisateur. Raison : {r}"
-                                        ),
+                                        Some(r) => {
+                                            format!("Outil refusé par l'utilisateur. Raison : {r}")
+                                        }
                                         None => "Outil refusé par l'utilisateur".to_string(),
                                     };
                                     llm_messages

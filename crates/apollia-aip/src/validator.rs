@@ -97,9 +97,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
         curr[0] = i;
         for j in 1..=m {
             let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
-            curr[j] = (curr[j - 1] + 1)
-                .min(prev[j] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (curr[j - 1] + 1).min(prev[j] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -351,9 +349,7 @@ agent = A()
     #[test]
     fn test_validate_missing_dispatch() {
         // GIVEN an agent without __apollia_dispatch__
-        let agent = create_py_agent(
-            "class A:\n    __apollia_manifest__ = {}\nagent = A()\n",
-        );
+        let agent = create_py_agent("class A:\n    __apollia_manifest__ = {}\nagent = A()\n");
 
         // WHEN we validate
         let result = validate_agent(&agent);

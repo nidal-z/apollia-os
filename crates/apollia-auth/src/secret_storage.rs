@@ -158,7 +158,8 @@ impl SecretStore for AgeFileSecretStore {
         use std::io::Write;
 
         let path = self.path_for(service, user);
-        let encryptor = age::Encryptor::with_user_passphrase(SecretString::from(self.passphrase.clone()));
+        let encryptor =
+            age::Encryptor::with_user_passphrase(SecretString::from(self.passphrase.clone()));
         let mut buf: Vec<u8> = Vec::new();
         let mut writer = encryptor
             .wrap_output(&mut buf)
@@ -171,10 +172,8 @@ impl SecretStore for AgeFileSecretStore {
             .map_err(|e| AuthError::Keyring(format!("age finish: {e}")))?;
 
         let tmp = path.with_extension("age.tmp");
-        std::fs::write(&tmp, &buf)
-            .map_err(|e| AuthError::Keyring(format!("write tmp: {e}")))?;
-        std::fs::rename(&tmp, &path)
-            .map_err(|e| AuthError::Keyring(format!("rename: {e}")))?;
+        std::fs::write(&tmp, &buf).map_err(|e| AuthError::Keyring(format!("write tmp: {e}")))?;
+        std::fs::rename(&tmp, &path).map_err(|e| AuthError::Keyring(format!("rename: {e}")))?;
         Ok(())
     }
 
@@ -186,8 +185,8 @@ impl SecretStore for AgeFileSecretStore {
         if !path.exists() {
             return Ok(None);
         }
-        let bytes = std::fs::read(&path)
-            .map_err(|e| AuthError::Keyring(format!("read secret: {e}")))?;
+        let bytes =
+            std::fs::read(&path).map_err(|e| AuthError::Keyring(format!("read secret: {e}")))?;
         let decryptor = age::Decryptor::new(&bytes[..])
             .map_err(|e| AuthError::Keyring(format!("age parse: {e}")))?;
         let identity = age::scrypt::Identity::new(SecretString::from(self.passphrase.clone()));
@@ -277,16 +276,16 @@ mod tests {
     #[test]
     fn test_age_file_store_get_missing_returns_none() {
         let (store, _dir) = temp_store();
-        let got = store
-            .get("svc", "missing@example.com")
-            .expect("get");
+        let got = store.get("svc", "missing@example.com").expect("get");
         assert!(got.is_none());
     }
 
     #[test]
     fn test_age_file_store_delete_idempotent() {
         let (store, _dir) = temp_store();
-        store.delete("svc", "absent@example.com").expect("delete absent");
+        store
+            .delete("svc", "absent@example.com")
+            .expect("delete absent");
         store.set("svc", "u@e.com", "v").expect("set");
         store.delete("svc", "u@e.com").expect("delete existing");
         assert!(store.get("svc", "u@e.com").expect("get").is_none());
@@ -307,19 +306,22 @@ mod tests {
     #[test]
     fn test_age_file_store_decrypt_with_wrong_passphrase_fails() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let writer = AgeFileSecretStore::new(dir.path().to_path_buf(), "correct".into())
-            .expect("writer");
+        let writer =
+            AgeFileSecretStore::new(dir.path().to_path_buf(), "correct".into()).expect("writer");
         writer.set("svc", "u@e.com", "secret").expect("set");
 
-        let reader = AgeFileSecretStore::new(dir.path().to_path_buf(), "wrong".into())
-            .expect("reader");
+        let reader =
+            AgeFileSecretStore::new(dir.path().to_path_buf(), "wrong".into()).expect("reader");
         let res = reader.get("svc", "u@e.com");
         assert!(res.is_err(), "decrypt with wrong passphrase must fail");
     }
 
     #[test]
     fn test_sanitise_preserves_safe_chars() {
-        assert_eq!(sanitise("apollia-connector-google"), "apollia-connector-google");
+        assert_eq!(
+            sanitise("apollia-connector-google"),
+            "apollia-connector-google"
+        );
         assert_eq!(sanitise("user@example.com"), "user%40example.com");
         assert_eq!(sanitise("path/with/slashes"), "path%2Fwith%2Fslashes");
     }

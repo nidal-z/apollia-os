@@ -102,10 +102,7 @@ mod tests {
         let dispatcher = Arc::new(ToolDispatcher::new(vec![]));
         let invoker = DispatcherToolInvoker::new(dispatcher);
 
-        let err = invoker
-            .invoke("nope", &json!({}))
-            .await
-            .unwrap_err();
+        let err = invoker.invoke("nope", &json!({})).await.unwrap_err();
 
         assert!(err.contains("unknown tool"));
         assert!(err.contains("nope"));

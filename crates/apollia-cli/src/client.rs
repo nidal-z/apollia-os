@@ -1045,10 +1045,7 @@ impl RuntimeClient {
     /// and by the CLI update path to merge partial flags with the existing
     /// state before re-submitting a full body to the route (`PUT` is replace,
     /// not patch).
-    pub async fn get_llm_backend(
-        &self,
-        name: &str,
-    ) -> Result<serde_json::Value, ClientError> {
+    pub async fn get_llm_backend(&self, name: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/llm/backends/{name}")).await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {

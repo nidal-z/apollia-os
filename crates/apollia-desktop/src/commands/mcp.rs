@@ -856,10 +856,7 @@ pub async fn fetch_mcp_curated(
                             arg_type: a.arg_type.clone(),
                             value: None,
                             value_hint: a.value_hint.clone(),
-                            description: a
-                                .description
-                                .as_ref()
-                                .and_then(|m| m.get("en").cloned()),
+                            description: a.description.as_ref().and_then(|m| m.get("en").cloned()),
                             is_required: a.is_required,
                             is_repeatable: a.is_repeatable,
                         })
@@ -972,7 +969,11 @@ pub async fn refresh_mcp_server_detail(
         view.trust_level = trust_level_str(&enrichment.trust_level);
         view.category = Some(enrichment.category.clone());
         view.enrichment = Some(ConnectorEnrichmentView {
-            operator_label: enrichment.operator_label.get("en").cloned().unwrap_or_default(),
+            operator_label: enrichment
+                .operator_label
+                .get("en")
+                .cloned()
+                .unwrap_or_default(),
             category: enrichment.category.clone(),
             icon_name: enrichment.icon_name.clone(),
             trust_level: enrichment.trust_level.clone(),

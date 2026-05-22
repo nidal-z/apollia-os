@@ -12,7 +12,9 @@
 set -euo pipefail
 
 DOMAIN="${1:-book.apollia.fr}"
-BUILD_DIR="${2:-target/book/html}"
+# Match book/book.toml build-dir = "../target/book" (mdbook output direct,
+# pas de sous-dossier html/).
+BUILD_DIR="${2:-target/book}"
 TODAY="$(date -u +%Y-%m-%d)"
 
 if [[ ! -d "$BUILD_DIR" ]]; then

@@ -1445,14 +1445,9 @@ mod tests {
         // GIVEN un bus avec subscriber actif
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(
-            vec![],
-            router,
-            bus_tx,
-            None,
-            ObservabilityConfig::default(),
-        )
-        .await;
+        let handle =
+            TriggerEngine::start(vec![], router, bus_tx, None, ObservabilityConfig::default())
+                .await;
 
         // WHEN reload avec 1 trigger activé
         let def = make_definition("new-trigger", OnBusyPolicy::Queue { max_depth: 10 });
@@ -1559,7 +1554,6 @@ mod tests {
         );
         assert!(list[0].last_fired.is_some(), "last_fired doit être Some");
     }
-
 
     // ── OnBusyPolicy::Queue ────────────────────────────────────────────────
 

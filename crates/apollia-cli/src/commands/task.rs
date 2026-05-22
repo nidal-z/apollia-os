@@ -385,11 +385,14 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
         }
         Err(PlanRepositoryError::NotFound(_)) => {
             if json {
-                println!("{}", serde_json::json!({
-                    "task_id": task_id,
-                    "plan": null,
-                    "reason": "no_plan_persisted",
-                }));
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "task_id": task_id,
+                        "plan": null,
+                        "reason": "no_plan_persisted",
+                    })
+                );
             } else {
                 println!("Task {task_id} has no execution plan.");
                 println!();

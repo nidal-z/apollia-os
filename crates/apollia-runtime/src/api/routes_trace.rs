@@ -65,11 +65,7 @@ pub async fn get_task_trace<B: ExecutionBackend + Clone>(
     Query(q): Query<TraceQuery>,
     State(state): State<AppState<B>>,
 ) -> Result<Json<TraceResponse>, (StatusCode, Json<TraceErrorResponse>)> {
-    let limit = q
-        .limit
-        .unwrap_or(DEFAULT_LIMIT)
-        .min(MAX_LIMIT)
-        .max(1);
+    let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT).max(1);
     let since = q.since.clone();
     let task_id_for_query = task_id.clone();
 

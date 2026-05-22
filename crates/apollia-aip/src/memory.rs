@@ -152,11 +152,10 @@ impl MemoryInterface {
         let namespace = self.namespace.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = tokio::task::spawn_blocking(move || {
-                recall_inner(&manager, &namespace, &key)
-            })
-            .await
-            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result =
+                tokio::task::spawn_blocking(move || recall_inner(&manager, &namespace, &key))
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
                 Ok(Some(value)) => Ok(Python::with_gil(|py| {
@@ -485,11 +484,7 @@ impl MemoryInterface {
     ///
     /// Returns `None` if `namespace` is empty.  Global user profile access
     /// is configured separately via [`crate::profile::ProfileInterface`].
-    pub fn new(
-        manager: MemoryManager,
-        namespace: String,
-        agent_id: String,
-    ) -> Option<Self> {
+    pub fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
         if namespace.is_empty() {
             return None;
         }
@@ -978,8 +973,7 @@ fn pyany_to_json(py: Python<'_>, obj: &PyObject) -> PyResult<serde_json::Value> 
         .map_err(|e| PyRuntimeError::new_err(format!("json.dumps: {e}")))?
         .extract()
         .map_err(|e| PyRuntimeError::new_err(format!("extract: {e}")))?;
-    serde_json::from_str(&json_str)
-        .map_err(|e| PyRuntimeError::new_err(format!("json parse: {e}")))
+    serde_json::from_str(&json_str).map_err(|e| PyRuntimeError::new_err(format!("json parse: {e}")))
 }
 
 /// Converts a Python dict to a `serde_json::Value`.
@@ -1071,12 +1065,8 @@ mod tests {
     fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
         let dir = TempDir::new().expect("create temp dir");
         let manager = MemoryManager::new(dir.path(), Some(namespace.to_string()), vec![]);
-        let iface = MemoryInterface::new(
-            manager,
-            namespace.to_string(),
-            "test-agent".to_string(),
-        )
-        .expect("should create interface");
+        let iface = MemoryInterface::new(manager, namespace.to_string(), "test-agent".to_string())
+            .expect("should create interface");
         (iface, dir)
     }
 
@@ -1091,12 +1081,8 @@ mod tests {
             Some(primary.to_string()),
             vec![shared.to_string()],
         );
-        let iface = MemoryInterface::new(
-            manager,
-            shared.to_string(),
-            "test-agent".to_string(),
-        )
-        .expect("should create interface");
+        let iface = MemoryInterface::new(manager, shared.to_string(), "test-agent".to_string())
+            .expect("should create interface");
         (iface, dir)
     }
 
@@ -1159,11 +1145,7 @@ mod tests {
         .expect("remember");
 
         // WHEN we recall the key
-        let result = recall_inner(
-            &iface.manager,
-            &iface.namespace,
-            "client.dupont.email",
-        );
+        let result = recall_inner(&iface.manager, &iface.namespace, "client.dupont.email");
 
         // THEN we get the stored value
         assert_eq!(result.expect("recall"), Some("marie@dupont.fr".to_string()));
@@ -1176,11 +1158,7 @@ mod tests {
         let (iface, _dir) = setup_interface("agent-alpha");
 
         // WHEN we recall a nonexistent key
-        let result = recall_inner(
-            &iface.manager,
-            &iface.namespace,
-            "cle.inexistante",
-        );
+        let result = recall_inner(&iface.manager, &iface.namespace, "cle.inexistante");
 
         // THEN we get None
         assert_eq!(result.expect("recall"), None);
@@ -1246,11 +1224,7 @@ mod tests {
         assert!(removed.expect("forget"));
 
         // THEN recall returns None
-        let result = recall_inner(
-            &iface.manager,
-            &iface.namespace,
-            "client.dupont.email",
-        );
+        let result = recall_inner(&iface.manager, &iface.namespace, "client.dupont.email");
         assert_eq!(result.expect("recall"), None);
     }
 
@@ -1262,8 +1236,7 @@ mod tests {
         let manager = MemoryManager::new(dir.path(), None, vec![]);
 
         // WHEN we construct with empty namespace
-        let result =
-            MemoryInterface::new(manager, String::new(), "agent-1".to_string());
+        let result = MemoryInterface::new(manager, String::new(), "agent-1".to_string());
 
         // THEN we get None
         assert!(result.is_none());
@@ -1309,8 +1282,7 @@ mod tests {
         ));
 
         // WHEN we try to read (recall) — should work
-        let recall_result =
-            recall_inner(&iface.manager, &iface.namespace, "nonexistent");
+        let recall_result = recall_inner(&iface.manager, &iface.namespace, "nonexistent");
         assert!(recall_result.is_ok());
 
         // WHEN we try to search — should work (empty results is ok)
@@ -1687,22 +1659,18 @@ mod tests {
         // WHEN we import the dump into an empty target namespace with Replace
         // (using the same agent identity to keep write access).
         let dest_base = src_dir.path().to_path_buf();
-        let manager =
-            MemoryManager::new(&dest_base, Some("agent-dest".to_string()), vec![]);
-        let dest = MemoryInterface::new(
-            manager,
-            "agent-dest".to_string(),
-            "test-agent".to_string(),
-        )
-        .expect("dest iface");
+        let manager = MemoryManager::new(&dest_base, Some("agent-dest".to_string()), vec![]);
+        let dest =
+            MemoryInterface::new(manager, "agent-dest".to_string(), "test-agent".to_string())
+                .expect("dest iface");
 
         let imported = import_inner(&dest.manager, &dest.namespace, dump, ImportMode::Replace)
             .expect("import");
 
         // THEN both entries are restored and recall sees the semantic value
         assert_eq!(imported, 2, "expected 2 entries imported");
-        let value = recall_inner(&dest.manager, &dest.namespace, "k.budget")
-            .expect("recall after import");
+        let value =
+            recall_inner(&dest.manager, &dest.namespace, "k.budget").expect("recall after import");
         assert_eq!(value, Some("15000".to_string()));
     }
 
@@ -1743,14 +1711,12 @@ mod tests {
 
         // WHEN we merge — semantic_memories has UNIQUE(namespace, key), so the
         // imported row is silently ignored and the original survives.
-        let imported =
-            import_inner(&iface.manager, &iface.namespace, dump, ImportMode::Merge)
-                .expect("import");
+        let imported = import_inner(&iface.manager, &iface.namespace, dump, ImportMode::Merge)
+            .expect("import");
 
         // THEN nothing is overwritten and recall still returns the original.
         assert_eq!(imported, 0, "merge must not insert colliding rows");
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.role")
-            .expect("recall");
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.role").expect("recall");
         assert_eq!(value, Some("operator".to_string()));
     }
 
@@ -1780,8 +1746,7 @@ mod tests {
 
         // THEN the row landed despite the missing `format_version` key
         assert_eq!(imported, 1);
-        let value = recall_inner(&iface.manager, &iface.namespace, "from.alias")
-            .expect("recall");
+        let value = recall_inner(&iface.manager, &iface.namespace, "from.alias").expect("recall");
         assert_eq!(value, Some("ok".to_string()));
     }
 }
@@ -1800,12 +1765,8 @@ mod trust_model_tests {
     fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
         let dir = TempDir::new().expect("create temp dir");
         let manager = make_manager(&dir, namespace);
-        let iface = MemoryInterface::new(
-            manager,
-            namespace.to_string(),
-            "test-agent".to_string(),
-        )
-        .expect("should create interface");
+        let iface = MemoryInterface::new(manager, namespace.to_string(), "test-agent".to_string())
+            .expect("should create interface");
         (iface, dir)
     }
 
@@ -1813,7 +1774,6 @@ mod trust_model_tests {
     fn seed_memory(mgr_arc: &Arc<Mutex<MemoryManager>>, namespace: &str, key: &str, value: &str) {
         remember_inner(mgr_arc, namespace, key, value, None, None).expect("seed memory");
     }
-
 
     // Agent invoked via A2A writes only into its own namespace
     #[test]
@@ -1851,9 +1811,6 @@ mod trust_model_tests {
         assert_eq!(in_director.expect("recall director"), None);
     }
 
-
-
-
     // FC23 — learn_procedure_inner stores a procedure retrievable by recall_procedure_inner
     #[test]
     fn test_learn_procedure_round_trip() {
@@ -1874,11 +1831,8 @@ mod trust_model_tests {
         assert!(id.is_ok());
 
         // THEN recall_procedure_inner returns the procedure
-        let results = recall_procedure_inner(
-            &iface.manager,
-            "agent-learn",
-            "analyse rapport financier",
-        );
+        let results =
+            recall_procedure_inner(&iface.manager, "agent-learn", "analyse rapport financier");
         let items = results.expect("recall");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["trigger"], "analyse rapport financier");
@@ -1893,12 +1847,7 @@ mod trust_model_tests {
 
         // WHEN we learn with empty steps (would be caught by PyO3 layer, but test the Rust layer too)
         // The ProceduralMemory::learn returns EmptySteps error
-        let result = learn_procedure_inner(
-            &iface.manager,
-            "agent-learn-err",
-            "trigger",
-            &[],
-        );
+        let result = learn_procedure_inner(&iface.manager, "agent-learn-err", "trigger", &[]);
         // THEN error
         assert!(result.is_err());
     }

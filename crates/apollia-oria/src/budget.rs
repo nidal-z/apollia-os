@@ -190,7 +190,9 @@ impl StepBudget {
         apollia_llm::StepBudgetView::with_tool_tracking(
             Arc::new(AtomicU32::new(self.current_steps.load(Ordering::Relaxed))),
             self.max_steps,
-            Arc::new(AtomicU32::new(self.current_tool_calls.load(Ordering::Relaxed))),
+            Arc::new(AtomicU32::new(
+                self.current_tool_calls.load(Ordering::Relaxed),
+            )),
             self.max_tool_calls,
             self.started_at,
         )

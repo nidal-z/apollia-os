@@ -38,7 +38,9 @@ pub enum PermissionRuleToolError {
     },
 
     /// Le scope fourni n'est pas reconnu.
-    #[error("invalid scope '{scope}': expected 'project' | 'agent' | 'global' (session non persisté)")]
+    #[error(
+        "invalid scope '{scope}': expected 'project' | 'agent' | 'global' (session non persisté)"
+    )]
     InvalidScope {
         /// Valeur reçue.
         scope: String,
@@ -317,11 +319,10 @@ impl ToolExecutor for PermissionRuleAdd {
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
-        let typed: PermissionRuleAddInput = serde_json::from_value(input).map_err(|e| {
-            ToolExecutionError::InvalidInput {
+        let typed: PermissionRuleAddInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
                 message: e.to_string(),
-            }
-        })?;
+            })?;
         let out = self.run(typed)?;
         serde_json::to_value(out).map_err(|e| ToolExecutionError::ExecutionFailed {
             code: "serialization_error".to_string(),
@@ -742,9 +743,7 @@ mod tests {
             })
             .expect("add");
         let list = PermissionRuleList::new(db.path().to_path_buf());
-        let out = list
-            .run(PermissionRuleListInput::default())
-            .expect("list");
+        let out = list.run(PermissionRuleListInput::default()).expect("list");
         assert_eq!(out.rules.len(), 2);
     }
 

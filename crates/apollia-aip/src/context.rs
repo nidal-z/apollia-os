@@ -243,8 +243,8 @@ impl ToolProxy {
                                 }
                                 out
                             });
-                            let _ = bus.send(
-                                apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                            let _ =
+                                bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
                                     parent_event_id: parent_id.clone(),
                                     task_id: task_id_for_async.clone().into(),
                                     agent_id: agent_id_for_async.clone().into(),
@@ -253,24 +253,22 @@ impl ToolProxy {
                                     exit_code: None,
                                     duration_ms,
                                     success: true,
-                                },
-                            );
-                            let _ = bus.send(
-                                apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                                });
+                            let _ =
+                                bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
                                     parent_event_id: parent_id.clone(),
                                     task_id: task_id_for_async.into(),
                                     skill_id: skill_id_for_async,
                                     success: true,
                                     output_summary: summary,
                                     duration_ms,
-                                },
-                            );
+                                });
                         }
                     }
                     Err(e) => {
                         if let Some(bus) = bus_for_async.as_ref() {
-                            let _ = bus.send(
-                                apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                            let _ =
+                                bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
                                     parent_event_id: parent_id.clone(),
                                     task_id: task_id_for_async.clone().into(),
                                     agent_id: agent_id_for_async.into(),
@@ -279,18 +277,16 @@ impl ToolProxy {
                                     exit_code: None,
                                     duration_ms,
                                     success: false,
-                                },
-                            );
-                            let _ = bus.send(
-                                apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
+                                });
+                            let _ =
+                                bus.send(apollia_core::events::RuntimeEvent::A2AInvokeCompleted {
                                     parent_event_id: parent_id,
                                     task_id: task_id_for_async.into(),
                                     skill_id: skill_id_for_async,
                                     success: false,
                                     output_summary: Some(e.to_string()),
                                     duration_ms,
-                                },
-                            );
+                                });
                         }
                     }
                 }
@@ -344,47 +340,38 @@ impl ToolProxy {
             if let Some(bus) = bus_for_async.as_ref() {
                 match &result {
                     Ok(value) => {
-                        let _ = bus.send(
-                            apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                                parent_event_id: started_event_id_clone.clone(),
-                                task_id: task_id.clone().into(),
-                                agent_id: agent_id.clone().into(),
-                                tool_name: tool_name_for_async.clone(),
-                                output_json: serde_json::to_string(value).ok(),
-                                exit_code: None,
-                                duration_ms,
-                                success: true,
-                            },
-                        );
+                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                            parent_event_id: started_event_id_clone.clone(),
+                            task_id: task_id.clone().into(),
+                            agent_id: agent_id.clone().into(),
+                            tool_name: tool_name_for_async.clone(),
+                            output_json: serde_json::to_string(value).ok(),
+                            exit_code: None,
+                            duration_ms,
+                            success: true,
+                        });
                     }
                     Err(ToolProxyError::ToolNotAllowed(name)) => {
-                        let _ = bus.send(
-                            apollia_core::events::RuntimeEvent::ToolCallDenied {
-                                parent_event_id: started_event_id_clone.clone(),
-                                task_id: task_id.clone().into(),
-                                agent_id: agent_id.clone().into(),
-                                tool_name: name.clone(),
-                                reason: "not_in_manifest".to_string(),
-                                detail: None,
-                            },
-                        );
+                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallDenied {
+                            parent_event_id: started_event_id_clone.clone(),
+                            task_id: task_id.clone().into(),
+                            agent_id: agent_id.clone().into(),
+                            tool_name: name.clone(),
+                            reason: "not_in_manifest".to_string(),
+                            detail: None,
+                        });
                     }
                     Err(e) => {
-                        let _ = bus.send(
-                            apollia_core::events::RuntimeEvent::ToolCallCompleted {
-                                parent_event_id: started_event_id_clone.clone(),
-                                task_id: task_id.clone().into(),
-                                agent_id: agent_id.clone().into(),
-                                tool_name: tool_name_for_async.clone(),
-                                output_json: Some(format!(
-                                    "{{\"error\":{:?}}}",
-                                    e.to_string()
-                                )),
-                                exit_code: None,
-                                duration_ms,
-                                success: false,
-                            },
-                        );
+                        let _ = bus.send(apollia_core::events::RuntimeEvent::ToolCallCompleted {
+                            parent_event_id: started_event_id_clone.clone(),
+                            task_id: task_id.clone().into(),
+                            agent_id: agent_id.clone().into(),
+                            tool_name: tool_name_for_async.clone(),
+                            output_json: Some(format!("{{\"error\":{:?}}}", e.to_string())),
+                            exit_code: None,
+                            duration_ms,
+                            success: false,
+                        });
                     }
                 }
             }
@@ -1324,8 +1311,7 @@ impl RuntimeContext {
     /// `NotificationEngineHandle` est disponible. Si non appelé, `ctx.notify`
     /// est `None` (no-op silencieux côté Python).
     pub fn with_notify(mut self, notify: crate::notify::PyNotifyInterface) -> Self {
-        self.notify =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, notify).ok());
+        self.notify = pyo3::Python::with_gil(|py| pyo3::Py::new(py, notify).ok());
         self
     }
 
@@ -1334,8 +1320,7 @@ impl RuntimeContext {
     /// Appelé après [`new_with_llm`](RuntimeContext::new_with_llm) quand un
     /// backend STT est disponible. Si non appelé, `ctx.stt` est `None`.
     pub fn with_stt(mut self, stt: crate::stt::PySttInterface) -> Self {
-        self.stt =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
+        self.stt = pyo3::Python::with_gil(|py| pyo3::Py::new(py, stt).ok());
         self
     }
 
@@ -1345,8 +1330,7 @@ impl RuntimeContext {
     /// `MemoryManager` ciblant `__user__` est disponible. Si non appelé,
     /// `ctx.profile` est `None`.
     pub fn with_profile(mut self, profile: crate::profile::ProfileInterface) -> Self {
-        self.profile =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
+        self.profile = pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
         self
     }
 
@@ -1389,10 +1373,7 @@ impl RuntimeContext {
         let task_id_str = task_id.into();
         // Propager au LlmProxy pour observabilité Lot 2.
         if let Some(llm) = self.llm.take() {
-            self.llm = Some(llm.with_task_context(
-                task_id_str.clone(),
-                self.agent_id.to_string(),
-            ));
+            self.llm = Some(llm.with_task_context(task_id_str.clone(), self.agent_id.to_string()));
         }
         // Re-construit EventsInterface en y injectant le task_id.
         // Le pyclass est immuable, on remplace donc le Py<> en place.
@@ -1436,8 +1417,7 @@ impl RuntimeContext {
         if let Some(dir) = agent_dir {
             let _ = iface.load_from_dir(dir);
         }
-        self.datasources_iface =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
+        self.datasources_iface = pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
         self
     }
 
@@ -1457,8 +1437,7 @@ impl RuntimeContext {
         if let Some(dir) = agent_dir {
             let _ = iface.load_from_dir(dir);
         }
-        self.templates_iface =
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
+        self.templates_iface = pyo3::Python::with_gil(|py| pyo3::Py::new(py, iface).ok());
         self
     }
 
@@ -1747,7 +1726,6 @@ impl RuntimeContext {
             None => Ok(py.None()),
         }
     }
-
 }
 
 /// Calcule le namespace mémoire effectif pour un agent dans un contexte de session.
@@ -2036,8 +2014,7 @@ mod runtime_context_tests {
         let tmp = tempfile::tempdir().expect("temp dir");
         let ds_dir = tmp.path().join("datasources");
         std::fs::create_dir_all(&ds_dir).expect("mkdir");
-        std::fs::write(ds_dir.join("items.yaml"), "- one\n- two\n- three\n")
-            .expect("write yaml");
+        std::fs::write(ds_dir.join("items.yaml"), "- one\n- two\n- three\n").expect("write yaml");
 
         // WHEN we build a RuntimeContext via the builder
         let ctx = RuntimeContext::for_test()
@@ -2068,8 +2045,7 @@ mod runtime_context_tests {
         let tmp = tempfile::tempdir().expect("temp dir");
         let tpl_dir = tmp.path().join("templates");
         std::fs::create_dir_all(&tpl_dir).expect("mkdir");
-        std::fs::write(tpl_dir.join("greeting.j2"), "Hello {{ who }}!")
-            .expect("write template");
+        std::fs::write(tpl_dir.join("greeting.j2"), "Hello {{ who }}!").expect("write template");
 
         // WHEN we build a RuntimeContext via the builder
         let ctx = RuntimeContext::for_test()
@@ -2095,8 +2071,7 @@ mod runtime_context_tests {
     /// I/O ; toute lecture renvoie `FileNotFoundError("not found on disk")`.
     #[test]
     fn test_with_datasources_no_dir_keeps_empty_cache() {
-        let ctx = RuntimeContext::for_test()
-            .with_datasources(vec!["foo".to_string()], None);
+        let ctx = RuntimeContext::for_test().with_datasources(vec!["foo".to_string()], None);
         pyo3::Python::with_gil(|py| {
             let ds_obj = ctx.datasources(py);
             let bound = ds_obj.bind(py);
@@ -2651,7 +2626,8 @@ mod tool_proxy_a2a_tests {
             agent_class: None,
             user_memory_write: false,
             datasources: vec![],
-            templates: vec![],            secrets: vec![],
+            templates: vec![],
+            secrets: vec![],
         }
     }
 
@@ -2770,8 +2746,7 @@ mod tool_proxy_a2a_tests {
     async fn test_a2a_double_underscore_prefix_is_routed() {
         let invoker = make_invoker_with_excel().await;
         // Register a worker with a dotted skill id to test `__` -> `.` decoding.
-        let (proxy, audit) =
-            make_base_proxy(vec!["a2a__read-excel"]).await;
+        let (proxy, audit) = make_base_proxy(vec!["a2a__read-excel"]).await;
         let proxy = proxy.with_a2a(invoker, 0, None);
 
         let result = proxy

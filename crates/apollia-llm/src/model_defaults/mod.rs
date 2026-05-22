@@ -63,7 +63,7 @@ impl ModelDefaults {
             && self.top_p.is_none()
             && self.top_k.is_none()
             && self.repetition_penalty.is_none()
-        }
+    }
 }
 
 // ── Table embarquée ────────────────────────────────────────────────
@@ -121,9 +121,7 @@ fn name_matches(pattern: Option<&str>, hints: &[&str]) -> bool {
         None => true,
         Some(p) => {
             let p = p.to_ascii_lowercase();
-            hints
-                .iter()
-                .any(|h| h.to_ascii_lowercase().contains(&p))
+            hints.iter().any(|h| h.to_ascii_lowercase().contains(&p))
         }
     }
 }
@@ -162,7 +160,9 @@ impl UserOverrides {
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| std::env::temp_dir());
-        home.join(".apollia").join("models").join("sampling-defaults.json")
+        home.join(".apollia")
+            .join("models")
+            .join("sampling-defaults.json")
     }
 
     /// Charge le fichier ; `Ok(default)` si absent, erreur si présent mais
@@ -170,8 +170,9 @@ impl UserOverrides {
     /// savoir si son override est ignoré).
     pub fn load(path: &Path) -> io::Result<Self> {
         match std::fs::read_to_string(path) {
-            Ok(s) => serde_json::from_str(&s)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e)),
+            Ok(s) => {
+                serde_json::from_str(&s).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+            }
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(e),
         }
@@ -226,10 +227,18 @@ pub struct ModelHints<'a> {
 /// champ, il reste `None` et le caller appliquera son hard-fallback global.
 pub fn resolve(hints: &ModelHints<'_>, overrides: &UserOverrides) -> ModelDefaults {
     let mut keys: Vec<&str> = Vec::new();
-    if let Some(s) = hints.repo_id { keys.push(s); }
-    if let Some(s) = hints.model_id { keys.push(s); }
-    if let Some(s) = hints.file_name { keys.push(s); }
-    if let Some(s) = hints.name { keys.push(s); }
+    if let Some(s) = hints.repo_id {
+        keys.push(s);
+    }
+    if let Some(s) = hints.model_id {
+        keys.push(s);
+    }
+    if let Some(s) = hints.file_name {
+        keys.push(s);
+    }
+    if let Some(s) = hints.name {
+        keys.push(s);
+    }
     let user = overrides.lookup(&keys);
 
     let arch = hints.arch.unwrap_or("");
@@ -304,8 +313,7 @@ mod tests {
             top_k: None,
             repetition_penalty: None,
         };
-        UserOverrides::upsert(&path, "Qwen3-test.gguf", d.clone())
-            .expect("upsert should succeed");
+        UserOverrides::upsert(&path, "Qwen3-test.gguf", d.clone()).expect("upsert should succeed");
 
         // THEN: reload returns the same entry
         let reloaded = UserOverrides::load(&path).expect("load");
@@ -328,7 +336,10 @@ mod tests {
         let mut overrides = UserOverrides::default();
         overrides.entries.insert(
             "Qwen3-30B-A3B".to_string(),
-            ModelDefaults { temperature: Some(0.1), ..Default::default() },
+            ModelDefaults {
+                temperature: Some(0.1),
+                ..Default::default()
+            },
         );
 
         let hints = ModelHints {
@@ -341,7 +352,7 @@ mod tests {
         // THEN: temperature comes from user; top_p/top_k from embedded.
         assert_eq!(d.temperature, Some(0.1));
         assert_eq!(d.top_p, Some(0.8)); // embedded Qwen3 generic
-        assert_eq!(d.top_k, Some(20));  // embedded Qwen3 generic
+        assert_eq!(d.top_k, Some(20)); // embedded Qwen3 generic
     }
 
     #[test]
