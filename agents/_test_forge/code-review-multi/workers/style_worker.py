@@ -40,7 +40,7 @@ Format de sortie JSON :
 
 @agent(
     name="style-worker",
-    version="1.0.0",
+    version="0.1.0",
     description="Audit style/lisibilité selon style guide workspace",
     tags=("code-review", "style", "worker"),
     agent_type="worker",

@@ -56,7 +56,7 @@ _DELEGATED_SKILLS = ("review.security", "review.style", "review.performance")
 
 @agent(
     name="code-review-director",
-    version="1.0.0",
+    version="0.1.0",
     description="Director orchestrant 3 workers de review (sécurité/style/perf)",
     tags=("code-review", "director"),
     memory_namespace="code-review-multi",

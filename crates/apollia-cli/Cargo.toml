@@ -23,12 +23,20 @@ local-metal = ["local", "apollia-llm/local-metal"]
 local-accelerate = ["local", "apollia-llm/local-accelerate"]
 ## GPU NVIDIA CUDA (déclaré, non testé).
 local-cuda = ["local", "apollia-llm/local-cuda"]
+## GPU NVIDIA CUDA sans VMM (containers, vieux drivers).
+local-cuda-no-vmm = ["local", "apollia-llm/local-cuda-no-vmm"]
+## GPU AMD via ROCm/HIP (Linux + HIP SDK Windows).
+local-rocm = ["local", "apollia-llm/local-rocm"]
+## GPU cross-vendor via Vulkan compute (fallback portable).
+local-vulkan = ["local", "apollia-llm/local-vulkan"]
 ## Backend STT whisper.cpp (CPU).
 stt-whisper-cpp = ["apollia-stt/cpu"]
 ## Accélération Metal pour STT (Apple Silicon GPU).
 stt-metal = ["apollia-stt/metal"]
 ## Accélération CUDA pour STT (NVIDIA GPU).
 stt-cuda = ["apollia-stt/cuda"]
+## Accélération ROCm/hipBLAS pour STT (AMD GPU).
+stt-rocm = ["apollia-stt/rocm"]
 
 [dependencies]
 apollia-auth      = { workspace = true }

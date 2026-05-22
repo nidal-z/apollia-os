@@ -83,7 +83,7 @@ def _extract_domain(url: str) -> str:
 
 @agent(
     name="web-search-worker",
-    version="1.0.0",
+    version="0.1.0",
     description=(
         "Worker spécialisé dans la recherche web et l'extraction de contenu. "
         "Effectue des recherches sur des requêtes données, déduplique par hash "

@@ -27,6 +27,21 @@ local-metal      = ["local", "llama-cpp-2/metal"]
 # GPU NVIDIA CUDA.
 local-cuda       = ["local", "llama-cpp-2/cuda"]
 
+# GPU NVIDIA CUDA sans VMM (Virtual Memory Management) — pour environnements
+# contraints (containers sans IPC, vieux drivers).
+local-cuda-no-vmm = ["local", "llama-cpp-2/cuda-no-vmm"]
+
+# GPU AMD via ROCm/HIP. Nécessite ROCm SDK installé (Linux) ou HIP SDK (Windows).
+# Linux : généralement gfx906+ (Vega 7nm / RDNA 1/2/3 / CDNA 1/2). Windows :
+# uniquement Radeon Pro et Instinct MI à l'heure actuelle (HIP SDK 5.x+).
+local-rocm       = ["local", "llama-cpp-2/rocm"]
+
+# GPU cross-vendor via Vulkan compute. Fallback portable pour AMD/Intel/Mali/
+# NVIDIA quand le SDK natif n'est pas dispo. Performance inférieure à
+# CUDA/ROCm/Metal natifs, mais zéro dépendance runtime (driver Vulkan déjà
+# présent sur la plupart des desktops modernes).
+local-vulkan     = ["local", "llama-cpp-2/vulkan"]
+
 # ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
 cloud            = ["dep:async-openai", "dep:reqwest"]
 

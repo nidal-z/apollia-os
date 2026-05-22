@@ -19,6 +19,20 @@ MISTRALRS_METAL_PRECOMPILE = { value = "0", force = false }
 split-debuginfo = "unpacked"
 codegen-units = 256
 
+# ── Static CRT linking pour Windows ──────────────────────────────────────────
+# Évite la dépendance runtime au "Visual C++ Redistributable" sur la machine
+# de l'utilisateur. Le binaire embarque vcruntime140.dll et msvcp140.dll
+# directement → zéro install supplémentaire côté user.
+#
+# Doit être complété côté C/C++ (llama-cpp-sys-2, whisper-rs-sys) par :
+#   export CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+# (sinon link error /MD vs /MT). Le workflow CI le fait automatiquement.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
 [alias]
 # Generate HTML coverage report (local — uses cargo-tarpaulin, no rustup required).
 # Prerequisites: cargo install cargo-tarpaulin

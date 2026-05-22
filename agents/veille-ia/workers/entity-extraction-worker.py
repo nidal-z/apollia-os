@@ -90,7 +90,7 @@ JSON :
 
 @agent(
     name="entity-extraction-worker",
-    version="1.0.0",
+    version="0.1.0",
     description="Extraction d'entités structurées depuis articles de veille.",
     tags=("worker", "entity-extraction", "ner"),
     agent_type="worker",

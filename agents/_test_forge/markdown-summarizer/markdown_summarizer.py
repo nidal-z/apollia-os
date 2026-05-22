@@ -50,7 +50,7 @@ Règles :
 
 @agent(
     name="markdown-summarizer",
-    version="1.0.0",
+    version="0.1.0",
     description="Résume une URL en markdown adapté au profil utilisateur",
     tags=("summarization", "web", "personal"),
     memory_namespace="markdown-summarizer",

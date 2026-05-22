@@ -1,4 +1,4 @@
-# veille-ia — Agent de veille IA/LLM (v3.0.0)
+# veille-ia — Agent de veille IA/LLM (v0.1.0)
 
 Agent Apollia OS qui produit chaque matin un **rapport de veille quotidienne** sur l'écosystème IA/LLM : nouveaux modèles, frameworks, mouvements des concurrents directs (n8n, Make, Zapier AI, Lindy AI, Dust.tt, Mistral, Cohere North, OpenFANG…), évolutions standards (MCP, A2A), et signaux régulation (EU AI Act).
 
@@ -24,7 +24,7 @@ veille-ia-agent  (Director — state machine 15 steps)
 ├── web-search-worker         skill: search-and-extract
 │      → web_search + web_read → articles filtrés + dédupliqués
 │
-├── entity-extraction-worker  skill: extract-entities          [NOUVEAU v3.0.0]
+├── entity-extraction-worker  skill: extract-entities
 │      → LLM extrait entités (companies/products/events/topics)
 │
 └── synthesis-worker          skill: synthesize-report
@@ -51,7 +51,7 @@ agents/veille-ia/
 ├── veille-ia-agent.py            # Director (state machine)
 ├── workers/
 │   ├── web-search-worker.py
-│   ├── entity-extraction-worker.py    # NOUVEAU v3.0.0
+│   ├── entity-extraction-worker.py
 │   └── synthesis-worker.py
 ├── schemas.py                    # Pydantic (Pilier 1)
 ├── state.py                      # Enum VeilleStep (Pilier 2)
@@ -76,7 +76,7 @@ agents/veille-ia/
 
 ## Mécanismes
 
-### Mémoire à entités (saut qualitatif v3.0.0)
+### Mémoire à entités
 
 | Clé | Type | Contenu | Politique |
 |---|---|---|---|

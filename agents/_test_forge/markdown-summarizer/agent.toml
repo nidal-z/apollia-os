@@ -1,6 +1,6 @@
 [package]
 name = "markdown-summarizer"
-version = "1.0.0"
+version = "0.1.0"
 description = "Résume une URL ou un fichier markdown, adapte le ton au profil utilisateur, met en cache."
 author = "apollia-agent-forge"
 license = "MIT"

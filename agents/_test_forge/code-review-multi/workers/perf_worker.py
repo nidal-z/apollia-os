@@ -40,7 +40,7 @@ Format JSON :
 
 @agent(
     name="perf-worker",
-    version="1.0.0",
+    version="0.1.0",
     description="Audit performance selon budget workspace",
     tags=("code-review", "performance", "worker"),
     agent_type="worker",

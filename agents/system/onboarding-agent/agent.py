@@ -821,7 +821,7 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
 
 @agent(
     name="onboarding-agent",
-    version="2.3.0",
+    version="0.1.0",
     description=(
         "Premier contact utilisateur — calibrage en 3 questions "
         "(identité, supervision, souveraineté)"

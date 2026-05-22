@@ -1,6 +1,6 @@
 [package]
 name = "email-triage"
-version = "1.0.0"
+version = "0.1.0"
 description = "Triage automatique de l'inbox : classification + actions proposées + HITL avant envoi."
 author = "apollia-agent-forge"
 license = "MIT"

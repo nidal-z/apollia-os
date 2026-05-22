@@ -1,6 +1,6 @@
 [package]
 name = "code-review-multi"
-version = "1.0.0"
+version = "0.1.0"
 description = "Code review multi-aspect : security + style + performance, règles externalisées dans APOLLIA.md."
 author = "apollia-agent-forge"
 license = "MIT"

@@ -93,7 +93,7 @@ Article = {
 
 @agent(
     name="synthesis-worker",
-    version="3.0.0",
+    version="0.1.0",
     description="Scoring + synthèse VeilleReport JSON conforme schema Pydantic.",
     tags=("worker", "synthesis", "scoring"),
     agent_type="worker",

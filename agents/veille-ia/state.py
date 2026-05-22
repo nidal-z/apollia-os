@@ -1,4 +1,4 @@
-"""State machine pour veille-ia v3.0.0 (Pilier 2).
+"""State machine pour veille-ia v0.1.0 (Pilier 2).
 
 Le director dispatche sur ces steps. Chaque step = 1 méthode privée Python avec contrat clair :
 - Pré-conditions

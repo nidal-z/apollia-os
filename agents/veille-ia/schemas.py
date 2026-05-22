@@ -1,4 +1,4 @@
-"""Schemas Pydantic pour veille-ia v3.0.0 (Pilier 1).
+"""Schemas Pydantic pour veille-ia v0.1.0 (Pilier 1).
 
 LLM produit JSON conforme à ces schemas, validation post-gen avec auto-repair (max 3 retries).
 """

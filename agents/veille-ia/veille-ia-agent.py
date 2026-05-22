@@ -1,4 +1,4 @@
-"""veille-ia v3.0.0 — Director state machine appliquant les 4 piliers.
+"""veille-ia v0.1.0 — Director state machine appliquant les 4 piliers.
 
 Refonte complète (M5a release v0.1.0) :
 - Pilier 1 — Templates : Pydantic schemas (`schemas.py`) + Jinja2 (`templates/`).
@@ -25,8 +25,8 @@ import jinja2
 import yaml
 from pydantic import ValidationError
 
-from apollia import DomainError, agent, skill
-from apollia.types import Ctx
+from apollia import DomainError, agent, on_message, skill
+from apollia.types import Ctx, Message
 
 
 def _capture_agent_dir() -> Path:
@@ -97,7 +97,7 @@ CRITICAL_KEYWORDS = [
 
 @agent(
     name="veille-ia-agent",
-    version="3.0.0",
+    version="0.1.0",
     description="Veille IA/LLM quotidienne — state machine + entités + datasources YAML.",
     tags=("veille", "monitoring", "competitive-intelligence", "ia"),
     memory_namespace="veille-ia",
@@ -179,6 +179,30 @@ Rapport Markdown rendu via Jinja2 depuis un VeilleReport JSON validé Pydantic.
             "errors": state["errors"],
             "metrics": state["metrics"],
         }
+
+    @on_message
+    async def on_chat(
+        self,
+        message: str,
+        history: list[Message],
+        ctx: Ctx,
+    ) -> str:
+        """Conversational + trigger entrypoint — délègue à ``run_veille``.
+
+        Le runtime route les ``apollia-os run`` et les triggers cron
+        (``input_template = "Génère la veille IA/LLM du jour"``) ici car
+        ils n'envoient pas de ``skill_id``. On forwarde le prompt brut à
+        ``run_veille`` et on renvoie le rapport Markdown.
+        """
+        result = await self.run_veille(prompt=message or "", ctx=ctx)
+        report = result.get("report") or ""
+        if not report:
+            errors = result.get("errors") or []
+            if errors:
+                first = errors[0]
+                return f"[veille-ia] échec à l'étape {first.get('step', '?')}: {first.get('error', 'inconnu')}"
+            return "[veille-ia] aucun rapport généré"
+        return report
 
     # ============================================================
     # Dispatch

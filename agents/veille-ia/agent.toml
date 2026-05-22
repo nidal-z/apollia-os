@@ -1,4 +1,4 @@
-# agent.toml — Apollia OS agent package descriptor (veille-ia v3.0.0)
+# agent.toml — Apollia OS agent package descriptor (veille-ia v0.1.0)
 #
 # Refonte M5a release v0.1.0 — 4 piliers obligatoires :
 # - Pilier 1 — Templates : Pydantic + Jinja2.
@@ -12,7 +12,7 @@
 
 [package]
 name    = "veille-ia"
-version = "3.0.0"
+version = "0.1.0"
 description = "Veille quotidienne IA/LLM — technologique et concurrentielle. State machine + entités + datasources YAML."
 author  = "Apollia OS"
 license = "MIT"

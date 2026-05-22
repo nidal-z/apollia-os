@@ -13,6 +13,12 @@ cpu = []
 metal = ["whisper-rs/metal"]
 ## Accélération CUDA (NVIDIA GPU).
 cuda  = ["whisper-rs/cuda"]
+## Accélération AMD ROCm via hipBLAS (Linux principal — Windows limité aux
+## Radeon Pro/MI).
+rocm  = ["whisper-rs/hipblas"]
+## OpenMP CPU multi-thread (tous OS) — toggle séparé pour ne pas l'imposer
+## via `default` (build sans openmp est faisable pour VM/containers).
+openmp = ["whisper-rs/openmp"]
 
 [dependencies]
 apollia-core = { workspace = true }

@@ -46,7 +46,7 @@ Si aucun finding : `{"findings": [], "summary": "Aucun problème de sécurité d
 
 @agent(
     name="security-worker",
-    version="1.0.0",
+    version="0.1.0",
     description="Audit sécurité d'un fichier selon règles workspace",
     tags=("code-review", "security", "worker"),
     agent_type="worker",

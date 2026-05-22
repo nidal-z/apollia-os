@@ -1,0 +1,424 @@
+# Release CLI Binaries — produit les 13 variantes du binaire `apollia-os`.
+#
+# Déclenché par :
+#   - push d'un tag `v*` (release officielle)
+#   - `workflow_dispatch` manuel (tests, builds intermédiaires)
+#
+# Chaque variant tourne sur le runner adapté pour avoir le SDK GPU natif sans
+# cross-compile. Voir docs/internal/release/BUILD.md pour la matrice complète.
+#
+# Cache : `Swatinem/rust-cache@v2` clé = preset → cold ~35 min wall-clock,
+# warm ~20 min. Cf. BUILD.md § "CI/CD".
+
+name: Release CLI Binaries
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      presets:
+        description: "Comma-separated presets (default: all)"
+        required: false
+        default: "all"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: ${{ matrix.preset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── macOS Silicon ──────────────────────────────────────────────────
+          - preset: macos-silicon
+            runner: macos-latest
+            triple: aarch64-apple-darwin
+            features: "cloud,local-metal,local-accelerate,stt-metal"
+            ext: ""
+            needs_cuda: false
+            needs_rocm: false
+            needs_vulkan: false
+            archive: tar.gz
+
+          # ── Linux x86_64 ───────────────────────────────────────────────────
+          - preset: linux-x86-cpu
+            runner: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+            features: "cloud,local-cpu,stt-whisper-cpp"
+            ext: ""
+            archive: tar.gz
+
+          - preset: linux-x86-cuda
+            runner: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+            features: "cloud,local-cuda,stt-cuda"
+            ext: ""
+            needs_cuda: true
+            archive: tar.gz
+
+          - preset: linux-x86-rocm
+            runner: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+            features: "cloud,local-rocm,stt-rocm"
+            ext: ""
+            needs_rocm: true
+            archive: tar.gz
+
+          - preset: linux-x86-vulkan
+            runner: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+            features: "cloud,local-vulkan,stt-whisper-cpp"
+            ext: ""
+            needs_vulkan: true
+            archive: tar.gz
+
+          # ── Linux aarch64 ──────────────────────────────────────────────────
+          # GH Actions a ouvert les runners ARM Linux en GA début 2026.
+          - preset: linux-arm-cpu
+            runner: ubuntu-24.04-arm
+            triple: aarch64-unknown-linux-gnu
+            features: "cloud,local-cpu,stt-whisper-cpp"
+            ext: ""
+            archive: tar.gz
+
+          - preset: linux-arm-cuda
+            runner: ubuntu-24.04-arm
+            triple: aarch64-unknown-linux-gnu
+            features: "cloud,local-cuda,stt-cuda"
+            ext: ""
+            needs_cuda: true
+            archive: tar.gz
+            # Jetson/Orin target — CUDA L4T uniquement, le toolkit GA suffit
+            # pour produire un binaire mais l'exécution requiert un device réel.
+            continue-on-error: true
+
+          # ── Windows x86_64 ─────────────────────────────────────────────────
+          - preset: windows-x86-cpu
+            runner: windows-latest
+            triple: x86_64-pc-windows-msvc
+            features: "cloud,local-cpu,stt-whisper-cpp"
+            ext: ".exe"
+            archive: zip
+
+          - preset: windows-x86-cuda
+            runner: windows-latest
+            triple: x86_64-pc-windows-msvc
+            features: "cloud,local-cuda,stt-cuda"
+            ext: ".exe"
+            needs_cuda: true
+            archive: zip
+
+          - preset: windows-x86-rocm
+            runner: windows-latest
+            triple: x86_64-pc-windows-msvc
+            features: "cloud,local-rocm,stt-rocm"
+            ext: ".exe"
+            needs_rocm: true
+            archive: zip
+            # HIP SDK Windows install est lourd (1.2 GB) et parfois flaky en CI.
+            continue-on-error: true
+
+          - preset: windows-x86-vulkan
+            runner: windows-latest
+            triple: x86_64-pc-windows-msvc
+            features: "cloud,local-vulkan,stt-whisper-cpp"
+            ext: ".exe"
+            needs_vulkan: true
+            archive: zip
+
+          # ── Windows aarch64 ────────────────────────────────────────────────
+          - preset: windows-arm-cpu
+            runner: windows-11-arm
+            triple: aarch64-pc-windows-msvc
+            features: "cloud,local-cpu,stt-whisper-cpp"
+            ext: ".exe"
+            archive: zip
+
+          # Théorique : NVIDIA n'a pas de driver CUDA Windows-on-ARM en 2026.
+          # On garde le job pour valider la cohérence du graphe de features,
+          # mais on tolère l'échec.
+          - preset: windows-arm-cuda
+            runner: windows-11-arm
+            triple: aarch64-pc-windows-msvc
+            features: "cloud,local-cuda,stt-cuda"
+            ext: ".exe"
+            needs_cuda: true
+            archive: zip
+            continue-on-error: true
+
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Toolchain Rust ──────────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.triple }}
+
+      # ── System deps Linux ──────────────────────────────────────────────────
+      - name: Install Linux build deps
+        if: startsWith(matrix.runner, 'ubuntu')
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            python3-dev clang
+
+      # ── Python (PyO3) ───────────────────────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set PYO3_PYTHON (Unix)
+        if: runner.os != 'Windows'
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+
+      - name: Set PYO3_PYTHON (Windows)
+        if: runner.os == 'Windows'
+        run: echo "PYO3_PYTHON=$(python -c 'import sys; print(sys.executable)')" >> $env:GITHUB_ENV
+
+      # ── CUDA Toolkit (NVIDIA presets) ──────────────────────────────────
+      # Jimver/cuda-toolkit gère Linux x86, Linux ARM (via L4T), Windows x86.
+      # Pour Windows-on-ARM aucun support officiel — job marqué continue-on-error.
+      - name: Install CUDA Toolkit (Linux + Windows x86)
+        if: matrix.needs_cuda && !contains(matrix.runner, 'arm')
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust"]'
+          use-github-cache: true
+          use-local-cache: false
+
+      # CUDA pour Linux ARM (Jetson L4T) — manual install
+      - name: Install CUDA Toolkit (Linux ARM / Jetson L4T)
+        if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04-arm'
+        run: |
+          # CUDA cross-compile pour aarch64 via le SBSA toolkit
+          wget -q https://developer.download.nvidia.com/compute/cuda/12.4.0/local_installers/cuda-repo-ubuntu2204-12-4-local_12.4.0-550.54.14-1_arm64.deb -O /tmp/cuda.deb || true
+          sudo dpkg -i /tmp/cuda.deb || true
+          sudo cp /var/cuda-repo-*/cuda-*-keyring.gpg /usr/share/keyrings/ || true
+          sudo apt-get update -q
+          sudo apt-get install -y cuda-toolkit-12-4 || echo "::warning::CUDA aarch64 install failed — likely L4T-only; job marked continue-on-error"
+          echo "CUDA_PATH=/usr/local/cuda-12.4" >> $GITHUB_ENV
+          echo "/usr/local/cuda-12.4/bin" >> $GITHUB_PATH
+
+      # ── ROCm (AMD presets) ───────────────────────────────────────────────
+      - name: Install ROCm (Linux)
+        if: matrix.needs_rocm && startsWith(matrix.runner, 'ubuntu')
+        run: |
+          sudo apt-get install -y wget gnupg
+          wget -O- https://repo.radeon.com/rocm/rocm.gpg.key | \
+            sudo gpg --dearmor -o /usr/share/keyrings/rocm.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0/ jammy main" | \
+            sudo tee /etc/apt/sources.list.d/rocm.list
+          sudo apt-get update -q
+          sudo apt-get install -y rocm-hip-sdk rocm-llvm rocblas hipblas
+          echo "ROCM_PATH=/opt/rocm" >> $GITHUB_ENV
+          echo "/opt/rocm/bin" >> $GITHUB_PATH
+
+      - name: Install HIP SDK (Windows)
+        if: matrix.needs_rocm && startsWith(matrix.runner, 'windows')
+        shell: pwsh
+        run: |
+          $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe"
+          Invoke-WebRequest -Uri $url -OutFile hip-installer.exe -UseBasicParsing
+          Start-Process -FilePath ".\hip-installer.exe" -ArgumentList "-install","-quiet" -Wait
+          echo "HIP_PATH=C:\Program Files\AMD\ROCm\6.1" >> $env:GITHUB_ENV
+          echo "C:\Program Files\AMD\ROCm\6.1\bin" >> $env:GITHUB_PATH
+
+      # ── Vulkan SDK (Vulkan presets) ────────────────────────────────────
+      - name: Install Vulkan SDK (Linux)
+        if: matrix.needs_vulkan && startsWith(matrix.runner, 'ubuntu')
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | \
+            sudo gpg --dearmor -o /usr/share/keyrings/lunarg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/lunarg.gpg] https://packages.lunarg.com/vulkan/1.3.290 jammy main" | \
+            sudo tee /etc/apt/sources.list.d/vulkan.list
+          sudo apt-get update -q
+          sudo apt-get install -y vulkan-sdk
+
+      - name: Install Vulkan SDK (Windows)
+        if: matrix.needs_vulkan && startsWith(matrix.runner, 'windows')
+        shell: pwsh
+        run: |
+          $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
+          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe -UseBasicParsing
+          Start-Process -FilePath ".\VulkanSDK.exe" -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install" -Wait
+          $sdk = "C:\VulkanSDK\1.3.290.0"
+          echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
+          echo "$sdk\Bin" >> $env:GITHUB_PATH
+
+      # ── Cache Rust artifacts ───────────────────────────────────────────
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.preset }}
+          shared-key: cli-binaries
+
+      # ── Build the bundled Python (avant le cargo build : PyO3 link contre lui) ──
+      # Produit le dossier target/python-bundle/<triple>/python/ qui sera ensuite
+      # copié dans l'archive finale. Aussi exporte PYO3_PYTHON pour que le
+      # cargo build PyO3 link contre le bon interpréter (sinon il prendrait le
+      # python du runner GH, qui n'a pas le bon ABI sur certains OS).
+      - name: Build Python bundle (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p target/python-bundle/${{ matrix.triple }}
+          bash packaging/build-python-bundle.sh \
+            ${{ matrix.triple }} \
+            target/python-bundle/${{ matrix.triple }}
+          echo "PYO3_PYTHON=$(pwd)/target/python-bundle/${{ matrix.triple }}/python/bin/python3.13" >> $GITHUB_ENV
+
+      - name: Build Python bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p target/python-bundle/${{ matrix.triple }}
+          bash packaging/build-python-bundle.sh \
+            ${{ matrix.triple }} \
+            target/python-bundle/${{ matrix.triple }}
+          echo "PYO3_PYTHON=$(pwd)/target/python-bundle/${{ matrix.triple }}/python/python.exe" >> $GITHUB_ENV
+
+      # ── Build ───────────────────────────────────────────────────────────
+      # Sur Windows : +crt-static est forcé via .cargo/config.toml. Pour que
+      # llama-cpp-sys-2 et whisper-rs-sys (qui compilent du C via CMake) soient
+      # alignés sur /MT au lieu de /MD, on exporte CMAKE_MSVC_RUNTIME_LIBRARY.
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        env:
+          # Linker l'interpréter Python bundlé (python-build-standalone) plutôt
+          # que le system Python du runner.
+          PYO3_PYTHON: ${{ env.PYO3_PYTHON }}
+        run: |
+          cargo build --release -p apollia-cli \
+            --target ${{ matrix.triple }} \
+            --no-default-features \
+            --features "${{ matrix.features }}"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PYO3_PYTHON: ${{ env.PYO3_PYTHON }}
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+        run: |
+          cargo build --release -p apollia-cli `
+            --target ${{ matrix.triple }} `
+            --no-default-features `
+            --features "${{ matrix.features }}"
+
+      # ── Strip Linux binary ─────────────────────────────────────────────
+      - name: Strip binary (Linux)
+        if: startsWith(matrix.runner, 'ubuntu')
+        run: |
+          strip target/${{ matrix.triple }}/release/apollia-os
+          ls -lh target/${{ matrix.triple }}/release/apollia-os
+
+      # ── Assemble self-contained bundle ──────────────────────────────────
+      # Layout final dans l'archive :
+      #   apollia-os-<preset>/
+      #   ├── apollia-os(.exe)         binaire
+      #   ├── apollia-os.sh|.bat       launcher qui set PYO3_PYTHON + PATH
+      #   ├── python/                  interprète bundlé + site-packages
+      #   └── README.txt               quick-start (1 paragraphe)
+      - name: Assemble bundle (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          STAGE="target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
+          mkdir -p "$STAGE"
+          cp target/${{ matrix.triple }}/release/apollia-os "$STAGE/apollia-os"
+          cp packaging/launchers/apollia-os.sh "$STAGE/apollia-os.sh"
+          chmod +x "$STAGE/apollia-os.sh"
+          cp -R target/python-bundle/${{ matrix.triple }}/python "$STAGE/python"
+          cat > "$STAGE/README.txt" <<EOF
+          Apollia OS ${{ matrix.preset }} — self-contained bundle
+          ========================================================
+
+          Lance : ./apollia-os.sh start
+          Doc   : https://apollia.fr/docs/install
+
+          Inclus : binaire apollia-os + Python 3.13 + site-packages.
+          Requis côté user : driver GPU à jour (cf. README ci-dessus).
+          EOF
+          cd target/${{ matrix.triple }}/bundle
+          tar -czf apollia-os-${{ matrix.preset }}.tar.gz apollia-os-${{ matrix.preset }}/
+          shasum -a 256 apollia-os-${{ matrix.preset }}.tar.gz > apollia-os-${{ matrix.preset }}.tar.gz.sha256
+          du -h apollia-os-${{ matrix.preset }}.tar.gz
+
+      - name: Assemble bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "target/${{ matrix.triple }}/release/apollia-os.exe" "$stage/apollia-os.exe"
+          Copy-Item "packaging/launchers/apollia-os.bat" "$stage/apollia-os.bat"
+          Copy-Item -Recurse "target/python-bundle/${{ matrix.triple }}/python/*" "$stage/"
+          # Windows layout flat : tout le python/ est mergé à la racine du bundle
+          # pour que apollia-os.exe et python.exe soient côte à côte (résolution
+          # python313.dll via le dossier exécutable).
+          @"
+          Apollia OS ${{ matrix.preset }} — self-contained bundle
+          ========================================================
+
+          Lance : apollia-os.bat start
+          Doc   : https://apollia.fr/docs/install
+
+          Inclus : binaire apollia-os.exe + Python 3.13 + site-packages + CRT statique.
+          Requis cote user : driver GPU a jour. Pas de VC++ Redist necessaire.
+          "@ | Out-File "$stage/README.txt" -Encoding ASCII
+
+          Push-Location "target/${{ matrix.triple }}/bundle"
+          Compress-Archive -Path "apollia-os-${{ matrix.preset }}" -DestinationPath "apollia-os-${{ matrix.preset }}.zip"
+          $hash = (Get-FileHash "apollia-os-${{ matrix.preset }}.zip" -Algorithm SHA256).Hash
+          "$hash  apollia-os-${{ matrix.preset }}.zip" | Out-File "apollia-os-${{ matrix.preset }}.zip.sha256" -Encoding ASCII
+          Get-ChildItem "apollia-os-${{ matrix.preset }}.zip*"
+          Pop-Location
+
+      # ── Upload artifact ──────────────────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apollia-os-${{ matrix.preset }}
+          path: |
+            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}
+            target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.${{ matrix.archive }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  # ── Aggregated release (only on tag push) ─────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.tar.gz.sha256
+            artifacts/*.zip
+            artifacts/*.zip.sha256
+          draft: true
+          generate_release_notes: true

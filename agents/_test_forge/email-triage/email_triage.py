@@ -57,7 +57,7 @@ WORKFLOW (à respecter dans le plan que tu génères) :
 
 @agent(
     name="email-triage",
-    version="1.0.0",
+    version="0.1.0",
     description="Triage inbox orchestré ORIA, HITL avant envoi",
     tags=("email", "triage", "orchestrated"),
     memory_namespace="email-triage",

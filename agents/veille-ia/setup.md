@@ -1,4 +1,4 @@
-# Setup — veille-ia v3.0.0
+# Setup — veille-ia v0.1.0
 
 Veille quotidienne IA/LLM avec state machine déterministe, mémoire à entités, et templates Jinja2 customisables.
 
