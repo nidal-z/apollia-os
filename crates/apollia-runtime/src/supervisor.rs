@@ -1127,13 +1127,19 @@ impl Supervisor {
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
         let backend_for_autoload = backend.clone();
+        // Wrap the boot snapshot in a shared, swappable cell so the reload
+        // route can replace the active router without restarting the daemon.
+        // Other consumers (chat manager, embedded runtime) keep their own
+        // direct handle and stay reachable via the supervisor handle struct.
+        let shared_llm_router =
+            crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader,
             backend,
-            llm_router: llm_router.clone(),
+            llm_router: shared_llm_router.clone(),
             trigger_engine: Some(trigger_engine.clone()),
             config_path: self.config.config_path.clone(),
             task_repository: task_repository.clone(),
@@ -2258,7 +2264,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
-            llm_router: None,
+            llm_router: crate::api::server::empty_shared_llm_router(),
             trigger_engine: None,
             config_path: None,
             task_repository: None,
@@ -2289,9 +2295,10 @@ mod tests {
         // WHEN on clone l'AppState
         let cloned = state.clone();
 
-        // THEN le clone preserve llm_router = None
+        // THEN le clone preserve une cellule vide (l'Arc est partage,
+        // mais l'option interne reste None apres clone).
         assert!(
-            cloned.llm_router.is_none(),
+            cloned.llm_router.read().await.is_none(),
             "le clone doit preserver llm_router = None"
         );
     }

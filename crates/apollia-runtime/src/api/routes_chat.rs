@@ -737,7 +737,9 @@ mod tests {
             event_sender: event_tx,
             agent_loader: Arc::new(AlwaysOkLoader),
             backend: MockBackend,
-            llm_router: Some(Arc::new(LlmRouter::empty())),
+            llm_router: crate::api::server::shared_llm_router_from(Some(Arc::new(
+                LlmRouter::empty(),
+            ))),
             trigger_engine: None,
             config_path: None,
             task_repository: None,

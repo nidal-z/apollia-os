@@ -1100,6 +1100,22 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Rebuild the in-memory `LlmRouter` from `system.db` via
+    /// `POST /api/v1/llm/reload`.
+    ///
+    /// Returns the list of backends that came up in the new router so the
+    /// CLI can confirm the swap without a follow-up `status` call.
+    pub async fn reload_llm_router(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/llm/reload", None).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Set a backend as the default LLM backend via `POST /api/v1/llm/backends/{name}/set-default`.
     pub async fn set_default_llm_backend(
         &self,

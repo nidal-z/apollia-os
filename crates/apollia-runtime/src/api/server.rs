@@ -16,7 +16,7 @@ use serde::Serialize;
 use tokio::net::TcpListener;
 #[cfg(unix)]
 use tokio::net::UnixListener;
-use tokio::sync::watch;
+use tokio::sync::{watch, RwLock};
 use tracing::info;
 
 use apollia_core::{LlmBackendRepository, PendingApprovals, SttConfigRepository};
@@ -39,6 +39,28 @@ use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 use crate::router::TaskRouterHandle;
 
+/// Shared, swappable handle to the active [`LlmRouter`].
+///
+/// Routes read a snapshot under a read-lock, then drop the lock before
+/// awaiting on the backend. The `POST /api/v1/llm/reload` route takes the
+/// write-lock briefly to swap a freshly-built router in place, without
+/// having to restart the daemon.
+///
+/// `None` means no router is configured (no backends in `system.db`, or
+/// rebuild failed). `Some(router)` means the router currently in use by
+/// every reader (ping/chat/complete/status).
+pub type SharedLlmRouter = Arc<RwLock<Option<Arc<LlmRouter>>>>;
+
+/// Build an empty [`SharedLlmRouter`] for tests and "no LLM" boot paths.
+pub fn empty_shared_llm_router() -> SharedLlmRouter {
+    Arc::new(RwLock::new(None))
+}
+
+/// Build a [`SharedLlmRouter`] pre-loaded with a router (or `None` if absent).
+pub fn shared_llm_router_from(initial: Option<Arc<LlmRouter>>) -> SharedLlmRouter {
+    Arc::new(RwLock::new(initial))
+}
+
 /// Shared application state injected into all routes.
 ///
 /// Contains handles to the runtime actors. Passed to axum via `with_state()`.
@@ -54,11 +76,13 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub agent_loader: Arc<dyn AgentLoader>,
     /// Execution backend — cloned per coordinator on agent start.
     pub backend: B,
-    /// LLM router — `None` if no LLM backend was configured or available.
+    /// Shared, hot-reloadable handle to the active [`LlmRouter`].
     ///
-    /// Injected into each agent's `RuntimeContext` via `ctx.llm`.
-    /// Agents receive `ctx.llm = None` and an `AgentDegraded` event if absent.
-    pub llm_router: Option<Arc<LlmRouter>>,
+    /// Routes read a snapshot via `state.llm_router.read().await.clone()`
+    /// and operate on that snapshot; the `POST /api/v1/llm/reload` route
+    /// swaps a freshly-built router into the cell. `None` means no router
+    /// is configured.
+    pub llm_router: SharedLlmRouter,
     /// Handle to the TriggerEngine actor.
     ///
     /// Webhook route returns 503 Service Unavailable when this is `None`.
@@ -721,7 +745,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
-            llm_router: None,
+            llm_router: empty_shared_llm_router(),
             trigger_engine: None,
             config_path: None,
             task_repository: None,

@@ -122,11 +122,8 @@ pub struct CompleteRequest {
 pub async fn get_llm_status<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<LlmStatusResponse>) {
-    let backends = state
-        .llm_router
-        .as_ref()
-        .map(|router| router.list())
-        .unwrap_or_default();
+    let snapshot = state.llm_router.read().await.clone();
+    let backends = snapshot.map(|router| router.list()).unwrap_or_default();
 
     (StatusCode::OK, Json(LlmStatusResponse { backends }))
 }
@@ -145,7 +142,8 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
 ) -> (StatusCode, Json<PingResponse>) {
     let backend_name = req.backend.as_deref();
 
-    let Some(router) = state.llm_router.as_ref() else {
+    let snapshot = state.llm_router.read().await.clone();
+    let Some(router) = snapshot else {
         let name = backend_name.unwrap_or("default").to_owned();
         return (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -208,7 +206,7 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let router = state.llm_router.as_ref().ok_or_else(|| {
+    let router = state.llm_router.read().await.clone().ok_or_else(|| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"error": "no LLM router configured"})),
@@ -265,7 +263,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<CompleteRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let router = state.llm_router.as_ref().ok_or_else(|| {
+    let router = state.llm_router.read().await.clone().ok_or_else(|| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"error": "no LLM router configured"})),
@@ -579,6 +577,19 @@ pub struct SetDefaultResponse {
     pub default: String,
 }
 
+/// Response body for `POST /api/v1/llm/reload`.
+///
+/// Carries the list of backends that are live in the freshly-swapped router,
+/// so callers can confirm at a glance what is now available without a
+/// follow-up `GET /api/v1/llm/status` call.
+#[derive(Debug, Serialize)]
+pub struct ReloadRouterResponse {
+    /// Backends now reachable via the active router.
+    pub backends: Vec<apollia_llm::BackendInfo>,
+    /// Default backend name reported by the router (empty when no backends).
+    pub default: String,
+}
+
 /// CRUD error response body.
 #[derive(Debug, Serialize)]
 pub struct BackendErrorResponse {
@@ -883,6 +894,94 @@ pub async fn set_default_llm_backend<B: ExecutionBackend + Clone>(
     Ok(Json(SetDefaultResponse { default: name }))
 }
 
+/// Handler for `POST /api/v1/llm/reload`.
+///
+/// Rebuilds the active `LlmRouter` from `system.db` and swaps it into the
+/// shared cell exposed by [`AppState::llm_router`], without restarting the
+/// daemon. The new router becomes visible to every subsequent reader
+/// (`ping`, `chat`, `complete`, `status`); in-flight requests that already
+/// hold a snapshot of the previous router finish against the old router and
+/// are not interrupted.
+///
+/// The route also forwards the freshly-built router to the
+/// [`ChatSessionManager`] via its `ReloadLlm` actor command so live chat
+/// sessions pick up the new model on their next turn.
+///
+/// Returns:
+/// - `200 OK` with the list of backends now active.
+/// - `503 Service Unavailable` when `llm_backend_repo` is `None` (the runtime
+///   was started without `system.db`, typically a unit test).
+/// - `500 Internal Server Error` when the repository is reachable but
+///   building the router fails (invalid config_json, model file missing for
+///   a local backend, etc.).
+pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<ReloadRouterResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    let repo = require_backend_repo(&state)?;
+
+    // Snapshot the persisted backends under the synchronous mutex and drop
+    // the guard *before* awaiting. Holding a `std::sync::MutexGuard` across
+    // an await makes the future `!Send` and rejects the axum handler trait.
+    // The async work (instantiating each backend, possibly loading a GGUF
+    // model) then runs lock-free.
+    let (all_configs, default_name) = {
+        let guard = repo.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BackendErrorResponse {
+                    error: "repository lock poisoned".into(),
+                }),
+            )
+        })?;
+        let all = guard.list().map_err(map_backend_error)?;
+        let default = guard
+            .find_default()
+            .map_err(map_backend_error)?
+            .map(|cfg| cfg.name)
+            .ok_or_else(|| {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(BackendErrorResponse {
+                        error: "no default LLM backend configured (run `apollia-os llm backends set-default <name>`)".into(),
+                    }),
+                )
+            })?;
+        (all, default)
+    };
+
+    let new_router = apollia_llm::LlmRouter::from_backend_configs(all_configs, default_name)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BackendErrorResponse {
+                    error: format!("rebuild failed: {e}"),
+                }),
+            )
+        })?;
+
+    let backends = new_router.list();
+    let default = new_router.default_name().to_owned();
+    let arc_router = Arc::new(new_router);
+
+    {
+        let mut cell = state.llm_router.write().await;
+        *cell = Some(arc_router.clone());
+    }
+
+    if let Some(chat) = state.chat_manager.as_ref() {
+        chat.reload_llm(Some(arc_router.clone())).await;
+    }
+
+    tracing::info!(
+        backend_count = backends.len(),
+        default = %default,
+        "LLM router reloaded"
+    );
+
+    Ok(Json(ReloadRouterResponse { backends, default }))
+}
+
 // ─────────────────────────────────────────────
 // Sub-router builder
 // ─────────────────────────────────────────────
@@ -923,6 +1022,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             "/api/v1/llm/backends/:name/set-default",
             post(set_default_llm_backend::<B>),
         )
+        .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
 }
 
 // ─────────────────────────────────────────────
@@ -979,7 +1079,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
-            llm_router: None,
+            llm_router: crate::api::server::empty_shared_llm_router(),
             trigger_engine: None,
             config_path: None,
             task_repository: None,
@@ -1115,7 +1215,7 @@ mod tests {
     async fn test_complete_unknown_role_returns_400() {
         // GIVEN
         let mut state = test_app_state_no_llm();
-        state.llm_router = Some(Arc::new(LlmRouter::empty()));
+        *state.llm_router.write().await = Some(Arc::new(LlmRouter::empty()));
         let app_router = llm_routes::<MockBackend>().with_state(state);
 
         // WHEN
@@ -1147,7 +1247,7 @@ mod tests {
     async fn test_get_llm_status_with_router_returns_backends_field() {
         // GIVEN
         let mut state = test_app_state_no_llm();
-        state.llm_router = Some(Arc::new(LlmRouter::empty()));
+        *state.llm_router.write().await = Some(Arc::new(LlmRouter::empty()));
         let app_router = llm_routes::<MockBackend>().with_state(state);
 
         // WHEN
@@ -1317,5 +1417,72 @@ mod tests {
 
         // THEN
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    // GIVEN no `system.db` available in AppState
+    // WHEN POST /api/v1/llm/reload
+    // THEN 503 — repository is required to rebuild the router
+    #[tokio::test]
+    async fn test_reload_without_repo_returns_503() {
+        let state = test_app_state_no_llm();
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/reload")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // GIVEN a repo with no default backend
+    // WHEN POST /api/v1/llm/reload
+    // THEN 503 with an explicit "no default" message — the rebuild needs a
+    //       default to pick.
+    #[tokio::test]
+    async fn test_reload_without_default_returns_503() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/reload")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = body_json(resp).await;
+        let err = json["error"].as_str().unwrap_or_default();
+        assert!(err.contains("default"), "expected 'default' in error, got {err}");
+    }
+
+    // GIVEN an AppState whose llm_router cell still holds the boot router,
+    //       and a repo with no default backend
+    // WHEN POST /api/v1/llm/reload fails
+    // THEN the boot router is preserved (failed reload does not blank the cell)
+    #[tokio::test]
+    async fn test_reload_failure_preserves_existing_router() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        *state.llm_router.write().await = Some(Arc::new(LlmRouter::empty()));
+        let cell = state.llm_router.clone();
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/reload")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+        assert!(
+            cell.read().await.is_some(),
+            "a failed reload must not drop the previously-loaded router"
+        );
     }
 }

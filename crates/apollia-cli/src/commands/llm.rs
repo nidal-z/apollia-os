@@ -36,6 +36,12 @@ pub enum LlmCommand {
         #[command(subcommand)]
         command: LlmBackendsCommand,
     },
+    /// Recharger le router LLM depuis `system.db` sans redémarrer le runtime.
+    ///
+    /// Les mutations `backends create/update/delete/set-default` écrivent en
+    /// base mais le router en mémoire reste figé jusqu'à un reload. Cette
+    /// commande swap le router actif sans interrompre les tâches en cours.
+    Reload,
 }
 
 /// Backends CRUD subcommands: `apollia-os llm backends <verb>`.
@@ -161,6 +167,63 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
         }
         LlmCommand::Costs => run_costs(&client, json).await,
         LlmCommand::Backends { command } => run_backends(&client, command, json).await,
+        LlmCommand::Reload => run_reload(&client, json).await,
+    }
+}
+
+/// `apollia-os llm reload` — rebuild the in-memory router from `system.db`.
+///
+/// The mutating sub-commands (`create`, `update`, `delete`, `set-default`)
+/// invoke this automatically. The standalone command is useful when the
+/// operator edited `system.db` directly, restored a backup, or wants to
+/// retry after a transient model load failure.
+async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
+    match client.reload_llm_router().await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+                return exit_codes::SUCCESS;
+            }
+            let default = resp.get("default").and_then(|v| v.as_str()).unwrap_or("");
+            let count = resp
+                .get("backends")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
+            println!("OK LLM router reloaded ({count} backend(s) active, default: {default})");
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ConnectionRefused) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"error": "runtime not started"})
+                );
+            } else {
+                eprintln!("Error: runtime not started (connection refused)");
+                eprintln!("Hint: run `apollia-os start` first.");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
+        Err(ClientError::ServerError { status, body }) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"error": body, "status": status})
+                );
+            } else {
+                eprintln!("Error ({status}): {body}");
+                if status == 503 {
+                    eprintln!("Hint: configure at least one backend with");
+                    eprintln!("      `apollia-os llm backends create ... --default`");
+                }
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_error(e, json),
     }
 }
 
@@ -581,13 +644,41 @@ fn build_config_json(
     serde_json::Value::Object(cfg)
 }
 
-/// Print the "restart runtime to apply" reminder. Backend mutations write
-/// to `system.db` but the in-memory `LlmRouter` is loaded once at boot, so
-/// the operator has to restart for the new configuration to take effect.
-fn print_restart_hint() {
-    println!();
-    println!("Note: the runtime loads LLM backends at boot. Restart to apply:");
-    println!("    apollia-os stop && apollia-os start");
+/// Trigger an in-place LlmRouter reload via `POST /api/v1/llm/reload` so the
+/// runtime picks up the freshly mutated `system.db` without restarting.
+///
+/// Mutations (`create`, `update`, `delete`, `set-default`) call this after a
+/// successful write. Reload failures are reported but do not change the exit
+/// code: the database mutation succeeded; only the in-memory swap is missing.
+/// Callers can re-run `apollia-os llm reload` to retry, or restart the daemon.
+async fn auto_reload_after_mutation(client: &RuntimeClient, json: bool) {
+    match client.reload_llm_router().await {
+        Ok(resp) => {
+            if !json {
+                let default = resp.get("default").and_then(|v| v.as_str()).unwrap_or("");
+                let count = resp
+                    .get("backends")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
+                println!(
+                    "    router reloaded in place ({count} backend(s) active, default: {default})"
+                );
+            }
+        }
+        Err(ClientError::ServerError { status, body }) => {
+            if !json {
+                eprintln!("    warning: router reload failed ({status}): {body}");
+                eprintln!("    the mutation is persisted; run `apollia-os llm reload` to retry");
+            }
+        }
+        Err(e) => {
+            if !json {
+                eprintln!("    warning: router reload failed: {e}");
+                eprintln!("    the mutation is persisted; run `apollia-os llm reload` to retry");
+            }
+        }
+    }
 }
 
 /// `apollia-os llm backends list` — lister tous les backends configurés.
@@ -716,7 +807,7 @@ async fn run_backends_create(
                 if !enabled {
                     println!("    désactivé (passer --enable pour activer)");
                 }
-                print_restart_hint();
+                auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
         }
@@ -859,7 +950,7 @@ async fn run_backends_update(
                 println!(
                     "    provider={new_provider}, model={new_model}, enabled={new_enabled}, default={new_default}"
                 );
-                print_restart_hint();
+                auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
         }
@@ -900,7 +991,7 @@ async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, 
                 );
             } else {
                 println!("OK backend '{name}' supprimé");
-                print_restart_hint();
+                auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
         }
@@ -928,7 +1019,7 @@ async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool
                 );
             } else {
                 println!("OK backend '{name}' défini comme backend par défaut");
-                print_restart_hint();
+                auto_reload_after_mutation(client, json).await;
             }
             exit_codes::SUCCESS
         }
