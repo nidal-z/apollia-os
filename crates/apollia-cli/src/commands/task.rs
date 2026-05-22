@@ -115,6 +115,11 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
 // ────────────────────────────────────────────────────────────────────────────
 
 /// `apollia-os task list` — display recent tasks.
+///
+/// Resolves `agent_id` (UUID) to the human-readable agent name by fetching
+/// the agents list once and joining locally. The runtime does not embed the
+/// agent name in `GET /api/v1/tasks` responses, and a UUID-only table is
+/// hostile to operators.
 async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/tasks").await {
         Ok(r) => r,
@@ -139,7 +144,30 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
             serde_json::to_string_pretty(&parsed).unwrap_or_default()
         );
     } else {
-        format_task_list(&parsed);
+        // Best-effort agent_id → name lookup. If the agents endpoint is
+        // unreachable, we just fall back to displaying the raw UUIDs.
+        let agent_names = client
+            .list_agents()
+            .await
+            .ok()
+            .and_then(|v| {
+                v.get("agents")
+                    .or_else(|| Some(&v))
+                    .and_then(|x| x.as_array())
+                    .cloned()
+            })
+            .map(|agents| {
+                agents
+                    .iter()
+                    .filter_map(|a| {
+                        let id = a.get("agent_id").or_else(|| a.get("id"))?.as_str()?;
+                        let name = a.get("name")?.as_str()?;
+                        Some((id.to_string(), name.to_string()))
+                    })
+                    .collect::<std::collections::HashMap<String, String>>()
+            })
+            .unwrap_or_default();
+        format_task_list(&parsed, &agent_names);
     }
     exit_codes::SUCCESS
 }
@@ -356,9 +384,24 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(PlanRepositoryError::NotFound(_)) => {
-            println!(
-                "La tâche {task_id} n'a pas de plan d'exécution (mode direct ou plan non persisté)."
-            );
+            if json {
+                println!("{}", serde_json::json!({
+                    "task_id": task_id,
+                    "plan": null,
+                    "reason": "no_plan_persisted",
+                }));
+            } else {
+                println!("Task {task_id} has no execution plan.");
+                println!();
+                println!("Plans are only generated for agents with `execution_mode =");
+                println!("\"orchestrated\"` in their manifest. Agents marked `direct` drive");
+                println!("their own logic (state machines, A2A delegation, ReAct loops) and");
+                println!("never go through the ORIA Reasoner, so plans.db has nothing to");
+                println!("show for them.");
+                println!();
+                println!("To see a real plan, run an orchestrated agent (e.g. email-triage)");
+                println!("then re-run `apollia-os task inspect <id>`.");
+            }
             exit_codes::SUCCESS
         }
         Err(e) => {
@@ -412,21 +455,39 @@ async fn run_approvals(client: &RuntimeClient, pending: bool, json: bool) -> i32
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Format task list as a human-readable table.
-fn format_task_list(resp: &serde_json::Value) {
+///
+/// The `agent_names` map (agent_id → name) is populated by the caller from
+/// `GET /api/v1/agents`. When the lookup misses (deleted agent, stale UUID)
+/// we display the truncated UUID instead so the column still aligns and
+/// the operator can still copy-paste it.
+fn format_task_list(
+    resp: &serde_json::Value,
+    agent_names: &std::collections::HashMap<String, String>,
+) {
     let tasks = extract_tasks_array(resp);
 
-    println!("  {:<36} {:<36} {:<12}", "TASK_ID", "AGENT_ID", "STATUS");
+    println!("  {:<36} {:<26} {:<12}", "TASK_ID", "AGENT", "STATUS");
 
     if tasks.is_empty() {
         println!("  (no tasks)");
     } else {
         for task in &tasks {
             let id = task.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
-            let agent = task.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
+            let agent_id = task.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
+            let agent_label = agent_names
+                .get(agent_id)
+                .cloned()
+                .unwrap_or_else(|| short_uuid(agent_id));
             let status = task.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-            println!("  {:<36} {:<36} {status}", id, agent);
+            println!("  {:<36} {:<26} {status}", id, agent_label);
         }
     }
+}
+
+/// Shorten a UUID to its first segment for display when the agent name is
+/// unknown. Keeps the column aligned and the value copy-paste-traceable.
+fn short_uuid(uuid: &str) -> String {
+    uuid.split('-').next().unwrap_or(uuid).to_string()
 }
 
 /// Render pending-approval tasks as a human-readable table.
