@@ -23,10 +23,17 @@ echo "==> Step 1/4: fetch python-build-standalone"
 "${PACKAGING_DIR}/fetch-python-standalone.sh" "$TARGET" "$OUT_DIR"
 
 PYTHON_DIR="${OUT_DIR}/python"
-PYTHON_BIN="${PYTHON_DIR}/bin/python3.13"
 
-if [[ ! -x "$PYTHON_BIN" ]]; then
-    echo "error: expected $PYTHON_BIN to be executable" >&2
+# Layout diffère entre POSIX et Windows :
+#   POSIX   → python/bin/python3.13 (+ python/lib/python3.13/site-packages)
+#   Windows → python/python.exe     (+ python/Lib/site-packages, flat layout)
+if [[ -x "${PYTHON_DIR}/bin/python3.13" ]]; then
+    PYTHON_BIN="${PYTHON_DIR}/bin/python3.13"
+elif [[ -f "${PYTHON_DIR}/python.exe" ]]; then
+    PYTHON_BIN="${PYTHON_DIR}/python.exe"
+else
+    echo "error: could not locate python interpreter in $PYTHON_DIR" >&2
+    echo "       (looked for bin/python3.13 and python.exe)" >&2
     exit 2
 fi
 
