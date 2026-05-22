@@ -1,0 +1,24 @@
+# Cross-rs (cross-rs/cross) configuration.
+#
+# `cross` exécute cargo dans un container Docker dédié pour cross-compile.
+# Le container a son propre sysroot (Ubuntu 22.04 minimal pour les images
+# `*-unknown-linux-gnu:main`) qui n'a PAS les system libs nécessaires à
+# `cpal` (ALSA), `whisper-rs-sys` (CMake/clang), etc.
+#
+# `pre-build` est exécuté à chaque cross-build pour installer les deps
+# dans le container avant le `cargo build/check`.
+#
+# Cf. https://github.com/cross-rs/cross/blob/main/docs/cross_toml.md
+
+[target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "apt-get update",
+    "apt-get install --assume-yes --no-install-recommends libasound2-dev libpulse-dev libjack-jackd2-dev cmake clang pkg-config libssl-dev",
+]
+
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture arm64",
+    "apt-get update",
+    "apt-get install --assume-yes --no-install-recommends libasound2-dev:arm64 libpulse-dev:arm64 libjack-jackd2-dev:arm64 cmake clang pkg-config libssl-dev:arm64",
+]

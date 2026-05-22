@@ -177,13 +177,16 @@ Le moteur ORIA tourne côté Rust, donc en mock isomorphe il n'est pas activé. 
 @pytest.mark.asyncio
 async def test_briefing_on_plan_complete_concatenates_texts():
     agent, ctx = mock(Briefing)
+    # step_results : dict[str, str] (le bridge passe HashMap<String, String>
+    # à la méthode Python ; les valeurs sont les sorties textuelles des
+    # étapes, pas des dicts imbriqués).
     step_results = {
-        "step_1": {"text": "Context section."},
-        "step_2": {"text": "Key facts section."},
-        "step_3": {"text": "Open questions section."},
+        "step_1": "Context section.",
+        "step_2": "Key facts section.",
+        "step_3": "Open questions section.",
     }
 
-    final = agent.on_plan_complete(step_results)
+    final = await agent.on_plan_complete(step_results, ctx)
 
     assert "Context" in final
     assert "Key facts" in final

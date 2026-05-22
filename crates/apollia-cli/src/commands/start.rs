@@ -900,6 +900,45 @@ impl ExecutionBackend for AIPProductionBackend {
         }
 
         let execution_mode = self.manifest.execution_mode.clone();
+        let step_budget_max = self
+            .manifest
+            .step_budget
+            .as_ref()
+            .map(|b| b.max_steps)
+            .unwrap_or(20);
+
+        // Wire the Reasoner + LlmRouter so ORIA's orchestrated path can plan.
+        // Without this, engine.execute() fails with NO_LLM. We try to resolve
+        // the precise backend first (planning); if missing we still install
+        // the router so step LLM calls keep working, and emit a warning.
+        if let Some(router_arc) = self.llm_router.clone() {
+            let owned_router: LlmRouter = match Arc::try_unwrap(router_arc) {
+                Ok(owned) => owned,
+                Err(shared) => (*shared).clone(),
+            };
+            match owned_router.route_precise() {
+                Ok(model) => {
+                    engine = engine
+                        .with_llm_router(owned_router)
+                        .with_reasoner(model, step_budget_max);
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        agent = %self.agent_id,
+                        error = %err,
+                        "no precise LLM backend resolved — orchestrated \
+                         execution will fail with NO_LLM if invoked"
+                    );
+                    engine = engine.with_llm_router(owned_router);
+                }
+            }
+        } else {
+            tracing::warn!(
+                agent = %self.agent_id,
+                "no llm router configured — orchestrated execution will fail \
+                 with NO_LLM if invoked"
+            );
+        }
 
         Box::pin(async move {
             // Orchestrated agents (declared via `@orchestrated`) flow through

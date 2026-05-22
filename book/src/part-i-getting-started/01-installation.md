@@ -23,8 +23,20 @@ Pas de Docker. Pas de Kubernetes. Pas de compte cloud.
 ```bash
 git clone https://github.com/nidal-z/apollia-os.git
 cd apollia-os
-cargo build --release --workspace
 ```
+
+Choisissez les **feature flags** selon votre plateforme. Le build par défaut n'inclut que les backends LLM cloud. Pour un LLM local (llama.cpp), il faut ajouter le bon flag d'accélération :
+
+| Plateforme | Commande |
+|---|---|
+| macOS Apple Silicon | `cargo build --release --features local-metal` |
+| macOS Intel | `cargo build --release --features local-accelerate` |
+| Linux NVIDIA (CUDA) | `cargo build --release --features local-cuda` |
+| Linux AMD (ROCm) | `cargo build --release --features local-rocm` |
+| Linux ou portable (Vulkan) | `cargo build --release --features local-vulkan` |
+| Cloud uniquement (pas de LLM local) | `cargo build --release` |
+
+Sans `--features local-*`, le runtime démarre avec `LlmRouter failed to initialize` et `ctx.llm` lèvera une erreur. C'est attendu si vous n'utilisez que des backends cloud (Anthropic, OpenAI, Ollama distant).
 
 Le binaire est produit en `target/release/apollia-os`. Ajoutez-le à votre `PATH` :
 

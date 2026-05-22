@@ -29,7 +29,10 @@ from apollia import agent, orchestrated
 )
 class EmailTriage:
     async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
-        return "\n\n".join(s.get("text", "") for s in step_results.values())
+        # step_results : {step_id: text} ; les valeurs sont déjà les sorties
+        # textuelles des étapes (le bridge convertit HashMap<String, String>
+        # en dict[str, str]).
+        return "\n\n".join(text for text in step_results.values() if text)
 ```
 
 Pas de méthode `@skill` ni de `@on_message`. La classe se résume à la description orchestrée et à un hook optionnel.
@@ -52,17 +55,21 @@ Le décorateur retourne la classe inchangée. Il y attache simplement la configu
 
 ### Hook optionnel : `on_plan_complete`
 
-Si la classe définit une méthode `on_plan_complete(self, step_results: dict) -> str`, ORIA l'appelle avec les résultats de chaque étape une fois le plan terminé. Le retour est la réponse finale présentée à l'utilisateur.
+Si la classe définit une méthode `async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str`, ORIA l'appelle avec les résultats textuels de chaque étape une fois le plan terminé. Le retour est la réponse finale présentée à l'utilisateur.
 
 Par défaut (sans hook), ORIA concatène les textes des étapes dans l'ordre. Vous overridez si vous voulez formater, filtrer, ou agréger différemment.
 
 ```python
 async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
+    # Les valeurs sont des strings (les sorties textuelles des étapes).
+    # Pour parser une donnée structurée, c'est à l'agent de l'extraire
+    # (regex, JSON dans le texte, etc.).
     counts = {"archived": 0, "replied": 0, "flagged": 0}
-    for step in step_results.values():
-        action = step.get("action")
-        if action in counts:
-            counts[action] += 1
+    for text in step_results.values():
+        for action in counts:
+            if action in text.lower():
+                counts[action] += 1
+                break
     return f"Archived {counts['archived']}, replied {counts['replied']}, flagged {counts['flagged']}."
 ```
 

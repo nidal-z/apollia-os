@@ -41,8 +41,9 @@ briefing.
 @orchestrated(system_prompt=SYSTEM_PROMPT)
 class Briefing:
     async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
-        texts = [step.get("text", "") for step in step_results.values()]
-        return "\n\n".join(t for t in texts if t)
+        # step_results : {step_id: text} ; les valeurs sont déjà des strings
+        # (sorties textuelles des étapes du plan).
+        return "\n\n".join(text for text in step_results.values() if text)
 ```
 
 C'est tout. Une classe, deux décorateurs empilés, un hook optionnel.
@@ -57,7 +58,7 @@ C'est tout. Une classe, deux décorateurs empilés, un hook optionnel.
 
 **`tools_required=("web_search", "web_read")`.** Liste les outils que ORIA pourra appeler. Le runtime fail-fast au boot si l'un d'eux manque (cf. [chapitre 6](../part-ii-the-decorators/06-agent-decorator.md)).
 
-**`on_plan_complete`.** Hook optionnel. Quand ORIA a terminé toutes les étapes du plan, il appelle cette méthode avec `step_results` (un dict `{step_id: {"text": ...}}`). Le retour est la réponse finale.
+**`on_plan_complete`.** Hook optionnel. Quand ORIA a terminé toutes les étapes du plan, il appelle cette méthode avec `step_results` (un `dict[str, str]` : `{step_id: text}`). Les valeurs sont les sorties textuelles des étapes, pas des structures imbriquées. Le retour est la réponse finale.
 
 Si vous ne définissez pas `on_plan_complete`, ORIA concatène les textes des étapes dans l'ordre. Ce qui est souvent suffisant pour un quickstart.
 
@@ -108,10 +109,12 @@ Règle simple : si vous pouvez décrire la mission en 5 phrases d'intention, `@o
 
 ```python
 async def on_plan_complete(self, step_results: dict[str, str], ctx: Ctx) -> str:
+    # step_results : dict[str, str], la clé est le step_id (par exemple
+    # "step_3_facts") et la valeur est la sortie textuelle de l'étape.
     sections = []
-    for step_id, step in step_results.items():
-        if step.get("kind") == "fact":
-            sections.append(f"- {step['text']}")
+    for step_id, text in step_results.items():
+        if "facts" in step_id and text:
+            sections.append(f"- {text}")
     return "## Key facts\n\n" + "\n".join(sections)
 ```
 
