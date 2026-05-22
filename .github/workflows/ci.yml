@@ -1,17 +1,34 @@
+# CI — validation continue.
+#
+# Tourne sur chaque push vers main et chaque PR. Goal : garder main vert,
+# attraper les régressions en < 15 min de feedback.
+#
+# Ce qui n'est PAS ici :
+#   - Build/release artifacts → release.yml (sur tag v*)
+#   - E2E desktop, compile-cuda sanity, coverage profonde → nightly.yml
+#
+# Cf. docs/internal/release/BUILD.md pour l'architecture CI complète.
+
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# Annule les runs en cours sur un même ref si un push plus récent arrive.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ── Rust : fmt → clippy → test (chaîne — chacun bloque le suivant) ─────────
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -20,13 +37,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: cargo fmt --check
-        run: cargo fmt --all -- --check
+      - run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
     needs: fmt
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -34,83 +50,49 @@ jobs:
           components: clippy
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Set PYO3_PYTHON
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
-      - name: Install system dependencies
+      - name: Install system deps
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libgtk-3-dev \
             libayatana-appindicator3-dev librsvg2-dev \
             libssl-dev libxdo-dev \
-            libasound2-dev libpulse-dev libjack-jackd2-dev
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
       - uses: Swatinem/rust-cache@v2
-      - name: cargo clippy
-        run: cargo clippy --workspace -- -D warnings
+      - run: cargo clippy --workspace -- -D warnings
 
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Rust Tests
     needs: clippy
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Set PYO3_PYTHON
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
-      - name: Install system dependencies
+      - name: Install system deps
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libgtk-3-dev \
             libayatana-appindicator3-dev librsvg2-dev \
             libssl-dev libxdo-dev \
-            libasound2-dev libpulse-dev libjack-jackd2-dev
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            cmake clang pkg-config
       - uses: Swatinem/rust-cache@v2
       - name: cargo test (workspace)
         run: cargo test --workspace
       - name: cargo test (python-tests)
         run: cargo test -p apollia-e2e-tests --features python-tests
 
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: llvm-tools-preview
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Set PYO3_PYTHON
-        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libgtk-3-dev \
-            libayatana-appindicator3-dev librsvg2-dev \
-            libssl-dev libxdo-dev \
-            libasound2-dev libpulse-dev libjack-jackd2-dev
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Generate HTML coverage report
-        run: cargo llvm-cov --workspace --html
-      - name: Generate LCOV report
-        run: cargo llvm-cov report --lcov --output-path lcov.info
-      - name: Upload coverage HTML report
-        uses: actions/upload-artifact@v5
-        with:
-          name: coverage-html-${{ github.sha }}
-          path: target/llvm-cov/html/
-          retention-days: 30
-
+  # ── Frontend ─────────────────────────────────────────────────────────────
   vitest:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -119,6 +101,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: crates/apollia-desktop/ui/package-lock.json
       - name: Install dependencies
         working-directory: crates/apollia-desktop/ui
         run: npm ci
@@ -126,13 +110,39 @@ jobs:
         working-directory: crates/apollia-desktop/ui
         run: npm test
 
+  # ── Docs : mdBook + sitemap + charte ─────────────────────────────────────
+  mdbook:
+    name: Book Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@mdbook
+      - run: mdbook build book
+      - name: Generate sitemap + robots
+        run: bash book/scripts/gen-sitemap.sh book.apollia.fr target/book
+
+  doc-charte:
+    name: Doc Charte L1.4
+    runs-on: ubuntu-latest
+    # Seulement quand un fichier doc/lint a bougé — évite de re-runner sur
+    # chaque changement code.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.modified, 'book/src/') ||
+      contains(github.event.head_commit.modified, 'docs/wiki/') ||
+      contains(github.event.head_commit.modified, 'docs/help/') ||
+      contains(github.event.head_commit.modified, 'scripts/lints/')
+    steps:
+      - uses: actions/checkout@v5
+      - run: bash scripts/lints/charte-doc.sh
+
   diagrams:
-    name: Diagrams (PlantUML)
+    name: PlantUML Diagrams
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
-      - name: Install Java & PlantUML JAR
+      - name: Install Java + PlantUML
         run: |
           sudo apt-get install -y default-jre-headless graphviz
           mkdir -p ~/.local/bin
@@ -143,9 +153,9 @@ jobs:
           chmod +x ~/.local/bin/plantuml
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - uses: taiki-e/install-action@just
-      - name: Generate SVG diagrams
-        run: just diagrams
+      - run: just diagrams
 
+  # ── Security / dependencies ──────────────────────────────────────────────
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -164,87 +174,3 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
-
-  compile-cuda:
-    name: "Compile check — CUDA feature flags"
-    runs-on: ubuntu-latest
-    # Ce job vérifie la compilation CUDA sans exécution (pas de GPU sur le runner).
-    # Autorisé à échouer si le SDK CUDA n'est pas disponible sur l'image ubuntu-latest.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      # Installer les headers CUDA minimaux requis pour la compilation
-      - name: Install CUDA toolkit (headers only)
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y nvidia-cuda-toolkit
-
-      # cargo check : vérifie la compilation sans générer de binaire
-      # Feature flags testés (workspace virtuel → on cible les crates concernées) :
-      #   - local-cuda  : llama.cpp avec support GPU NVIDIA (apollia-llm)
-      - name: Check CUDA compilation — apollia-llm (local-cuda)
-        run: cargo check -p apollia-llm --features local-cuda
-
-  stt-features:
-    name: STT feature matrix (${{ matrix.feature }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        feature: [cpu, metal, cuda]
-    steps:
-      - uses: actions/checkout@v5
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      # whisper-rs-sys compile whisper.cpp via CMake + clang ; cpal lie ALSA.
-      # Sans ces deps, cargo check -p apollia-stt panique au build script
-      # (exit 101). Cf. ADR-042.
-      - name: Install system build deps (Linux)
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y \
-            build-essential cmake clang pkg-config \
-            libasound2-dev libpulse-dev libjack-jackd2-dev
-
-      - name: Install cross (pour CUDA)
-        if: matrix.feature == 'cuda'
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Check apollia-stt (cpu)
-        if: matrix.feature == 'cpu'
-        run: cargo check -p apollia-stt
-
-      - name: Check apollia-stt (metal)
-        if: matrix.feature == 'metal'
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            cargo check -p apollia-stt --features metal
-          else
-            echo "Metal non disponible sur Linux — skip"
-          fi
-
-      - name: Check apollia-stt (cuda via cross)
-        if: matrix.feature == 'cuda'
-        run: |
-          cross check -p apollia-stt --features cuda \
-            --target x86_64-unknown-linux-gnu
-        env:
-          CROSS_CONTAINER_OPTS: "--platform linux/amd64"
-
-  book:
-    name: mdBook Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: taiki-e/install-action@mdbook
-      - name: Build book
-        run: mdbook build book
-      - name: Generate sitemap.xml + robots.txt
-        # mdbook output (cf. book/book.toml build-dir = "../target/book") :
-        # les .html sont directement dans target/book/, pas un sous-dossier html/.
-        run: bash book/scripts/gen-sitemap.sh book.apollia.fr target/book
-      # deploy-pages désactivé — repo privé (réactiver lors du passage en public)
