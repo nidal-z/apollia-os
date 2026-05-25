@@ -141,13 +141,27 @@ jobs:
           python-version: "3.13"
 
       # ── GPU SDK install (only if matrix says so) ──────────────────────────
-      - name: Install CUDA Toolkit (Linux+Windows x86)
-        if: matrix.needs_cuda && !contains(matrix.runner, 'arm')
+      # CUDA Linux x86 : sub-packages minimaux suffisent (CMake trouve nvcc + libs).
+      - name: Install CUDA Toolkit (Linux x86)
+        if: matrix.needs_cuda && matrix.runner == 'ubuntu-latest'
         uses: Jimver/cuda-toolkit@v0.2.16
         with:
           cuda: '12.4.0'
           method: 'network'
           sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust"]'
+          use-github-cache: true
+
+      # CUDA Windows x86 : DOIT inclure `visual_studio_integration` pour que
+      # CMake détecte le toolset CUDA-MSBuild. Sans ce sub-package, le build
+      # plante avec : "CMake Error : No CUDA toolset found".
+      # (Cf. ggml/src/ggml-cuda/CMakeLists.txt:58 → enable_language(CUDA))
+      - name: Install CUDA Toolkit (Windows x86)
+        if: matrix.needs_cuda && matrix.runner == 'windows-latest'
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust","visual_studio_integration"]'
           use-github-cache: true
 
       - name: Install CUDA aarch64 (Jetson SBSA)
