@@ -68,6 +68,8 @@ Si vous ne définissez pas `on_plan_complete`, ORIA concatène les textes des é
 
 ## Lancer l'agent
 
+Pré-requis : avoir configuré le backend LLM dédié au raisonnement précis. Si vous n'avez qu'un backend par défaut, `apollia-os llm backends set-default <name>` suffit. Sinon, ajoutez `[llm.routing] precise = "<name>"` dans `~/.apollia/apollia.toml` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)). Sans ça, l'invocation échouera avec `[NO_LLM] Orchestrated mode requires a configured LLM`.
+
 ```bash
 python -m apollia inspect briefing_agent.py
 apollia-os agent install ./briefing_agent.py

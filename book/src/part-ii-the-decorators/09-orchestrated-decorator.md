@@ -106,6 +106,8 @@ ORIA (Observer, Reasoner, Actor) est le moteur de plan dynamique côté Rust. Il
 
 Le détail (cache de plans, observations par étape, intégration HITL) est dans la [Partie VIII](../part-viii-runtime-rust/29-runtime-overview.md) et le wiki.
 
+> **Pré-requis runtime.** ORIA s'appuie sur le backend LLM nommé dans `[llm.routing] precise` de `~/.apollia/apollia.toml` pour la planification. Si ce rôle n'est pas configuré (ou pointe vers un backend introuvable), `apollia-os run <agent-orchestré>` échoue avec `[NO_LLM] Orchestrated mode requires a configured LLM`. Configurez au moins un backend et déclarez-le dans `[llm.routing] precise = "<name>"` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)). Les agents `@skill` et `@on_message` ne dépendent pas de ce rôle.
+
 > **Référence technique :** la page wiki `Briques-ORIA-Engine` détaillera plan cache, observations par étape, intégration HITL *(wiki disponible prochainement)*.
 
 ---

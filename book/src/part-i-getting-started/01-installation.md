@@ -131,6 +131,21 @@ apollia-os llm backends list           # tableau des backends enregistrés
 apollia-os llm backends show <name>    # détail (provider, modèle, source de la clé)
 ```
 
+### Pré-requis pour les agents `@orchestrated`
+
+Les agents qui utilisent le décorateur `@orchestrated` (cf. [chapitre 5](05-quickstart-orchestrated.md) et [chapitre 9](../part-ii-the-decorators/09-orchestrated-decorator.md)) ont besoin que le routing LLM pointe vers un backend dédié au raisonnement précis. Sans ça, l'invocation échoue avec `[NO_LLM] Orchestrated mode requires a configured LLM`.
+
+Si vous n'avez qu'un seul backend configuré, `set-default` suffit : le runtime utilise le défaut pour les trois rôles (rapide / précis / par défaut). Si vous en avez plusieurs, ajoutez une section `[llm.routing]` dans `~/.apollia/apollia.toml` :
+
+```toml
+[llm.routing]
+default = "anthropic"
+precise = "anthropic"   # utilisé par ORIA pour planifier @orchestrated
+fast    = "local"
+```
+
+Le détail des trois rôles est au [chapitre 31 (configuration)](../part-viii-runtime-rust/31-rest-api-config.md).
+
 ---
 
 ## Hello, agent

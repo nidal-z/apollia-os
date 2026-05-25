@@ -128,16 +128,44 @@ Le `code` métier est le même que celui que produit `DomainError(code, message)
 Le fichier `~/.apollia/apollia.toml` est lu au démarrage. Il couvre les sections suivantes : `[runtime]`, `[memory]`, `[tools]`, `[logging]`, `[a2a]`, `[chat]`, `[observability]`, `[stt]`, et les backends LLM via `[[llm.backends]]`.
 
 ```toml
-# Exemple minimal : un backend LLM Anthropic
+# Exemple : un backend cloud (Anthropic) pour le raisonnement précis,
+# un backend local (llama.cpp) pour les appels rapides.
+
 [[llm.backends]]
 name        = "anthropic"
 type        = "anthropic"
 model       = "claude-haiku-4-5"
 api_key_env = "ANTHROPIC_API_KEY"
 default     = true
+
+[[llm.backends]]
+name        = "local"
+type        = "llama-cpp"
+model       = "/Users/me/models/mistral-7b-instruct.Q4_K_M.gguf"
+
+# Routing : qui répond à quel besoin.
+[llm.routing]
+default = "anthropic"   # appels ctx.llm.complete / chat / stream sans backend explicite
+precise = "anthropic"   # planification ORIA (mode @orchestrated) et raisonnement profond
+fast    = "local"       # appels best-effort, latence prioritaire
 ```
 
 Si aucun backend n'est configuré, `ctx.llm` lève une erreur à la première utilisation. Le runtime démarre quand même avec un warning.
+
+`[llm.routing]` détermine quel backend est sélectionné selon l'intention :
+
+- `default` : backend par défaut quand l'agent appelle `ctx.llm.complete(...)` sans préciser `backend=`.
+- `precise` : backend utilisé par le moteur ORIA pour la planification des agents `@orchestrated`. **Si `precise` est absent ou pointe vers un backend introuvable, les agents orchestrés échouent avec `NO_LLM` à l'invocation** (le routing direct/skills continue de fonctionner).
+- `fast` : backend pour les appels rapides ou les tâches à fort débit (par exemple les résumés intermédiaires d'ORIA).
+
+Si vous n'avez qu'un seul backend, pointez les trois rôles dessus :
+
+```toml
+[llm.routing]
+default = "anthropic"
+precise = "anthropic"
+fast    = "anthropic"
+```
 
 > **Référence technique :** toutes les sections, clés et valeurs par défaut seront dans la page wiki `Config-apollia-toml` *(wiki disponible prochainement)*.
 

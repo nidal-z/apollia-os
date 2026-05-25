@@ -103,6 +103,26 @@ Trois outils :
 
 Le runtime et le SDK sont open-source MIT, gratuit. Le coût d'opération vient des LLM cloud si vous en utilisez : compte chez Anthropic ou OpenAI. Comptez ~$0.03 par invocation d'un director ReAct moyen, ~$0.001 par appel LLM atomique sur Haiku-4.5. Local llama.cpp : $0 (mais coût matériel d'une machine assez puissante).
 
+### Mon agent `@orchestrated` retourne `[NO_LLM]` à chaque appel
+
+Le moteur ORIA, qui pilote les agents `@orchestrated`, a besoin d'un backend LLM nommé pour le rôle `precise` (planification). Sans ce backend, l'invocation échoue à l'entrée de la planification.
+
+Vérifiez la config :
+
+```bash
+apollia-os llm status
+# Doit afficher au moins un backend prêt + le rôle 'precise' pointé vers un backend existant.
+```
+
+Si `precise` n'est pas câblé, éditez `~/.apollia/apollia.toml` et ajoutez :
+
+```toml
+[llm.routing]
+precise = "anthropic"   # ou le nom d'un backend déjà déclaré dans [[llm.backends]]
+```
+
+Puis redémarrez le runtime (`apollia-os stop && apollia-os start`). Les agents `@skill` et `@on_message` continuent de fonctionner sans cette section ; seuls les `@orchestrated` la requièrent. Détail au [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md).
+
 ### Comment déboguer un agent qui ne répond pas ?
 
 ```bash
