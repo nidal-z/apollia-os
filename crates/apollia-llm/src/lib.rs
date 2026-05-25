@@ -55,6 +55,7 @@ pub use repository::{
     LlmDailyCostSummary, LlmRepositoryError,
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
+pub use apollia_core::config::LlmRoutingConfig;
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::LlmRoutingLevel;
 pub use token_budget::SessionBudgetTracker;

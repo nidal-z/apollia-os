@@ -628,7 +628,23 @@ impl Supervisor {
                 let router_result = LlmRouter::from_repository(&repo).await;
                 let repo = Arc::new(std::sync::Mutex::new(repo));
                 match router_result {
-                    Ok(router) => {
+                    Ok(mut router) => {
+                        // `from_repository` lit `system.db` qui ne stocke pas
+                        // `[llm.routing]`. Si le TOML déclare une section
+                        // routing, on la propage ici pour que les rôles
+                        // `precise`/`fast` soient résolus correctement
+                        // (sinon `route_precise/fast` retombent sur `default`,
+                        // cf. `LlmRouter::route_precise`).
+                        if let Some(llm_cfg) = self.config.llm_config.as_ref() {
+                            if let Some(routing) = llm_cfg.routing.as_ref() {
+                                router = router.with_routing(routing.clone());
+                                tracing::info!(
+                                    precise = %routing.precise,
+                                    fast = %routing.fast,
+                                    "Supervisor: [llm.routing] propagated to LlmRouter"
+                                );
+                            }
+                        }
                         for info in router.list() {
                             tracing::info!(
                                 backend = %info.name,

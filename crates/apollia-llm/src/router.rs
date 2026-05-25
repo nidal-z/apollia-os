@@ -388,18 +388,17 @@ impl LlmRouter {
             });
         }
 
-        // : [llm.routing] obligatoire — erreur fatale si absent (Principe #4).
-        let routing = config
-            .routing
-            .as_ref()
-            .ok_or(LlmError::RoutingConfigMissing)?;
-
-        // : les backends nommés dans routing doivent exister.
-        if !backends.contains_key(&routing.precise) {
-            return Err(LlmError::BackendNotFound(routing.precise.clone()));
-        }
-        if !backends.contains_key(&routing.fast) {
-            return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        // `[llm.routing]` est optionnelle. Si elle est présente, on valide la
+        // cohérence (les backends nommés doivent exister). Si elle est
+        // absente, `route_precise/fast` retombent sur `config.default` au
+        // runtime (cf. méthodes `route_precise` / `route_fast`).
+        if let Some(routing) = config.routing.as_ref() {
+            if !backends.contains_key(&routing.precise) {
+                return Err(LlmError::BackendNotFound(routing.precise.clone()));
+            }
+            if !backends.contains_key(&routing.fast) {
+                return Err(LlmError::BackendNotFound(routing.fast.clone()));
+            }
         }
 
         Ok(Self {
@@ -555,17 +554,16 @@ impl LlmRouter {
             });
         }
 
-        // : [llm.routing] obligatoire — erreur fatale si absent (Principe #4).
-        let routing = config
-            .routing
-            .as_ref()
-            .ok_or(LlmError::RoutingConfigMissing)?;
-
-        if !backends.contains_key(&routing.precise) {
-            return Err(LlmError::BackendNotFound(routing.precise.clone()));
-        }
-        if !backends.contains_key(&routing.fast) {
-            return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        // `[llm.routing]` est optionnelle. Si présente, on valide la
+        // cohérence ; sinon `route_precise/fast` retombent sur `config.default`
+        // (cf. méthodes `route_precise` / `route_fast` plus bas).
+        if let Some(routing) = config.routing.as_ref() {
+            if !backends.contains_key(&routing.precise) {
+                return Err(LlmError::BackendNotFound(routing.precise.clone()));
+            }
+            if !backends.contains_key(&routing.fast) {
+                return Err(LlmError::BackendNotFound(routing.fast.clone()));
+            }
         }
 
         Ok(Self {
@@ -939,6 +937,24 @@ impl LlmRouter {
         names
     }
 
+    /// Attache (ou remplace) le `[llm.routing]` du router.
+    ///
+    /// Utile en post-construction quand le router est instancié via
+    /// [`from_repository`](Self::from_repository) (qui lit `system.db`)
+    /// alors que la config `[llm.routing]` vit dans `apollia.toml`. Le
+    /// supervisor appelle `from_repository` puis chaîne `with_routing` si
+    /// le TOML déclare une section `[llm.routing]`, ce qui propage le
+    /// routing applicatif au router sans dupliquer la lecture.
+    ///
+    /// Validation : le routing est appliqué tel quel. Les backends qu'il
+    /// nomme sont vérifiés à l'invocation via [`route_precise`](Self::route_precise)
+    /// / [`route_fast`](Self::route_fast), qui retourneront
+    /// [`LlmError::BackendNotFound`] si un nom pointe vers un backend absent.
+    pub fn with_routing(mut self, routing: LlmRoutingConfig) -> Self {
+        self.routing = Some(routing);
+        self
+    }
+
     /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
     ///
     /// Utilisé pour tester les chemins de dégradation :
@@ -973,17 +989,31 @@ impl LlmRouter {
     ///
     /// # Erreurs
     ///
-    /// - [`LlmError::RoutingConfigMissing`] — router construit sans config `[llm.routing]`.
-    /// - [`LlmError::BackendNotFound`] — backend nommé absent du router.
+    /// - [`LlmError::BackendNotFound`] — `[llm.routing] precise` nomme un backend
+    ///   qui n'est pas instancié.
+    /// - [`LlmError::RoutingConfigMissing`] — aucun `[llm.routing]` ET aucun
+    ///   backend par défaut résolvable (router vide ou default invalide).
+    ///
+    /// # Fallback
+    ///
+    /// Quand `[llm.routing]` n'est pas configuré explicitement (cas par défaut
+    /// après un simple `apollia-os llm backends set-default <name>`), le router
+    /// retombe sur `self.default`. C'est la promesse documentée dans le book
+    /// (ch 01 « Pré-requis pour les agents `@orchestrated` ») : un setup
+    /// single-backend doit fonctionner pour les agents orchestrés sans config
+    /// `[llm.routing]` explicite.
     pub fn route_precise(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
-        let routing = self
-            .routing
-            .as_ref()
-            .ok_or(LlmError::RoutingConfigMissing)?;
-        self.backends
-            .get(&routing.precise)
-            .cloned()
-            .ok_or_else(|| LlmError::BackendNotFound(routing.precise.clone()))
+        // Cas explicite : `[llm.routing] precise = "<name>"`. Si le backend
+        // nommé existe, on l'utilise ; sinon erreur structurée (config invalide).
+        if let Some(routing) = self.routing.as_ref() {
+            return self
+                .backends
+                .get(&routing.precise)
+                .cloned()
+                .ok_or_else(|| LlmError::BackendNotFound(routing.precise.clone()));
+        }
+        // Fallback : pas de routing → backend par défaut.
+        self.fallback_default("precise")
     }
 
     /// Retourne le backend configuré pour les tâches d'extraction légère.
@@ -994,17 +1024,49 @@ impl LlmRouter {
     ///
     /// # Erreurs
     ///
-    /// - [`LlmError::RoutingConfigMissing`] — router construit sans config `[llm.routing]`.
-    /// - [`LlmError::BackendNotFound`] — backend nommé absent du router.
+    /// - [`LlmError::BackendNotFound`] — `[llm.routing] fast` nomme un backend
+    ///   qui n'est pas instancié.
+    /// - [`LlmError::RoutingConfigMissing`] — aucun `[llm.routing]` ET aucun
+    ///   backend par défaut résolvable.
+    ///
+    /// # Fallback
+    ///
+    /// Voir [`route_precise`](Self::route_precise) : mêmes règles de fallback
+    /// sur `self.default` quand `[llm.routing]` n'est pas explicite.
     pub fn route_fast(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
-        let routing = self
-            .routing
-            .as_ref()
-            .ok_or(LlmError::RoutingConfigMissing)?;
-        self.backends
-            .get(&routing.fast)
-            .cloned()
-            .ok_or_else(|| LlmError::BackendNotFound(routing.fast.clone()))
+        if let Some(routing) = self.routing.as_ref() {
+            return self
+                .backends
+                .get(&routing.fast)
+                .cloned()
+                .ok_or_else(|| LlmError::BackendNotFound(routing.fast.clone()));
+        }
+        self.fallback_default("fast")
+    }
+
+    /// Résout le backend par défaut quand `[llm.routing]` n'est pas configuré.
+    ///
+    /// Cohérent avec la promesse du book (`set-default suffit` pour le cas
+    /// single-backend). Retourne le backend nommé par `self.default` s'il
+    /// existe ; sinon retourne [`LlmError::RoutingConfigMissing`] avec un
+    /// message qui guide l'opérateur.
+    ///
+    /// `role` est juste utilisé pour le log structuré ("precise" ou "fast").
+    fn fallback_default(&self, role: &str) -> Result<Arc<dyn CompletionModel>, LlmError> {
+        if self.default.is_empty() || self.backends.is_empty() {
+            return Err(LlmError::RoutingConfigMissing);
+        }
+        match self.backends.get(&self.default).cloned() {
+            Some(backend) => {
+                tracing::debug!(
+                    role = %role,
+                    backend = %self.default,
+                    "no [llm.routing] configured — falling back to default backend"
+                );
+                Ok(backend)
+            }
+            None => Err(LlmError::RoutingConfigMissing),
+        }
     }
 
     /// Retourne la taille estimée de la fenêtre de contexte en tokens.
@@ -1766,22 +1828,73 @@ mod tests {
         assert_eq!(backend.backend_name(), "claude-haiku-4-5-20251001");
     }
 
-    // GIVEN pas de section [llm.routing] (routing: None)
-    // WHEN route_precise() est appelé
-    // THEN Err(RoutingConfigMissing)
+    // GIVEN un router avec un backend "default" mais aucune [llm.routing] (routing: None)
+    // WHEN route_precise() / route_fast() sont appelés
+    // THEN les deux retombent sur le backend `default` (cas single-backend
+    //      documenté : `apollia-os llm backends set-default <name>` suffit).
     #[tokio::test]
-    async fn router_errors_on_missing_routing_config() {
+    async fn router_falls_back_to_default_when_routing_missing() {
         let mut backends = HashMap::new();
         backends.insert("default".to_owned(), make_mock_backend("default"));
         let router = make_test_router(backends, "default");
 
+        let precise = router
+            .route_precise()
+            .expect("route_precise should fallback to default backend");
+        assert_eq!(precise.backend_name(), "default");
+
+        let fast = router
+            .route_fast()
+            .expect("route_fast should fallback to default backend");
+        assert_eq!(fast.backend_name(), "default");
+    }
+
+    // GIVEN aucun backend du tout (router vide) et aucune [llm.routing]
+    // WHEN route_precise() est appelé
+    // THEN Err(RoutingConfigMissing) — pas de fallback possible, l'opérateur
+    //      doit déclarer au moins un backend.
+    #[tokio::test]
+    async fn router_errors_when_no_backend_and_no_routing() {
+        let backends = HashMap::new();
+        let router = make_test_router(backends, "");
+
         assert!(
             matches!(router.route_precise(), Err(LlmError::RoutingConfigMissing)),
-            "route_precise() must return RoutingConfigMissing when routing is None"
+            "route_precise() must error when no backend is registered"
         );
         assert!(
             matches!(router.route_fast(), Err(LlmError::RoutingConfigMissing)),
-            "route_fast() must return RoutingConfigMissing when routing is None"
+            "route_fast() must error when no backend is registered"
+        );
+    }
+
+    // GIVEN un router construit via `from_repository` (donc routing=None) puis
+    //       enrichi via with_routing(LlmRoutingConfig { precise, fast })
+    // WHEN route_precise() / route_fast() sont appelés
+    // THEN le routing chaîné est respecté.
+    #[tokio::test]
+    async fn router_with_routing_attaches_routing_post_construction() {
+        let mut backends = HashMap::new();
+        backends.insert("opus".to_owned(), make_mock_backend("opus"));
+        backends.insert("haiku".to_owned(), make_mock_backend("haiku"));
+        let router = make_test_router(backends, "haiku").with_routing(LlmRoutingConfig {
+            precise: "opus".to_owned(),
+            fast: "haiku".to_owned(),
+        });
+
+        assert_eq!(
+            router
+                .route_precise()
+                .expect("route_precise should resolve via attached routing")
+                .backend_name(),
+            "opus"
+        );
+        assert_eq!(
+            router
+                .route_fast()
+                .expect("route_fast should resolve via attached routing")
+                .backend_name(),
+            "haiku"
         );
     }
 
