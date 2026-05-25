@@ -1758,6 +1758,170 @@ mod tests {
     /// `failed("NO_HANDLER", ...)` branch of `dispatch_task`. After the
     /// fix, orchestrated tasks hit `engine.execute` directly; missing
     /// LLM is the only remaining failure mode and it has a stable code.
+    /// Full-stack guard: builds a real `AIPProductionBackend` (PyO3 bridge
+    /// + manifest + engine wiring) for an agent whose Python manifest
+    /// declares `execution_mode = "orchestrated"`, and submits a task.
+    ///
+    /// The forged Python agent's `__apollia_dispatch__` returns a unique
+    /// sentinel code (`SDK_DISPATCH_REACHED`) when invoked. If
+    /// `AIPProductionBackend::execute` regresses to routing orchestrated
+    /// tasks through `execute_direct` (the original BUG-004 mode 1),
+    /// the result will carry that sentinel. If the routing stays correct
+    /// but the Reasoner is missing (BUG-004 mode 2 wiring), the result
+    /// will be ORIA's `NO_LLM`. Anything else means a regression.
+    ///
+    /// This is the test that, had it existed pre-patch, would have
+    /// surfaced both BUG-004 modes immediately.
+    #[tokio::test]
+    async fn aip_production_backend_routes_orchestrated_to_oria_full_stack() {
+        use apollia_aip::validator::validate_agent;
+        use apollia_runtime::eventbus::EventBusSender;
+        use pyo3::types::PyModule;
+        use std::ffi::CString;
+
+        // 1. Forge a minimal Python agent class with the orchestrated
+        //    manifest shape the validator + bridge expect. We don't
+        //    import the real Apollia SDK from this Rust test (it would
+        //    require a pip-installed environment). The forged class has
+        //    the exact attributes the validator and bridge introspect:
+        //    `__apollia_manifest__` (dict) and async
+        //    `__apollia_dispatch__`. The dispatch returns a sentinel so
+        //    we can tell whether we ended up there (= routing regression).
+        let code = r#"
+class A:
+    __apollia_manifest__ = {
+        "name": "regression-orch-full",
+        "version": "0.1.0",
+        "description": "BUG-004 full-stack regression guard",
+        "execution_mode": "orchestrated",
+        "system_prompt": "Plan a tiny task and answer.",
+        "tools_required": [],
+    }
+
+    async def __apollia_dispatch__(self, task, ctx):
+        # Reaching this means AIPProductionBackend routed the task to
+        # execute_direct (which goes through __apollia_dispatch__) — i.e.
+        # BUG-004 mode 1 has regressed.
+        return {
+            "task_id": task.get("task_id", ""),
+            "status": "failed",
+            "output": [],
+            "error": {
+                "code": "SDK_DISPATCH_REACHED",
+                "message": "orchestrated task was routed through SDK dispatch",
+                "details": None,
+            },
+            "artifacts": [],
+            "input_required_data": None,
+        }
+
+agent = A()
+"#;
+
+        let py_agent: pyo3::Py<pyo3::PyAny> = Python::with_gil(|py| {
+            let code_c = CString::new(code).expect("test code contains NUL byte");
+            let module = PyModule::from_code(
+                py,
+                &code_c,
+                c"bug004_full_stack_test.py",
+                c"bug004_full_stack_test",
+            )
+            .expect("failed to create test module");
+            module
+                .getattr("agent")
+                .expect("forged module must expose `agent`")
+                .into()
+        });
+
+        // 2. Validate via apollia_aip — confirms the manifest shape is
+        //    well-formed and produces a ValidatedAgent with `execution_mode`
+        //    correctly set.
+        let validated = validate_agent(&py_agent).expect("validation must succeed");
+        assert_eq!(
+            validated.manifest.execution_mode, "orchestrated",
+            "forged manifest must surface execution_mode = orchestrated"
+        );
+        let manifest_snapshot = validated.manifest.clone();
+
+        // 3. Build the bridge.
+        let bridge = Arc::new(
+            AIPBridge::new(validated).expect("bridge construction failed"),
+        );
+
+        // 4. Assemble a minimal AIPProductionBackend. Most optional
+        //    components (tool registry, audit trail, A2A invoker, llm
+        //    router, ...) are intentionally None so we exercise the
+        //    no-LLM path. The branching we care about (execution_mode
+        //    routing in `execute()`) is independent of these.
+        let (event_bus, _event_rx): (EventBusSender, _) =
+            apollia_runtime::eventbus::EventBus::new();
+        let tmp = std::env::temp_dir().join("apollia-bug004-test");
+        let _ = std::fs::create_dir_all(&tmp);
+        let backend = AIPProductionBackend {
+            bridge,
+            agent_id: "regression-orch-full".to_string(),
+            manifest: manifest_snapshot,
+            allowed_tools: vec![],
+            llm_router: None,
+            event_bus,
+            pending_approvals: None,
+            task_repository: None,
+            tool_registry: None,
+            audit_trail: None,
+            memory_namespace: None,
+            memory_base_dir: tmp.clone(),
+            supports_a2a: false,
+            user_memory_write: false,
+            a2a_delegate: None,
+            a2a_invoker: None,
+            tools_config: apollia_core::ToolsConfig::default(),
+            datasources_declared: vec![],
+            templates_declared: vec![],
+            agent_dir: Some(tmp.clone()),
+            secrets_declared: vec![],
+            secrets_data_dir: None,
+        };
+
+        let task = AIPTask {
+            task_id: "task-bug004-full".to_string(),
+            ..AIPTask::default()
+        };
+
+        // 5. Run the full path. Must not panic, must produce an
+        //    AIPResult, must NOT carry our SDK_DISPATCH_REACHED sentinel.
+        let result = backend
+            .execute(task)
+            .await
+            .expect("AIPProductionBackend::execute must not return Err");
+
+        // 6. Assertions: routing went to ORIA (engine.execute), the
+        //    missing Reasoner surfaced cleanly as NO_LLM, and the SDK
+        //    dispatch path was never touched.
+        assert_eq!(
+            result.status,
+            TaskStatus::Failed,
+            "without an LLM router, orchestrated agents must Failed-fast"
+        );
+        let err = result.error.expect("Failed status must carry an AIPError");
+        assert_ne!(
+            err.code, "SDK_DISPATCH_REACHED",
+            "regression: orchestrated task was routed through SDK dispatch \
+             instead of engine.execute (BUG-004 mode 1)"
+        );
+        assert_ne!(
+            err.code, "NO_HANDLER",
+            "regression: orchestrated task fell through to SDK NO_HANDLER \
+             branch (BUG-004 mode 1)"
+        );
+        assert!(
+            err.code.to_uppercase().contains("LLM")
+                || err.message.to_lowercase().contains("llm"),
+            "expected an LLM-related error code, got code={} message={}",
+            err.code,
+            err.message
+        );
+    }
+
     #[tokio::test]
     async fn orchestrated_without_reasoner_yields_no_llm_not_no_handler() {
         let engine = ORIAEngine::new();
