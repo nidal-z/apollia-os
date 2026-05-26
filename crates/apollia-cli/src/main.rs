@@ -157,7 +157,7 @@ enum Commands {
         command: AuthCommand,
     },
 
-    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new).
+    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new, package, logs, validate, repair).
     Agent {
         /// Agent subcommand.
         #[command(subcommand)]
@@ -175,21 +175,21 @@ enum Commands {
         command: A2aCommand,
     },
 
-    /// Task management (list, status, cancel).
+    /// Task management (list, status, cancel, inspect, resume, approvals).
     Task {
         /// Task subcommand.
         #[command(subcommand)]
         command: TaskCommand,
     },
 
-    /// Native tool governance (list, enable, disable, config, reload, credentials, describe).
+    /// Native tool governance (list, enable, disable, config, reload, credentials, describe, approvals).
     Tools {
         /// Tools subcommand.
         #[command(subcommand)]
         command: ToolsCommand,
     },
 
-    /// Audit trail (list, stats).
+    /// Audit trail (list, stats, export).
     Audit {
         /// Audit subcommand.
         #[command(subcommand)]
@@ -203,7 +203,7 @@ enum Commands {
         command: MemoryCommand,
     },
 
-    /// LLM backend diagnostics (status, ping, chat).
+    /// LLM backend diagnostics (status, ping, chat, costs, backends, reload).
     Llm {
         /// LLM subcommand.
         #[command(subcommand)]
@@ -217,21 +217,21 @@ enum Commands {
         command: ModelCommand,
     },
 
-    /// Trigger management (reload).
+    /// Trigger management (list, status, fire, enable, disable, logs, reload, create, update, delete).
     Trigger {
         /// Trigger subcommand.
         #[command(subcommand)]
         command: TriggerCommand,
     },
 
-    /// Notification channel management (test, list, logs).
+    /// Notification channel management (test, list, logs, create, update, delete, events).
     Notify {
         /// Notify subcommand.
         #[command(subcommand)]
         command: NotifyCommand,
     },
 
-    /// Speech-to-Text management (status, transcribe, transcriptions, model).
+    /// Speech-to-Text management (status, transcribe, transcriptions, model, config).
     Stt {
         /// STT subcommand.
         #[command(subcommand)]
@@ -262,7 +262,7 @@ enum Commands {
         list: bool,
     },
 
-    /// MCP server management: list configured servers and discover local ones via mDNS.
+    /// MCP server management (list, add, remove, get, test, restart, update, raw-config, set-approval, list-pending, revoke-approval).
     Mcp {
         /// MCP subcommand.
         #[command(subcommand)]
