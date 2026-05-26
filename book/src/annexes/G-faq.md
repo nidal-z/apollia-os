@@ -95,8 +95,8 @@ Oui. La CLI `apollia-os start` démarre le runtime en arrière-plan. L'API REST 
 
 Trois outils :
 
-- `apollia-os audit --last N` : les N derniers appels d'outils, datés et résultatés.
-- `apollia-os task trace <task-id>` : la trajectoire complète d'une tâche (pensées, tool calls, observations).
+- `apollia-os audit list --limit N` : les N derniers appels d'outils, datés et résultatés.
+- `apollia-os task inspect <task-id>` : la trajectoire complète d'une tâche orchestrée (plan, étapes, observations).
 - `~/.apollia/memory/<agent>.db` : la mémoire propre à l'agent, consultable en SQLite.
 
 ### Combien Apollia coûte-t-il ?
@@ -133,10 +133,10 @@ Puis redémarrez le runtime (`apollia-os stop && apollia-os start`). Les agents 
 ### Comment déboguer un agent qui ne répond pas ?
 
 ```bash
-apollia-os agent logs <agent-name> --tail 100
+apollia-os agent logs <agent-name> --last 100
 ```
 
-Affiche les logs `ctx.logger.*` du worker, plus les erreurs runtime. Combinez avec `apollia-os status` pour voir l'état (`ACTIVE`, `DEGRADED`, `STOPPED`) et `apollia-os task list --pending` pour voir les tâches bloquées.
+Affiche les logs `ctx.logger.*` du worker, plus les erreurs runtime. Combinez avec `apollia-os status` pour voir l'état (`ACTIVE`, `DEGRADED`, `STOPPED`) et `apollia-os task list --pending-approval` pour voir les tâches en attente HITL.
 
 ### Mon agent reste en `STOPPING` éternellement
 
@@ -146,7 +146,7 @@ Probablement une tâche qui ne se termine pas et qui dépasse le drain de 30s. F
 apollia-os stop --force
 ```
 
-Puis investiguez avec `apollia-os task trace <last-task-id>` pour comprendre où elle s'est bloquée. Causes courantes : appel HTTP sans timeout, boucle infinie côté agent, deadlock avec un autre agent (A2A cyclique).
+Puis investiguez avec `apollia-os task inspect <last-task-id>` pour comprendre où elle s'est bloquée. Causes courantes : appel HTTP sans timeout, boucle infinie côté agent, deadlock avec un autre agent (A2A cyclique).
 
 ### Comment intégrer Apollia dans une stack CI ?
 

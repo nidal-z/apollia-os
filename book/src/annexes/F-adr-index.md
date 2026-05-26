@@ -143,7 +143,7 @@ Au moment de la sortie de la v0.1.0, les ADRs ne sont pas encore publiées en li
 
 ## Apollia AgentKit v0.5 (refonte SDK)
 
-Les 15 décisions qui définissent le SDK Python decorator-first :
+Les décisions qui définissent le SDK Python decorator-first :
 
 - `ADR-098` : Apollia AgentKit, decorator-first.
 - `ADR-099` : Signature inference comme schéma I/O.
@@ -158,7 +158,6 @@ Les 15 décisions qui définissent le SDK Python decorator-first :
 - `ADR-108` : SDK mailbox A2A suppression.
 - `ADR-109` : SDK AIPResult interne.
 - `ADR-110` : `apollia inspect` CLI.
-- `ADR-111` : SDK vision typage memory I/O.
 - `ADR-112` : SDK stream cleanup et rename.
 
 ---

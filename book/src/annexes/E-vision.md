@@ -72,7 +72,7 @@ Cf. [Annexe C](C-principles.md) pour la version détaillée.
 
 1. **Local-first, toujours.** Aucun octet de données utilisateur ne quitte la machine sans action explicite.
 2. **Zéro dépendance externe.** Le binaire fonctionne sur tout Linux sans installation préalable.
-3. **Contrat minimal, friction zéro.** Un agent existant doit tourner dans Apollia avec moins de 30 lignes d'adaptation.
+3. **Contrat minimal, friction zéro.** Un agent existant doit tourner dans Apollia avec moins de 10 lignes d'adaptation.
 4. **Fail fast.** Toute erreur détectable au démarrage est détectée au démarrage.
 5. **Un acteur, une responsabilité.** Pattern acteur Tokio, zéro état partagé.
 6. **Mémoire à initiative de l'agent.** Jamais d'injection automatique de contexte mémoriel.

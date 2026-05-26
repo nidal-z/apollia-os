@@ -1,18 +1,23 @@
 # Capstone : implémentation des workers
 
-Trois workers. Chacun ~80 lignes. On commence par `web-research`, on enchaîne avec `crm-lookup`, on finit avec `meeting-prep`. Tous suivent le même pattern : `@agent` + 2 ou 3 `@skill`, TypedDict canon, `DomainError` typées.
+Trois workers. Chacun ~80 lignes. On commence par `web-research`, on enchaîne avec `crm-lookup`, on finit avec `meeting-prep`. Tous suivent le même pattern : `@agent` + 2 ou 3 `@skill`, TypedDict canon, `DomainError` typées. Pour rester en mode mono-fichier (cf. [chapitre 38](38-capstone-architecture.md)), chaque worker inline ses `TypedDict` dans son `.py` plutôt qu'un `schemas.py` séparé.
 
 ---
 
 ## Worker 1 : `web-research`
 
-### `web-research/schemas.py`
-
-Pas de `from __future__ import annotations` (PEP 563 casserait `__required_keys__`).
-
 ```python
-from typing import TypedDict
+"""agents/web-research/web_research.py"""
 
+from typing import Annotated, TypedDict
+
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
+
+
+# --- Schémas ----------------------------------------------------------------
+# Note: pas de `from __future__ import annotations` (PEP 563 casserait
+# `TypedDict.__required_keys__`). Cf. chapitre 21.
 
 class CompanyInfo(TypedDict):
     name: str
@@ -28,17 +33,19 @@ class SignalEntry(TypedDict):
     source: str
     url: str
     summary: str
-```
 
-### `web-research/web_research.py`
 
-```python
-from typing import Annotated
+# Sources de news fiables — codées en constante pour rester mono-fichier.
+TRUSTED_NEWS_DOMAINS = (
+    "lesechos.fr",
+    "latribune.fr",
+    "usine-nouvelle.com",
+    "linkedin.com",
+    "bfmtv.com",
+)
 
-from apollia import DomainError, agent, skill
-from apollia.types import Ctx
-from schemas import CompanyInfo, SignalEntry
 
+# --- Agent ------------------------------------------------------------------
 
 @agent(
     name="web-research",
@@ -46,7 +53,6 @@ from schemas import CompanyInfo, SignalEntry
     description="Public web research about a company.",
     agent_type="worker",
     tools_required=("web_search", "web_read"),
-    datasources=("trusted_news_sources",),
 )
 class WebResearch:
     @skill(
@@ -86,11 +92,9 @@ class WebResearch:
     async def research_signals(
         self,
         company_name: Annotated[str, "Legal or commercial name of the company."],
-        max_signals: Annotated[int, "Maximum number of signals to return (default 5)."] = 5,
         ctx: Ctx,
+        max_signals: Annotated[int, "Maximum number of signals to return (default 5)."] = 5,
     ) -> dict:
-        trusted = await ctx.datasources.get("trusted_news_sources")
-
         signals: list[SignalEntry] = []
         results = await ctx.tools.call(
             "web_search",
@@ -98,7 +102,7 @@ class WebResearch:
         )
 
         for hit in results.get("hits", [])[:max_signals]:
-            if not any(src in hit["url"] for src in trusted["domains"]):
+            if not any(src in hit["url"] for src in TRUSTED_NEWS_DOMAINS):
                 continue
             page = await ctx.tools.call("web_read", input={"url": hit["url"]})
             signals.append({
@@ -136,25 +140,17 @@ class WebResearch:
         }
 ```
 
-### `web-research/datasources/trusted_news_sources.yaml`
-
-```yaml
-domains:
-  - lesechos.fr
-  - latribune.fr
-  - usine-nouvelle.com
-  - linkedin.com
-  - bfmtv.com
-```
-
 ---
 
 ## Worker 2 : `crm-lookup`
 
-### `crm-lookup/schemas.py`
-
 ```python
-from typing import TypedDict
+"""agents/crm-lookup/crm_lookup.py"""
+
+from typing import Annotated, TypedDict
+
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 
 
 class ContactRecord(TypedDict):
@@ -168,16 +164,6 @@ class HistoryEntry(TypedDict):
     date: str
     type: str   # "email", "call", "meeting", "quote"
     summary: str
-```
-
-### `crm-lookup/crm_lookup.py`
-
-```python
-from typing import Annotated
-
-from apollia import DomainError, agent, skill
-from apollia.types import Ctx
-from schemas import ContactRecord, HistoryEntry
 
 
 HUBSPOT_API = "https://api.hubapi.com/crm/v3/objects"
@@ -227,8 +213,8 @@ class CrmLookup:
     async def lookup_history(
         self,
         contact_email: Annotated[str, "Email of the contact in CRM."],
-        since_days: Annotated[int, "Look back window in days (default 365)."] = 365,
         ctx: Ctx,
+        since_days: Annotated[int, "Look back window in days (default 365)."] = 365,
     ) -> dict:
         token = ctx.secrets.get("hubspot_api_token")
         if not token:
@@ -243,10 +229,15 @@ class CrmLookup:
 
 ## Worker 3 : `meeting-prep`
 
-### `meeting-prep/schemas.py`
+Le formatage se fait en code Python pur (pas de templates Jinja2 externes : restons en mono-fichier, cf. ch38).
 
 ```python
-from typing import TypedDict
+"""agents/meeting-prep/meeting_prep.py"""
+
+from typing import Annotated, TypedDict
+
+from apollia import DomainError, agent, skill
+from apollia.types import Ctx
 
 
 class BriefPayload(TypedDict):
@@ -256,16 +247,28 @@ class BriefPayload(TypedDict):
     signals: list
     crm_contacts: list
     crm_history: list
-```
 
-### `meeting-prep/meeting_prep.py`
 
-```python
-from typing import Annotated
-
-from apollia import DomainError, agent, skill
-from apollia.types import Ctx
-from schemas import BriefPayload
+def _render_brief(payload: BriefPayload) -> str:
+    lines = [f"# RDV {payload['company_name']}, {payload['meeting_when']}", ""]
+    lines.append("## L'entreprise")
+    lines.append(payload["company_info"].get("description", "(pas d'info)"))
+    lines.append("")
+    lines.append("## Signaux récents")
+    if payload["signals"]:
+        for signal in payload["signals"]:
+            lines.append(f"- {signal['date']} : {signal['title']} ({signal['source']}).")
+    else:
+        lines.append("- Aucun signal récent.")
+    lines.append("")
+    lines.append("## Contacts CRM")
+    for contact in payload["crm_contacts"]:
+        lines.append(f"- {contact['full_name']} ({contact['job_title']}, {contact['email']}).")
+    lines.append("")
+    lines.append("## Historique récent")
+    for entry in payload["crm_history"]:
+        lines.append(f"- {entry['date']} : {entry['type']} — {entry['summary']}.")
+    return "\n".join(lines)
 
 
 @agent(
@@ -273,7 +276,6 @@ from schemas import BriefPayload
     version="0.1.0",
     description="Format the final meeting briefing.",
     agent_type="worker",
-    templates=("brief", "questions"),
 )
 class MeetingPrep:
     @skill(
@@ -282,7 +284,7 @@ class MeetingPrep:
         examples=[{
             "company_name": "Acme Corp",
             "meeting_when": "demain 10:00",
-            "company_info": {"name": "Acme Corp"},
+            "company_info": {"name": "Acme Corp", "description": "PME industrielle"},
             "signals": [],
             "crm_contacts": [],
             "crm_history": [],
@@ -291,17 +293,7 @@ class MeetingPrep:
     async def build_brief(self, payload: BriefPayload, ctx: Ctx) -> dict:
         if not payload.get("company_name"):
             raise DomainError("EMPTY_COMPANY", "company_name must not be empty")
-
-        markdown = ctx.templates.render(
-            "brief",
-            company_name=payload["company_name"],
-            meeting_when=payload["meeting_when"],
-            company_info=payload["company_info"],
-            signals=payload["signals"],
-            crm_contacts=payload["crm_contacts"],
-            crm_history=payload["crm_history"],
-        )
-        return {"markdown": markdown, "company_name": payload["company_name"]}
+        return {"markdown": _render_brief(payload), "company_name": payload["company_name"]}
 
     @skill(
         "prep.format_questions",
@@ -314,48 +306,10 @@ class MeetingPrep:
         themes: Annotated[list[str], "Topics to probe. Each topic generates 1-2 questions."],
         ctx: Ctx,
     ) -> dict:
-        markdown = ctx.templates.render(
-            "questions",
-            company_name=company_name,
-            themes=themes,
-        )
-        return {"markdown": markdown}
-```
-
-### `meeting-prep/templates/brief.j2`
-
-```jinja
-# RDV {{ company_name }}, {{ meeting_when }}
-
-## L'entreprise
-{{ company_info.description }}
-
-## Signaux récents
-{% for signal in signals %}
-- {{ signal.date }} : {{ signal.title }} ({{ signal.source }}).
-{% else %}
-- Aucun signal récent.
-{% endfor %}
-
-## Contacts CRM
-{% for contact in crm_contacts %}
-- {{ contact.full_name }} ({{ contact.job_title }}, {{ contact.email }}).
-{% endfor %}
-
-## Historique récent
-{% for entry in crm_history %}
-- {{ entry.date }} : {{ entry.type }} - {{ entry.summary }}.
-{% endfor %}
-```
-
-### `meeting-prep/templates/questions.j2`
-
-```jinja
-## Questions à poser à {{ company_name }}
-
-{% for theme in themes %}
-- À propos de **{{ theme }}** : ?
-{% endfor %}
+        lines = [f"## Questions à poser à {company_name}", ""]
+        for theme in themes:
+            lines.append(f"- À propos de **{theme}** : ?")
+        return {"markdown": "\n".join(lines)}
 ```
 
 ---
@@ -382,7 +336,7 @@ apollia-os agent list
 #   crm-lookup        0.1.0      active    yes        installed
 #   meeting-prep      0.1.0      active    yes        installed
 
-apollia-os a2a skills | grep -E "^(web|crm|prep)\."
+apollia-os a2a skills | grep -E "(web|crm|prep)\."
 ```
 
 Si un agent échoue à l'installation, `python -m apollia inspect <fichier>.py` donnera le détail.
@@ -408,7 +362,6 @@ async def test_research_company_returns_basic_info():
         "web_search": {"hits": [{"url": "https://example.com/acme", "title": "Acme"}]},
         "web_read": {"content": "Acme Corp is a precision parts manufacturer."},
     }
-    ctx.datasources.values = {"trusted_news_sources": {"domains": ["example.com"]}}
 
     result = await agent.invoke_skill("web.research.company", company_name="Acme")
 

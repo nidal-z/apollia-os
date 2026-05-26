@@ -55,11 +55,14 @@ Après création, le trigger est actif immédiatement, aucun redémarrage néces
 Variante CLI :
 
 ```bash
-apollia-os trigger add weekly-report \
+apollia-os trigger create weekly-report \
   --agent report-agent \
-  --cron "0 8 * * MON" \
+  --kind cron \
+  --detail "0 8 * * MON" \
   --input "Generate the report for week {{week_iso}}"
 ```
+
+La CLI suit un schéma uniforme : `--kind <TYPE> --detail <VALUE>` quel que soit le type de trigger (`cron`, `interval`, `oneshot`, `file_watch`, `webhook`). `--detail` porte la valeur spécifique au type (expression cron, durée, date, glob, identifiant webhook).
 
 ---
 
@@ -79,9 +82,10 @@ Que se passe-t-il si le trigger se déclenche pendant que l'agent est déjà occ
 ## File watch
 
 ```bash
-apollia-os trigger add new-invoice \
+apollia-os trigger create new-invoice \
   --agent invoice-router \
-  --file-watch "~/imports/*.pdf" \
+  --kind file_watch \
+  --detail "~/imports/*.pdf" \
   --on-busy queue \
   --input "Process the new invoice at {{file_path}}"
 ```
@@ -99,12 +103,15 @@ Le file watcher utilise `notify` v6 côté Rust (inotify sur Linux, FSEvents sur
 ## Webhook
 
 ```bash
-apollia-os trigger add github-push \
+apollia-os trigger create github-push \
   --agent ci-runner \
-  --webhook --secret "$(openssl rand -hex 32)" \
+  --kind webhook \
+  --detail github-push \
   --on-busy queue \
   --input "Push from {{headers.x-github-actor}}: {{body.ref}}"
 ```
+
+Le secret HMAC-SHA256 est généré par le runtime à la création et exposé une seule fois dans la réponse JSON ; conservez-le pour signer les requêtes côté émetteur.
 
 Le runtime expose alors `POST /webhooks/github-push` qui vérifie la signature HMAC-SHA256 en header `X-Apollia-Signature` avant de déclencher. Le payload JSON entrant est accessible dans `input_template` via `{{body.*}}` et `{{headers.*}}`.
 
@@ -114,13 +121,13 @@ Le runtime expose alors `POST /webhooks/github-push` qui vérifie la signature H
 
 ```bash
 # Cron : 5 champs
-apollia-os trigger add nightly --agent backup --cron "0 2 * * *" --input "Run backup"
+apollia-os trigger create nightly --agent backup --kind cron --detail "0 2 * * *" --input "Run backup"
 
 # Interval : durée
-apollia-os trigger add inbox-check --agent mail-agent --interval 30m --input "Check inbox"
+apollia-os trigger create inbox-check --agent mail-agent --kind interval --detail 30m --input "Check inbox"
 
 # Oneshot : date-heure ISO 8601
-apollia-os trigger add migration --agent migrator --oneshot "2026-12-31T02:00:00Z" --input "Run migration"
+apollia-os trigger create migration --agent migrator --kind oneshot --detail "2026-12-31T02:00:00Z" --input "Run migration"
 ```
 
 Variables disponibles : `{{now_iso}}`, `{{date}}`, `{{time}}`, `{{week_iso}}`, `{{day_of_week}}`.
@@ -149,7 +156,7 @@ Pour modifier un trigger sans redémarrer le runtime :
 
 ```bash
 apollia-os trigger disable weekly-report
-apollia-os trigger update weekly-report --cron "0 9 * * MON"
+apollia-os trigger update weekly-report --kind cron --detail "0 9 * * MON"
 apollia-os trigger enable weekly-report
 ```
 

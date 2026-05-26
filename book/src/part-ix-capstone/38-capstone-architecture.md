@@ -102,11 +102,10 @@ Aucune ressource directe : le director ne lit pas de datasource, ne rend pas de 
     description="Public web research about a company.",
     agent_type="worker",
     tools_required=("web_search", "web_read"),
-    datasources=("trusted_news_sources",),
 )
 ```
 
-Outils natifs `web_search` et `web_read` (sandboxés). Une datasource YAML qui liste les sources fiables de news (Les Échos, La Tribune, etc.) pour scorer les hits.
+Outils natifs `web_search` et `web_read` (sandboxés). La liste des sources fiables (Les Échos, La Tribune, etc.) qui sert à scorer les hits est codée comme constante Python dans le worker pour rester en mode mono-fichier. Un projet réel exposerait ces sources comme datasource YAML via le mode package.
 
 ### `crm-lookup`
 
@@ -131,11 +130,10 @@ Le secret `hubspot_api_token` est obligatoire. Le worker l'utilise pour appeler 
     version="0.1.0",
     description="Format the final meeting briefing.",
     agent_type="worker",
-    templates=("brief", "questions"),
 )
 ```
 
-Deux templates Jinja2 pour formater le brief et les questions. Aucun secret, aucun outil. C'est un agent purement de formatting.
+Aucun secret, aucun outil. C'est un agent purement de formatting : il assemble une chaîne markdown à partir du payload reçu. Les workers Apollia qui ont besoin de templates Jinja2 embarqués passent par le mode package `agent.toml` ; ici, on garde le formatting en code Python pur pour rester en mode mono-fichier (cf. section « Organisation des fichiers » ci-dessus).
 
 ---
 
@@ -166,22 +164,14 @@ agents/
 ├── meeting-director/
 │   └── director.py
 ├── web-research/
-│   ├── web_research.py
-│   ├── schemas.py
-│   └── datasources/
-│       └── trusted_news_sources.yaml
+│   └── web_research.py        (TypedDicts + agent dans un seul .py)
 ├── crm-lookup/
-│   ├── crm_lookup.py
-│   └── schemas.py
+│   └── crm_lookup.py
 └── meeting-prep/
-    ├── meeting_prep.py
-    ├── schemas.py
-    └── templates/
-        ├── brief.j2
-        └── questions.j2
+    └── meeting_prep.py
 ```
 
-Un dossier par agent. Pour les workers, le `schemas.py` accompagne le fichier principal. Pour `meeting-prep`, les templates Jinja2 vivent dans `templates/` (cf. [chapitre 15](../part-iii-the-ctx-protocol/15-ctx-datasources-templates.md)).
+Un dossier par agent, **un fichier `.py` par agent**. `apollia-os agent install <file>.py` copie uniquement le fichier passé en argument, pas un `schemas.py` ou un dossier `datasources/` voisins : tout ce que l'agent utilise (TypedDicts, helpers internes) doit donc vivre dans son `.py` principal. Pour les agents qui nécessitent vraiment des templates Jinja2 ou des datasources YAML embarqués, la voie est le mode package via `agent.toml` (à traiter dans le chapitre `apollia-os agent package` du wiki, *disponible prochainement*). Le capstone reste en mode mono-fichier pour ne pas multiplier les concepts.
 
 ---
 

@@ -13,7 +13,7 @@ Stabilisation et qualité de vie.
 - **ADRs publiées.** Les ADRs 001 à 112 (architecture decisions records) seront accessibles publiquement sur le repo GitHub.
 - **`apollia-os migrate` CLI.** Outil pour migrer un agent d'une version mineure à une autre (par exemple `apollia-os migrate v0.1 v0.2 <agent.py>`).
 - **`apollia-os eval` framework.** Premier squelette intégré pour les eval suites (cf. [chapitre 26](../part-vi-testing/26-eval-suites.md)). Standardise la structure et le reporting.
-- **Vision multimodale étendue.** Aujourd'hui Anthropic et OpenAI seulement. Ajout d'Ollama vision, puis llama.cpp local quand un modèle GGUF compatible est packagé.
+- **Vision multimodale.** Le SDK expose déjà des helpers `text()` et `image_from_path()`, mais aucun backend LLM du runtime v0.1 ne sait sérialiser un message contenant une image. Implémentation côté backends Anthropic / OpenAI / Ollama vision en v0.2, puis llama.cpp local quand un modèle GGUF compatible sera packagé.
 - **STT amélioré.** Modèles whisper-rs supplémentaires, transcription incrémentale, support de plus de formats audio.
 
 ---
@@ -65,6 +65,6 @@ Trois canaux :
 
 ## Suivi des releases
 
-Les releases sont annoncées sur le repo GitHub (tag + release notes). La version est dans `apollia.__version__` côté SDK et dans `apollia --version` côté CLI.
+Les releases sont annoncées sur le repo GitHub (tag + release notes). La version est dans `apollia.__version__` côté SDK et dans `apollia-os --version` côté CLI.
 
 Pas de cycle fixe. Une release sort quand un ensemble cohérent de changements est prêt et testé. Tendance : releases mineures toutes les 2-3 semaines après la v0.1.0, jusqu'à stabilisation.

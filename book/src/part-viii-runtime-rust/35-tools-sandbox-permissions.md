@@ -218,11 +218,11 @@ Côté agent, **aucune différence** : `ctx.tools.call("mcp:github/list_issues",
 Chaque invocation d'outil est enregistrée dans `~/.apollia/audit.db` :
 
 ```bash
-$ apollia-os audit --last 5
-  HEURE          AGENT            TÂCHE    OUTIL         DURÉE   RÉSULTAT
-  10:00:05       pdf-worker       t-xyz    file_write    12ms    ✔
-  10:00:04       pdf-worker       t-xyz    file_read     8ms     ✔
-  09:58:11       pdf-worker       t-abc    file_read     6ms     ✗ not_found
+$ apollia-os audit list --limit 5
+  TIMESTAMP            AGENT            TOOL          STATUS   MS
+  2026-05-25T10:00:05  pdf-worker       file_write    ok       12
+  2026-05-25T10:00:04  pdf-worker       file_read     ok       8
+  2026-05-25T09:58:11  pdf-worker       file_read     failed   6
 ```
 
 L'audit trail est persisté en local SQLite, jamais envoyé à l'extérieur. C'est votre journal de traçabilité pour le debug et la conformité.
