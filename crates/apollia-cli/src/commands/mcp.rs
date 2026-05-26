@@ -170,6 +170,44 @@ pub enum McpCommand {
         #[command(subcommand)]
         command: crate::commands::mcp_oauth::McpOauthCommand,
     },
+
+    /// Manage MCP server secrets (env-var values) in the OS keychain.
+    ///
+    /// Mirrors the Desktop secret store: entries are keyed by
+    /// `{server}:{env_var}` under the keychain service `apollia-mcp`, so a
+    /// secret stored by the CLI is read transparently by the Desktop runtime.
+    Secret {
+        /// Secret subcommand.
+        #[command(subcommand)]
+        command: McpSecretCommand,
+    },
+}
+
+/// Subcommands of `apollia-os mcp secret`.
+#[derive(Debug, Subcommand)]
+pub enum McpSecretCommand {
+    /// Persist `<value>` as the secret for `(<server>, <env_var>)`.
+    ///
+    /// The value is written to the OS keychain under service `apollia-mcp` and
+    /// composite key `{server}:{env_var}`. Use `delete` to remove. The CLI does
+    /// not echo the value back, but it is stored as-is (no trimming beyond
+    /// stripping leading / trailing whitespace).
+    Set {
+        /// MCP server name (matches the name in `mcp.db` / `mcp.toml`).
+        server: String,
+        /// Environment variable name (e.g. `NOTION_API_KEY`).
+        env_var: String,
+        /// Secret value to store.
+        value: String,
+    },
+
+    /// Delete the stored secret for `(<server>, <env_var>)`.
+    Delete {
+        /// MCP server name.
+        server: String,
+        /// Environment variable name.
+        env_var: String,
+    },
 }
 
 /// Errors returned by MCP subcommands.
@@ -325,6 +363,105 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
         }
 
         McpCommand::Oauth { command } => crate::commands::mcp_oauth::run(command, json).await,
+
+        McpCommand::Secret { command } => run_secret(command, json),
+    }
+}
+
+/// Same keychain service name the Desktop uses for MCP server secrets.
+/// Mirrors `SecretStore::new()` in `apollia-desktop/src/mcp/secret_store.rs`
+/// so CLI writes are read transparently by the daemon.
+const MCP_SECRET_SERVICE: &str = "apollia-mcp";
+
+fn mcp_secret_key(server: &str, env_var: &str) -> String {
+    format!("{server}:{env_var}")
+}
+
+fn run_secret(cmd: &McpSecretCommand, json: bool) -> i32 {
+    match cmd {
+        McpSecretCommand::Set {
+            server,
+            env_var,
+            value,
+        } => run_secret_set(server, env_var, value, json),
+        McpSecretCommand::Delete { server, env_var } => run_secret_delete(server, env_var, json),
+    }
+}
+
+fn emit_secret_error(msg: String, json: bool) -> i32 {
+    if json {
+        let out = serde_json::json!({ "error": msg });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        eprintln!("Error: {msg}");
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+fn run_secret_set(server: &str, env_var: &str, value: &str, json: bool) -> i32 {
+    if server.trim().is_empty() {
+        return emit_secret_error("server name must not be empty".into(), json);
+    }
+    if env_var.trim().is_empty() {
+        return emit_secret_error("env_var must not be empty".into(), json);
+    }
+    let trimmed_value = value.trim();
+    if trimmed_value.is_empty() {
+        return emit_secret_error(
+            "value must not be empty (use `mcp secret delete` to remove a secret)".into(),
+            json,
+        );
+    }
+    let store = match apollia_auth::select_secret_store() {
+        Ok(s) => s,
+        Err(e) => return emit_secret_error(format!("keychain unavailable: {e}"), json),
+    };
+    let key = mcp_secret_key(server, env_var);
+    match store.set(MCP_SECRET_SERVICE, &key, trimmed_value) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "server": server,
+                    "env_var": env_var,
+                    "stored": true,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * secret stored for {server} / {env_var}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => emit_secret_error(format!("keychain write failed: {e}"), json),
+    }
+}
+
+fn run_secret_delete(server: &str, env_var: &str, json: bool) -> i32 {
+    if server.trim().is_empty() {
+        return emit_secret_error("server name must not be empty".into(), json);
+    }
+    if env_var.trim().is_empty() {
+        return emit_secret_error("env_var must not be empty".into(), json);
+    }
+    let store = match apollia_auth::select_secret_store() {
+        Ok(s) => s,
+        Err(e) => return emit_secret_error(format!("keychain unavailable: {e}"), json),
+    };
+    let key = mcp_secret_key(server, env_var);
+    match store.delete(MCP_SECRET_SERVICE, &key) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "server": server,
+                    "env_var": env_var,
+                    "deleted": true,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * secret deleted for {server} / {env_var}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => emit_secret_error(format!("keychain delete failed: {e}"), json),
     }
 }
 
@@ -1360,5 +1497,70 @@ mod tests {
         // THEN the entry appears
         assert!(out.contains("code-tools"));
         assert!(out.contains("bash_exec"));
+    }
+
+    #[test]
+    fn parses_secret_set() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: McpCommand,
+        }
+        let cli = TestCli::parse_from([
+            "x",
+            "secret",
+            "set",
+            "notion",
+            "NOTION_API_KEY",
+            "secret_value_xyz",
+        ]);
+        match cli.cmd {
+            McpCommand::Secret {
+                command: McpSecretCommand::Set { server, env_var, value },
+            } => {
+                assert_eq!(server, "notion");
+                assert_eq!(env_var, "NOTION_API_KEY");
+                assert_eq!(value, "secret_value_xyz");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_secret_delete() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: McpCommand,
+        }
+        let cli = TestCli::parse_from(["x", "secret", "delete", "notion", "NOTION_API_KEY"]);
+        match cli.cmd {
+            McpCommand::Secret {
+                command: McpSecretCommand::Delete { server, env_var },
+            } => {
+                assert_eq!(server, "notion");
+                assert_eq!(env_var, "NOTION_API_KEY");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn secret_set_rejects_empty_value() {
+        let code = run_secret_set("notion", "NOTION_API_KEY", "   ", true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn secret_set_rejects_empty_server() {
+        let code = run_secret_set("  ", "K", "v", true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn mcp_secret_key_composes_pair() {
+        assert_eq!(mcp_secret_key("notion", "NOTION_API_KEY"), "notion:NOTION_API_KEY");
     }
 }

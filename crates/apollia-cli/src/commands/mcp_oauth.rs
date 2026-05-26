@@ -17,8 +17,8 @@ use std::path::PathBuf;
 use clap::Subcommand;
 
 use apollia_auth::{
-    delete_mcp_token, load_mcp_token, negotiate_token, select_secret_store, AuthError,
-    McpOAuthError, NegotiateRequest,
+    delete_mcp_token, load_mcp_token, negotiate_token, parse_www_authenticate,
+    select_secret_store, AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest,
 };
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
@@ -73,7 +73,54 @@ pub enum McpOauthCommand {
         #[arg(long)]
         confirm: bool,
     },
+
+    /// Manage per-env-var OAuth client-id overrides stored in the OS keychain.
+    ///
+    /// Mirrors the Desktop Settings → MCP → "OAuth client id" panel.
+    /// Resolution chain: env var > keychain (this command) > build-time default.
+    #[command(name = "client-id", subcommand)]
+    ClientId(McpClientIdCommand),
+
+    /// Run RFC 9728 + RFC 8414 OAuth discovery against `<server>` and print
+    /// the resulting authorization server, scopes and endpoints.
+    ///
+    /// Read-only — no token is exchanged and no secret is written. Useful to
+    /// confirm an HTTP MCP server's PRM + AS metadata before invoking `login`.
+    Discover {
+        /// Server name as declared in `mcp.db`.
+        server: String,
+        /// Override the path to `mcp.db` (default: `~/.apollia/mcp.db`).
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
 }
+
+/// Subcommands of `apollia-os mcp oauth client-id`.
+#[derive(Debug, Subcommand)]
+pub enum McpClientIdCommand {
+    /// Persist `<value>` as the OAuth client id for the env var `<env_var>`.
+    ///
+    /// The env var is the same one the connector wizard surfaces (e.g.
+    /// `APOLLIA_FIGMA_CLIENT_ID`). Pass an empty value to fail validation —
+    /// use `clear` to remove.
+    Set {
+        /// Env var name (e.g. `APOLLIA_FIGMA_CLIENT_ID`).
+        env_var: String,
+        /// New client id value.
+        value: String,
+    },
+
+    /// Remove the persisted client id stored under `<env_var>`.
+    Clear {
+        /// Env var name.
+        env_var: String,
+    },
+}
+
+/// Same keychain service name the Desktop uses for OAuth client-id overrides.
+/// Mirrors `MCP_CLIENT_ID_SERVICE` in `apollia-desktop/src/commands/mcp.rs`
+/// so the two binaries share entries on the host keychain.
+const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
 
 /// Entry point for `apollia-os mcp oauth <verb>`.
 pub async fn run(cmd: &McpOauthCommand, json: bool) -> i32 {
@@ -88,6 +135,10 @@ pub async fn run(cmd: &McpOauthCommand, json: bool) -> i32 {
             run_status(server.as_deref(), db.as_deref(), json).await
         }
         McpOauthCommand::Logout { server, confirm } => run_logout(server, *confirm, json),
+        McpOauthCommand::ClientId(sub) => run_client_id(sub, json),
+        McpOauthCommand::Discover { server, db } => {
+            run_discover(server, db.as_deref(), json).await
+        }
     }
 }
 
@@ -516,6 +567,173 @@ fn run_logout(server: &str, confirm: bool, json: bool) -> i32 {
     }
 }
 
+// ─── client-id ───────────────────────────────────────────────────────────────
+
+fn run_client_id(cmd: &McpClientIdCommand, json: bool) -> i32 {
+    match cmd {
+        McpClientIdCommand::Set { env_var, value } => run_client_id_set(env_var, value, json),
+        McpClientIdCommand::Clear { env_var } => run_client_id_clear(env_var, json),
+    }
+}
+
+fn run_client_id_set(env_var: &str, value: &str, json: bool) -> i32 {
+    let trimmed_env = env_var.trim();
+    if trimmed_env.is_empty() {
+        return emit_error("env_var must not be empty", json);
+    }
+    let trimmed_value = value.trim();
+    if trimmed_value.is_empty() {
+        return emit_error(
+            "value must not be empty (use `mcp oauth client-id clear <env_var>` to remove)",
+            json,
+        );
+    }
+    let store = match select_secret_store() {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("keychain unavailable: {e}"), json),
+    };
+    match store.set(MCP_CLIENT_ID_SERVICE, trimmed_env, trimmed_value) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "env_var": trimmed_env,
+                    "stored": true,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * client id stored under {trimmed_env}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => emit_error(format!("keychain write failed: {e}"), json),
+    }
+}
+
+fn run_client_id_clear(env_var: &str, json: bool) -> i32 {
+    let trimmed_env = env_var.trim();
+    if trimmed_env.is_empty() {
+        return emit_error("env_var must not be empty", json);
+    }
+    let store = match select_secret_store() {
+        Ok(s) => s,
+        Err(e) => return emit_error(format!("keychain unavailable: {e}"), json),
+    };
+    match store.delete(MCP_CLIENT_ID_SERVICE, trimmed_env) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "env_var": trimmed_env,
+                    "cleared": true,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * client id cleared for {trimmed_env}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => emit_error(format!("keychain delete failed: {e}"), json),
+    }
+}
+
+// ─── discover ─────────────────────────────────────────────────────────────────
+
+async fn run_discover(server: &str, db_override: Option<&std::path::Path>, json: bool) -> i32 {
+    let server_url = match load_server_url(db_override, server) {
+        Ok(u) => u,
+        Err(e) => return emit_error(e, json),
+    };
+
+    let www_authenticate = probe_www_authenticate(&server_url).await.unwrap_or(None);
+
+    let discovery = match McpDiscoveryClient::new() {
+        Ok(c) => c,
+        Err(e) => return emit_error(format!("init discovery client: {e}"), json),
+    };
+
+    let prm_result = match www_authenticate
+        .as_deref()
+        .and_then(parse_www_authenticate)
+        .and_then(|wa| wa.resource_metadata)
+    {
+        Some(prm_url) => discovery.fetch_prm_at(&prm_url).await,
+        None => discovery.fetch_prm(&server_url).await,
+    };
+    let prm = match prm_result {
+        Ok(p) => p,
+        Err(e) => return emit_error(format!("fetch PRM: {e}"), json),
+    };
+
+    let as_url = match prm.authorization_servers.first().cloned() {
+        Some(u) => u,
+        None => {
+            return emit_error("PRM declared no authorization servers", json);
+        }
+    };
+
+    let as_metadata = match discovery.fetch_as_metadata(&as_url).await {
+        Ok(m) => m,
+        Err(e) => return emit_error(format!("fetch AS metadata: {e}"), json),
+    };
+
+    let supports_pkce = as_metadata.supports_pkce_s256();
+
+    if json {
+        let body = serde_json::json!({
+            "server": server,
+            "server_url": server_url,
+            "www_authenticate_present": www_authenticate.is_some(),
+            "authorization_server": as_url,
+            "supports_pkce_s256": supports_pkce,
+            "scopes_supported": prm.scopes_supported,
+            "as_authorization_endpoint": as_metadata.authorization_endpoint,
+            "as_token_endpoint": as_metadata.token_endpoint,
+            "as_registration_endpoint": as_metadata.registration_endpoint,
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        println!("  Discovery report for '{server}':");
+        println!("    server URL              : {server_url}");
+        println!(
+            "    WWW-Authenticate probe  : {}",
+            if www_authenticate.is_some() {
+                "captured"
+            } else {
+                "not present"
+            }
+        );
+        println!("    authorization server    : {as_url}");
+        println!(
+            "    supports PKCE S256      : {}",
+            if supports_pkce { "yes" } else { "NO" }
+        );
+        if !prm.scopes_supported.is_empty() {
+            println!("    PRM scopes_supported    :");
+            for s in &prm.scopes_supported {
+                println!("      - {s}");
+            }
+        }
+        println!(
+            "    authorization endpoint  : {}",
+            as_metadata.authorization_endpoint
+        );
+        println!(
+            "    token endpoint          : {}",
+            as_metadata.token_endpoint
+        );
+        if let Some(reg) = &as_metadata.registration_endpoint {
+            println!("    registration endpoint   : {reg}");
+        }
+    }
+
+    if !supports_pkce {
+        // Distinct exit code communicates that the *server* fails the policy
+        // even though discovery itself succeeded — useful in scripts that
+        // gate `mcp oauth login` on this report.
+        return exit_codes::TASK_FAILED;
+    }
+    exit_codes::SUCCESS
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,5 +830,74 @@ mod tests {
             p.to_string_lossy().ends_with(".apollia/mcp.db"),
             "unexpected default path: {p:?}"
         );
+    }
+
+    #[test]
+    fn parses_client_id_set() {
+        let cli = TestCli::parse_from([
+            "x",
+            "client-id",
+            "set",
+            "APOLLIA_FIGMA_CLIENT_ID",
+            "figma-abc123",
+        ]);
+        match cli.cmd {
+            McpOauthCommand::ClientId(McpClientIdCommand::Set { env_var, value }) => {
+                assert_eq!(env_var, "APOLLIA_FIGMA_CLIENT_ID");
+                assert_eq!(value, "figma-abc123");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_client_id_clear() {
+        let cli = TestCli::parse_from(["x", "client-id", "clear", "APOLLIA_FIGMA_CLIENT_ID"]);
+        match cli.cmd {
+            McpOauthCommand::ClientId(McpClientIdCommand::Clear { env_var }) => {
+                assert_eq!(env_var, "APOLLIA_FIGMA_CLIENT_ID");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_discover() {
+        let cli = TestCli::parse_from(["x", "discover", "notion"]);
+        match cli.cmd {
+            McpOauthCommand::Discover { server, db } => {
+                assert_eq!(server, "notion");
+                assert!(db.is_none());
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_discover_with_db_override() {
+        let cli =
+            TestCli::parse_from(["x", "discover", "notion", "--db", "/tmp/custom.db"]);
+        match cli.cmd {
+            McpOauthCommand::Discover { server, db } => {
+                assert_eq!(server, "notion");
+                assert_eq!(
+                    db,
+                    Some(std::path::PathBuf::from("/tmp/custom.db"))
+                );
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn client_id_set_rejects_empty_env_var() {
+        let code = run_client_id_set("", "v", true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn client_id_set_rejects_empty_value() {
+        let code = run_client_id_set("APOLLIA_FIGMA_CLIENT_ID", "  ", true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 }
