@@ -71,10 +71,10 @@ jobs:
           {
             "include": [
               {"preset":"macos-silicon",      "runner":"macos-latest",    "triple":"aarch64-apple-darwin",      "features":"cloud,local-metal,local-accelerate,stt-metal", "archive":"tar.gz"},
-              {"preset":"linux-x86-cpu",      "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true},
-              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-latest",   "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true},
+              {"preset":"linux-x86-cpu",      "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
+              {"preset":"linux-x86-cuda",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true},
+              {"preset":"linux-x86-rocm",     "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-rocm,stt-rocm",                    "archive":"tar.gz", "needs_rocm":true},
+              {"preset":"linux-x86-vulkan",   "runner":"ubuntu-22.04",    "triple":"x86_64-unknown-linux-gnu",  "features":"cloud,local-vulkan,stt-whisper-cpp",           "archive":"tar.gz", "needs_vulkan":true},
               {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"tar.gz"},
               {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm","triple":"aarch64-unknown-linux-gnu", "features":"cloud,local-cuda,stt-cuda",                    "archive":"tar.gz", "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-cpu",    "runner":"windows-latest",  "triple":"x86_64-pc-windows-msvc",    "features":"cloud,local-cpu,stt-whisper-cpp",              "archive":"zip"},
@@ -143,7 +143,7 @@ jobs:
       # ── GPU SDK install (only if matrix says so) ──────────────────────────
       # CUDA Linux x86 : sub-packages minimaux suffisent (CMake trouve nvcc + libs).
       - name: Install CUDA Toolkit (Linux x86)
-        if: matrix.needs_cuda && matrix.runner == 'ubuntu-latest'
+        if: matrix.needs_cuda && matrix.runner == 'ubuntu-22.04'
         uses: Jimver/cuda-toolkit@v0.2.16
         with:
           cuda: '12.4.0'
@@ -239,17 +239,26 @@ jobs:
           fi
 
       # ── Build ─────────────────────────────────────────────────────────────
+      # ADR-113 : depuis le refactor multi-runner, apollia-cli n'expose plus
+      # que la feature `cloud`. Les features `local-*` / `stt-*` historiques
+      # de `matrix.features` ne s'appliquent plus qu'au runner (filtrées par
+      # l'étape "Extract runner feature" ci-dessous). On force ici `cloud`
+      # quand il est demandé, rien sinon.
       # Windows : +crt-static via .cargo/config.toml + CMAKE_MSVC_RUNTIME_LIBRARY
-      # pour aligner /MT côté llama-cpp-sys-2 et whisper-rs-sys.
+      # pour aligner /MT côté apollia-runner (llama-cpp-sys-2 / whisper-rs-sys).
       - name: Build CLI
         shell: bash
         env:
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
         run: |
+          CLI_FEATS=""
+          if echo "${{ matrix.features }}" | grep -q '\bcloud\b'; then
+            CLI_FEATS="cloud"
+          fi
           cargo build --release -p apollia-cli \
             --target ${{ matrix.triple }} \
             --no-default-features \
-            --features "${{ matrix.features }}"
+            --features "$CLI_FEATS"
 
       # ADR-113 : build apollia-runner avec la feature backend correspondante.
       # Extrait local-{cpu,cuda,rocm,vulkan,metal} de matrix.features.
@@ -473,7 +482,9 @@ jobs:
     name: Desktop Linux (x86_64)
     needs: setup
     if: needs.setup.outputs.run_desktop == 'true'
-    runs-on: ubuntu-latest
+    # Pin sur 22.04 (jammy) pour cohérence avec les CLI Linux : webkit2gtk-4.1
+    # est dispo sur noble mais on garde une base unique pour les builds.
+    runs-on: ubuntu-22.04
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
     steps:
