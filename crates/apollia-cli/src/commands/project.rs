@@ -85,6 +85,36 @@ pub enum ProjectCommand {
         #[command(subcommand)]
         command: ProjectTemplatesCommand,
     },
+
+    /// Link (or unlink) a chat session to a project.
+    ///
+    /// Writes `chat_sessions.project_id` directly via
+    /// `apollia_runtime::chat::ChatSessionRepository` so the runtime does
+    /// not need to be running. Pass `--unlink` to clear the session's
+    /// project link instead of setting it; the project_id positional is
+    /// then ignored.
+    Link {
+        /// Project id (UUID returned by `project list`).
+        project_id: String,
+        /// Chat session id (returned by `chat --list`).
+        #[arg(long, value_name = "ID")]
+        session: String,
+        /// Clear the session's project_id instead of setting it.
+        #[arg(long)]
+        unlink: bool,
+        /// Override the chat database path (default: `~/.apollia/chat.db`).
+        #[arg(long, value_name = "PATH")]
+        chat_db: Option<PathBuf>,
+    },
+
+    /// List chat sessions linked to a project.
+    Chats {
+        /// Project id (UUID).
+        project_id: String,
+        /// Override the chat database path.
+        #[arg(long, value_name = "PATH")]
+        chat_db: Option<PathBuf>,
+    },
 }
 
 /// Subcommands of `apollia-os project agents`.
@@ -170,7 +200,158 @@ pub fn run(cmd: &ProjectCommand, json: bool) -> i32 {
         ProjectCommand::Delete { id, confirm, db } => run_delete(db.as_deref(), id, *confirm, json),
         ProjectCommand::Agents { command } => run_agents(command, json),
         ProjectCommand::Templates { command } => run_templates(command, json),
+        ProjectCommand::Link {
+            project_id,
+            session,
+            unlink,
+            chat_db,
+        } => run_link(project_id, session, *unlink, chat_db.as_deref(), json),
+        ProjectCommand::Chats {
+            project_id,
+            chat_db,
+        } => run_chats(project_id, chat_db.as_deref(), json),
     }
+}
+
+// ─── link / chats ────────────────────────────────────────────────────────────
+
+fn resolve_chat_db(override_path: Option<&Path>) -> PathBuf {
+    if let Some(p) = override_path {
+        return p.to_path_buf();
+    }
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".apollia")
+        .join("chat.db")
+}
+
+fn open_chat_repo(
+    db: Option<&Path>,
+    json: bool,
+) -> Option<apollia_runtime::chat::ChatSessionRepository> {
+    let path = resolve_chat_db(db);
+    if !path.exists() {
+        emit_error(
+            format!(
+                "chat database not found at {} (no chat session has ever been persisted)",
+                path.display()
+            ),
+            json,
+        );
+        return None;
+    }
+    match apollia_runtime::chat::ChatSessionRepository::open(&path) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            emit_error(format!("open {} failed: {e}", path.display()), json);
+            None
+        }
+    }
+}
+
+fn run_link(
+    project_id: &str,
+    session: &str,
+    unlink: bool,
+    chat_db: Option<&Path>,
+    json: bool,
+) -> i32 {
+    if session.trim().is_empty() {
+        emit_error("--session must not be empty", json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let Some(repo) = open_chat_repo(chat_db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    let target = if unlink {
+        None
+    } else if project_id.trim().is_empty() {
+        emit_error("project_id must not be empty (use --unlink to clear)", json);
+        return exit_codes::GENERAL_ERROR;
+    } else {
+        Some(project_id)
+    };
+    match repo.set_session_project(session, target) {
+        Ok(()) => {
+            if json {
+                let body = serde_json::json!({
+                    "session_id": session,
+                    "project_id": target,
+                    "unlinked": unlink,
+                });
+                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+            } else if unlink {
+                println!("  * session '{session}' unlinked from any project");
+            } else {
+                println!("  * session '{session}' linked to project {project_id}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            emit_error(format!("link failed: {e}"), json);
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn run_chats(project_id: &str, chat_db: Option<&Path>, json: bool) -> i32 {
+    if project_id.trim().is_empty() {
+        emit_error("project_id must not be empty", json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let Some(repo) = open_chat_repo(chat_db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    let sessions = match repo.list_sessions_by_project(project_id) {
+        Ok(s) => s,
+        Err(e) => {
+            emit_error(format!("list_sessions_by_project: {e}"), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        let array: Vec<serde_json::Value> = sessions
+            .iter()
+            .map(|s| {
+                serde_json::json!({
+                    "id": s.id,
+                    "title": s.title,
+                    "mode": s.mode,
+                    "status": s.status,
+                    "agent_name": s.agent_name,
+                    "created_at": s.created_at,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::Value::Array(array)).unwrap_or_default()
+        );
+    } else if sessions.is_empty() {
+        println!("No chat sessions linked to project {project_id}.");
+    } else {
+        println!(
+            "  Chat sessions linked to {project_id} ({}):",
+            sessions.len()
+        );
+        println!(
+            "  {:<24} {:<8} {:<10} {:<20} TITLE",
+            "ID", "MODE", "STATUS", "CREATED_AT"
+        );
+        for s in &sessions {
+            let title = s
+                .title
+                .as_deref()
+                .filter(|t| !t.is_empty())
+                .unwrap_or("(untitled)");
+            println!(
+                "  {:<24} {:<8} {:<10} {:<20} {}",
+                s.id, s.mode, s.status, s.created_at, title
+            );
+        }
+    }
+    exit_codes::SUCCESS
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -634,5 +815,85 @@ mod tests {
             exit_codes::SUCCESS
         );
         assert_eq!(run_agents_list(Some(&db), &pid, true), exit_codes::SUCCESS);
+    }
+
+    #[test]
+    fn parses_link_with_unlink() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: ProjectCommand,
+        }
+        let cli =
+            TestCli::parse_from(["x", "link", "proj-uuid", "--session", "sess-id", "--unlink"]);
+        match cli.cmd {
+            ProjectCommand::Link {
+                project_id,
+                session,
+                unlink,
+                ..
+            } => {
+                assert_eq!(project_id, "proj-uuid");
+                assert_eq!(session, "sess-id");
+                assert!(unlink);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_link_default() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: ProjectCommand,
+        }
+        let cli = TestCli::parse_from(["x", "link", "proj-uuid", "--session", "sess"]);
+        match cli.cmd {
+            ProjectCommand::Link {
+                project_id,
+                session,
+                unlink,
+                ..
+            } => {
+                assert_eq!(project_id, "proj-uuid");
+                assert_eq!(session, "sess");
+                assert!(!unlink);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_chats() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: ProjectCommand,
+        }
+        let cli = TestCli::parse_from(["x", "chats", "proj-uuid"]);
+        match cli.cmd {
+            ProjectCommand::Chats { project_id, .. } => assert_eq!(project_id, "proj-uuid"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn link_rejects_missing_chat_db() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("does_not_exist.db");
+        let code = run_link("p", "s", false, Some(&missing), true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn chats_rejects_missing_chat_db() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("does_not_exist.db");
+        let code = run_chats("p", Some(&missing), true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 }
