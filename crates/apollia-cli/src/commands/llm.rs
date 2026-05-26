@@ -29,7 +29,24 @@ pub enum LlmCommand {
         backend: Option<String>,
     },
     /// Display aggregated usage and costs (tokens and estimated cost per backend).
-    Costs,
+    ///
+    /// Without flags, prints the cost table. Use `--get-threshold` to print
+    /// `[llm] cost_alert_threshold_usd` from `apollia.toml`, or
+    /// `--threshold N` to set it.
+    Costs {
+        /// Read the cost alert threshold from `apollia.toml` instead of the
+        /// cost table.
+        #[arg(long, conflicts_with = "threshold")]
+        get_threshold: bool,
+        /// Set the cost alert threshold (USD). Writes
+        /// `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0`
+        /// or a negative value to clear the threshold.
+        #[arg(long, value_name = "USD")]
+        threshold: Option<f64>,
+        /// Optional config file path override (default: `~/.apollia/apollia.toml`).
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
+    },
     /// Manage configured LLM backends (list, create, update, delete, set-default).
     Backends {
         /// Backends subcommand.
@@ -42,6 +59,37 @@ pub enum LlmCommand {
     /// the in-memory router stays frozen until a reload. This command swaps
     /// the active router in place without interrupting running tasks.
     Reload,
+
+    /// First-run helper: configure a local LLM in one step.
+    ///
+    /// `--local` is the only mode supported today. It expects a `.gguf` model
+    /// path, copies it into `~/.apollia/models/` (no copy when already there),
+    /// and creates a backend named `local` with `provider=llama-cpp` and
+    /// `is_default=true` in `system.db`. The runtime picks the new default
+    /// on the next `llm reload` (or daemon restart).
+    Setup {
+        /// Use the local llama-cpp backend (required for v0.1.0; cloud
+        /// providers go through `auth login` + `llm backends create`).
+        #[arg(long)]
+        local: bool,
+        /// Path to the `.gguf` model file.
+        #[arg(long, value_name = "PATH")]
+        model: PathBuf,
+        /// Backend name (default: `local`). Overwrites the existing entry of
+        /// the same name.
+        #[arg(long, value_name = "NAME", default_value = "local")]
+        name: String,
+        /// Device hint for llama-cpp: `metal` (macOS default), `cuda`, `cpu`.
+        /// When omitted, picks `metal` on macOS and `cpu` elsewhere.
+        #[arg(long, value_name = "DEVICE")]
+        device: Option<String>,
+        /// Override the system database path (default: `~/.apollia/system.db`).
+        #[arg(long, value_name = "PATH")]
+        system_db: Option<PathBuf>,
+        /// Override the models directory (default: `~/.apollia/models/`).
+        #[arg(long, value_name = "DIR")]
+        models_dir: Option<PathBuf>,
+    },
 }
 
 /// Backends CRUD subcommands: `apollia-os llm backends <verb>`.
@@ -166,9 +214,40 @@ pub async fn run(cmd: &LlmCommand, socket: Option<PathBuf>, json: bool) -> i32 {
         LlmCommand::Chat { prompt, backend } => {
             run_chat(&client, prompt, backend.as_deref(), json).await
         }
-        LlmCommand::Costs => run_costs(&client, json).await,
+        LlmCommand::Costs {
+            get_threshold,
+            threshold,
+            config,
+        } => {
+            run_costs(
+                &client,
+                *get_threshold,
+                *threshold,
+                config.as_deref(),
+                json,
+            )
+            .await
+        }
         LlmCommand::Backends { command } => run_backends(&client, command, json).await,
         LlmCommand::Reload => run_reload(&client, json).await,
+        LlmCommand::Setup {
+            local,
+            model,
+            name,
+            device,
+            system_db,
+            models_dir,
+        } => {
+            run_setup(
+                *local,
+                model,
+                name,
+                device.as_deref(),
+                system_db.as_deref(),
+                models_dir.as_deref(),
+                json,
+            )
+        }
     }
 }
 
@@ -435,7 +514,19 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
 // ─────────────────────────────────────────────
 
 /// `apollia-os llm costs` — afficher l'utilisation et les coûts agrégés par backend.
-async fn run_costs(client: &RuntimeClient, json: bool) -> i32 {
+async fn run_costs(
+    client: &RuntimeClient,
+    get_threshold: bool,
+    set_threshold: Option<f64>,
+    config_path_override: Option<&std::path::Path>,
+    json: bool,
+) -> i32 {
+    if get_threshold {
+        return run_get_cost_threshold(config_path_override, json);
+    }
+    if let Some(v) = set_threshold {
+        return run_set_cost_threshold(v, config_path_override, json);
+    }
     match client.get_llm_costs().await {
         Ok(resp) => {
             if json {
@@ -450,6 +541,265 @@ async fn run_costs(client: &RuntimeClient, json: bool) -> i32 {
         }
         Err(e) => handle_error(e, json),
     }
+}
+
+fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
+    if let Some(p) = override_path {
+        return p.to_path_buf();
+    }
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".apollia")
+        .join("apollia.toml")
+}
+
+fn emit_llm_error(msg: String, json: bool) -> i32 {
+    if json {
+        let out = serde_json::json!({ "error": msg });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        eprintln!("Error: {msg}");
+    }
+    exit_codes::GENERAL_ERROR
+}
+
+fn run_get_cost_threshold(override_path: Option<&std::path::Path>, json: bool) -> i32 {
+    let path = resolve_apollia_toml(override_path);
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Treat an absent file as "no threshold set" so scripts can detect
+            // the unconfigured state with `--json | jq .threshold == null`.
+            if json {
+                let body = serde_json::json!({
+                    "path": path.display().to_string(),
+                    "threshold": serde_json::Value::Null,
+                });
+                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+            } else {
+                println!("  (no cost alert threshold set in {})", path.display());
+            }
+            return exit_codes::SUCCESS;
+        }
+        Err(e) => return emit_llm_error(format!("read {} failed: {e}", path.display()), json),
+    };
+    let doc: toml_edit::DocumentMut = match content.parse() {
+        Ok(d) => d,
+        Err(e) => return emit_llm_error(format!("parse {} failed: {e}", path.display()), json),
+    };
+    let threshold = doc
+        .get("llm")
+        .and_then(|t| t.get("cost_alert_threshold_usd"))
+        .and_then(|v| v.as_float());
+    if json {
+        let body = serde_json::json!({
+            "path": path.display().to_string(),
+            "threshold": threshold,
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        match threshold {
+            Some(v) => println!("  cost_alert_threshold_usd = {v} (in {})", path.display()),
+            None => println!("  (no cost alert threshold set in {})", path.display()),
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+fn run_set_cost_threshold(
+    value: f64,
+    override_path: Option<&std::path::Path>,
+    json: bool,
+) -> i32 {
+    let path = resolve_apollia_toml(override_path);
+    if let Some(parent) = path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return emit_llm_error(
+                format!("create {} failed: {e}", parent.display()),
+                json,
+            );
+        }
+    }
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: toml_edit::DocumentMut = match content.parse() {
+        Ok(d) => d,
+        Err(e) => return emit_llm_error(format!("parse {} failed: {e}", path.display()), json),
+    };
+    if value <= 0.0 {
+        // Clear semantics: drop the key but keep the table.
+        if let Some(table) = doc.get_mut("llm").and_then(|i| i.as_table_mut()) {
+            table.remove("cost_alert_threshold_usd");
+        }
+    } else {
+        let llm_table = doc
+            .entry("llm")
+            .or_insert(toml_edit::Item::Table(toml_edit::Table::new()))
+            .as_table_mut();
+        if let Some(table) = llm_table {
+            table.insert("cost_alert_threshold_usd", toml_edit::value(value));
+        }
+    }
+    if let Err(e) = std::fs::write(&path, doc.to_string()) {
+        return emit_llm_error(format!("write {} failed: {e}", path.display()), json);
+    }
+    if json {
+        let body = serde_json::json!({
+            "path": path.display().to_string(),
+            "threshold": if value <= 0.0 { serde_json::Value::Null } else { serde_json::json!(value) },
+            "cleared": value <= 0.0,
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else if value <= 0.0 {
+        println!("  * cost_alert_threshold cleared in {}", path.display());
+    } else {
+        println!("  * cost_alert_threshold_usd = {value} written to {}", path.display());
+    }
+    exit_codes::SUCCESS
+}
+
+fn run_setup(
+    local: bool,
+    model: &std::path::Path,
+    backend_name: &str,
+    device_override: Option<&str>,
+    system_db_override: Option<&std::path::Path>,
+    models_dir_override: Option<&std::path::Path>,
+    json: bool,
+) -> i32 {
+    if !local {
+        return emit_llm_error(
+            "only --local is supported in v0.1.0 (cloud providers go through `auth login` + `llm backends create`)".into(),
+            json,
+        );
+    }
+    if !model.exists() {
+        return emit_llm_error(format!("model file not found: {}", model.display()), json);
+    }
+    let extension_ok = model
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("gguf"))
+        .unwrap_or(false);
+    if !extension_ok {
+        return emit_llm_error(
+            format!("expected a .gguf file, got {}", model.display()),
+            json,
+        );
+    }
+
+    let device = device_override
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            if cfg!(target_os = "macos") {
+                "metal".to_string()
+            } else {
+                "cpu".to_string()
+            }
+        });
+
+    let apollia_home = dirs::home_dir()
+        .map(|h| h.join(".apollia"))
+        .unwrap_or_else(|| PathBuf::from(".apollia"));
+    let models_dir = models_dir_override
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| apollia_home.join("models"));
+    if let Err(e) = std::fs::create_dir_all(&models_dir) {
+        return emit_llm_error(
+            format!("create {} failed: {e}", models_dir.display()),
+            json,
+        );
+    }
+
+    let file_name = match model.file_name().and_then(|s| s.to_str()) {
+        Some(n) => n.to_string(),
+        None => return emit_llm_error("invalid model filename".into(), json),
+    };
+    let dest = models_dir.join(&file_name);
+    if dest != model {
+        if let Err(e) = std::fs::copy(model, &dest) {
+            return emit_llm_error(
+                format!("copy {} → {}: {e}", model.display(), dest.display()),
+                json,
+            );
+        }
+    }
+    let model_path_storage = format!("~/.apollia/models/{file_name}");
+
+    let system_db_path = system_db_override
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| apollia_home.join("system.db"));
+    if let Some(parent) = system_db_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let quantization = infer_quantization(&file_name);
+
+    let backend_config = apollia_core::LlmBackendConfig {
+        name: backend_name.to_string(),
+        provider: apollia_core::LlmProvider::LlamaCpp,
+        model: model_path_storage.clone(),
+        config_json: serde_json::json!({
+            "model_path": model_path_storage,
+            "device": device,
+            "quantization": quantization,
+        }),
+        enabled: true,
+        is_default: true,
+    };
+
+    let repo = match apollia_core::LlmBackendRepository::open(&system_db_path) {
+        Ok(r) => r,
+        Err(e) => {
+            return emit_llm_error(
+                format!("open {} failed: {e}", system_db_path.display()),
+                json,
+            );
+        }
+    };
+    if let Err(e) = repo.save(&backend_config) {
+        return emit_llm_error(format!("save backend failed: {e}"), json);
+    }
+
+    if json {
+        let body = serde_json::json!({
+            "backend_name": backend_name,
+            "model_path": dest.display().to_string(),
+            "model_path_storage": model_path_storage,
+            "device": device,
+            "quantization": quantization,
+            "system_db": system_db_path.display().to_string(),
+            "is_default": true,
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        println!("  * local LLM backend '{backend_name}' configured");
+        println!("    model    : {}", dest.display());
+        println!("    device   : {device}");
+        println!("    quant.   : {quantization}");
+        println!("    system   : {}", system_db_path.display());
+        println!(
+            "    -> run `apollia-os llm reload` (or restart the daemon) to make it live."
+        );
+    }
+    exit_codes::SUCCESS
+}
+
+/// Infer the GGUF quantization tag from a filename (best-effort).
+///
+/// Mirrors the helper in `apollia-desktop/src/commands/config.rs` so the CLI
+/// and Desktop classify the same file the same way.
+fn infer_quantization(file_name: &str) -> String {
+    let upper = file_name.to_uppercase();
+    let patterns = [
+        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M",
+        "Q3_K_S", "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
+    ];
+    for p in &patterns {
+        if upper.contains(p) {
+            return p.to_lowercase();
+        }
+    }
+    "q4_k_m".to_string()
 }
 
 /// Render `GET /api/v1/llm/costs` as a human-readable table.
@@ -1091,8 +1441,159 @@ mod tests {
         // GIVEN "costs"
         // WHEN
         let cli = TestCli::parse_from(["apollia-os", "costs"]);
-        // THEN LlmCommand::Costs
-        assert!(matches!(cli.command, LlmCommand::Costs));
+        // THEN LlmCommand::Costs (no threshold flags)
+        assert!(matches!(
+            cli.command,
+            LlmCommand::Costs {
+                get_threshold: false,
+                threshold: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_llm_costs_get_threshold_parses() {
+        let cli = TestCli::parse_from(["apollia-os", "costs", "--get-threshold"]);
+        match &cli.command {
+            LlmCommand::Costs {
+                get_threshold,
+                threshold,
+                ..
+            } => {
+                assert!(*get_threshold);
+                assert!(threshold.is_none());
+            }
+            other => panic!("expected Costs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_llm_costs_set_threshold_parses() {
+        let cli = TestCli::parse_from(["apollia-os", "costs", "--threshold", "0.5"]);
+        match &cli.command {
+            LlmCommand::Costs {
+                get_threshold,
+                threshold,
+                ..
+            } => {
+                assert!(!*get_threshold);
+                assert_eq!(*threshold, Some(0.5));
+            }
+            other => panic!("expected Costs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_llm_costs_threshold_conflicts_with_get_threshold() {
+        let result = TestCli::try_parse_from([
+            "apollia-os",
+            "costs",
+            "--threshold",
+            "0.5",
+            "--get-threshold",
+        ]);
+        assert!(result.is_err(), "--threshold + --get-threshold must conflict");
+    }
+
+    #[test]
+    fn test_llm_setup_local_parses() {
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "setup",
+            "--local",
+            "--model",
+            "/tmp/model.gguf",
+        ]);
+        match &cli.command {
+            LlmCommand::Setup {
+                local,
+                model,
+                name,
+                ..
+            } => {
+                assert!(*local);
+                assert_eq!(model, &PathBuf::from("/tmp/model.gguf"));
+                assert_eq!(name, "local");
+            }
+            other => panic!("expected Setup, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_llm_setup_with_custom_name_and_device() {
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "setup",
+            "--local",
+            "--model",
+            "/tmp/m.gguf",
+            "--name",
+            "tiny",
+            "--device",
+            "cpu",
+        ]);
+        match &cli.command {
+            LlmCommand::Setup {
+                local,
+                name,
+                device,
+                ..
+            } => {
+                assert!(*local);
+                assert_eq!(name, "tiny");
+                assert_eq!(device.as_deref(), Some("cpu"));
+            }
+            other => panic!("expected Setup, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_setup_without_local_flag_errors() {
+        // Pretend file exists by referencing the binary itself (any extant file
+        // with a non-.gguf extension would still pass the existence check, but
+        // we exit before that on --local missing).
+        let code = run_setup(
+            false,
+            std::path::Path::new("/tmp/never.gguf"),
+            "local",
+            None,
+            None,
+            None,
+            true,
+        );
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn test_setup_rejects_missing_model_file() {
+        let code = run_setup(
+            true,
+            std::path::Path::new("/definitely/missing/model.gguf"),
+            "local",
+            None,
+            None,
+            None,
+            true,
+        );
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn test_setup_rejects_non_gguf_extension() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        // Write to a path with a non-gguf extension.
+        let path = tmp.path().with_extension("bin");
+        std::fs::copy(tmp.path(), &path).unwrap();
+        let code = run_setup(true, &path, "local", None, None, None, true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn infer_quantization_picks_known_pattern() {
+        assert_eq!(infer_quantization("llama-Q4_K_M.gguf"), "q4_k_m");
+        assert_eq!(infer_quantization("Qwen3-0.6B-Q8_0.gguf"), "q8_0");
+        assert_eq!(infer_quantization("unknown.gguf"), "q4_k_m");
     }
 
     #[test]
