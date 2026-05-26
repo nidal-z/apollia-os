@@ -12,16 +12,67 @@
 //! - Built-in: `/fork`, `/fork N`, `/fork list`, `/list-commands`
 //! - Custom: any `.md` file in `.apollia/commands/` or `~/.apollia/commands/`
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use clap::Subcommand;
 use rustyline::error::ReadlineError;
 use rustyline::history::FileHistory;
 use rustyline::{Config as RlConfig, Editor};
 
+use apollia_runtime::chat::{ChatSessionRepository, MessageRow, SessionRow};
 use apollia_runtime::commands::CommandRegistry;
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
+
+/// Subcommands of `apollia-os chat` for persisted session hygiene.
+///
+/// All variants operate directly on `~/.apollia/chat.db` via
+/// [`ChatSessionRepository`] — no runtime required. When the daemon is
+/// running, SQLite WAL handles concurrent reads safely; a delete/rename of
+/// an actively-served session is *not* atomic with a pending message round
+/// trip, document this in the `--help`.
+#[derive(Debug, Subcommand, Clone)]
+pub enum ChatHygieneCommand {
+    /// Delete a persisted chat session and all of its messages.
+    Delete {
+        /// Session id (8+ char ulid-like string returned by `chat --list`).
+        session_id: String,
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
+        /// Override the chat database path (default: `~/.apollia/chat.db`).
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+
+    /// Set the user-defined title of a persisted chat session.
+    Rename {
+        /// Session id.
+        session_id: String,
+        /// New title (max 100 chars, leading/trailing whitespace trimmed).
+        title: String,
+        /// Override the chat database path.
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+
+    /// Export a persisted chat session to a file.
+    Export {
+        /// Session id.
+        session_id: String,
+        /// Output file path. Defaults to stdout when omitted.
+        #[arg(long, value_name = "PATH")]
+        output: Option<PathBuf>,
+        /// Output format: `markdown` (default) or `json`.
+        #[arg(long, value_name = "FORMAT", default_value = "markdown",
+              value_parser = ["markdown", "json"])]
+        format: String,
+        /// Override the chat database path.
+        #[arg(long, value_name = "PATH")]
+        db: Option<PathBuf>,
+    },
+}
 
 /// Maximum number of history entries retained across sessions.
 const REPL_MAX_HISTORY: usize = 10_000;
@@ -569,5 +620,362 @@ async fn poll_for_response(
                 });
             return Ok(last_reply);
         }
+    }
+}
+
+// ─── hygiene subcommands ──────────────────────────────────────────────────────
+
+/// Resolve the chat database path: `--db <PATH>` override, then
+/// `~/.apollia/chat.db`. Tests inject explicit paths via the `--db` flag.
+fn resolve_chat_db(db: Option<&Path>) -> PathBuf {
+    if let Some(p) = db {
+        return p.to_path_buf();
+    }
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".apollia")
+        .join("chat.db")
+}
+
+fn open_chat_repo(db: Option<&Path>, json: bool) -> Option<ChatSessionRepository> {
+    let path = resolve_chat_db(db);
+    if !path.exists() {
+        emit_chat_error(
+            format!(
+                "chat database not found at {} (no chat session has ever been persisted)",
+                path.display()
+            ),
+            json,
+        );
+        return None;
+    }
+    match ChatSessionRepository::open(&path) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            emit_chat_error(format!("open {} failed: {e}", path.display()), json);
+            None
+        }
+    }
+}
+
+fn emit_chat_error(msg: String, json: bool) {
+    if json {
+        let out = serde_json::json!({ "error": msg });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+    } else {
+        eprintln!("Error: {msg}");
+    }
+}
+
+/// Synchronous entry point for `chat <subcommand>`.
+pub fn run_hygiene(cmd: &ChatHygieneCommand, json: bool) -> i32 {
+    match cmd {
+        ChatHygieneCommand::Delete {
+            session_id,
+            confirm,
+            db,
+        } => run_chat_delete(session_id, *confirm, db.as_deref(), json),
+        ChatHygieneCommand::Rename {
+            session_id,
+            title,
+            db,
+        } => run_chat_rename(session_id, title, db.as_deref(), json),
+        ChatHygieneCommand::Export {
+            session_id,
+            output,
+            format,
+            db,
+        } => run_chat_export(session_id, output.as_deref(), format, db.as_deref(), json),
+    }
+}
+
+fn run_chat_delete(session_id: &str, confirm: bool, db: Option<&Path>, json: bool) -> i32 {
+    if session_id.trim().is_empty() {
+        emit_chat_error("session_id must not be empty".into(), json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    if !confirm {
+        emit_chat_error(
+            format!("use --confirm to delete chat session '{session_id}' (irreversible)"),
+            json,
+        );
+        return exit_codes::GENERAL_ERROR;
+    }
+    let Some(repo) = open_chat_repo(db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    match repo.delete_session(session_id) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({ "session_id": session_id, "deleted": true });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * chat session '{session_id}' deleted");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            emit_chat_error(format!("delete failed: {e}"), json);
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn run_chat_rename(session_id: &str, title: &str, db: Option<&Path>, json: bool) -> i32 {
+    if session_id.trim().is_empty() {
+        emit_chat_error("session_id must not be empty".into(), json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        emit_chat_error("title must not be empty".into(), json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let cleaned: String = trimmed.chars().take(100).collect();
+    let Some(repo) = open_chat_repo(db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    match repo.rename_session(session_id, &cleaned) {
+        Ok(()) => {
+            if json {
+                let out = serde_json::json!({
+                    "session_id": session_id,
+                    "title": cleaned,
+                    "renamed": true,
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  * chat session '{session_id}' renamed to: {cleaned}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => {
+            emit_chat_error(format!("rename failed: {e}"), json);
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+fn run_chat_export(
+    session_id: &str,
+    output: Option<&Path>,
+    format: &str,
+    db: Option<&Path>,
+    json: bool,
+) -> i32 {
+    if session_id.trim().is_empty() {
+        emit_chat_error("session_id must not be empty".into(), json);
+        return exit_codes::GENERAL_ERROR;
+    }
+    let Some(repo) = open_chat_repo(db, json) else {
+        return exit_codes::GENERAL_ERROR;
+    };
+    let session = match repo.get_session(session_id) {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            emit_chat_error(format!("chat session '{session_id}' not found"), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+        Err(e) => {
+            emit_chat_error(format!("read session failed: {e}"), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    let messages = match repo.get_messages(session_id, None) {
+        Ok(m) => m,
+        Err(e) => {
+            emit_chat_error(format!("read messages failed: {e}"), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    let body = match format {
+        "json" => format_export_json(&session, &messages),
+        "markdown" | _ => format_export_markdown(&session, &messages),
+    };
+
+    match output {
+        Some(path) => {
+            if let Err(e) = std::fs::write(path, body.as_bytes()) {
+                emit_chat_error(
+                    format!("write to {} failed: {e}", path.display()),
+                    json,
+                );
+                return exit_codes::GENERAL_ERROR;
+            }
+            if json {
+                let out = serde_json::json!({
+                    "session_id": session_id,
+                    "format": format,
+                    "output": path.display().to_string(),
+                    "bytes": body.len(),
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!(
+                    "  * chat session '{session_id}' exported to {} ({} bytes)",
+                    path.display(),
+                    body.len()
+                );
+            }
+        }
+        None => {
+            print!("{body}");
+        }
+    }
+    exit_codes::SUCCESS
+}
+
+fn format_export_markdown(session: &SessionRow, messages: &[MessageRow]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let title = session
+        .title
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Untitled session");
+    let _ = writeln!(out, "# {title}");
+    let _ = writeln!(out, "\n- id: {}", session.id);
+    let _ = writeln!(out, "- created_at: {}", session.created_at);
+    let _ = writeln!(out, "- mode: {}", session.mode);
+    let _ = writeln!(out, "- status: {}", session.status);
+    let _ = writeln!(out, "- messages: {}", messages.len());
+    let _ = writeln!(out);
+    for m in messages {
+        let _ = writeln!(out, "## {} ({})", m.role, m.created_at);
+        let _ = writeln!(out, "\n{}\n", m.content);
+    }
+    out
+}
+
+fn format_export_json(session: &SessionRow, messages: &[MessageRow]) -> String {
+    let payload = serde_json::json!({
+        "session": {
+            "id": session.id,
+            "title": session.title,
+            "mode": session.mode,
+            "status": session.status,
+            "created_at": session.created_at,
+            "closed_at": session.closed_at,
+            "agent_name": session.agent_name,
+        },
+        "messages": messages.iter().map(|m| serde_json::json!({
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at,
+            "seq": m.seq,
+        })).collect::<Vec<_>>(),
+    });
+    serde_json::to_string_pretty(&payload).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod hygiene_tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: ChatHygieneCommand,
+    }
+
+    #[test]
+    fn parses_delete_requires_confirm_flag() {
+        let cli = TestCli::parse_from(["x", "delete", "sess-abc"]);
+        match cli.cmd {
+            ChatHygieneCommand::Delete {
+                session_id, confirm, ..
+            } => {
+                assert_eq!(session_id, "sess-abc");
+                assert!(!confirm);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_delete_with_confirm() {
+        let cli = TestCli::parse_from(["x", "delete", "sess-abc", "--confirm"]);
+        match cli.cmd {
+            ChatHygieneCommand::Delete { confirm, .. } => assert!(confirm),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_rename() {
+        let cli = TestCli::parse_from(["x", "rename", "sess-abc", "Hello world"]);
+        match cli.cmd {
+            ChatHygieneCommand::Rename {
+                session_id, title, ..
+            } => {
+                assert_eq!(session_id, "sess-abc");
+                assert_eq!(title, "Hello world");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_export_default_format_is_markdown() {
+        let cli =
+            TestCli::parse_from(["x", "export", "sess-abc", "--output", "/tmp/out.md"]);
+        match cli.cmd {
+            ChatHygieneCommand::Export {
+                session_id,
+                output,
+                format,
+                ..
+            } => {
+                assert_eq!(session_id, "sess-abc");
+                assert_eq!(output, Some(PathBuf::from("/tmp/out.md")));
+                assert_eq!(format, "markdown");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_export_json_format() {
+        let cli = TestCli::parse_from(["x", "export", "sess-abc", "--format", "json"]);
+        match cli.cmd {
+            ChatHygieneCommand::Export { format, .. } => assert_eq!(format, "json"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn export_rejects_invalid_format() {
+        let result = TestCli::try_parse_from(["x", "export", "s", "--format", "xml"]);
+        assert!(result.is_err(), "xml is not a valid format");
+    }
+
+    #[test]
+    fn delete_without_confirm_returns_error() {
+        let code = run_chat_delete("sess-abc", false, None, true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn rename_rejects_empty_title() {
+        let code = run_chat_rename("sess-abc", "   ", None, true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn resolve_chat_db_honours_override() {
+        let p = PathBuf::from("/tmp/custom-chat.db");
+        assert_eq!(resolve_chat_db(Some(&p)), p);
+    }
+
+    #[test]
+    fn resolve_chat_db_default_ends_with_canonical_filename() {
+        let p = resolve_chat_db(None);
+        assert!(
+            p.to_string_lossy().ends_with(".apollia/chat.db"),
+            "unexpected default path: {p:?}"
+        );
     }
 }

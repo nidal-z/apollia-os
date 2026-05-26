@@ -252,7 +252,11 @@ enum Commands {
         command: PermissionsCommand,
     },
 
-    /// Interactive chat session with an LLM (resume with --resume <id>, list with --list).
+    /// Interactive chat REPL + persisted session hygiene (delete, rename, export).
+    ///
+    /// Without a subcommand: launches the REPL (resume with `--resume <id>`,
+    /// or list recent sessions with `--list`). With a subcommand: operates on
+    /// `~/.apollia/chat.db` directly — no runtime required.
     Chat {
         /// Resume an existing session from its last message.
         #[arg(long, value_name = "SESSION_ID")]
@@ -260,6 +264,10 @@ enum Commands {
         /// List the 10 most recent sessions.
         #[arg(long)]
         list: bool,
+        /// Optional hygiene subcommand (delete | rename | export). When
+        /// omitted, the REPL launches.
+        #[command(subcommand)]
+        command: Option<commands::chat::ChatHygieneCommand>,
     },
 
     /// MCP server management (list, add, remove, get, test, restart, update, raw-config, set-approval, list-pending, revoke-approval).
@@ -519,9 +527,14 @@ fn main() {
             Commands::Permissions { command } => {
                 commands::permissions::run(&command, cli.socket, json).await
             }
-            Commands::Chat { resume, list } => {
-                chat::run(resume.as_deref(), list, cli.socket, json).await
-            }
+            Commands::Chat {
+                resume,
+                list,
+                command,
+            } => match command {
+                Some(sub) => chat::run_hygiene(&sub, json),
+                None => chat::run(resume.as_deref(), list, cli.socket, json).await,
+            },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::McpServer(args) => match commands::mcp_server::run(&args).await {
                 Ok(()) => exit_codes::SUCCESS,
