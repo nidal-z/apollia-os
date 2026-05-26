@@ -158,6 +158,48 @@ pub enum MemoryCommand {
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
+
+    /// Delete a single memory entry by its UUID.
+    ///
+    /// Searches `episodic_memories`, `semantic_memories`, and
+    /// `procedural_memories` in order; removes the matching row and its FTS5
+    /// index entry. Returns exit 1 when no entry matches.
+    Forget {
+        /// Namespace containing the entry.
+        namespace: String,
+
+        /// Entry UUID (matches `id` columns across the three tables).
+        entry_id: String,
+
+        /// Memory data directory (default: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
+
+    /// Full-text search across a namespace's episodic + semantic memory.
+    ///
+    /// Returns BM25-ranked matches with their source table (episodic|semantic),
+    /// content, and relevance score.
+    Search {
+        /// Namespace to search.
+        namespace: String,
+
+        /// FTS5 query (whitespace-separated keywords; quotes preserved).
+        query: String,
+
+        /// Maximum number of matches to return.
+        #[arg(long, default_value = "20", value_name = "N")]
+        limit: u32,
+
+        /// Restrict to a single source: `episodic` or `semantic`. Omit for
+        /// both.
+        #[arg(long, value_parser = ["episodic", "semantic"])]
+        source: Option<String>,
+
+        /// Memory data directory (default: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
 }
 
 /// Erreurs de la commande memory.
@@ -730,7 +772,137 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
             execute_import(namespace, input, *replace, &dir, json)
         }
+        MemoryCommand::Forget {
+            namespace,
+            entry_id,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+            execute_forget(namespace, entry_id, &dir, json)
+        }
+        MemoryCommand::Search {
+            namespace,
+            query,
+            limit,
+            source,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+            execute_search(namespace, query, *limit, source.as_deref(), &dir, json)
+        }
     }
+}
+
+/// Delete a single memory entry by UUID.
+pub fn execute_forget(
+    namespace: &str,
+    entry_id: &str,
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    let db_path = data_dir.join(format!("{namespace}.db"));
+    if !db_path.exists() {
+        return Err(MemoryCommandError::NamespaceNotFound {
+            namespace: namespace.to_string(),
+            path: db_path.to_string_lossy().into_owned(),
+        });
+    }
+    let store = apollia_memory::store::MemoryStore::open(&db_path)?;
+    let removed = store.delete_entry_by_id(entry_id)?;
+    if !removed {
+        return Err(MemoryCommandError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("entry '{entry_id}' not found in namespace '{namespace}'"),
+        )));
+    }
+    if json {
+        Ok(serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "entry_id": entry_id,
+            "removed": true,
+        }))
+        .unwrap_or_default())
+    } else {
+        Ok(format!("* {namespace} / {entry_id} removed"))
+    }
+}
+
+/// Full-text search across episodic + semantic memory.
+pub fn execute_search(
+    namespace: &str,
+    query: &str,
+    limit: u32,
+    source: Option<&str>,
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    let db_path = data_dir.join(format!("{namespace}.db"));
+    if !db_path.exists() {
+        return Err(MemoryCommandError::NamespaceNotFound {
+            namespace: namespace.to_string(),
+            path: db_path.to_string_lossy().into_owned(),
+        });
+    }
+    let store = apollia_memory::store::MemoryStore::open(&db_path)?;
+    let search_engine = apollia_memory::search::MemorySearch::new(&store);
+
+    let sources_vec = source.map(|s| match s {
+        "episodic" => vec![apollia_memory::search::SearchSource::Episodic],
+        "semantic" => vec![apollia_memory::search::SearchSource::Semantic],
+        _ => Vec::new(),
+    });
+    let sources_slice = sources_vec.as_deref();
+
+    let results = search_engine
+        .query(namespace, query, limit, sources_slice, None)
+        .map_err(|e| MemoryCommandError::Io(std::io::Error::other(e.to_string())))?;
+
+    if json {
+        return Ok(serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "query": query,
+            "limit": limit,
+            "source": source,
+            "results": results,
+        }))
+        .unwrap_or_default());
+    }
+
+    if results.is_empty() {
+        return Ok(format!(
+            "No matches for '{query}' in {namespace} (limit {limit})."
+        ));
+    }
+
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "  Search results for '{query}' in {namespace} ({} hits):",
+        results.len()
+    );
+    let _ = writeln!(
+        out,
+        "  {:<6} {:<10} {:<10} ID                                   CONTENT",
+        "SCORE", "SOURCE", "RELEVANCE"
+    );
+    for r in &results {
+        let source_str = match r.source {
+            apollia_memory::search::SearchSource::Episodic => "episodic",
+            apollia_memory::search::SearchSource::Semantic => "semantic",
+        };
+        let relevance = r
+            .relevance
+            .map(|v| format!("{v:.2}"))
+            .unwrap_or_else(|| "-".to_string());
+        let content_preview: String = r.content.chars().take(60).collect();
+        let _ = writeln!(
+            out,
+            "  {:<6.2} {:<10} {:<10} {:<36} {}",
+            r.score, source_str, relevance, r.source_id, content_preview
+        );
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -1238,5 +1410,117 @@ mod tests {
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
         ));
+    }
+
+    #[test]
+    fn test_forget_missing_namespace_errors() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let result = execute_forget("ghost", "00000000-0000-0000-0000-000000000000", &dir, false);
+        assert!(matches!(
+            result,
+            Err(MemoryCommandError::NamespaceNotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn test_forget_unknown_entry_errors() {
+        let dir = temp_dir();
+        setup_test_db(&dir, "ns");
+        let result = execute_forget("ns", "00000000-0000-0000-0000-000000000000", &dir, true);
+        assert!(result.is_err(), "missing entry should error");
+    }
+
+    #[test]
+    fn test_search_missing_namespace_errors() {
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let result = execute_search("ghost", "needle", 10, None, &dir, false);
+        assert!(matches!(
+            result,
+            Err(MemoryCommandError::NamespaceNotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn test_search_empty_namespace_returns_no_matches() {
+        let dir = temp_dir();
+        setup_test_db(&dir, "ns");
+        let result = execute_search("ns", "needle", 10, None, &dir, false);
+        assert!(result.is_ok());
+        assert!(result.unwrap().contains("No matches"));
+    }
+
+    #[test]
+    fn test_search_invalid_source_yields_no_matches() {
+        // Unknown source string maps to an empty vec; the engine then returns
+        // an empty result list (no episodic OR semantic flag set).
+        let dir = temp_dir();
+        setup_test_db(&dir, "ns");
+        let result = execute_search("ns", "needle", 10, Some("episodic"), &dir, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn parses_forget() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: MemoryCommand,
+        }
+        let cli = TestCli::parse_from(["x", "forget", "ns", "abc-uuid"]);
+        match cli.cmd {
+            MemoryCommand::Forget {
+                namespace,
+                entry_id,
+                ..
+            } => {
+                assert_eq!(namespace, "ns");
+                assert_eq!(entry_id, "abc-uuid");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_search() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: MemoryCommand,
+        }
+        let cli = TestCli::parse_from([
+            "x", "search", "ns", "needle in haystack", "--limit", "5", "--source", "episodic",
+        ]);
+        match cli.cmd {
+            MemoryCommand::Search {
+                namespace,
+                query,
+                limit,
+                source,
+                ..
+            } => {
+                assert_eq!(namespace, "ns");
+                assert_eq!(query, "needle in haystack");
+                assert_eq!(limit, 5);
+                assert_eq!(source.as_deref(), Some("episodic"));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_search_rejects_invalid_source() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: MemoryCommand,
+        }
+        let result =
+            TestCli::try_parse_from(["x", "search", "ns", "q", "--source", "procedural"]);
+        assert!(result.is_err(), "procedural is not yet exposed");
     }
 }
