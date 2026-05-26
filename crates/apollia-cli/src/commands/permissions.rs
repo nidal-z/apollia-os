@@ -63,6 +63,29 @@ pub enum PermissionsCommand {
         #[arg(long, default_value = "50")]
         limit: u32,
     },
+    /// Add a persisted permission rule for a tool + optional argument prefix.
+    ///
+    /// Persists into `governance.db` directly (no runtime required). Session
+    /// scope is not supported here because session rules live in the runtime
+    /// memory — use the chat REPL approval flow instead.
+    Add {
+        /// Tool name (e.g. `file_write`, `bash_executor`).
+        #[arg(long, value_name = "NAME")]
+        tool: String,
+        /// Optional argument prefix the rule applies to (e.g. a path). When
+        /// omitted, the rule matches any invocation of `--tool`.
+        #[arg(long, value_name = "PREFIX")]
+        prefix: Option<String>,
+        /// Rule action: `allow` or `deny`.
+        #[arg(long, value_parser = ["allow", "deny"], default_value = "allow")]
+        action: String,
+        /// Rule scope: `project` or `global` (session is not persistable).
+        #[arg(long, value_parser = ["project", "global"], default_value = "global")]
+        scope: String,
+        /// Project canonical path (required when `--scope project`).
+        #[arg(long, value_name = "PATH")]
+        project_path: Option<std::path::PathBuf>,
+    },
 }
 
 /// Exécute une sous-commande `permissions`.
@@ -82,6 +105,13 @@ pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool)
             yes,
         } => run_revoke(id.as_deref(), *all, scope.as_deref(), *yes, json),
         PermissionsCommand::Audit { tool, limit } => run_audit(tool.as_deref(), *limit, json),
+        PermissionsCommand::Add {
+            tool,
+            prefix,
+            action,
+            scope,
+            project_path,
+        } => run_add(tool, prefix.as_deref(), action, scope, project_path.as_deref(), json),
     }
 }
 
@@ -413,6 +443,155 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
+// ─── Add ─────────────────────────────────────────────────────────────
+
+fn run_add(
+    tool: &str,
+    prefix: Option<&str>,
+    action: &str,
+    scope: &str,
+    project_path: Option<&Path>,
+    json: bool,
+) -> i32 {
+    if tool.trim().is_empty() {
+        return emit_error("--tool must not be empty".into(), json);
+    }
+    let rule_action = match action {
+        "allow" => RuleAction::Allow,
+        "deny" => RuleAction::Deny,
+        other => return emit_error(format!("unknown action '{other}'"), json),
+    };
+    let scope_enum = match scope {
+        "project" => PermissionScope::Project,
+        "global" => PermissionScope::Global,
+        other => {
+            return emit_error(
+                format!("unknown scope '{other}' (use 'project' or 'global')"),
+                json,
+            )
+        }
+    };
+    let project_buf = if scope_enum == PermissionScope::Project {
+        let Some(raw) = project_path else {
+            return emit_error(
+                "--project-path is required when --scope project".into(),
+                json,
+            );
+        };
+        // Canonicalise so the rule matches the runtime's canonical-path lookup.
+        let canonical = match raw.canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                return emit_error(
+                    format!("cannot canonicalize {}: {e}", raw.display()),
+                    json,
+                );
+            }
+        };
+        Some(canonical)
+    } else {
+        None
+    };
+
+    run_add_with_engine(
+        rule_action,
+        tool.trim(),
+        prefix,
+        scope_enum,
+        project_buf,
+        None,
+        json,
+    )
+}
+
+/// Inner helper exposed for tests so they can inject an explicit governance
+/// directory instead of mutating `$HOME` globally (which races across the
+/// parallel test runner).
+fn run_add_with_engine(
+    rule_action: RuleAction,
+    tool: &str,
+    prefix: Option<&str>,
+    scope_enum: PermissionScope,
+    project_buf: Option<PathBuf>,
+    governance_dir: Option<&Path>,
+    json: bool,
+) -> i32 {
+    let db_path = match governance_dir {
+        Some(dir) => {
+            if !dir.exists() {
+                if let Err(e) = std::fs::create_dir_all(dir) {
+                    return emit_error(
+                        format!("failed to create governance dir {}: {e}", dir.display()),
+                        json,
+                    );
+                }
+            }
+            match GovernanceDb::open(dir) {
+                Ok(db) => db.path().to_path_buf(),
+                Err(e) => return emit_error(format!("open governance.db: {e}"), json),
+            }
+        }
+        None => match ensure_governance_db_path() {
+            Ok(p) => p,
+            Err(msg) => return emit_error(msg, json),
+        },
+    };
+    let mut engine = match PrefixRuleEngine::new(&db_path) {
+        Ok(e) => e,
+        Err(e) => return emit_error(format!("open governance.db: {e}"), json),
+    };
+
+    let now = chrono::Utc::now().timestamp();
+    let rule = PrefixRule {
+        id: 0,
+        tool_name: tool.to_string(),
+        arg_prefix: prefix.map(|s| s.to_string()),
+        action: rule_action,
+        created_at: now,
+        created_by_agent: None,
+        scope: scope_enum,
+        project_path: project_buf.clone(),
+        agent_id: None,
+        expires_at: None,
+    };
+
+    let id = match engine.add_rule(&rule) {
+        Ok(id) => id,
+        Err(e) => return emit_error(format!("add rule failed: {e}"), json),
+    };
+
+    let action_str = match rule.action {
+        RuleAction::Allow => "allow",
+        RuleAction::Deny => "deny",
+    };
+    if json {
+        let body = serde_json::json!({
+            "id": id,
+            "tool": rule.tool_name,
+            "prefix": rule.arg_prefix,
+            "action": action_str,
+            "scope": scope_enum.as_str(),
+            "project_path": project_buf.as_ref().map(|p| p.display().to_string()),
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        let prefix_str = rule.arg_prefix.as_deref().unwrap_or("*");
+        let project_str = project_buf
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        println!(
+            "  * rule #{id} added: tool={} action={} scope={} prefix={} project={}",
+            rule.tool_name,
+            action_str,
+            scope_enum.as_str(),
+            prefix_str,
+            project_str,
+        );
+    }
+    exit_codes::SUCCESS
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
@@ -667,5 +846,134 @@ mod tests {
         assert_eq!(display_expiration(None), "permanente");
         let s = display_expiration(Some(0));
         assert!(s.starts_with("1970"));
+    }
+
+    #[test]
+    fn parses_add_global() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: PermissionsCommand,
+        }
+        let cli = TestCli::parse_from([
+            "x", "add", "--tool", "web_search", "--scope", "global",
+        ]);
+        match cli.cmd {
+            PermissionsCommand::Add {
+                tool,
+                prefix,
+                action,
+                scope,
+                project_path,
+            } => {
+                assert_eq!(tool, "web_search");
+                assert!(prefix.is_none());
+                assert_eq!(action, "allow");
+                assert_eq!(scope, "global");
+                assert!(project_path.is_none());
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_add_project_with_prefix() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: PermissionsCommand,
+        }
+        let cli = TestCli::parse_from([
+            "x",
+            "add",
+            "--tool",
+            "file_write",
+            "--prefix",
+            "/tmp/",
+            "--scope",
+            "project",
+            "--project-path",
+            "/home/u/proj",
+            "--action",
+            "deny",
+        ]);
+        match cli.cmd {
+            PermissionsCommand::Add {
+                tool,
+                prefix,
+                action,
+                scope,
+                project_path,
+            } => {
+                assert_eq!(tool, "file_write");
+                assert_eq!(prefix.as_deref(), Some("/tmp/"));
+                assert_eq!(action, "deny");
+                assert_eq!(scope, "project");
+                assert_eq!(project_path, Some(PathBuf::from("/home/u/proj")));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn add_global_persists_rule() {
+        let dir = TempDir::new().expect("tempdir");
+        // Use the inner helper with an explicit governance dir so the test
+        // does not race on `$HOME` with other parallel tests.
+        let code = run_add_with_engine(
+            RuleAction::Allow,
+            "web_search",
+            None,
+            PermissionScope::Global,
+            None,
+            Some(dir.path()),
+            true,
+        );
+        assert_eq!(code, exit_codes::SUCCESS);
+
+        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
+        let engine = PrefixRuleEngine::new(&db_path).expect("open engine");
+        let rules = engine.list_rules().expect("list");
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].tool_name, "web_search");
+        assert_eq!(rules[0].action, RuleAction::Allow);
+        assert_eq!(rules[0].scope, PermissionScope::Global);
+    }
+
+    #[test]
+    fn add_project_requires_project_path() {
+        // No need to set HOME — the surface validation happens in `run_add`
+        // before any DB access, so the helper short-circuits.
+        let code = run_add("file_write", None, "allow", "project", None, true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn add_rejects_empty_tool() {
+        let code = run_add("   ", None, "allow", "global", None, true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn add_with_prefix_persists() {
+        let dir = TempDir::new().expect("tempdir");
+        let code = run_add_with_engine(
+            RuleAction::Deny,
+            "file_write",
+            Some("/tmp/"),
+            PermissionScope::Global,
+            None,
+            Some(dir.path()),
+            true,
+        );
+        assert_eq!(code, exit_codes::SUCCESS);
+        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
+        let engine = PrefixRuleEngine::new(&db_path).expect("open engine");
+        let rules = engine.list_rules().expect("list");
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].action, RuleAction::Deny);
+        assert_eq!(rules[0].arg_prefix.as_deref(), Some("/tmp/"));
     }
 }

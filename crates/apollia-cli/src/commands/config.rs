@@ -69,6 +69,25 @@ pub enum ConfigCommand {
         #[arg(long, value_name = "PATH")]
         file: Option<PathBuf>,
     },
+
+    /// Wipe `~/.apollia/` — irreversible factory reset.
+    ///
+    /// Deletes every SQLite database, log, journal, memory file, OAuth client
+    /// override, and apollia.toml stored under `~/.apollia/`. Keychain entries
+    /// (OS-managed) are NOT touched — use `auth logout`, `connector revoke`,
+    /// or `mcp oauth logout` to clear those.
+    Reset {
+        /// Skip the interactive confirmation prompt (required for scripts).
+        #[arg(long)]
+        confirm: bool,
+        /// Print the resolved Apollia home and the entries that would be
+        /// removed, but do not delete anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Override the Apollia home path (default: `~/.apollia`).
+        #[arg(long, value_name = "PATH")]
+        home: Option<PathBuf>,
+    },
 }
 
 /// Entry point for `apollia-os config <verb>`.
@@ -79,6 +98,11 @@ pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
         ConfigCommand::Validate { file } => run_validate(file.as_deref(), json),
         ConfigCommand::Edit { file } => run_edit(file.as_deref(), json),
         ConfigCommand::Show { file } => run_show(file.as_deref(), json),
+        ConfigCommand::Reset {
+            confirm,
+            dry_run,
+            home,
+        } => run_reset(*confirm, *dry_run, home.as_deref(), json),
     }
 }
 
@@ -487,6 +511,123 @@ fn run_show(file: Option<&Path>, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
+// ─── reset ───────────────────────────────────────────────────────────────────
+
+fn resolve_apollia_home(override_path: Option<&Path>) -> Option<PathBuf> {
+    if let Some(p) = override_path {
+        return Some(p.to_path_buf());
+    }
+    dirs::home_dir().map(|h| h.join(".apollia"))
+}
+
+/// Wipe the Apollia home directory (factory reset).
+///
+/// The implementation iterates the immediate children of `~/.apollia/` rather
+/// than calling `remove_dir_all` on the home itself: that keeps the parent
+/// directory intact (mounted volumes, ACLs) and matches the Desktop
+/// `factory_reset` semantics that the user expects.
+fn run_reset(confirm: bool, dry_run: bool, home: Option<&Path>, json: bool) -> i32 {
+    let Some(home) = resolve_apollia_home(home) else {
+        emit_error("cannot determine $HOME directory", json);
+        return exit_codes::GENERAL_ERROR;
+    };
+
+    if !home.exists() {
+        if json {
+            let body = serde_json::json!({
+                "home": home.display().to_string(),
+                "reset": false,
+                "reason": "home directory absent — nothing to reset",
+            });
+            println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        } else {
+            println!(
+                "  Apollia home {} does not exist — nothing to reset.",
+                home.display()
+            );
+        }
+        return exit_codes::SUCCESS;
+    }
+
+    let entries: Vec<PathBuf> = match std::fs::read_dir(&home) {
+        Ok(it) => it.filter_map(|r| r.ok().map(|e| e.path())).collect(),
+        Err(e) => {
+            emit_error(format!("cannot read {}: {e}", home.display()), json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if dry_run {
+        if json {
+            let body = serde_json::json!({
+                "home": home.display().to_string(),
+                "dry_run": true,
+                "entries": entries.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+            });
+            println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+        } else {
+            println!("  Dry run — {} entries under {} would be removed:", entries.len(), home.display());
+            for p in &entries {
+                let kind = if p.is_dir() { "dir " } else { "file" };
+                println!("    [{kind}] {}", p.display());
+            }
+            println!(
+                "  Run without --dry-run (with --confirm) to actually wipe. Keychain entries are NOT touched."
+            );
+        }
+        return exit_codes::SUCCESS;
+    }
+
+    if !confirm {
+        emit_error(
+            format!(
+                "factory reset is irreversible. Re-run with --confirm to wipe {} ({} entries).",
+                home.display(),
+                entries.len()
+            ),
+            json,
+        );
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    let mut removed: Vec<PathBuf> = Vec::new();
+    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+    for entry in &entries {
+        let res = if entry.is_dir() {
+            std::fs::remove_dir_all(entry)
+        } else {
+            std::fs::remove_file(entry)
+        };
+        match res {
+            Ok(()) => removed.push(entry.clone()),
+            Err(e) => failures.push((entry.clone(), e.to_string())),
+        }
+    }
+
+    if json {
+        let body = serde_json::json!({
+            "home": home.display().to_string(),
+            "removed": removed.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
+            "failures": failures.iter().map(|(p, e)| serde_json::json!({
+                "path": p.display().to_string(),
+                "error": e,
+            })).collect::<Vec<_>>(),
+            "reset": failures.is_empty(),
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        println!("  * {} entries removed under {}", removed.len(), home.display());
+        for (p, e) in &failures {
+            eprintln!("  ! failed to remove {}: {e}", p.display());
+        }
+    }
+    if failures.is_empty() {
+        exit_codes::SUCCESS
+    } else {
+        exit_codes::GENERAL_ERROR
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,5 +756,82 @@ mod tests {
             run_validate(Some(tmp.path()), true),
             exit_codes::GENERAL_ERROR
         );
+    }
+
+    #[test]
+    fn parses_reset_requires_confirm_flag() {
+        let cli = TestCli::parse_from(["x", "reset"]);
+        match cli.cmd {
+            ConfigCommand::Reset {
+                confirm,
+                dry_run,
+                home,
+            } => {
+                assert!(!confirm);
+                assert!(!dry_run);
+                assert!(home.is_none());
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reset_with_dry_run() {
+        let cli = TestCli::parse_from(["x", "reset", "--dry-run", "--home", "/tmp/.apollia"]);
+        match cli.cmd {
+            ConfigCommand::Reset {
+                confirm,
+                dry_run,
+                home,
+            } => {
+                assert!(!confirm);
+                assert!(dry_run);
+                assert_eq!(home, Some(PathBuf::from("/tmp/.apollia")));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reset_without_confirm_errors_when_home_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Drop a file in so the home is non-empty.
+        std::fs::write(tmp.path().join("dummy"), b"x").unwrap();
+        let code = run_reset(false, false, Some(tmp.path()), true);
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        // Confirm the file is still there.
+        assert!(tmp.path().join("dummy").exists());
+    }
+
+    #[test]
+    fn reset_dry_run_does_not_delete() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("dummy");
+        std::fs::write(&f, b"x").unwrap();
+        let code = run_reset(false, true, Some(tmp.path()), true);
+        assert_eq!(code, exit_codes::SUCCESS);
+        assert!(f.exists());
+    }
+
+    #[test]
+    fn reset_with_confirm_wipes_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a"), b"x").unwrap();
+        std::fs::create_dir(tmp.path().join("nested")).unwrap();
+        std::fs::write(tmp.path().join("nested").join("b"), b"y").unwrap();
+        let code = run_reset(true, false, Some(tmp.path()), true);
+        assert_eq!(code, exit_codes::SUCCESS);
+        // The home directory itself stays; only its contents are removed.
+        assert!(tmp.path().exists());
+        assert!(!tmp.path().join("a").exists());
+        assert!(!tmp.path().join("nested").exists());
+    }
+
+    #[test]
+    fn reset_on_missing_home_returns_success() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("does_not_exist");
+        let code = run_reset(true, false, Some(&p), true);
+        assert_eq!(code, exit_codes::SUCCESS);
     }
 }
