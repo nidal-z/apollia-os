@@ -258,6 +258,30 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// List in-memory A2A messages for an agent via
+    /// `GET /api/v1/agents/{id}/messages?limit=N`.
+    ///
+    /// Returns the full JSON response body (`{ "messages": [...] }`) so the
+    /// caller can render either tabular or JSON output without re-parsing.
+    pub async fn list_agent_messages(
+        &self,
+        agent_id: &str,
+        limit: Option<u32>,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = match limit {
+            Some(n) => format!("/api/v1/agents/{agent_id}/messages?limit={n}"),
+            None => format!("/api/v1/agents/{agent_id}/messages"),
+        };
+        let resp = self.get(&uri).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Stop an agent via `DELETE /api/v1/agents/{id}`.
     pub async fn stop_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.delete(&format!("/api/v1/agents/{agent_id}")).await?;

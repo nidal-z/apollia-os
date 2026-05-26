@@ -912,6 +912,48 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parses_agent_status() {
+        let cli = parse(&["apollia-os", "agent", "status", "hello"]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Status { agent_id } => assert_eq!(agent_id, "hello"),
+                other => panic!("expected AgentCommand::Status, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_messages_default_limit() {
+        let cli = parse(&["apollia-os", "agent", "messages", "hello"]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Messages { agent_id, limit } => {
+                    assert_eq!(agent_id, "hello");
+                    assert_eq!(*limit, 20);
+                }
+                other => panic!("expected AgentCommand::Messages, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_messages_with_limit() {
+        let cli = parse(&["apollia-os", "agent", "messages", "hello", "--limit", "5"]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Messages { agent_id, limit } => {
+                    assert_eq!(agent_id, "hello");
+                    assert_eq!(*limit, 5);
+                }
+                other => panic!("expected AgentCommand::Messages, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_cli_parses_agent_install() {
         // GIVEN "apollia-os agent install ./agents/mon-agent.py"
         // WHEN parse

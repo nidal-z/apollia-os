@@ -44,6 +44,22 @@ pub enum AgentCommand {
         /// Agent identifier.
         agent_id: String,
     },
+    /// Show a compact runtime-status snapshot for `<agent_id>`.
+    ///
+    /// Distilled view of `agent info` focused on online / idle / error state.
+    /// Useful in poll loops where the full info payload is overkill.
+    Status {
+        /// Agent identifier.
+        agent_id: String,
+    },
+    /// List in-memory A2A messages for `<agent_id>` (oldest-first within window).
+    Messages {
+        /// Agent identifier (recipient).
+        agent_id: String,
+        /// Maximum number of messages to display (server-clamped to 100).
+        #[arg(long, value_name = "N", default_value = "20")]
+        limit: u32,
+    },
     /// Install an agent permanently from a local path or a Git URL.
     ///
     /// Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git
@@ -151,6 +167,10 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool, quiet:
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
+        AgentCommand::Status { agent_id } => run_status(&client, agent_id, json).await,
+        AgentCommand::Messages { agent_id, limit } => {
+            run_messages(&client, agent_id, *limit, json).await
+        }
         AgentCommand::Install { source, skip_tests } => {
             run_install(source, &client, json, *skip_tests).await
         }
@@ -414,6 +434,124 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
                 exit_codes::GENERAL_ERROR
             }
         },
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// `apollia-os agent status <id>` — compact runtime-status snapshot.
+async fn run_status(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    match client.get_agent(agent_id).await {
+        Ok(resp) => {
+            let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or(agent_id);
+            let state = resp.get("state").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let started_at = resp.get("started_at").and_then(|v| v.as_str());
+            let last_activity = resp
+                .get("last_activity_at")
+                .and_then(|v| v.as_str());
+            let active_tasks = resp.get("active_tasks").and_then(|v| v.as_u64()).unwrap_or(0);
+            let completed_tasks = resp
+                .get("completed_tasks")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            if json {
+                let body = serde_json::json!({
+                    "agent": name,
+                    "state": state,
+                    "active_tasks": active_tasks,
+                    "completed_tasks": completed_tasks,
+                    "started_at": started_at,
+                    "last_activity_at": last_activity,
+                });
+                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+            } else {
+                let glyph = match state {
+                    "active" | "idle" | "ready" => "*",
+                    "error" | "failed" => "x",
+                    _ => "?",
+                };
+                println!("  {glyph} {name}");
+                println!("    state          : {state}");
+                println!("    active tasks   : {active_tasks}");
+                println!("    completed tasks: {completed_tasks}");
+                if let Some(s) = started_at {
+                    println!("    started at     : {s}");
+                }
+                if let Some(s) = last_activity {
+                    println!("    last activity  : {s}");
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, .. }) => {
+            let msg = format!("agent not found: {agent_id}");
+            if json {
+                println!("{}", serde_json::json!({ "error": msg }));
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// `apollia-os agent messages <id>` — list in-memory A2A messages.
+async fn run_messages(
+    client: &RuntimeClient,
+    agent_id: &str,
+    limit: u32,
+    json: bool,
+) -> i32 {
+    let limit_opt = if limit == 0 { None } else { Some(limit) };
+    match client.list_agent_messages(agent_id, limit_opt).await {
+        Ok(resp) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&resp).unwrap_or_default());
+                return exit_codes::SUCCESS;
+            }
+            let empty: Vec<serde_json::Value> = Vec::new();
+            let messages = resp
+                .get("messages")
+                .and_then(|v| v.as_array())
+                .unwrap_or(&empty);
+            if messages.is_empty() {
+                println!("No A2A messages for {agent_id}.");
+                return exit_codes::SUCCESS;
+            }
+            println!(
+                "  A2A messages for {agent_id} ({} returned, limit {limit}):",
+                messages.len()
+            );
+            println!(
+                "  {:<24} {:<22} PAYLOAD",
+                "FROM", "SENT_AT"
+            );
+            for m in messages {
+                let from = m
+                    .get("from_agent")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
+                let sent_at = m.get("sent_at").and_then(|v| v.as_str()).unwrap_or("?");
+                let payload_str = m
+                    .get("payload")
+                    .map(|p| serde_json::to_string(p).unwrap_or_default())
+                    .unwrap_or_default();
+                let preview: String = payload_str.chars().take(60).collect();
+                println!("  {from:<24} {sent_at:<22} {preview}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError {
+            status: 503, body, ..
+        }) => {
+            let msg = format!("agent mailbox unavailable: {body}");
+            if json {
+                println!("{}", serde_json::json!({ "error": msg }));
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
         Err(e) => handle_error(e, json),
     }
 }
