@@ -104,28 +104,6 @@ L'usage typique : peupler `ctx.memory` avec des entrées vectorisées pour reche
 
 ---
 
-## Vision : images multimodales
-
-Les messages peuvent contenir une liste de blocs au lieu d'une chaîne. Apollia fournit des helpers pour construire des blocs vision :
-
-```python
-from apollia import text, image_from_path
-
-messages = [
-    {"role": "system", "content": "Describe the image in 2 sentences."},
-    {
-        "role": "user",
-        "content": [
-            text("Voici le diagramme du système."),
-            image_from_path("/tmp/diagram.png"),
-        ],
-    },
-]
-response = await ctx.llm.complete(messages, backend="anthropic")
-```
-
-Seuls les backends cloud (Anthropic, OpenAI) supportent la vision aujourd'hui. Le backend local llama.cpp lève une erreur claire si on tente d'envoyer une image.
-
 > **Référence technique :** la page wiki `Briques-LLM-Engine` détaillera la liste des backends, leurs caractéristiques, et la configuration *(wiki disponible prochainement)*.
 
 ---
@@ -147,7 +125,6 @@ Seuls les backends cloud (Anthropic, OpenAI) supportent la vision aujourd'hui. L
 - `ADR-101` : Ctx exhaustif et typé
 - `ADR-047` : Multi-LLM backend registry
 - `ADR-057` : Prompt caching strategy
-- `ADR-111` : Vision (typage MessageContent)
 - `ADR-112` : Stream cleanup et rename
 
 *(ADRs disponibles prochainement, cf. l'encadré "ADRs et wiki" en introduction.)*

@@ -110,17 +110,17 @@ Le runtime installe le worker (copie du fichier, création du venv isolé, insta
 
 ## Variations
 
-**Ajouter une plage de pages :** ajoutez un argument optionnel à `read_text` :
+**Ajouter une plage de pages :** ajoutez un argument optionnel à `read_text` (placez `ctx` avant le paramètre avec valeur par défaut, contrainte Python) :
 
 ```python
 async def read_text(
     self,
     path: Annotated[str, "Path to the .pdf file."],
+    ctx: Ctx,
     page_range: Annotated[
         str | None,
         "1-based page selection, e.g. '1-5,7'. Omit to read all pages.",
     ] = None,
-    ctx: Ctx,
 ) -> dict:
     ...
 ```

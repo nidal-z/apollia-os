@@ -59,7 +59,7 @@ issues = await ctx.tools.call("mcp:github/list_issues", input={"repo": "owner/na
 
 La liste des outils MCP disponibles dépend des serveurs configurés au niveau de la session. L'opérateur les active dans l'app Desktop ou via `apollia-os mcp enable <server>`.
 
-> **Référence technique :** la page wiki `Briques-Tool-Registry` détaillera le catalogue complet des outils natifs (16 outils v0.1), leurs `input_schema`, et la procédure d'ajout d'un outil natif. La page `Briques-MCP-Client` couvrira le client MCP *(wiki disponible prochainement)*.
+> **Référence technique :** la page wiki `Briques-Tool-Registry` détaillera le catalogue complet des outils natifs, leurs `input_schema`, et la procédure d'ajout d'un outil natif. La page `Briques-MCP-Client` couvrira le client MCP *(wiki disponible prochainement)*. En attendant, `apollia-os tools list` affiche le catalogue installé.
 
 ---
 

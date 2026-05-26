@@ -47,7 +47,7 @@ from apollia.types import Ctx
     tags=("my-agent", "worker"),
 )
 class MyAgent:
-    @skill("my-agent.default", description="Default skill for my-agent")
+    @skill("my_agent.default", description="Default skill for my-agent")
     async def default(self, input_text: str, ctx: Ctx) -> dict:
         if not input_text:
             raise DomainError("INVALID_INPUT", "input must be non-empty")

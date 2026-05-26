@@ -12,6 +12,7 @@ C'est la voie la plus déclarative du SDK. ORIA construit un plan à partir du `
 
 ```python
 from apollia import agent, orchestrated
+from apollia.types import Ctx
 
 @agent(
     name="email-triage",
@@ -106,7 +107,7 @@ ORIA (Observer, Reasoner, Actor) est le moteur de plan dynamique côté Rust. Il
 
 Le détail (cache de plans, observations par étape, intégration HITL) est dans la [Partie VIII](../part-viii-runtime-rust/29-runtime-overview.md) et le wiki.
 
-> **Pré-requis runtime.** ORIA s'appuie sur le backend LLM nommé dans `[llm.routing] precise` de `~/.apollia/apollia.toml` pour la planification. Si ce rôle n'est pas configuré (ou pointe vers un backend introuvable), `apollia-os run <agent-orchestré>` échoue avec `[NO_LLM] Orchestrated mode requires a configured LLM`. Configurez au moins un backend et déclarez-le dans `[llm.routing] precise = "<name>"` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)). Les agents `@skill` et `@on_message` ne dépendent pas de ce rôle.
+> **Pré-requis runtime.** ORIA s'appuie sur un backend LLM pour la planification. Le runtime résout le backend dans cet ordre : (1) `[llm.routing] precise` si la section est déclarée dans `~/.config/apollia/apollia.toml`, (2) sinon `[llm].default` du même fichier, (3) sinon le défaut enregistré via `apollia-os llm backends set-default <name>` en `system.db`. Pour un setup mono-backend, `set-default` suffit. Pour un split précis/rapide multi-backend, déclarez `[llm.routing] precise = "<name>"` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)). Sans aucun backend, l'invocation échoue avec `[NO_LLM] Orchestrated mode requires a configured LLM`. Les agents `@skill` et `@on_message` ne dépendent pas de ce rôle.
 
 > **Référence technique :** la page wiki `Briques-ORIA-Engine` détaillera plan cache, observations par étape, intégration HITL *(wiki disponible prochainement)*.
 

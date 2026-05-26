@@ -170,7 +170,7 @@ Usage en script bash :
 ```bash
 apollia-os run research-director "..." --wait || {
   echo "Tâche échouée (code: $?)"
-  apollia-os audit --last 1
+  apollia-os audit list --limit 1
 }
 ```
 
@@ -190,16 +190,18 @@ Commands:
   run          Submit a task to an agent and wait for the result
   auth         OAuth2 PKCE authentication management (login, status, logout)
   agent        Agent management (list, start, stop, info, install, uninstall,
-               enable, disable, update, new)
+               enable, disable, update, new, package, logs, validate, repair)
   a2a          Agent-to-Agent skill discovery and direct invocation
-  task         Task management (list, status, cancel)
+  task         Task management (list, status, cancel, inspect, resume,
+               approvals)
   tools        Native tool governance (list, enable, disable, config, reload,
-               credentials, describe)
-  audit        Audit trail (list, stats)
+               credentials, describe, approvals)
+  audit        Audit trail (list, stats, export)
   memory       Memory management
   llm          LLM backend diagnostics (status, ping, chat)
   model        Local model file management
-  trigger      Trigger management (reload)
+  trigger      Trigger management (list, status, fire, enable, disable, logs,
+               reload, create, update, delete)
   notify       Notification channel management (test, list, logs)
   stt          Speech-to-Text management
   permissions  Permission rule management (list, revoke, audit)

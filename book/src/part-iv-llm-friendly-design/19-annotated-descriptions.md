@@ -15,8 +15,8 @@ Sans annotation :
 async def read_text(
     self,
     path: str,
-    page_range: str | None = None,
     ctx: Ctx,
+    page_range: str | None = None,
 ) -> dict:
     ...
 ```
@@ -45,11 +45,11 @@ from typing import Annotated
 async def read_text(
     self,
     path: Annotated[str, "Absolute filesystem path to the .pdf file."],
+    ctx: Ctx,
     page_range: Annotated[
         str | None,
         "1-based page selection like '1-5,7,10-12'. Omit to read all pages.",
     ] = None,
-    ctx: Ctx,
 ) -> dict:
     ...
 ```

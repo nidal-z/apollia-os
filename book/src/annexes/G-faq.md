@@ -105,23 +105,30 @@ Le runtime et le SDK sont open-source MIT, gratuit. Le coût d'opération vient 
 
 ### Mon agent `@orchestrated` retourne `[NO_LLM]` à chaque appel
 
-Le moteur ORIA, qui pilote les agents `@orchestrated`, a besoin d'un backend LLM nommé pour le rôle `precise` (planification). Sans ce backend, l'invocation échoue à l'entrée de la planification.
+Le moteur ORIA, qui pilote les agents `@orchestrated`, a besoin d'un backend LLM pour la planification. Le code `[NO_LLM]` signifie qu'aucun backend n'est résolu pour le rôle `precise`.
 
-Vérifiez la config :
+Vérifiez d'abord qu'au moins un backend est actif :
 
 ```bash
 apollia-os llm status
-# Doit afficher au moins un backend prêt + le rôle 'precise' pointé vers un backend existant.
+# Doit afficher au moins un backend en STATUS `ready`.
 ```
 
-Si `precise` n'est pas câblé, éditez `~/.apollia/apollia.toml` et ajoutez :
+Si la liste est vide ou si aucun backend n'est marqué actif, installez-en un (cf. [chapitre 1, section « Configurer un backend LLM »](../part-i-getting-started/01-installation.md)) puis déclarez-le par défaut :
+
+```bash
+apollia-os llm backends set-default <name>
+```
+
+En setup mono-backend, ça suffit : le runtime utilise le défaut pour le rôle `precise`. Pour un split précis/rapide multi-backend, ajoutez aussi une section `[llm.routing]` dans `~/.config/apollia/apollia.toml` :
 
 ```toml
 [llm.routing]
-precise = "anthropic"   # ou le nom d'un backend déjà déclaré dans [[llm.backends]]
+precise = "anthropic"   # backend pour la planification ORIA
+fast    = "local"       # backend pour les appels rapides
 ```
 
-Puis redémarrez le runtime (`apollia-os stop && apollia-os start`). Les agents `@skill` et `@on_message` continuent de fonctionner sans cette section ; seuls les `@orchestrated` la requièrent. Détail au [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md).
+Puis redémarrez le runtime (`apollia-os stop && apollia-os start`). Les agents `@skill` et `@on_message` continuent de fonctionner avec n'importe quel backend par défaut ; seul `@orchestrated` consomme le rôle `precise`. Détail des trois rôles au [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md).
 
 ### Comment déboguer un agent qui ne répond pas ?
 

@@ -1189,6 +1189,7 @@ async fn port_is_in_use(port: u16) -> bool {
 /// from a real running daemon we attempt a short-timeout connect: success
 /// means a process is bound, `ConnectionRefused` means the file is stale and
 /// safe to remove on the caller's side.
+#[cfg(unix)]
 async fn socket_is_in_use(path: &std::path::Path) -> bool {
     if !path.exists() {
         return false;
@@ -1196,6 +1197,22 @@ async fn socket_is_in_use(path: &std::path::Path) -> bool {
     match tokio::time::timeout(
         std::time::Duration::from_millis(200),
         tokio::net::UnixStream::connect(path),
+    )
+    .await
+    {
+        Ok(Ok(_)) => true,
+        Ok(Err(_)) | Err(_) => false,
+    }
+}
+
+/// Sur Windows : pas de Unix socket, on regarde si le port TCP par défaut est
+/// déjà bindé par un autre daemon.
+#[cfg(windows)]
+async fn socket_is_in_use(_path: &std::path::Path) -> bool {
+    use crate::client::DEFAULT_TCP_PORT;
+    match tokio::time::timeout(
+        std::time::Duration::from_millis(200),
+        tokio::net::TcpStream::connect(format!("127.0.0.1:{}", DEFAULT_TCP_PORT)),
     )
     .await
     {

@@ -13,10 +13,10 @@ use futures::Stream;
 // Trait principal
 // ─────────────────────────────────────────────
 
-/// Trait unifié pour tout backend LLM — local embarqué ou cloud HTTP.
+/// Trait unifié pour tout backend LLM : local via sidecar runner ou cloud HTTP.
 ///
-/// Implémenté par `EmbeddedBackend` (`feature = "local"`),
-/// `OpenAICompatibleClient` et `AnthropicClient` (`feature = "cloud"`).
+/// Implémenté par `RunnerLlmBackend` (apollia-runtime, ADR-113 sidecar),
+/// `OpenAICompatibleClient`, `AnthropicClient` et `VertexClient` (feature `"cloud"`).
 /// Stocké via `Arc<dyn CompletionModel>` dans le `LlmRouter`.
 #[async_trait::async_trait]
 pub trait CompletionModel: Send + Sync {
@@ -118,7 +118,7 @@ pub struct TokenUsage {
     pub prompt_tokens: u32,
     /// Nombre de tokens générés (sortie).
     pub completion_tokens: u32,
-    /// Coût estimatif en USD — `None` pour `EmbeddedBackend`.
+    /// Coût estimatif en USD : `None` pour les backends locaux (runner sidecar).
     pub cost_usd: Option<f64>,
     /// Tokens lus depuis le cache Anthropic (coût réduit ~90%).
     /// Vaut `0` pour les backends qui ne supportent pas le prompt caching.
@@ -460,9 +460,10 @@ pub enum LlmError {
 
     /// Un ou plusieurs shards GGUF attendus sont absents du dossier.
     ///
-    /// Déclenché par `EmbeddedBackend::load` lorsque le chemin fourni correspond
-    /// à un shard split standard (`<prefix>-NNNNN-of-NNNNN.gguf`) mais que tous
-    /// les shards attendus ne sont pas présents sur le disque.
+    /// Déclenché par le runner (apollia-runner) lors du chargement d'un GGUF
+    /// lorsque le chemin fourni correspond à un shard split standard
+    /// (`<prefix>-NNNNN-of-NNNNN.gguf`) mais que tous les shards attendus ne
+    /// sont pas présents sur le disque.
     #[error(
         "GGUF split incomplete: prefix={prefix}, {found}/{total} shards present, \
          missing at least: {expected}"
@@ -495,9 +496,8 @@ pub enum LlmError {
 
     /// Configuration LLM incohérente détectée au démarrage.
     ///
-    /// Utilisée notamment pour signaler que `EmbeddedBackendConfig::model_path`
-    /// et `EmbeddedBackendConfig::model_paths` sont mutuellement exclusifs, ou
-    /// qu'aucun des deux n'a été renseigné.
+    /// Utilisée notamment pour signaler une incohérence dans la config runner
+    /// (`apollia.toml [llm.runner]`) ou un fichier GGUF invalide.
     #[error("invalid config for backend '{backend}': {reason}")]
     ConfigConflict {
         /// Nom logique du backend fautif (champ `name` de la config).

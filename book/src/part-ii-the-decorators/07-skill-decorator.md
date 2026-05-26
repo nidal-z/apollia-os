@@ -78,10 +78,12 @@ Liste optionnelle de **payloads d'exemple**. Chaque entrée est un dict JSON-sé
 async def read_text(
     self,
     path: str,
-    page_range: str | None = None,
     ctx: Ctx,
+    page_range: str | None = None,
 ) -> dict: ...
 ```
+
+`ctx` est placé avant les paramètres avec valeur par défaut : Python ne permet pas qu'un argument sans default suive un argument avec default.
 
 Le SDK **ne valide pas** les exemples contre le schéma inféré : cela créerait une dépendance circulaire au moment de la construction du manifeste. L'auteur est responsable de la cohérence.
 

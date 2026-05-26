@@ -53,22 +53,6 @@ fn active_features() -> Vec<&'static str> {
     let mut f = Vec::new();
     #[cfg(feature = "cloud")]
     f.push("cloud");
-    #[cfg(feature = "local")]
-    f.push("local");
-    #[cfg(feature = "local-cpu")]
-    f.push("local-cpu");
-    #[cfg(feature = "local-metal")]
-    f.push("local-metal");
-    #[cfg(feature = "local-accelerate")]
-    f.push("local-accelerate");
-    #[cfg(feature = "local-cuda")]
-    f.push("local-cuda");
-    #[cfg(feature = "stt-whisper-cpp")]
-    f.push("stt-whisper-cpp");
-    #[cfg(feature = "stt-metal")]
-    f.push("stt-metal");
-    #[cfg(feature = "stt-cuda")]
-    f.push("stt-cuda");
     f
 }
 

@@ -125,30 +125,45 @@ Le `code` métier est le même que celui que produit `DomainError(code, message)
 
 ## apollia.toml : configuration structurelle
 
-Le fichier `~/.apollia/apollia.toml` est lu au démarrage. Il couvre les sections suivantes : `[runtime]`, `[memory]`, `[tools]`, `[logging]`, `[a2a]`, `[chat]`, `[observability]`, `[stt]`, et les backends LLM via `[[llm.backends]]`.
+Le fichier de configuration est résolu dans cet ordre au démarrage : (1) `./apollia.toml` dans le répertoire courant, (2) `~/.config/apollia/apollia.toml` dans le home utilisateur. Le premier trouvé est lu. Si aucun n'existe, le runtime démarre avec les défauts et un message `no apollia.toml found — starting with defaults`.
+
+Il couvre les sections suivantes : `[runtime]`, `[memory]`, `[tools]`, `[logging]`, `[a2a]`, `[chat]`, `[observability]`, `[stt]`, et les backends LLM via `[llm]` + `[[llm.backends]]`.
 
 ```toml
 # Exemple : un backend cloud (Anthropic) pour le raisonnement précis,
 # un backend local (llama.cpp) pour les appels rapides.
 
-[[llm.backends]]
-name        = "anthropic"
-type        = "anthropic"
-model       = "claude-haiku-4-5"
-api_key_env = "ANTHROPIC_API_KEY"
-default     = true
+[llm]
+default = "anthropic"   # backend utilisé par ctx.llm quand `backend=` n'est pas précisé
 
 [[llm.backends]]
-name        = "local"
-type        = "llama-cpp"
-model       = "/Users/me/models/mistral-7b-instruct.Q4_K_M.gguf"
+name         = "anthropic"
+type         = "api"
+api_url      = "https://api.anthropic.com/v1"
+api_key_env  = "ANTHROPIC_API_KEY"
+model        = "claude-haiku-4-5"
 
-# Routing : qui répond à quel besoin.
+[[llm.backends]]
+name         = "local"
+type         = "embedded"
+model_path   = "/Users/me/models/mistral-7b-instruct.Q4_K_M.gguf"
+quantization = "Q4_K_M"
+
+# Routing : qui répond à quel besoin. Optionnel — sans cette section, le runtime
+# utilise `[llm].default` pour les trois rôles (suffisant pour un setup
+# single-backend). Ajoutez-la pour router precise/fast sur deux backends différents.
 [llm.routing]
 default = "anthropic"   # appels ctx.llm.complete / chat / stream sans backend explicite
 precise = "anthropic"   # planification ORIA (mode @orchestrated) et raisonnement profond
 fast    = "local"       # appels best-effort, latence prioritaire
 ```
+
+**Champs requis par type de backend :**
+
+- `type = "api"` (cloud OpenAI-compatible / Anthropic / OpenAI) : `name`, `api_url`, `api_key_env`, `model`.
+- `type = "embedded"` (llama.cpp local in-process) : `name`, `model_path` (ou `model_paths` pour shards), `quantization` (informatif, ex. `Q4_K_M`). Optionnel : `device` (`cpu`, `metal`, `cuda`, …).
+
+**`[llm].default` est requis dès qu'au moins un `[[llm.backends]]` est déclaré.** Sans `default`, le parser TOML du runtime warne « apollia.toml unreadable: missing field `default` in `llm` » au démarrage et retombe sur la configuration par défaut (aucun backend résolu). Le plus sûr : laisser la CLI gérer le fichier via `apollia-os llm backends create <name> …` puis `apollia-os llm backends set-default <name>`.
 
 Si aucun backend n'est configuré, `ctx.llm` lève une erreur à la première utilisation. Le runtime démarre quand même avec un warning.
 
@@ -158,7 +173,7 @@ Si aucun backend n'est configuré, `ctx.llm` lève une erreur à la première ut
 - `precise` : backend utilisé par le moteur ORIA pour la planification des agents `@orchestrated`. **Si `precise` est absent ou pointe vers un backend introuvable, les agents orchestrés échouent avec `NO_LLM` à l'invocation** (le routing direct/skills continue de fonctionner).
 - `fast` : backend pour les appels rapides ou les tâches à fort débit (par exemple les résumés intermédiaires d'ORIA).
 
-Si vous n'avez qu'un seul backend, pointez les trois rôles dessus :
+Si vous n'avez qu'un seul backend, omettez complètement la section `[llm.routing]` : le runtime utilise `[llm].default` pour les trois rôles. Pour rendre l'intention explicite, vous pouvez aussi déclarer les trois rôles sur le même nom :
 
 ```toml
 [llm.routing]
@@ -211,8 +226,11 @@ La raison de cette séparation : `apollia.toml` est lu au démarrage et ne chang
 ## Localiser et inspecter sa config
 
 ```bash
-# Localisation par défaut
-cat ~/.apollia/apollia.toml
+# Localisation utilisateur (created on first edit)
+cat ~/.config/apollia/apollia.toml
+
+# Localisation locale au projet (prioritaire si présente)
+cat ./apollia.toml
 
 # Ouvrir dans l'éditeur par défaut
 apollia-os config edit

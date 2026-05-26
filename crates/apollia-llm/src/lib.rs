@@ -1,10 +1,13 @@
-//! `apollia-llm` — moteur LLM embarqué et clients cloud pour Apollia OS.
+//! `apollia-llm` — clients LLM cloud pour Apollia OS.
+//!
+//! Depuis ADR-113, les backends d'inférence locale (llama-cpp) ne vivent plus
+//! ici : ils sont hébergés par le crate `apollia-runner` (sidecar) et exposés
+//! au daemon via `RunnerLlmBackend` (apollia-runtime).
 //!
 //! # Features
 //!
-//! - `cloud` (**défaut**) : active `OpenAICompatibleClient` et `AnthropicClient`
-//!   via `async-openai` / `reqwest`.
-//! - `local` : active `EmbeddedBackend` (inférence in-process via `mistral-rs-core`).
+//! - `cloud` (défaut) : active `OpenAICompatibleClient`, `AnthropicClient` et
+//!   `VertexClient` via `async-openai` / `reqwest`.
 //!
 //! Les types fondamentaux (`CompletionModel`, `CompletionRequest`, etc.) sont
 //! disponibles quelle que soit la feature activée.

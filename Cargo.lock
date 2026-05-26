@@ -458,10 +458,7 @@ dependencies = [
  "async-openai",
  "async-trait",
  "chrono",
- "encoding_rs",
  "futures",
- "llama-cpp-2",
- "llama-cpp-sys-2",
  "lru",
  "reqwest 0.12.28",
  "rusqlite",
@@ -587,6 +584,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-runner"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "encoding_rs",
+ "futures",
+ "hound",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "prometheus",
+ "reqwest 0.12.28",
+ "rubato",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "whisper-rs",
+]
+
+[[package]]
 name = "apollia-runtime"
 version = "0.1.0"
 dependencies = [
@@ -616,6 +639,7 @@ dependencies = [
  "http-body-util",
  "hyper-util",
  "rand 0.8.5",
+ "reqwest 0.12.28",
  "rusqlite",
  "serde",
  "serde_json",
@@ -630,6 +654,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "wmi",
 ]
 
 [[package]]
@@ -646,7 +671,6 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "uuid",
- "whisper-rs",
 ]
 
 [[package]]
@@ -5499,6 +5523,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d33c28a30771f7f96db69893f78b857f7450d7e0237e9c8fc6427a81bae7ed1"
+dependencies = [
+ "cfg-if",
+ "fnv",
+ "lazy_static",
+ "memchr",
+ "parking_lot",
+ "protobuf",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf"
+version = "2.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
+
+[[package]]
 name = "pxfm"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5933,6 +5978,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -7992,6 +8038,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-serde"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
+dependencies = [
+ "serde",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-subscriber"
 version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8001,12 +8057,15 @@ dependencies = [
  "nu-ansi-term",
  "once_cell",
  "regex-automata",
+ "serde",
+ "serde_json",
  "sharded-slab",
  "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
  "tracing-log",
+ "tracing-serde",
 ]
 
 [[package]]
@@ -9345,6 +9404,21 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
+]
+
+[[package]]
+name = "wmi"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d9189bc72f0e4d814d812216ec06636ce3ea5597ff5f1ff9f9f0e5ec781c027"
+dependencies = [
+ "chrono",
+ "futures",
+ "log",
+ "serde",
+ "thiserror 2.0.18",
+ "windows 0.61.3",
+ "windows-core 0.61.2",
 ]
 
 [[package]]

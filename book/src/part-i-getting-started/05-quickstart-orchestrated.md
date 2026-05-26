@@ -12,6 +12,7 @@ Un agent orchestré laisse le moteur ORIA (Observer, Reasoner, Actor) côté Rus
 """Briefing assistant, ORIA plans and executes the steps."""
 
 from apollia import agent, orchestrated
+from apollia.types import Ctx
 
 
 SYSTEM_PROMPT = """\
@@ -68,7 +69,7 @@ Si vous ne définissez pas `on_plan_complete`, ORIA concatène les textes des é
 
 ## Lancer l'agent
 
-Pré-requis : avoir configuré le backend LLM dédié au raisonnement précis. Si vous n'avez qu'un backend par défaut, `apollia-os llm backends set-default <name>` suffit. Sinon, ajoutez `[llm.routing] precise = "<name>"` dans `~/.apollia/apollia.toml` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)). Sans ça, l'invocation échouera avec `[NO_LLM] Orchestrated mode requires a configured LLM`.
+Pré-requis : avoir au moins un backend LLM configuré. En setup mono-backend, `apollia-os llm backends set-default <name>` suffit : ORIA utilise ce backend pour la planification. En setup multi-backend, ajoutez `[llm.routing] precise = "<name>"` dans `~/.config/apollia/apollia.toml` (cf. [chapitre 31](../part-viii-runtime-rust/31-rest-api-config.md)) pour router explicitement le raisonnement précis. Sans backend configuré du tout, l'invocation échouera avec `[NO_LLM] Orchestrated mode requires a configured LLM`.
 
 ```bash
 python -m apollia inspect briefing_agent.py

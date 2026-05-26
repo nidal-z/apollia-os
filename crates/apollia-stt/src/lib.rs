@@ -1,26 +1,24 @@
-//! Apollia OS — moteur Speech-to-Text embarqué.
+//! Apollia OS — interfaces Speech-to-Text.
 //!
 //! Cette crate fournit :
 //! - Le trait [`SttBackend`] (object-safe, `Send + Sync`) pour abstraire les moteurs STT.
 //! - Les types [`TranscriptResult`], [`TranscriptSegment`] pour les résultats de transcription.
-//! - L'enum [`SttError`] (7 variants, `thiserror`) pour les erreurs STT.
+//! - L'enum [`SttError`] pour les erreurs STT.
+//! - Le repository SQLite des transcriptions persistées.
 //!
-//! L'accélération matérielle est contrôlée via feature flags :
-//! - `cpu` (défaut) — backend whisper.cpp sans accélération GPU
-//! - `metal` — accélération Metal (Apple Silicon)
-//! - `cuda` — accélération CUDA (NVIDIA)
+//! Depuis ADR-113, le moteur d'inférence whisper.cpp lui-même vit dans le
+//! crate `apollia-runner` (sidecar). Le daemon utilise `RunnerSttBackend`
+//! (apollia-runtime) qui implémente `SttBackend` via HTTP IPC.
 
 pub mod audio;
 pub mod backend;
 pub mod repository;
 pub mod types;
-pub mod whisper_cpp;
 
 pub use audio::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
 pub use backend::SttBackend;
 pub use repository::{SttRepository, TranscriptRow};
 pub use types::{SttError, TranscriptResult, TranscriptSegment};
-pub use whisper_cpp::WhisperCppBackend;
 
 #[cfg(test)]
 mod tests {

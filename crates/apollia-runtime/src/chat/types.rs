@@ -331,7 +331,7 @@ pub struct ToolStatEntry {
 /// (minimal slice; persistence is a future concern).
 ///
 /// `cost_usd` is `None` when the backend does not report pricing (e.g. local
-/// `EmbeddedBackend`).
+/// runner sidecar via `RunnerLlmBackend`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SessionMetrics {
     /// Target session.

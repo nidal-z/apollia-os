@@ -9,9 +9,6 @@ license = "MIT OR Apache-2.0"
 # Gate Python-dependent tests behind this flag.
 # Enable with: cargo test -p apollia-e2e-tests --features python-tests
 python-tests = ["dep:apollia-aip", "dep:pyo3"]
-# Gate local-inference tests (EmbeddedBackend) behind this flag.
-# Enable with: cargo test -p apollia-e2e-tests --features python-tests,local
-local = ["apollia-llm/local"]
 
 [dependencies]
 apollia-core     = { workspace = true }
@@ -79,11 +76,6 @@ path = "integration/test_run_tools.rs"
 name = "test_llm_agent"
 path = "integration/test_llm_agent.rs"
 required-features = ["python-tests"]
-
-[[test]]
-name = "test_embedded_backend"
-path = "integration/test_embedded_backend.rs"
-required-features = ["python-tests", "local"]
 
 [[test]]
 name = "test_triggers"

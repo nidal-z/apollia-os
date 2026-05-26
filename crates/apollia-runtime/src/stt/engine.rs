@@ -290,26 +290,6 @@ impl SttEngine {
     }
 }
 
-/// Attempts to load an STT backend from the given model path.
-///
-/// When compiled with `stt-whisper-cpp`, loads the model via
-/// [`WhisperCppBackend`](apollia_stt::WhisperCppBackend). Otherwise returns
-/// [`SttError::BackendUnavailable`].
-pub(crate) fn try_load_backend(model_path: &str) -> Result<Box<dyn SttBackend>, SttError> {
-    #[cfg(feature = "stt-whisper-cpp")]
-    {
-        let backend = apollia_stt::WhisperCppBackend::load(model_path)?;
-        Ok(Box::new(backend))
-    }
-    #[cfg(not(feature = "stt-whisper-cpp"))]
-    {
-        let _ = model_path;
-        Err(SttError::BackendUnavailable {
-            backend: "no STT backend compiled (enable stt-whisper-cpp feature)".to_owned(),
-        })
-    }
-}
-
 // ── Tests ───────────────────────────────────────────────────────────
 
 #[cfg(test)]

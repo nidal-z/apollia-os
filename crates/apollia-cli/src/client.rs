@@ -1,7 +1,13 @@
-//! HTTP client for communicating with the Apollia runtime via Unix socket.
+//! HTTP client for communicating with the Apollia runtime.
 //!
-//! Uses hyper 1.x over `tokio::net::UnixStream` for lightweight HTTP/1.1
-//! requests without pulling in reqwest or a full HTTP client stack.
+//! Sur **Unix** (macOS, Linux) : connexion via `tokio::net::UnixStream` au
+//! chemin `--socket` (par défaut `/tmp/apollia.sock`). Sécurité filesystem-based.
+//!
+//! Sur **Windows** : `tokio::net::TcpStream` sur `127.0.0.1:DEFAULT_TCP_PORT`.
+//! Le runtime écoute toujours en TCP en parallèle, et Windows n'a pas de
+//! support natif des Unix domain sockets dans hyper 1.x.
+//!
+//! Cf. STORY-013 dans sprint-multirunner.
 
 use std::path::{Path, PathBuf};
 
@@ -11,7 +17,31 @@ use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
+
+#[cfg(unix)]
 use tokio::net::UnixStream;
+#[cfg(windows)]
+use tokio::net::TcpStream;
+
+/// Type d'I/O bas niveau utilisé pour la connexion daemon ↔ CLI.
+#[cfg(unix)]
+type RuntimeStream = UnixStream;
+#[cfg(windows)]
+type RuntimeStream = TcpStream;
+
+/// Ouvre une connexion vers le runtime.
+///
+/// Sur Unix, utilise le `socket_path` (Unix domain socket).
+/// Sur Windows, ignore le path et connecte sur `127.0.0.1:DEFAULT_TCP_PORT`.
+#[cfg(unix)]
+async fn connect_runtime(socket_path: &Path) -> std::io::Result<RuntimeStream> {
+    UnixStream::connect(socket_path).await
+}
+
+#[cfg(windows)]
+async fn connect_runtime(_socket_path: &Path) -> std::io::Result<RuntimeStream> {
+    TcpStream::connect(format!("127.0.0.1:{}", DEFAULT_TCP_PORT)).await
+}
 
 /// Default Unix socket path for the Apollia runtime.
 pub const DEFAULT_SOCKET_PATH: &str = "/tmp/apollia.sock";
@@ -759,7 +789,7 @@ impl RuntimeClient {
         &self,
         uri: &str,
     ) -> Result<impl futures::Stream<Item = Result<String, ClientError>>, ClientError> {
-        let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+        let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
             {
@@ -850,7 +880,7 @@ impl RuntimeClient {
         body: &[u8],
         content_type: &str,
     ) -> Result<RawResponse, ClientError> {
-        let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+        let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
             {
@@ -921,7 +951,7 @@ impl RuntimeClient {
         uri: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<RawResponse, ClientError> {
-        let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+        let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
             {

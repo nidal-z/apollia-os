@@ -27,6 +27,7 @@ on:
         options:
           - "all"
           - "e2e-desktop"
+          - "multirunner-cpu-e2e"
           - "feature-matrix"
           - "coverage"
           - "deep-audit"
@@ -93,7 +94,76 @@ jobs:
         if: always()
         run: ./target/debug/apollia-os stop || true
 
-  # ── Feature matrix sanity (CUDA, ROCm, Vulkan, STT cuda) ───────────────────
+  # ── Multi-runner CPU E2E (ADR-113) ─────────────────────────────────────────
+  # Spawn le daemon + le sidecar runner CPU sur les 3 OS, vérifie le
+  # handshake HTTP loopback et l'inférence end-to-end sur un GGUF léger.
+  multirunner-cpu-e2e:
+    name: Multi-runner CPU E2E (${{ matrix.os }})
+    if: |
+      github.event_name == 'schedule' ||
+      github.event.inputs.job == 'all' ||
+      github.event.inputs.job == 'multirunner-cpu-e2e'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            triple: aarch64-apple-darwin
+          - os: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            triple: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.triple }}
+
+      - name: Install Linux build deps
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            python3-dev clang cmake
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: multirunner-cpu-${{ matrix.triple }}
+
+      - name: Build apollia-runner (local-cpu)
+        shell: bash
+        env:
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+        run: |
+          cargo build -p apollia-runner --release \
+            --no-default-features \
+            --features local-cpu \
+            --target ${{ matrix.triple }}
+
+      - name: Run apollia-runner IPC integration tests
+        shell: bash
+        run: |
+          cargo test -p apollia-runner --release \
+            --no-default-features \
+            --features local-cpu \
+            --target ${{ matrix.triple }} \
+            -- --test-threads=1
+
+      - name: Run apollia-runtime supervisor smoke tests
+        shell: bash
+        run: |
+          cargo test -p apollia-runtime --release \
+            --target ${{ matrix.triple }} \
+            runner_supervisor:: -- --test-threads=1
+
+  # ── Feature matrix sanity (apollia-runner backends, ADR-113) ───────────────
   feature-matrix:
     name: Feature ${{ matrix.crate }} (${{ matrix.feature }})
     if: |
@@ -105,21 +175,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - crate: apollia-llm
+          - crate: apollia-runner
+            feature: local-cpu
+          - crate: apollia-runner
             feature: local-cuda
             install_cuda: true
-          - crate: apollia-llm
+          - crate: apollia-runner
             feature: local-rocm
             install_rocm: true
-          - crate: apollia-llm
+          - crate: apollia-runner
             feature: local-vulkan
             install_vulkan: true
-          - crate: apollia-stt
-            feature: cuda
-            use_cross: true
-          - crate: apollia-stt
-            feature: rocm
-            use_cross: true
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -161,25 +227,12 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y vulkan-sdk
 
-      - name: Install cross
-        if: matrix.use_cross
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-
       - uses: Swatinem/rust-cache@v2
         with:
           key: feature-${{ matrix.crate }}-${{ matrix.feature }}
 
-      - name: cargo check (direct)
-        if: matrix.use_cross != true
-        run: cargo check -p ${{ matrix.crate }} --features ${{ matrix.feature }}
-
-      - name: cross check (containerized)
-        if: matrix.use_cross == true
-        env:
-          CROSS_CONTAINER_OPTS: "--platform linux/amd64"
-        run: cross check -p ${{ matrix.crate }} --features ${{ matrix.feature }} --target x86_64-unknown-linux-gnu
+      - name: cargo check
+        run: cargo check -p ${{ matrix.crate }} --no-default-features --features ${{ matrix.feature }}
 
   # ── Coverage HTML + LCOV ───────────────────────────────────────────────────
   coverage:

@@ -251,13 +251,44 @@ jobs:
             --no-default-features \
             --features "${{ matrix.features }}"
 
+      # ADR-113 : build apollia-runner avec la feature backend correspondante.
+      # Extrait local-{cpu,cuda,rocm,vulkan,metal} de matrix.features.
+      # Pour les presets sans local-* (cloud only), pas de runner buildé.
+      - name: Extract runner feature
+        id: runner_feat
+        shell: bash
+        run: |
+          FEAT=$(echo "${{ matrix.features }}" | tr ',' '\n' | grep -E '^local-(cpu|cuda|rocm|vulkan|metal)$' | head -1 || true)
+          echo "feature=$FEAT" >> "$GITHUB_OUTPUT"
+          if [ -n "$FEAT" ]; then
+            BACKEND=${FEAT#local-}
+            echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build apollia-runner
+        if: steps.runner_feat.outputs.feature != ''
+        shell: bash
+        env:
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+        run: |
+          cargo build --release -p apollia-runner \
+            --target ${{ matrix.triple }} \
+            --no-default-features \
+            --features "${{ steps.runner_feat.outputs.feature }}"
+
       - name: Strip binary (Linux)
         if: startsWith(matrix.runner, 'ubuntu')
-        run: strip target/${{ matrix.triple }}/release/apollia-os
+        run: |
+          strip target/${{ matrix.triple }}/release/apollia-os
+          if [ -f target/${{ matrix.triple }}/release/apollia-runner ]; then
+            strip target/${{ matrix.triple }}/release/apollia-runner
+          fi
 
       # ── Package self-contained ────────────────────────────────────────────
       - name: Assemble bundle (Unix)
         if: runner.os != 'Windows'
+        env:
+          RUNNER_BACKEND: ${{ steps.runner_feat.outputs.backend }}
         run: |
           STAGE="target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
           mkdir -p "$STAGE"
@@ -265,12 +296,18 @@ jobs:
           cp packaging/launchers/apollia-os.sh "$STAGE/apollia-os.sh"
           chmod +x "$STAGE/apollia-os.sh"
           cp -R target/python-bundle/${{ matrix.triple }}/python "$STAGE/python"
+          # Inclut le runner correspondant au backend du preset si compilé.
+          if [ -n "$RUNNER_BACKEND" ] && [ -f "target/${{ matrix.triple }}/release/apollia-runner" ]; then
+            cp "target/${{ matrix.triple }}/release/apollia-runner" "$STAGE/apollia-runner-$RUNNER_BACKEND"
+            chmod +x "$STAGE/apollia-runner-$RUNNER_BACKEND"
+            echo "  Runner bundled : apollia-runner-$RUNNER_BACKEND"
+          fi
           cat > "$STAGE/README.txt" <<EOF
           Apollia OS ${{ matrix.preset }} — self-contained bundle
           ========================================================
           Lance : ./apollia-os.sh start
           Doc   : https://apollia.fr/docs/install
-          Inclus : binaire + Python 3.13 + site-packages.
+          Inclus : daemon apollia-os + sidecar runner ($RUNNER_BACKEND) + Python 3.13.
           Requis : driver GPU à jour si preset GPU.
           EOF
           cd target/${{ matrix.triple }}/bundle
@@ -280,18 +317,25 @@ jobs:
       - name: Assemble bundle (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          RUNNER_BACKEND: ${{ steps.runner_feat.outputs.backend }}
         run: |
           $stage = "target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item "target/${{ matrix.triple }}/release/apollia-os.exe" "$stage/apollia-os.exe"
           Copy-Item "packaging/launchers/apollia-os.bat" "$stage/apollia-os.bat"
           Copy-Item -Recurse "target/python-bundle/${{ matrix.triple }}/python/*" "$stage/"
+          $rb = "${env:RUNNER_BACKEND}"
+          if ($rb -and (Test-Path "target/${{ matrix.triple }}/release/apollia-runner.exe")) {
+              Copy-Item "target/${{ matrix.triple }}/release/apollia-runner.exe" "$stage/apollia-runner-$rb.exe"
+              Write-Host "  Runner bundled : apollia-runner-$rb.exe"
+          }
           @"
           Apollia OS ${{ matrix.preset }} — self-contained bundle
           ========================================================
           Lance : apollia-os.bat start
           Doc   : https://apollia.fr/docs/install
-          Inclus : binaire + Python 3.13 + site-packages + CRT statique.
+          Inclus : daemon apollia-os.exe + sidecar runner ($rb) + Python 3.13 + CRT statique.
           Requis cote user : driver GPU a jour. Pas de VC++ Redist necessaire.
           "@ | Out-File "$stage/README.txt" -Encoding ASCII
           Push-Location "target/${{ matrix.triple }}/bundle"
@@ -317,6 +361,9 @@ jobs:
     needs: setup
     if: needs.setup.outputs.run_desktop == 'true'
     runs-on: macos-latest
+    env:
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
     steps:
       - uses: actions/checkout@v5
 
@@ -349,6 +396,7 @@ jobs:
         env:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/bin/python3.13
           RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/aarch64-apple-darwin/python/lib
+          APOLLIA_DESKTOP_RUNNERS: "cpu metal"
         run: cargo tauri build --target aarch64-apple-darwin
 
       - name: Post-bundle (install_names + ad-hoc sign)
@@ -364,6 +412,47 @@ jobs:
             "$APP"
           codesign --verify --verbose=2 "$APP" || true
 
+      # ── Apple Developer ID signing + notarization (gated by secrets) ────────
+      # Reste no-op si les secrets ne sont pas configurés ; permet une release
+      # interne non-signée pour les tests internes avant achat du cert Apple.
+      - name: Apple Developer ID sign + notarize (if secrets present)
+        if: env.APPLE_SIGNING_IDENTITY != '' && env.APPLE_API_KEY != ''
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -e
+          KEYCHAIN=apollia-build.keychain
+          security create-keychain -p "" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          echo "$APPLE_CERT_P12_BASE64" | base64 -d > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN"
+
+          APP="target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
+          codesign --force --deep --options runtime \
+            --entitlements crates/apollia-desktop/entitlements.plist \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            --timestamp \
+            "$APP"
+          codesign --verify --verbose=2 "$APP"
+
+          DMG=$(ls target/aarch64-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$DMG"
+
+          echo "$APPLE_API_KEY" | base64 -d > /tmp/AuthKey.p8
+          xcrun notarytool submit "$DMG" \
+            --key /tmp/AuthKey.p8 \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$DMG"
+
       - name: SHA256SUMS
         working-directory: target/aarch64-apple-darwin/release/bundle/dmg
         run: shasum -a 256 *.dmg > SHA256SUMS
@@ -378,11 +467,202 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────────────
+  # Desktop bundle Tauri — Linux x86_64 (.deb + .AppImage)
+  # ────────────────────────────────────────────────────────────────────────────
+  desktop-linux:
+    name: Desktop Linux (x86_64)
+    needs: setup
+    if: needs.setup.outputs.run_desktop == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Tauri / Linux build deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libsoup-3.0-dev javascriptcoregtk-4.1 \
+            python3-dev clang cmake \
+            file
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-linux-x86_64
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend deps
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      - name: Build Python bundle (x86_64-unknown-linux-gnu)
+        run: |
+          ./packaging/build-python-bundle.sh x86_64-unknown-linux-gnu \
+            target/python-bundle/x86_64-unknown-linux-gnu
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        env:
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
+          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
+          APOLLIA_DESKTOP_RUNNERS: "cpu"
+        run: cargo tauri build --target x86_64-unknown-linux-gnu
+
+      - name: SHA256SUMS
+        working-directory: target/x86_64-unknown-linux-gnu/release/bundle
+        run: |
+          set -e
+          shasum -a 256 deb/*.deb appimage/*.AppImage 2>/dev/null > SHA256SUMS || true
+          cat SHA256SUMS
+
+      # ── GPG sign SHA256SUMS (gated by secrets) ──────────────────────────────
+      - name: GPG-sign SHA256SUMS (if key present)
+        if: env.GPG_PRIVATE_KEY != ''
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        working-directory: target/x86_64-unknown-linux-gnu/release/bundle
+        run: |
+          set -e
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+            --pinentry-mode loopback \
+            --detach-sign --armor --output SHA256SUMS.asc SHA256SUMS
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: apollia-desktop-linux-x86_64
+          path: |
+            target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+            target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS
+            target/x86_64-unknown-linux-gnu/release/bundle/SHA256SUMS.asc
+          if-no-files-found: error
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Desktop bundle Tauri — Windows x86_64 (.msi + .exe NSIS)
+  # ────────────────────────────────────────────────────────────────────────────
+  desktop-windows:
+    name: Desktop Windows (x86_64)
+    needs: setup
+    if: needs.setup.outputs.run_desktop == 'true'
+    runs-on: windows-latest
+    env:
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-windows-x86_64
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend deps
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      - name: Build Python bundle (x86_64-pc-windows-msvc)
+        shell: bash
+        run: |
+          ./packaging/build-python-bundle.sh x86_64-pc-windows-msvc \
+            target/python-bundle/x86_64-pc-windows-msvc
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        shell: bash
+        env:
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+          APOLLIA_DESKTOP_RUNNERS: "cpu"
+        run: cargo tauri build --target x86_64-pc-windows-msvc
+
+      # ── Code-signing avec signtool (gated by secrets) ──────────────────────
+      # Le cert PFX est passé en base64, signé via signtool de Windows SDK
+      # (présent par défaut sur runner windows-latest).
+      - name: Sign MSI + NSIS installers (if cert present)
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "code.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = (Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match 'x64\\signtool.exe$' } |
+              Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          $bundleDir = "target/x86_64-pc-windows-msvc/release/bundle"
+          $targets = @()
+          if (Test-Path "$bundleDir/msi") { $targets += Get-ChildItem "$bundleDir/msi/*.msi" }
+          if (Test-Path "$bundleDir/nsis") { $targets += Get-ChildItem "$bundleDir/nsis/*.exe" }
+          foreach ($t in $targets) {
+              & $signtool sign /fd SHA256 /tr "http://timestamp.digicert.com" /td SHA256 `
+                  /f $pfx /p $env:WINDOWS_CERT_PASSWORD $t.FullName
+              & $signtool verify /pa $t.FullName
+          }
+
+      - name: SHA256SUMS
+        working-directory: target/x86_64-pc-windows-msvc/release/bundle
+        shell: pwsh
+        run: |
+          $files = @()
+          if (Test-Path msi) { $files += Get-ChildItem msi/*.msi }
+          if (Test-Path nsis) { $files += Get-ChildItem nsis/*.exe }
+          $lines = $files | ForEach-Object {
+              $h = (Get-FileHash $_ -Algorithm SHA256).Hash
+              "$h  $($_.Name)"
+          }
+          $lines | Out-File SHA256SUMS -Encoding ASCII
+          Get-Content SHA256SUMS
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: apollia-desktop-windows-x86_64
+          path: |
+            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            target/x86_64-pc-windows-msvc/release/bundle/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────────────────
   # Aggregation → GitHub Release draft (tag push uniquement)
   # ────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release (draft)
-    needs: [cli, desktop-macos]
+    needs: [cli, desktop-macos, desktop-linux, desktop-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -407,6 +687,10 @@ jobs:
             artifacts/*.zip
             artifacts/*.zip.sha256
             artifacts/*.dmg
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.msi
+            artifacts/*.exe
             artifacts/SHA256SUMS
           draft: true
           generate_release_notes: true

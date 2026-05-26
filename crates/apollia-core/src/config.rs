@@ -1271,6 +1271,46 @@ pub struct LlmRoutingConfig {
 }
 
 // ─────────────────────────────────────────────
+// LlmRunnerConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du sidecar runner LLM local (section `[llm.runner]` dans `apollia.toml`).
+///
+/// Permet à l'utilisateur de forcer un backend précis (`cuda`, `rocm`, `vulkan`,
+/// `metal`, `cpu`) ou de laisser la détection automatique choisir (`auto`).
+///
+/// Voir `docs/internal/architecture/GPU-DETECTION.md` pour la hiérarchie de décision
+/// complète et le module `apollia_runtime::runner_supervisor::gpu_detection` pour
+/// l'implémentation.
+///
+/// Exemple `apollia.toml` :
+/// ```toml
+/// [llm.runner]
+/// backend = "vulkan"   # auto (défaut) | cuda | rocm | vulkan | metal | cpu
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmRunnerConfig {
+    /// Backend forcé par l'opérateur, ou `"auto"` pour laisser la détection décider.
+    ///
+    /// Valeurs acceptées : `"auto"`, `"cuda"`, `"rocm"`, `"vulkan"`, `"metal"`, `"cpu"`.
+    /// Toute autre valeur est traitée comme `"auto"` avec un warning au démarrage.
+    #[serde(default = "default_runner_backend")]
+    pub backend: String,
+}
+
+impl Default for LlmRunnerConfig {
+    fn default() -> Self {
+        Self {
+            backend: default_runner_backend(),
+        }
+    }
+}
+
+fn default_runner_backend() -> String {
+    "auto".to_string()
+}
+
+// ─────────────────────────────────────────────
 // VertexConfig
 // ─────────────────────────────────────────────
 

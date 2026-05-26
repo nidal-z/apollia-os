@@ -49,6 +49,7 @@ KNOWLEDGE BASE
     version="0.1.0",
     description="Friendly product coach for Apollia OS users.",
     agent_type="system",
+    memory_namespace="coach",
 )
 class Coach:
     @on_message
@@ -75,6 +76,8 @@ class Coach:
         )
         return full
 ```
+
+> **Pourquoi `memory_namespace="coach"`.** Sans cette déclaration, `ctx.memory` est `None` (principe #6 : la mémoire est opt-in par agent) et l'appel à `ctx.memory.record(...)` lèverait `'NoneType' object has no attribute 'record'`. Cf. [chapitre 6](../part-ii-the-decorators/06-agent-decorator.md) pour les autres options gating.
 
 C'est tout. Un fichier, un décorateur de classe, une méthode.
 

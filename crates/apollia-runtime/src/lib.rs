@@ -22,6 +22,7 @@ pub mod mailbox;
 pub mod observability;
 pub mod registry;
 pub mod router;
+pub mod runner_supervisor;
 pub mod session;
 pub mod session_metrics;
 pub mod session_replay;

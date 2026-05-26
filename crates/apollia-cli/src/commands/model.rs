@@ -109,10 +109,9 @@ struct ShardEntry {
 /// Retourne `None` pour tout autre format — fichier mono, indices non
 /// zero-padded, extension absente, etc. Ne touche pas le filesystem.
 ///
-/// Ce parseur duplique volontairement la logique de
-/// `apollia_llm::backends::embedded::parse_shard_file_name` : la CLI ne
-/// dépend pas de `apollia-llm` et la règle du format shard est un invariant
-/// public du format GGUF.
+/// Ce parseur duplique volontairement la logique équivalente du runner
+/// (apollia-runner) : la CLI ne dépend pas du runner et la règle du format
+/// shard est un invariant public du format GGUF.
 fn parse_shard_name(file_name: &str) -> Option<(String, u32, u32)> {
     let stem = file_name.strip_suffix(".gguf")?;
     if stem.len() < SHARD_SUFFIX_LEN + 2 {

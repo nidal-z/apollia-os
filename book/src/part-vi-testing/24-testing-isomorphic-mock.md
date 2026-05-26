@@ -124,7 +124,7 @@ Tous instanciés avec des valeurs par défaut. Vous les ajustez si votre test en
 
 ```python
 ctx.profile.values = {"user.name": "Alice", "user.preferred_language": "fr"}
-ctx.workspace.rules_text = "# Project rules\n- Always be polite."
+ctx.workspace.rules_content = "# Project rules\n- Always be polite."
 ctx.budget.steps_remaining = 3
 ```
 

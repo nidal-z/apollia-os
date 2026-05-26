@@ -1425,6 +1425,14 @@ Trois nettoyages ciblés sur `ctx.llm` et la boucle ReAct. (1) **Suppression** d
 
 [Détail → docs/adr/ADR-112-sdk-stream-cleanup-rename.md](adr/ADR-112-sdk-stream-cleanup-rename.md)
 
+## ADR-113 : Architecture multi-runner sidecar pour l'inférence LLM/STT
+
+**Date :** 2026-05-25 — **Statut :** Proposé
+
+Refactor architectural majeur post-launch v0.1.0. Le runtime `apollia-os` ne link plus `llama-cpp-2` directement, mais spawn un process enfant `apollia-runner-{cuda,rocm,vulkan,metal,cpu}` qui contient le binding GPU compilé. Communication daemon ↔ runner par HTTP/JSON sur loopback TCP. Détection GPU automatique au boot du daemon. Résout 3 douleurs : UX download confuse pour non-techs (1 installer par OS au lieu de 3-5), maintenance multipliée (1 rebuild par CVE au lieu de 5), impossibilité d'évoluer (ajouter Intel oneAPI ou Apple ANE sans casser l'install). Pattern validé en production par Ollama, LM Studio. Compromis acceptés : bundle +200 MB par installer, latence IPC +50-100 µs par appel (négligeable vs 100 ms+ d'inférence), 6-8 semaines d'engineering, complexité ops (2 process à monitorer). Alternatives rejetées : Multi-binary launcher (pas de crash isolation, code dead), Multi-installer status quo (UX cassée). Plan 6 phases sprint-by-sprint, rétrocompatibilité totale côté agents Python (SDK `ctx.llm.*` inchangé) et CLI users. Rollback strategy : revert merge, re-tag, re-publish (SDK n'aura pas bougé entre temps).
+
+[Détail → docs/adr/ADR-113-multi-runner-sidecar-architecture.md](adr/ADR-113-multi-runner-sidecar-architecture.md)
+
 ## DEC-2026-05-20 — Optimisation tool descriptors pour LLM mid-market/petits
 
 **Date :** 2026-05-20 — **Statut :** Accepté

@@ -1,0 +1,55 @@
+[package]
+name = "apollia-runner"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS — sidecar runner pour l'inférence LLM et STT locale (ADR-113)"
+license = "MIT OR Apache-2.0"
+
+# Un seul binaire par build, nom déterminé par la feature backend activée.
+# Le launcher CI/Tauri compile ce crate 5 fois avec un nom différent.
+[[bin]]
+name = "apollia-runner"
+path = "src/main.rs"
+
+[features]
+# Exclusif : une seule feature backend doit être active par compilation.
+# `cargo check --features local-cpu` etc. comme pour apollia-llm aujourd'hui.
+default = []
+local-cpu        = ["dep:llama-cpp-2", "dep:llama-cpp-sys-2", "dep:encoding_rs", "dep:whisper-rs"]
+local-cuda       = ["local-cpu", "llama-cpp-2/cuda",   "whisper-rs/cuda"]
+local-metal      = ["local-cpu", "llama-cpp-2/metal",  "whisper-rs/metal"]
+local-rocm       = ["local-cpu", "llama-cpp-2/rocm",   "whisper-rs/hipblas"]
+local-vulkan     = ["local-cpu", "llama-cpp-2/vulkan"]
+# Métriques Prometheus optionnelles (off par défaut).
+metrics = ["dep:prometheus"]
+
+[dependencies]
+# IPC + serveur HTTP
+axum               = { workspace = true }
+tokio              = { workspace = true, features = ["full"] }
+tokio-util         = { workspace = true }
+serde              = { workspace = true, features = ["derive"] }
+serde_json         = { workspace = true }
+uuid               = { workspace = true, features = ["v4", "serde"] }
+thiserror          = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["json"] }
+futures            = { workspace = true }
+tokio-stream       = { workspace = true }
+
+# Backends (optionnels selon feature)
+llama-cpp-2     = { workspace = true, optional = true }
+llama-cpp-sys-2 = { workspace = true, optional = true }
+encoding_rs     = { workspace = true, optional = true }
+whisper-rs      = { version = "0.16", optional = true }
+
+# Observability optionnelle
+prometheus = { version = "0.13", optional = true }
+
+# Audio (toujours nécessaire pour /stt/*)
+hound = { workspace = true }
+rubato = "0.15"
+
+[dev-dependencies]
+tempfile = "3"
+reqwest  = { workspace = true, features = ["json", "stream", "blocking"] }

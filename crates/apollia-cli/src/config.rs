@@ -197,27 +197,14 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
         }
     }
 
-    let mut config: ApolliaCConfig = toml::Value::Table(filtered)
+    let config: ApolliaCConfig = toml::Value::Table(filtered)
         .try_into()
         .map_err(|e: toml::de::Error| e)?;
 
-    // Normalise les chemins des backends embarqués (~ → $HOME) — `model_path`
-    // mono-fichier/split standard et chaque entrée de `model_paths` custom.
-    if let Some(ref mut llm) = config.llm {
-        for _backend in &mut llm.backends {
-            #[cfg(feature = "local")]
-            if let BackendKind::Embedded(ref mut cfg) = _backend.kind {
-                if let Some(path) = cfg.model_path.as_mut() {
-                    *path = expand_tilde(path);
-                }
-                if let Some(paths) = cfg.model_paths.as_mut() {
-                    for p in paths.iter_mut() {
-                        *p = expand_tilde(p);
-                    }
-                }
-            }
-        }
-    }
+    // ADR-113 : les chemins de modèles GGUF locaux ne sont plus configurés via
+    // `[[llm.backends]]` (déplacés dans `[llm.runner]`), donc aucune
+    // normalisation `~ → $HOME` n'est requise ici. Les backends cloud n'ont
+    // pas de chemin local.
 
     Ok(config)
 }
@@ -263,39 +250,13 @@ fn check_deprecated_sections(content: &str) {
 pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
     for backend in &config.backends {
         match &backend.kind {
-            #[cfg(feature = "local")]
-            BackendKind::Embedded(cfg) => {
-                if let Some(path) = cfg.model_path.as_ref() {
-                    let expanded = expand_tilde(path);
-                    if !expanded.exists() {
-                        tracing::warn!(
-                            backend = %backend.name(),
-                            path = %expanded.display(),
-                            "model file not found — backend will be skipped"
-                        );
-                    }
-                }
-                if let Some(paths) = cfg.model_paths.as_ref() {
-                    for p in paths {
-                        let expanded = expand_tilde(p);
-                        if !expanded.exists() {
-                            tracing::warn!(
-                                backend = %backend.name(),
-                                path = %expanded.display(),
-                                "shard file not found — backend will be skipped"
-                            );
-                        }
-                    }
-                }
-            }
-
             #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => {
                 if std::env::var(&cfg.api_key_env).is_err() {
                     tracing::warn!(
                         backend = %backend.name(),
                         env_var = %cfg.api_key_env,
-                        "API key env var not set — backend will be skipped"
+                        "API key env var not set, backend will be skipped"
                     );
                 }
             }
@@ -318,38 +279,6 @@ mod tests {
         let mut f = tempfile::NamedTempFile::new().expect("failed to create temp file");
         write!(f, "{content}").expect("failed to write temp file");
         f
-    }
-
-    // GIVEN un TOML avec seulement [agents] et [llm]
-    // WHEN parse_apollia_toml est appelé
-    // THEN config est correctement parsée sans erreur
-    #[cfg(feature = "local")]
-    #[test]
-    fn test_parse_structural_config_only() {
-        // GIVEN
-        let toml_str = r#"
-[llm]
-default = "local"
-
-[[llm.backends]]
-name = "local"
-type = "embedded"
-model_path = "/tmp/model.gguf"
-quantization = "q4_k_m"
-"#;
-        let file = write_toml(toml_str);
-
-        // WHEN
-        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
-
-        // THEN
-        let llm = config.llm.expect("llm should be present");
-        assert_eq!(llm.default, "local");
-        assert_eq!(llm.backends[0].name(), "local");
-        assert!(
-            matches!(llm.backends[0].kind, BackendKind::Embedded(_)),
-            "kind should be Embedded"
-        );
     }
 
     // GIVEN un TOML avec [[llm.backends]] type = "api"

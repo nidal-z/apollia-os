@@ -17,13 +17,11 @@ use apollia_core::token_budget::TokenBudget;
 
 use crate::token_budget::SessionBudgetTracker;
 use apollia_core::{
-    LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig, VertexConfig,
+    LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig, LlmRunnerConfig,
+    VertexConfig,
 };
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
-
-#[cfg(feature = "local")]
-use crate::backends::embedded::{EmbeddedBackend, EmbeddedBackendConfig};
 
 #[cfg(feature = "cloud")]
 use crate::backends::anthropic::AnthropicClient;
@@ -98,6 +96,13 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub vertex: Option<VertexConfig>,
+    /// Configuration du sidecar runner LLM local (section `[llm.runner]`).
+    ///
+    /// Détermine quel binaire runner (`apollia-runner-cuda`, `apollia-runner-metal`,
+    /// etc.) le daemon spawn au boot. La valeur par défaut `"auto"` laisse
+    /// `apollia_runtime::runner_supervisor::gpu_detection` choisir d'après le hardware.
+    #[serde(default)]
+    pub runner: LlmRunnerConfig,
 }
 
 impl LlmConfig {
@@ -116,15 +121,6 @@ impl LlmConfig {
 /// Converts a TOML [`BackendConfig`] to a [`LlmBackendConfig`] for `system.db`.
 fn backend_config_to_db(cfg: &BackendConfig, is_default: bool) -> LlmBackendConfig {
     match &cfg.kind {
-        #[cfg(feature = "local")]
-        BackendKind::Embedded(embedded) => LlmBackendConfig {
-            name: embedded.name.clone(),
-            provider: LlmProvider::LlamaCpp,
-            model: embedded_model_descriptor(embedded),
-            config_json: serde_json::to_value(embedded).unwrap_or_default(),
-            enabled: true,
-            is_default,
-        },
         #[cfg(feature = "cloud")]
         BackendKind::Api(api) => LlmBackendConfig {
             name: api.name.clone(),
@@ -192,7 +188,7 @@ fn default_true() -> bool {
 /// Entrée de configuration pour un backend individuel dans `[[llm.backends]]`.
 ///
 /// Le nom logique du backend est défini dans la config interne
-/// (`EmbeddedBackendConfig.name` ou `ApiBackendConfig.name`).
+/// (`ApiBackendConfig.name`).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct BackendConfig {
     /// Type et paramètres du backend — discriminé par le champ TOML `type`.
@@ -204,8 +200,6 @@ impl BackendConfig {
     /// Retourne le nom logique du backend depuis la config interne.
     pub fn name(&self) -> &str {
         match &self.kind {
-            #[cfg(feature = "local")]
-            BackendKind::Embedded(cfg) => &cfg.name,
             #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => &cfg.name,
         }
@@ -213,51 +207,23 @@ impl BackendConfig {
 
     /// Retourne un hint de chemin/URL pour l'événement `LlmModelLoading`.
     ///
-    /// - Backend local : chemin vers le fichier `.gguf`
-    /// - Backend cloud : URL de l'API
+    /// Backend cloud : URL de l'API.
     fn model_path_hint(&self) -> String {
         match &self.kind {
-            #[cfg(feature = "local")]
-            BackendKind::Embedded(cfg) => embedded_model_descriptor(cfg),
             #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => cfg.api_url.clone(),
         }
     }
 }
 
-/// Résumé humain de l'emplacement du modèle pour un backend embarqué.
-///
-/// Utilisé à la fois pour :
-/// - `LlmBackendConfig::model` (colonne SQLite, clé d'identification)
-/// - `RuntimeEvent::LlmModelLoading.model_path` (événement d'observabilité)
-///
-/// Retourne le premier chemin renseigné (mono-fichier, premier shard standard,
-/// ou premier shard d'une liste explicite). Chaîne vide si la config est
-/// incohérente — le défaut sera bloqué par [`EmbeddedBackend::load`] au
-/// démarrage, qui retourne [`LlmError::ConfigConflict`] (Principe #4).
-#[cfg(feature = "local")]
-fn embedded_model_descriptor(cfg: &EmbeddedBackendConfig) -> String {
-    if let Some(p) = cfg.model_path.as_ref() {
-        return p.to_string_lossy().into_owned();
-    }
-    if let Some(paths) = cfg.model_paths.as_ref() {
-        if let Some(first) = paths.first() {
-            return first.to_string_lossy().into_owned();
-        }
-    }
-    String::new()
-}
-
 /// Discriminant de type de backend dans `[[llm.backends]]`.
 ///
-/// - `type = "embedded"` → [`EmbeddedBackendConfig`] (feature `"local"`)
-/// - `type = "api"` → [`ApiBackendConfig`] (feature `"cloud"`)
+/// `type = "api"` : [`ApiBackendConfig`] (feature `"cloud"`).
+/// Les backends locaux (llama-cpp) sont désormais hébergés par le crate
+/// `apollia-runner` (sidecar) et injectés à part via `RunnerLlmBackend`.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum BackendKind {
-    /// Backend d'inférence embarqué in-process via `mistralrs` (feature `"local"`).
-    #[cfg(feature = "local")]
-    Embedded(EmbeddedBackendConfig),
     /// Backend HTTP cloud compatible OpenAI ou Anthropic (feature `"cloud"`).
     #[cfg(feature = "cloud")]
     Api(ApiBackendConfig),
@@ -304,8 +270,7 @@ impl LlmRouter {
     /// Construit le router depuis la configuration — appelé par le Supervisor au démarrage.
     ///
     /// Itère sur `config.backends` et tente d'instancier chaque backend :
-    /// - `Embedded` → [`EmbeddedBackend::load`] ; erreur fatale propagée si échoue.
-    /// - `Api` → résout la clé API ; si absente : `tracing::warn!` + backend ignoré.
+    /// `Api` : résout la clé API ; si absente : `tracing::warn!` + backend ignoré.
     ///
     /// Après la boucle, vérifie que `config.default` est présent dans le map.
     /// Si absent (non configuré ou ignoré) → retourne [`LlmError::BackendUnavailable`].
@@ -322,9 +287,6 @@ impl LlmRouter {
             let name = backend_cfg.name().to_owned();
 
             let backend: Arc<dyn CompletionModel> = match &backend_cfg.kind {
-                #[cfg(feature = "local")]
-                BackendKind::Embedded(cfg) => Arc::new(EmbeddedBackend::load(cfg).await?),
-
                 #[cfg(feature = "cloud")]
                 BackendKind::Api(cfg) => match cfg.resolve_api_key() {
                     Ok(key) => {
@@ -449,11 +411,6 @@ impl LlmRouter {
             }
 
             let result: Result<Arc<dyn CompletionModel>, LlmError> = match &backend_cfg.kind {
-                #[cfg(feature = "local")]
-                BackendKind::Embedded(cfg) => EmbeddedBackend::load(cfg)
-                    .await
-                    .map(|b| Arc::new(b) as Arc<dyn CompletionModel>),
-
                 #[cfg(feature = "cloud")]
                 BackendKind::Api(cfg) => match cfg.resolve_api_key() {
                     Ok(key) => {
@@ -848,6 +805,23 @@ impl LlmRouter {
     /// - [`LlmError::BackendUnavailable`] si aucun backend n'est marqué `is_default = true`
     ///   dans `system.db`, ou si le backend par défaut échoue à l'instanciation.
     pub async fn from_repository(repo: &LlmBackendRepository) -> Result<Self, LlmError> {
+        Self::from_repository_with_override(repo, |_| None).await
+    }
+
+    /// Variante de [`from_repository`] qui permet d'injecter une factory
+    /// pour overrider l'instanciation de certains backends (ADR-113 multi-runner).
+    ///
+    /// La closure reçoit la `LlmBackendConfig` et retourne :
+    /// - `Some(Arc<dyn CompletionModel>)` pour overrider (typiquement utilisé
+    ///   pour rediriger les backends `LlamaCpp` vers un `RunnerLlmBackend`).
+    /// - `None` pour laisser l'instanciation standard (cas backends cloud).
+    pub async fn from_repository_with_override<F>(
+        repo: &LlmBackendRepository,
+        override_factory: F,
+    ) -> Result<Self, LlmError>
+    where
+        F: Fn(&apollia_core::LlmBackendConfig) -> Option<Arc<dyn CompletionModel>>,
+    {
         let all = repo.list().map_err(|e| LlmError::BackendUnavailable {
             backend: "system.db".to_string(),
             reason: e.to_string(),
@@ -871,6 +845,16 @@ impl LlmRouter {
 
         for cfg in all.into_iter().filter(|c| c.enabled) {
             let name = cfg.name.clone();
+            // Tente l'override d'abord (runner proxy pour LlamaCpp typiquement).
+            if let Some(overriden) = override_factory(&cfg) {
+                tracing::info!(
+                    backend = %name,
+                    "LLM backend instantiated via override (runner proxy)"
+                );
+                backends.insert(name, overriden);
+                continue;
+            }
+
             match instantiate_from_config(&cfg, cancellation_token.clone()).await {
                 Ok(backend) => {
                     backends.insert(name, backend);
@@ -1167,71 +1151,20 @@ async fn instantiate_from_config(
     cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &cfg.provider {
-        LlmProvider::LlamaCpp => instantiate_embedded_backend(cfg).await,
+        // ADR-113 : les backends `LlamaCpp` sont injectés par le supervisor
+        // via `from_repository_with_override` (RunnerLlmBackend qui parle au
+        // sidecar via HTTP). Atterrir ici signifie que le runner n'a pas été
+        // spawné ou que l'override a renvoyé `None` — on retourne un message
+        // explicite plutôt que de re-créer un backend in-process.
+        LlmProvider::LlamaCpp => Err(LlmError::BackendUnavailable {
+            backend: cfg.name.clone(),
+            reason: "llama-cpp backend requires the sidecar runner (apollia-runner) — \
+                     either the runner failed to spawn or the supervisor did not \
+                     inject a RunnerLlmBackend override (ADR-113)"
+                .to_string(),
+        }),
         provider => instantiate_cloud_backend(cfg, provider, cancel).await,
     }
-}
-
-/// Instancie le backend llama-cpp embarqué depuis la config SQLite.
-#[cfg(feature = "local")]
-async fn instantiate_embedded_backend(
-    cfg: &LlmBackendConfig,
-) -> Result<Arc<dyn CompletionModel>, LlmError> {
-    use crate::backends::embedded::AcceleratorDevice;
-    use std::path::PathBuf;
-
-    let model_path = cfg
-        .config_json
-        .get("model_path")
-        .and_then(|v| v.as_str())
-        .map(PathBuf::from);
-
-    let model_paths = cfg
-        .config_json
-        .get("model_paths")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| item.as_str().map(PathBuf::from))
-                .collect::<Vec<_>>()
-        });
-
-    if model_path.is_none() && model_paths.is_none() {
-        return Err(LlmError::BackendUnavailable {
-            backend: cfg.name.clone(),
-            reason: "config_json missing 'model_path' or 'model_paths' for llama-cpp backend"
-                .to_string(),
-        });
-    }
-
-    let device: AcceleratorDevice = cfg
-        .config_json
-        .get("device")
-        .and_then(|v| v.as_str())
-        .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
-        .unwrap_or_default();
-
-    let embedded_cfg = EmbeddedBackendConfig {
-        name: cfg.name.clone(),
-        model_path,
-        model_paths,
-        quantization: String::new(),
-        device,
-    };
-
-    let backend = EmbeddedBackend::load(&embedded_cfg).await?;
-    Ok(Arc::new(backend) as Arc<dyn CompletionModel>)
-}
-
-/// Retourne `BackendUnavailable` quand la feature `"local"` n'est pas compilée.
-#[cfg(not(feature = "local"))]
-async fn instantiate_embedded_backend(
-    cfg: &LlmBackendConfig,
-) -> Result<Arc<dyn CompletionModel>, LlmError> {
-    Err(LlmError::BackendUnavailable {
-        backend: cfg.name.clone(),
-        reason: "provider 'llama-cpp' requires feature 'local'".to_string(),
-    })
 }
 
 /// Instancie un backend cloud (OpenAI-compatible ou Anthropic) depuis la config SQLite.
@@ -1250,7 +1183,9 @@ async fn instantiate_cloud_backend(
         LlmProvider::Mistral => "https://api.mistral.ai/v1",
         LlmProvider::Ollama => "http://localhost:11434/v1",
         LlmProvider::Anthropic => "https://api.anthropic.com",
-        LlmProvider::LlamaCpp => unreachable!("LlamaCpp handled by instantiate_embedded_backend"),
+        LlmProvider::LlamaCpp => {
+            unreachable!("LlamaCpp handled before reaching instantiate_cloud_backend (ADR-113 runner sidecar)")
+        }
     };
 
     let base_url = extract_base_url(cfg, default_url);
@@ -1677,6 +1612,7 @@ mod tests {
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
             vertex: None,
+            runner: Default::default(),
         };
 
         // WHEN
@@ -1787,6 +1723,7 @@ mod tests {
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
             vertex: None,
+            runner: Default::default(),
         };
 
         // WHEN

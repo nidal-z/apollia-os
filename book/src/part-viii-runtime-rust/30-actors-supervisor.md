@@ -201,7 +201,7 @@ Si la phase N échoue, toutes les phases précédentes sont arrêtées en ordre 
 apollia-os start
 # ✔ EventBus         prêt
 # ✔ AgentRegistry    prêt
-# ✔ Tool Registry    16 outils chargés
+# ✔ Tool Registry    outils chargés
 # ✔ Memory Engine    prêt
 # ✔ LlmRouter        2 backends (local, anthropic)
 # ✔ TriggerEngine    3 triggers actifs

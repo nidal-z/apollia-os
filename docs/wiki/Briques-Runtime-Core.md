@@ -107,6 +107,31 @@ pub struct ChildSpec {
 
 Si un acteur dépasse `max_restarts` dans `restart_window_secs` : arrêt du runtime entier avec `exit(1)`. Le système préfère un arrêt net à un état incohérent.
 
+### 2.4 RunnerSupervisor (ADR-113, v0.1.0+)
+
+Acteur dédié à la gestion du process enfant `apollia-runner-{backend}`. Spawné par le `Supervisor` principal en Phase 4 (avant l'init de `LlmRouter`).
+
+**Responsabilités :**
+
+| Responsabilité | Détail |
+|---|---|
+| GPU detection | Au boot, détecte CUDA / ROCm / Vulkan / Metal / CPU via le module `gpu_detection.rs` (Win WMI, Linux `nvidia-smi`/`rocm-smi`/`lspci`, macOS `system_profiler`). |
+| Spawn runner | `Command::new("apollia-runner-cuda")` (ou autre), pipe stdout pour parser `READY <port>\n`, stderr redirigé vers logger structuré du daemon. |
+| Handshake | `GET /handshake` post-spawn pour vérifier `protocol_version: "1.0"` et logger les capabilities GPU. |
+| Health polling | `GET /health` toutes les 30s. Après 3 fails consécutifs : kill + restart avec backoff exponentiel (1s, 2s, 4s, 8s, 16s plafond). |
+| Crash recovery | Sur exit non-zéro du runner : task en cours marquée `RUNNER_CRASH` (cf. IPC-PROTOCOL.md §2.4), restart auto, modèles seront re-loadés à la prochaine demande. |
+| Shutdown propre | `POST /shutdown` au runner avant `apollia-os stop`, attente exit dans `exit_in_ms` annoncé, fallback `SIGTERM` puis `SIGKILL`. |
+
+**RunnerProxy** : implémente `CompletionModel` (de `apollia-llm`) et `SttBackend` (de `apollia-stt`) en forwardant chaque appel via reqwest HTTP vers le runner. Transparent pour le `LlmRouter` et les agents Python.
+
+**Pourquoi ce pattern :** ADR-113 documente le choix architectural et les alternatives rejetées. En bref : isolation des kernels GPU notoirement instables (ROCm Linux, Vulkan AMD), 1 installer unique par OS au lieu de 5 SKUs, extensibilité future (Intel oneAPI, ANE, runners distants).
+
+**Détails techniques :**
+- [ADR-113](../adr/ADR-113-multi-runner-sidecar-architecture.md) : décision d'architecture
+- [IPC-PROTOCOL.md](../internal/architecture/IPC-PROTOCOL.md) : protocole HTTP/JSON complet
+- [GPU-DETECTION.md](../internal/architecture/GPU-DETECTION.md) : algo détection cross-platform
+- [CRATE-LAYOUT.md](../internal/architecture/CRATE-LAYOUT.md) : structure de `apollia-runner` et `runner_supervisor`
+
 ---
 
 ## 3. AgentRegistry — Inventaire des agents

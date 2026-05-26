@@ -97,9 +97,9 @@ class ResearchDirector:
             system=self.SYSTEM_PROMPT,
             user=message,
             tools=[
-                await ctx.a2a.skill_as_tool("web.search_and_extract"),
-                await ctx.a2a.skill_as_tool("web.summarize"),
-                await ctx.a2a.skill_as_tool("research.synthesize"),
+                await ctx.a2a.skill_as_tool("research.search_and_extract"),
+                await ctx.a2a.skill_as_tool("markdown.summarize_url"),
+                await ctx.a2a.skill_as_tool("research.synthesize_report"),
             ],
             max_steps=15,
         )

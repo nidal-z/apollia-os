@@ -7,42 +7,11 @@ license = "MIT OR Apache-2.0"
 [features]
 default = ["cloud"]
 
-# ── Backend local (inférence in-process via llama.cpp) ────────────────────────
-# ADR-042 : llama-cpp-2 remplace mistralrs pour le support de 30+ architectures
-# GGUF et les kernels Metal natifs (MoE inclus).
-# `llama-cpp-sys-2` est requis pour appeler `llama_model_load_from_splits` en
-# FFI direct (naming scheme custom — non exposé par le wrapper safe en 0.1.140).
-local            = ["dep:llama-cpp-2", "dep:llama-cpp-sys-2", "dep:encoding_rs"]
+# ADR-113 : les backends d'inférence locale (llama-cpp) sont hébergés par le
+# crate `apollia-runner` (sidecar). Cette crate ne contient plus que les
+# clients cloud HTTP et les types partagés (CompletionModel, LlmRouter, etc.).
 
-# CPU seul — explicitement déclaré pour la lisibilité TOML, équivaut à `local`.
-local-cpu        = ["local"]
-
-# CPU + Accelerate.framework Apple (BLAS vectorisé — Apple Silicon).
-# Avec llama.cpp, l'optimisation CPU est automatique via les flags natifs.
-local-accelerate = ["local"]
-
-# GPU Apple Silicon Metal.
-local-metal      = ["local", "llama-cpp-2/metal"]
-
-# GPU NVIDIA CUDA.
-local-cuda       = ["local", "llama-cpp-2/cuda"]
-
-# GPU NVIDIA CUDA sans VMM (Virtual Memory Management) — pour environnements
-# contraints (containers sans IPC, vieux drivers).
-local-cuda-no-vmm = ["local", "llama-cpp-2/cuda-no-vmm"]
-
-# GPU AMD via ROCm/HIP. Nécessite ROCm SDK installé (Linux) ou HIP SDK (Windows).
-# Linux : généralement gfx906+ (Vega 7nm / RDNA 1/2/3 / CDNA 1/2). Windows :
-# uniquement Radeon Pro et Instinct MI à l'heure actuelle (HIP SDK 5.x+).
-local-rocm       = ["local", "llama-cpp-2/rocm"]
-
-# GPU cross-vendor via Vulkan compute. Fallback portable pour AMD/Intel/Mali/
-# NVIDIA quand le SDK natif n'est pas dispo. Performance inférieure à
-# CUDA/ROCm/Metal natifs, mais zéro dépendance runtime (driver Vulkan déjà
-# présent sur la plupart des desktops modernes).
-local-vulkan     = ["local", "llama-cpp-2/vulkan"]
-
-# ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
+# Backend cloud (API HTTP : Anthropic, OpenAI-compatible, Vertex)
 cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
@@ -59,10 +28,6 @@ uuid           = { workspace = true }
 # cloud backends [feature = "cloud"]
 async-openai   = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }
-# local backend [feature = "local"] — ADR-042
-llama-cpp-2    = { workspace = true, optional = true }
-llama-cpp-sys-2 = { workspace = true, optional = true }
-encoding_rs    = { workspace = true, optional = true }
 tokio-stream   = { workspace = true }
 tokio-util     = { workspace = true }
 chrono         = { workspace = true }

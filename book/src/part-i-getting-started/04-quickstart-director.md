@@ -2,7 +2,7 @@
 
 Un director enchaîne des appels à d'autres agents (workers) via A2A, en utilisant un LLM comme cerveau de raisonnement. Le pattern canonique : `@on_message` qui appelle `apollia.react(...)` avec une liste de workers exposés comme tools.
 
-**Objectif :** écrire un assistant qui répond à une question en utilisant deux workers (`pdf.read_text` du quickstart précédent + un worker de recherche web fictif). Code complet : 50 lignes. Temps : 25 minutes.
+**Objectif :** écrire un assistant qui répond à une question en utilisant deux workers (`pdf.read_text` du quickstart précédent + le worker `web-search-worker` bundlé qui expose `research.search_and_extract`). Code complet : 50 lignes. Temps : 25 minutes.
 
 ---
 
@@ -20,7 +20,7 @@ You are a research assistant. Answer the user's question by orchestrating
 the available tools:
 
 - `pdf.read_text`: read the text of a local PDF file.
-- `web.search`: query the web and return a short summary.
+- `research.search_and_extract`: query the web and return a short summary.
 
 Reason step by step. When you have enough information, write a concise
 answer (4 to 8 sentences) citing the sources you used.
@@ -46,7 +46,7 @@ class ResearchDirector:
             user=message,
             tools=[
                 await ctx.a2a.skill_as_tool("pdf.read_text"),
-                await ctx.a2a.skill_as_tool("web.search"),
+                await ctx.a2a.skill_as_tool("research.search_and_extract"),
             ],
             max_steps=10,
         )
@@ -75,10 +75,10 @@ C'est tout. Pas de boucle manuelle, pas de parsing JSON, pas de gestion de tool 
 
 ## Pré-requis
 
-Ce director suppose que **deux workers sont installés** sur la machine :
+Ce director suppose que **deux workers sont installés et actifs** sur la machine :
 
 1. `pdf-quickstart` du [quickstart précédent](03-quickstart-worker.md) qui expose `pdf.read_text`.
-2. Un worker `web-search` qui expose `web.search`. Pour ce quickstart, soit vous écrivez un stub local, soit vous utilisez le worker `web-search` bundlé avec Apollia.
+2. `web-search-worker`, bundlé avec Apollia, qui expose `research.search_and_extract`.
 
 Vérifiez l'installation avant de lancer le director :
 
@@ -86,13 +86,13 @@ Vérifiez l'installation avant de lancer le director :
 apollia-os agent list
 #   NAME              VERSION    STATUS    AUTO-LOAD  SOURCE
 #   pdf-quickstart    0.1.0      active    yes        installed
-#   web-search        0.1.0      active    yes        installed
+#   web-search-worker 0.1.0      active    yes        installed
 
 # Pour les skills exposées :
 apollia-os a2a skills
 ```
 
-Si l'un des workers manque, l'agent démarre quand même (la déclaration A2A est résolue à l'invocation, pas au boot), mais le LLM aura les tools dans son contexte sans pouvoir les exécuter. Soit vous les installez, soit vous adaptez les `skill_as_tool` à des workers que vous avez.
+`skill_as_tool` résout chaque skill à l'**invocation** du director (pas au boot). Si une skill manque au moment du `apollia-os run`, l'agent échoue immédiatement avec `[EXECUTION_FAILED] "unknown A2A skill: '<skill_id>'"`. Installez les workers cibles, ou adaptez les `skill_as_tool` à ceux qui sont effectivement présents.
 
 ---
 

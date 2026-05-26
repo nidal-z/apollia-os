@@ -44,7 +44,7 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, BraveBackendConfig, ConfigError,
     DuckDuckGoBackendConfig, FilesystemConfig, FilesystemRiskConfig, HitlConfig, JournalConfig,
-    LlmRoutingConfig, McpConfig, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig,
+    LlmRoutingConfig, LlmRunnerConfig, McpConfig, ORIAConfig, PermissionsConfig, RegistryConfig, RuntimeConfig,
     ToolsConfig, TriggersConfig, VertexConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};

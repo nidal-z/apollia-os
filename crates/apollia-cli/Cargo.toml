@@ -11,32 +11,10 @@ path = "src/main.rs"
 
 [features]
 default = ["cloud"]
-## Active le backend cloud (Anthropic, OpenAI-compatible) — activé par défaut.
+## Active les backends cloud (Anthropic, OpenAI-compatible, Vertex).
+## ADR-113 : les backends LLM/STT locaux vivent dans `apollia-runner` (sidecar) ;
+## la CLI parle au daemon, qui spawn et supervise le runner.
 cloud = ["apollia-llm/cloud"]
-## Active le backend embarqué in-process (inférence .gguf via mistralrs) — CPU seul.
-local = ["apollia-llm/local"]
-## CPU explicite (alias de local pour la lisibilité).
-local-cpu = ["local", "apollia-llm/local-cpu"]
-## GPU Apple Silicon via Metal (inclut local pour les #[cfg(feature = "local")] dans la CLI).
-local-metal = ["local", "apollia-llm/local-metal"]
-## CPU + Accelerate.framework Apple (BLAS vectorisé, macOS uniquement).
-local-accelerate = ["local", "apollia-llm/local-accelerate"]
-## GPU NVIDIA CUDA (déclaré, non testé).
-local-cuda = ["local", "apollia-llm/local-cuda"]
-## GPU NVIDIA CUDA sans VMM (containers, vieux drivers).
-local-cuda-no-vmm = ["local", "apollia-llm/local-cuda-no-vmm"]
-## GPU AMD via ROCm/HIP (Linux + HIP SDK Windows).
-local-rocm = ["local", "apollia-llm/local-rocm"]
-## GPU cross-vendor via Vulkan compute (fallback portable).
-local-vulkan = ["local", "apollia-llm/local-vulkan"]
-## Backend STT whisper.cpp (CPU).
-stt-whisper-cpp = ["apollia-stt/cpu"]
-## Accélération Metal pour STT (Apple Silicon GPU).
-stt-metal = ["apollia-stt/metal"]
-## Accélération CUDA pour STT (NVIDIA GPU).
-stt-cuda = ["apollia-stt/cuda"]
-## Accélération ROCm/hipBLAS pour STT (AMD GPU).
-stt-rocm = ["apollia-stt/rocm"]
 
 [dependencies]
 apollia-auth      = { workspace = true }

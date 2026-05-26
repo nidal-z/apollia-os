@@ -124,7 +124,41 @@ graph TB
                     └───────────────────────────┘
 ```
 
-### 1.2 Le workspace Rust
+### 1.2 Architecture multi-runner (ADR-113)
+
+À partir de v0.1.0, Apollia OS sépare l'inférence LLM/STT du daemon principal via un pattern sidecar inspiré d'Ollama et LM Studio. Le binaire `apollia-os` détecte le GPU au boot et spawn un process enfant `apollia-runner-{backend}` qui contient l'engine d'inférence (`llama-cpp-2` + `whisper-rs`). Communication daemon ↔ runner via HTTP/JSON sur loopback TCP.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ apollia-os (daemon main process)                            │
+│ - REST API axum, agent registry, A2A, memory, tools, MCP    │
+│ - GPU detection at boot (cf. GPU-DETECTION.md)              │
+│ - RunnerSupervisor : spawn / health / restart               │
+│ - RunnerProxy implements CompletionModel + SttBackend       │
+└─────────────────────────────────────────────────────────────┘
+                          │ HTTP/JSON sur 127.0.0.1:<auto>
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ apollia-runner-{cuda,rocm,vulkan,metal,cpu}                 │
+│ - axum serveur HTTP                                         │
+│ - llama-cpp-2 + whisper-rs avec UN backend compilé          │
+│ - Endpoints /llm/* et /stt/*                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Bénéfices :**
+- 1 installer par OS au lieu de 3-5 SKUs (UX VS Code / Cursor / Ollama).
+- Auto-détection GPU → user zero config.
+- Crash isolation : un segfault llama.cpp ne tue pas le daemon ni les autres services.
+- Évolutivité : ajouter un backend (Intel oneAPI, ANE) = ajouter une feature du crate `apollia-runner`.
+
+**Détails techniques :**
+- Décision : [ADR-113](../adr/ADR-113-multi-runner-sidecar-architecture.md)
+- Protocole IPC : [IPC-PROTOCOL.md](../internal/architecture/IPC-PROTOCOL.md)
+- Structure crate `apollia-runner` : [CRATE-LAYOUT.md](../internal/architecture/CRATE-LAYOUT.md)
+- Plan packaging : [PACKAGING-PLAN.md](../internal/architecture/PACKAGING-PLAN.md)
+
+### 1.3 Le workspace Rust
 
 ```
 apollia-os/                          ← workspace Cargo
@@ -254,7 +288,7 @@ apollia-os/                          ← workspace Cargo
         └── test_webhook.rs
 ```
 
-### 1.3 Stack technique
+### 1.4 Stack technique
 
 | Composant | Technologie | Justification |
 |---|---|---|

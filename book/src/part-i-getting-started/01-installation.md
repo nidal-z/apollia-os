@@ -1,8 +1,8 @@
 # Installation
 
-Trois éléments à installer : le runtime Rust (le binaire `apollia`), le SDK Python (le package `apollia`), et un LLM accessible (local llama.cpp bundlé, Ollama, ou une clé d'API cloud).
+Trois éléments à installer : le runtime Rust (le binaire `apollia-os`), le SDK Python (le package `apollia`), et un LLM accessible (local llama.cpp bundlé, Ollama, ou une clé d'API cloud).
 
-L'objectif : à la fin de ce chapitre, vous tapez `apollia --version` et obtenez une réponse, puis `python -m apollia inspect un-agent.py` valide un fichier que vous avez sous la main.
+L'objectif : à la fin de ce chapitre, vous tapez `apollia-os --version` et obtenez une réponse, puis `python -m apollia inspect un-agent.py` valide un fichier que vous avez sous la main.
 
 ---
 
@@ -133,9 +133,11 @@ apollia-os llm backends show <name>    # détail (provider, modèle, source de l
 
 ### Pré-requis pour les agents `@orchestrated`
 
-Les agents qui utilisent le décorateur `@orchestrated` (cf. [chapitre 5](05-quickstart-orchestrated.md) et [chapitre 9](../part-ii-the-decorators/09-orchestrated-decorator.md)) ont besoin que le routing LLM pointe vers un backend dédié au raisonnement précis. Sans ça, l'invocation échoue avec `[NO_LLM] Orchestrated mode requires a configured LLM`.
+Les agents qui utilisent le décorateur `@orchestrated` (cf. [chapitre 5](05-quickstart-orchestrated.md) et [chapitre 9](../part-ii-the-decorators/09-orchestrated-decorator.md)) ont besoin d'un backend LLM accessible pour la planification ORIA.
 
-Si vous n'avez qu'un seul backend configuré, `set-default` suffit : le runtime utilise le défaut pour les trois rôles (rapide / précis / par défaut). Si vous en avez plusieurs, ajoutez une section `[llm.routing]` dans `~/.apollia/apollia.toml` :
+**Single-backend (cas par défaut).** Si vous n'avez qu'un seul backend configuré et que vous l'avez déclaré comme défaut via `apollia-os llm backends set-default <name>`, le runtime l'utilise automatiquement pour les trois rôles (default, precise, fast). Pas besoin d'éditer `apollia.toml`. Le fallback s'active dès qu'aucune section `[llm.routing]` n'est présente.
+
+**Multi-backend (split précis/rapide).** Si vous voulez router le raisonnement orchestré vers un backend cloud (qualité de plan) et garder un backend local pour les appels rapides, ajoutez une section `[llm.routing]` dans `~/.config/apollia/apollia.toml` :
 
 ```toml
 [llm.routing]

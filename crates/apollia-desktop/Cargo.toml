@@ -6,27 +6,12 @@ description = "Apollia OS — Desktop application (Tauri v2 + embedded runtime)"
 license = "MIT OR Apache-2.0"
 
 [features]
-## Fonctionnalités activées par défaut : backend cloud + STT whisper.cpp (CPU).
-## Surcharger avec --no-default-features pour une compilation minimale.
-default = ["cloud", "stt-whisper-cpp"]
-## Active le backend cloud (Anthropic, OpenAI-compatible).
+# ADR-113 multi-runner : les backends d'inférence locale vivent dans le crate
+# `apollia-runner` (sidecar). Le desktop ne forward plus de features `local-*`
+# ou `stt-*` au runtime — l'inférence est dispatchée au runner via IPC HTTP.
+default = ["cloud"]
+## Active les backends cloud (Anthropic, OpenAI-compatible, etc.).
 cloud = ["apollia-runtime/cloud"]
-## Active le backend embarqué in-process (inférence .gguf via mistralrs) — CPU seul.
-local = ["apollia-runtime/local"]
-## CPU explicite (alias de local pour la lisibilité).
-local-cpu = ["local", "apollia-runtime/local-cpu"]
-## GPU Apple Silicon via Metal.
-local-metal = ["local", "apollia-runtime/local-metal"]
-## CPU + Accelerate.framework Apple (BLAS vectorisé, macOS uniquement).
-local-accelerate = ["local", "apollia-runtime/local-accelerate"]
-## GPU NVIDIA CUDA.
-local-cuda = ["local", "apollia-runtime/local-cuda"]
-## Backend STT whisper.cpp (CPU) — active aussi le cfg-gate dans apollia-runtime.
-stt-whisper-cpp = ["apollia-stt/cpu", "apollia-runtime/stt-whisper-cpp"]
-## Accélération Metal pour STT (Apple Silicon GPU).
-stt-metal = ["stt-whisper-cpp", "apollia-stt/metal", "apollia-runtime/stt-metal"]
-## Accélération CUDA pour STT (NVIDIA GPU).
-stt-cuda = ["stt-whisper-cpp", "apollia-stt/cuda", "apollia-runtime/stt-cuda"]
 
 [dependencies]
 reqwest          = { workspace = true }

@@ -2,23 +2,12 @@
 name = "apollia-stt"
 version = "0.1.0"
 edition = "2021"
-description = "Apollia OS — Speech-to-Text engine (trait SttBackend + types + backends)"
+description = "Apollia OS — Speech-to-Text traits, types et repository (moteur whisper hébergé dans apollia-runner depuis ADR-113)"
 license = "MIT OR Apache-2.0"
 
-[features]
-## CPU : backend whisper.cpp par défaut (aucune accélération GPU).
-default = ["cpu"]
-cpu = []
-## Accélération Metal (Apple Silicon GPU).
-metal = ["whisper-rs/metal"]
-## Accélération CUDA (NVIDIA GPU).
-cuda  = ["whisper-rs/cuda"]
-## Accélération AMD ROCm via hipBLAS (Linux principal — Windows limité aux
-## Radeon Pro/MI).
-rocm  = ["whisper-rs/hipblas"]
-## OpenMP CPU multi-thread (tous OS) — toggle séparé pour ne pas l'imposer
-## via `default` (build sans openmp est faisable pour VM/containers).
-openmp = ["whisper-rs/openmp"]
+# ADR-113 : whisper.cpp ne vit plus dans cette crate, il est hébergé par le
+# sidecar `apollia-runner`. Le daemon utilise `RunnerSttBackend`
+# (apollia-runtime) qui implémente `SttBackend` via HTTP IPC.
 
 [dependencies]
 apollia-core = { workspace = true }
@@ -26,7 +15,6 @@ rusqlite     = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
-whisper-rs   = { version = "0.16" }
 cpal         = "0.15"
 rubato       = "0.15"
 tracing      = { workspace = true }

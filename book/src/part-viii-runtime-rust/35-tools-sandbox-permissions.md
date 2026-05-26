@@ -114,7 +114,7 @@ Distributions qui activent les user namespaces par défaut : Ubuntu 22.04+, Debi
 Les Linux namespaces ne sont pas disponibles sur macOS. La sandbox est **désactivée par défaut** en mode développement sur macOS :
 
 ```toml
-# ~/.apollia/apollia.toml (macOS uniquement)
+# ~/.config/apollia/apollia.toml (macOS uniquement)
 [tools]
 sandbox = false
 ```

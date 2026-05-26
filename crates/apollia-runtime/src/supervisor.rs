@@ -592,6 +592,32 @@ impl Supervisor {
             }
         };
 
+        // Phase 4.5 (ADR-113) : spawn du sidecar runner pour les backends LLM
+        // et STT locaux. Les backends cloud restent gérés directement par le
+        // daemon via `LlmRouter`.
+        let runner_supervisor: Option<crate::runner_supervisor::RunnerSupervisor> = {
+            use crate::runner_supervisor::{gpu_detection, RunnerSupervisor};
+
+            let detected = gpu_detection::detect_gpu();
+            tracing::info!(
+                vendor = ?detected.vendor,
+                model = %detected.model,
+                backend = ?detected.recommended_backend,
+                "Supervisor Phase 4.5: GPU detected, spawning runner"
+            );
+
+            match RunnerSupervisor::start(detected.clone(), detected.recommended_backend).await {
+                Ok(sup) => {
+                    info!("Supervisor: runner spawned successfully");
+                    Some(sup)
+                }
+                Err(e) => {
+                    warn!(error = %e, "Supervisor: runner spawn failed, continuing without runner (LLM/STT local disabled)");
+                    None
+                }
+            }
+        };
+
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository — loads backends from system.db
         let system_db_path = self.config.data_dir.join("system.db");
         let (llm_router, llm_backend_repo) = match LlmBackendRepository::open(&system_db_path) {
@@ -625,7 +651,32 @@ impl Supervisor {
                     }
                 }
 
-                let router_result = LlmRouter::from_repository(&repo).await;
+                // ADR-113 : override l'instanciation des backends `LlamaCpp`
+                // pour les router via le RunnerProxy. Les backends cloud
+                // restent gérés par `instantiate_from_config` standard.
+                let router_result = {
+                    let runner_proxy = runner_supervisor.as_ref().map(|s| s.proxy());
+                    let factory = move |cfg: &apollia_core::LlmBackendConfig| {
+                        use apollia_core::LlmProvider;
+                        if !matches!(cfg.provider, LlmProvider::LlamaCpp) {
+                            return None;
+                        }
+                        let proxy = runner_proxy.clone()?;
+                        // Pour llama-cpp, le champ `model` du LlmBackendConfig
+                        // est le chemin absolu vers le fichier .gguf.
+                        let model_path = cfg.model.clone();
+                        let backend: std::sync::Arc<dyn apollia_llm::types::CompletionModel> =
+                            crate::runner_supervisor::RunnerLlmBackend::new(
+                                proxy,
+                                cfg.name.clone(),
+                                cfg.name.clone(),
+                                model_path,
+                            );
+                        Some(backend)
+                    };
+                    LlmRouter::from_repository_with_override(&repo, factory).await
+                };
+
                 let repo = Arc::new(std::sync::Mutex::new(repo));
                 match router_result {
                     Ok(mut router) => {
@@ -1100,12 +1151,29 @@ impl Supervisor {
                 match apollia_stt::SttRepository::open(&repo_path) {
                     Ok(repository) => {
                         let mp = model_path.display().to_string();
-                        match tokio::task::spawn_blocking(move || {
-                            crate::stt::engine::try_load_backend(&mp)
-                        })
-                        .await
-                        {
-                            Ok(Ok(backend)) => {
+                        let model_id = model_path
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_else(|| "whisper".to_string());
+
+                        // ADR-113 : la STT passe systématiquement par le runner
+                        // sidecar via `RunnerSttBackend`. Si le runner n'a pas
+                        // pu être spawné au Phase 4.5, STT est désactivée.
+                        let _ = mp; // silence unused-var warning post-cleanup
+                        let backend_result = if let Some(supervisor) = runner_supervisor.as_ref() {
+                            let proxy = supervisor.proxy();
+                            let backend: Box<dyn apollia_stt::SttBackend> = Box::new(
+                                crate::runner_supervisor::RunnerSttBackend::new(proxy, model_id),
+                            );
+                            Ok::<_, apollia_stt::SttError>(backend)
+                        } else {
+                            Err(apollia_stt::SttError::BackendUnavailable {
+                                backend: "runner sidecar not available (Phase 4.5 spawn failed)".into(),
+                            })
+                        };
+
+                        match backend_result {
+                            Ok(backend) => {
                                 let handle = crate::stt::SttEngineHandle::start(
                                     backend,
                                     repository,
@@ -1118,12 +1186,8 @@ impl Supervisor {
                                     .ok();
                                 (Some(handle), api_repo)
                             }
-                            Ok(Err(e)) => {
-                                warn!(error = %e, "STT engine disabled (model unavailable or backend not compiled)");
-                                (None, None)
-                            }
                             Err(e) => {
-                                warn!(error = %e, "STT engine disabled (loader panicked)");
+                                warn!(error = %e, "STT engine disabled (runner sidecar unavailable)");
                                 (None, None)
                             }
                         }
