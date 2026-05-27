@@ -859,4 +859,67 @@ mod tests {
             other => panic!("expected Transcriptions, got {other:?}"),
         }
     }
+
+    #[test]
+    fn parses_transcribe_default_no_output() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct LocalCli {
+            #[command(subcommand)]
+            cmd: SttCommand,
+        }
+        let cli = LocalCli::parse_from(["x", "transcribe", "/tmp/audio.wav"]);
+        match cli.cmd {
+            SttCommand::Transcribe { file, output } => {
+                assert_eq!(file, PathBuf::from("/tmp/audio.wav"));
+                assert!(output.is_none());
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_config_get() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct LocalCli {
+            #[command(subcommand)]
+            cmd: SttCommand,
+        }
+        let cli = LocalCli::parse_from(["x", "config", "get"]);
+        match cli.cmd {
+            SttCommand::Config { command } => match command {
+                SttConfigCommand::Get => {}
+                other => panic!("unexpected: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_config_update_with_backend_only() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct LocalCli {
+            #[command(subcommand)]
+            cmd: SttCommand,
+        }
+        let cli =
+            LocalCli::parse_from(["x", "config", "update", "--backend", "whisper"]);
+        match cli.cmd {
+            SttCommand::Config { command } => match command {
+                SttConfigCommand::Update {
+                    backend,
+                    model_path,
+                    language,
+                } => {
+                    assert_eq!(backend.as_deref(), Some("whisper"));
+                    assert!(model_path.is_none());
+                    assert!(language.is_none());
+                }
+                other => panic!("unexpected: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
 }

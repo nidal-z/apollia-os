@@ -185,3 +185,39 @@ fn run_logout(provider_name: &str, json: bool) -> i32 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: AuthCommand,
+    }
+
+    #[test]
+    fn parses_login() {
+        let cli = TestCli::parse_from(["x", "login", "anthropic"]);
+        match cli.cmd {
+            AuthCommand::Login { provider } => assert_eq!(provider, "anthropic"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_status() {
+        let cli = TestCli::parse_from(["x", "status"]);
+        assert!(matches!(cli.cmd, AuthCommand::Status));
+    }
+
+    #[test]
+    fn parses_logout() {
+        let cli = TestCli::parse_from(["x", "logout", "openai"]);
+        match cli.cmd {
+            AuthCommand::Logout { provider } => assert_eq!(provider, "openai"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+}

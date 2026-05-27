@@ -304,3 +304,65 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
     }
     exit_codes::GENERAL_ERROR
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: AuditCommand,
+    }
+
+    #[test]
+    fn parses_list_default_limit() {
+        let cli = TestCli::parse_from(["x", "list"]);
+        match cli.cmd {
+            AuditCommand::List { limit } => assert_eq!(limit, 20),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_list_with_limit() {
+        let cli = TestCli::parse_from(["x", "list", "--limit", "100"]);
+        match cli.cmd {
+            AuditCommand::List { limit } => assert_eq!(limit, 100),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_stats() {
+        let cli = TestCli::parse_from(["x", "stats"]);
+        assert!(matches!(cli.cmd, AuditCommand::Stats));
+    }
+
+    #[test]
+    fn parses_export_default_limit() {
+        let cli = TestCli::parse_from(["x", "export"]);
+        match cli.cmd {
+            AuditCommand::Export { output, limit } => {
+                assert!(output.is_none());
+                assert_eq!(limit, 10_000);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_export_with_output_and_limit() {
+        let cli = TestCli::parse_from([
+            "x", "export", "--output", "/tmp/a.json", "--limit", "50",
+        ]);
+        match cli.cmd {
+            AuditCommand::Export { output, limit } => {
+                assert_eq!(output, Some(PathBuf::from("/tmp/a.json")));
+                assert_eq!(limit, 50);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+}

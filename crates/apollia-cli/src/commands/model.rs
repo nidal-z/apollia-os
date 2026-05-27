@@ -488,7 +488,71 @@ pub fn list_gguf_files(dir: &Path) -> Result<Vec<ModelListing>, std::io::Error> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use tempfile::TempDir;
+
+    #[derive(Parser, Debug)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: ModelCommand,
+    }
+
+    #[test]
+    fn parses_list() {
+        let cli = TestCli::parse_from(["x", "list"]);
+        assert!(matches!(cli.cmd, ModelCommand::List));
+    }
+
+    #[test]
+    fn parses_search_default_limit() {
+        let cli = TestCli::parse_from(["x", "search", "qwen"]);
+        match cli.cmd {
+            ModelCommand::Search { query, limit } => {
+                assert_eq!(query, "qwen");
+                assert_eq!(limit, 20);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_search_with_limit() {
+        let cli = TestCli::parse_from(["x", "search", "llama", "--limit", "5"]);
+        match cli.cmd {
+            ModelCommand::Search { query, limit } => {
+                assert_eq!(query, "llama");
+                assert_eq!(limit, 5);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_show() {
+        let cli = TestCli::parse_from(["x", "show", "Qwen/Qwen3-30B"]);
+        match cli.cmd {
+            ModelCommand::Show { repo } => assert_eq!(repo, "Qwen/Qwen3-30B"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_hardware() {
+        let cli = TestCli::parse_from(["x", "hardware"]);
+        assert!(matches!(cli.cmd, ModelCommand::Hardware));
+    }
+
+    #[test]
+    fn parses_delete_with_confirm() {
+        let cli = TestCli::parse_from(["x", "delete", "model.gguf", "--confirm"]);
+        match cli.cmd {
+            ModelCommand::Delete { name, confirm } => {
+                assert_eq!(name, "model.gguf");
+                assert!(confirm);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
 
     fn touch(dir: &Path, name: &str, bytes: &[u8]) {
         std::fs::write(dir.join(name), bytes).expect("write fixture file");

@@ -734,6 +734,79 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parses_run_alternatives_flag() {
+        let cli =
+            parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
+        match &cli.command {
+            Commands::Run { alternatives, .. } => assert!(*alternatives),
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_allowed_tools() {
+        let cli = parse(&[
+            "apollia-os",
+            "run",
+            "hello",
+            "ping",
+            "--allowed-tools",
+            "file_read,bash_executor",
+        ]);
+        match &cli.command {
+            Commands::Run { allowed_tools, .. } => {
+                assert_eq!(allowed_tools, &vec!["file_read".to_string(), "bash_executor".to_string()]);
+            }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_disallowed_tools_priority() {
+        let cli = parse(&[
+            "apollia-os",
+            "run",
+            "hello",
+            "ping",
+            "--disallowed-tools",
+            "bash_executor,file_write",
+        ]);
+        match &cli.command {
+            Commands::Run { disallowed_tools, .. } => {
+                assert_eq!(
+                    disallowed_tools,
+                    &vec!["bash_executor".to_string(), "file_write".to_string()]
+                );
+            }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_input_json() {
+        let cli = parse(&[
+            "apollia-os",
+            "run",
+            "worker",
+            "--input-json",
+            r#"{"data": "x"}"#,
+        ]);
+        match &cli.command {
+            Commands::Run {
+                agent_id,
+                input,
+                input_json,
+                ..
+            } => {
+                assert_eq!(agent_id, "worker");
+                assert!(input.is_empty());
+                assert_eq!(input_json.as_deref(), Some(r#"{"data": "x"}"#));
+            }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_cli_global_socket_flag() {
         // GIVEN "apollia-os --socket /custom/path.sock status"
         let cli = parse(&["apollia-os", "--socket", "/custom/path.sock", "status"]);
