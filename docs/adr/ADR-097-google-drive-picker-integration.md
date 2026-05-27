@@ -133,8 +133,6 @@ Le modèle de sécurité Google ne repose **pas** sur l'opacité du binaire (n'i
 
 ## Procédure de provisioning (Nidal)
 
-À ajouter à `docs/internal/release/OAUTH-CLIENT-IDS.md` :
-
 1. Google Cloud Console → **APIs & Services** → **Library** → activer **Google Picker API**
 2. **Credentials** → **Create credentials** → **API key**
 3. Restreindre la clé :

@@ -1,82 +1,73 @@
 # Connecter Google Workspace
 
-::: warning Section en cours de refonte
-Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
-:::
-
-> Pour les operators qui veulent donner accès à Gmail, Google Calendar et Google Drive à leurs agents — via le connecteur natif d'Apollia, sans configuration manuelle d'API.
+> Pour tout operator qui veut brancher Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks ou YouTube à Apollia, en quelques clics.
 
 ## Prérequis
 
-- Un compte Google Workspace ou un compte Google personnel actif.
-- Le profil souveraineté n'est pas réglé sur `local_only` (sinon les connecteurs cloud sont désactivés).
-
-Aucune configuration technique préalable n'est requise — l'application OAuth est fournie par Apollia et préconfigurée dans l'application.
-
-## Périmètre gratuit v0.1.0
-
-| Service | Opérations disponibles | Scope OAuth |
-|---|---|---|
-| Gmail | `send`, `compose_draft`, `list_drafts`, `delete_draft` | `gmail.send` + `gmail.compose` |
-| Google Calendar | `list_events`, `get_event`, `create_event`, `update_event`, `delete_event` | `calendar.readonly` + `calendar.events` |
-| Google Drive | `workspace_list`, `workspace_read`, `workspace_write`, `workspace_delete`, `workspace_share` (dossier `Drive/Apollia/<agent>/`) | `drive.file` |
-
-La lecture complète Gmail / Drive nécessite des scopes Google *restricted* (audit CASA Tier 2) — disponible en *mode expert* avec votre propre app OAuth. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md).
+- Apollia lancé.
+- Un compte Google personnel ou Workspace.
+- Votre profil de souveraineté n'est pas réglé sur `local_only` (sinon les boutons cloud sont grisés).
+- Connexion internet active.
 
 ## Étapes
 
-1. Ouvrez **Intégrations** dans Apollia Desktop.
+1. Dans la sidebar, ouvrez **Connexions**, puis sélectionnez la carte **Google Workspace** dans la liste des connecteurs natifs.
 
-2. Sur la carte **Google Workspace**, ajustez les permissions à demander dans la section "Permissions à demander". Par défaut toutes les permissions free-tier sont cochées.
+   `[SCREENSHOT: page Connexions, sidebar gauche avec carte Google Workspace mise en évidence, panneau Aperçu à droite avec bouton "Connecter un compte"]`
 
-3. Cliquez **Connecter un compte Google Workspace**. Une fenêtre navigateur s'ouvre sur l'écran de consentement Google.
+2. Cliquez sur **Connecter un compte**. Une fenêtre s'ouvre dans Apollia et votre navigateur ouvre automatiquement la page de consentement Google.
 
-4. Choisissez le compte à connecter, validez l'écran de consentement.
+3. Choisissez le compte Google à utiliser, puis acceptez les autorisations proposées (Mail, Calendar, Drive Workspace, etc.).
 
-5. Le navigateur affiche un code d'autorisation. Copiez-le et collez-le dans le champ qui apparaît dans Apollia Desktop, puis cliquez **Finaliser la connexion**.
+   `[SCREENSHOT: page consent Google, liste des accès demandés (Gmail, Calendar, Drive Workspace), boutons Annuler et Continuer]`
 
-6. Le compte apparaît sous "Comptes connectés". L'email est résolu automatiquement via l'endpoint `oauth2/v3/userinfo`.
+4. De retour dans Apollia, la fenêtre détecte automatiquement le retour. Une seconde étape vous propose le dossier racine Drive de l'agent (défaut **Apollia**). Validez en cliquant **Enregistrer** (ou **Défaut** pour garder la valeur proposée).
 
-## Pattern Agent Workspace (Google Drive)
+   `[SCREENSHOT: dialog Apollia étape 2, champ "Dossier racine Drive" avec valeur "Apollia" et boutons Enregistrer et Défaut]`
 
-Avec le scope `drive.file`, une app OAuth ne voit que les fichiers qu'elle a créés ou que l'utilisateur a explicitement ouverts avec elle. Apollia exploite ce comportement :
+5. La fenêtre se ferme, votre compte apparaît dans la sidebar avec une pastille verte.
+
+   `[SCREENSHOT: sidebar Connexions, carte Google Workspace dépliée affichant le compte connecté, badge vert et bouton Déconnecter]`
+
+## Ce que vous pouvez faire
+
+**Lectures (sans approbation)** : lister vos brouillons Gmail, lister vos événements Calendar, parcourir le dossier `Apollia/` sur Drive, lire des cellules Sheets, lire du texte Docs, lister vos tâches, chercher des vidéos YouTube.
+
+**Écritures (avec approbation HITL)** : envoyer un mail, créer un brouillon, créer ou modifier un événement Calendar, écrire un fichier Drive Workspace, ajouter ou modifier des valeurs dans Sheets, ajouter du texte à un Doc, créer un Slide, créer un formulaire, créer ou compléter une tâche.
+
+**Suppressions (avec phrase de confirmation)** : supprimer un événement Calendar, supprimer une tâche.
+
+## Pattern Workspace Drive
+
+Avec le scope `drive.file`, l'application ne voit que les fichiers qu'elle a créés ou ceux que vous lui ouvrez explicitement. Apollia s'appuie sur ce comportement :
 
 - À la première connexion, un dossier racine `Apollia` est créé à la racine de votre Drive.
-- À chaque création de fichier par un agent, un sous-dossier `Apollia/<agent-slug>/` est créé à la demande.
-- Toutes les opérations Drive sont **strictement scopées** à ce dossier — l'agent ne peut ni lire ni écrire ailleurs dans votre Drive.
+- À chaque création de fichier par un agent, un sous-dossier `Apollia/<nom-agent>/` est créé à la demande.
+- Les opérations Drive sont scopées à ce dossier. L'agent ne voit pas le reste de votre Drive.
 
-Concrètement, l'agent peut sauvegarder une note `meeting-notes.md` dans son workspace, la relire plus tard, et la supprimer — sans jamais voir le reste de votre Drive.
-
-## Vérification
-
-- Sur la carte Google Workspace, le compte apparaît sous "Comptes connectés" avec votre adresse email exacte.
-- Le keyring de votre OS contient une entrée `apollia-connector-google` (visible dans **Keychain Access** sur macOS, **Gestionnaire d'identifiants** sur Windows).
-- Lancez un agent test qui appelle `gmail.send` : une approbation HITL apparaît dans la boîte de réception ; après approbation, le mail est effectivement envoyé.
+L'agent peut donc sauvegarder une note `meeting-notes.md` dans son workspace, la relire plus tard, et la supprimer, sans jamais voir le reste de votre Drive.
 
 ## Multi-comptes
 
-Vous pouvez répéter la procédure pour ajouter d'autres comptes (un perso + un pro par exemple). Tous les comptes connectés sont listés sous "Comptes connectés" et chaque outil d'agent prend un paramètre optionnel `account` pour choisir lequel utiliser.
+Vous pouvez connecter plusieurs comptes Google. Chaque compte apparaît dans la sidebar avec son adresse email. Au moment où un agent appelle un outil Google, il peut choisir le compte cible via un paramètre `account` si plusieurs comptes sont connectés.
 
-## Approbation HITL
+## Vérification
 
-Toutes les opérations **d'écriture** déclenchent une approbation HITL dans votre boîte de réception avant exécution :
-
-- `gmail.send`, `gmail.compose_draft`, `gmail.delete_draft`
-- `gcal.create_event`, `gcal.update_event`
-- `gcal.delete_event` (nécessite en plus une phrase de confirmation)
-- `gdrive.workspace_write`, `gdrive.workspace_delete`, `gdrive.workspace_share`
-
-Les opérations de **lecture seule** (`gcal.list_events`, `gdrive.workspace_list`, etc.) s'exécutent sans demande.
+- La pastille à côté du compte est verte.
+- Dans le chat libre, demandez par exemple *"Liste mes 3 derniers événements Calendar"*. La réponse arrive sans demande d'approbation.
+- Tentez ensuite *"Envoie un mail à <votre adresse> avec le sujet test"*. Une popup d'approbation s'affiche avant l'envoi.
+- Le trousseau de votre système (Keychain sur macOS) contient une entrée `apollia-connector-google` associée à votre adresse email.
 
 ## Si ça ne marche pas
 
-- **L'écran de consentement Google affiche un "App non vérifiée"** : si vous êtes en *mode expert* avec votre propre app OAuth, ajoutez votre email comme test user dans la console Google Cloud → OAuth consent screen.
-- **Le compte connecté ne reçoit pas les mails envoyés par l'agent** : le mail est peut-être dans le dossier *Spam* du destinataire — Google filtre plus durement les mails envoyés via l'API qu'un envoi humain. Surveillez aussi l'erreur `gmail.send` retournée dans la timeline.
-- **`Connecter un compte` est désactivé** : le profil souveraineté est réglé sur `local_only`. Changez-le dans **Paramètres → Souveraineté** ou revenez plus tard.
-- **L'agent tente une opération restricted (`gmail.search`, `gmail.get`)** et reçoit `ScopeMissing` : ces scopes ne sont pas disponibles en mode gratuit. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md) pour les activer avec votre propre app OAuth.
+- **L'écran de consentement Google affiche "Cette app n'est pas vérifiée"** : c'est normal en mode expert avec votre propre app OAuth. Cliquez sur **Avancé** puis **Accéder à Apollia** pour continuer.
+- **Le bouton Connecter est grisé** : votre profil de souveraineté est `local_only`. Les connecteurs cloud sont désactivés dans ce mode.
+- **Vous voulez la lecture complète Gmail ou Drive** : ces scopes sont restricted (audit Google CASA) et hors v0.1.0 multi-tenant. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md).
+- **L'agent ne voit pas un fichier précis sur Drive** : il n'a accès qu'au dossier `Apollia/<agent>/`. Déposez le fichier dans ce dossier ou passez-lui l'identifiant explicite dans votre prompt.
+- **L'agent reçoit l'erreur `ScopeMissing`** : il appelle un outil restricted (`gmail.search`, `gmail.get`, etc.) qui exige le mode expert. Voir [Mode expert Google](mode-expert-google-restricted-scopes.md).
 
 ## Déconnecter un compte
 
-Sur la carte Google Workspace, cliquez **Déconnecter** à côté du compte concerné. Le token est immédiatement supprimé du keyring local. Pour révoquer également côté Google, allez sur https://myaccount.google.com/permissions et retirez l'application Apollia.
+Sur la carte Google Workspace, cliquez sur **Déconnecter** à côté du compte concerné. Le token est immédiatement supprimé du trousseau local. Pour révoquer également côté Google, allez sur https://myaccount.google.com/permissions et retirez l'application Apollia.
 
-> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth)
+> **Référence technique :** [Briques-Auth](https://github.com/nidal-z/apollia-os/wiki/Briques-Auth) , scopes complets, refresh proactif, multi-comptes, stockage trousseau.

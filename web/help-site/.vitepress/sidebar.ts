@@ -11,6 +11,7 @@ export const sidebar: DefaultTheme.Sidebar = [
     items: [
       { text: 'Configurer votre profil', link: '/installation/configurer-votre-profil' },
       { text: 'Connecter un fournisseur d\'IA', link: '/installation/connecter-un-fournisseur-d-ia' },
+      { text: 'Connecter un modèle distant', link: '/installation/connecter-un-modele-distant' },
       { text: 'Télécharger des modèles locaux', link: '/installation/telecharger-des-modeles-locaux' },
     ],
   },
@@ -73,11 +74,12 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Connecter Microsoft 365', link: '/integrations/connecter-microsoft-365' },
       { text: 'Connecter un serveur MCP', link: '/integrations/connecter-un-serveur-mcp' },
       { text: 'Tester une connexion MCP', link: '/integrations/tester-une-connexion-mcp' },
-      { text: 'Câbler votre propre serveur MCP', link: '/integrations/mcp-vous-avez-votre-propre-serveur' },
-      { text: 'Mode expert Google', link: '/integrations/mode-expert-google-restricted-scopes' },
+      { text: 'Câbler son propre serveur MCP', link: '/integrations/cabler-son-propre-serveur-mcp' },
+      { text: "Comprendre la portée d'une intégration", link: '/integrations/comprendre-la-portee-d-une-integration' },
       { text: 'Personnaliser le catalogue MCP', link: '/integrations/personnaliser-le-catalogue-mcp' },
       { text: 'Gérer les tokens OAuth', link: '/integrations/gerer-les-tokens-oauth' },
       { text: 'Permissions MCP', link: '/integrations/comprendre-les-permissions-mcp' },
+      { text: 'Mode expert Google', link: '/integrations/mode-expert-google-restricted-scopes' },
     ],
   },
   {

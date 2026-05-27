@@ -1,57 +1,55 @@
 # Tester une connexion MCP
 
-::: warning Section en cours de refonte
-Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
-:::
-
-> Pour les operators qui veulent vérifier qu'un serveur MCP déjà connecté répond correctement et expose bien les outils attendus.
+> Pour tout operator qui veut vérifier qu'un serveur MCP installé répond bien, ou diagnostiquer un voyant rouge.
 
 ## Prérequis
 
-- Un serveur MCP déjà connecté (via le wizard, voyez la page *Connecter un serveur MCP*).
-- L'outil métier distant est joignable (compte actif, token non expiré).
+- Au moins un serveur MCP installé (voir [Connecter un serveur MCP](connecter-un-serveur-mcp.md)).
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Connexions**.
+1. Dans la sidebar **Connexions**, sélectionnez le serveur MCP à tester.
 
-2. Sélectionnez le segment **Mes connexions actives**. Vous voyez la liste de toutes vos connexions MCP installées avec leur statut actuel.
-   `[SCREENSHOT: page Connexions, segment Mes connexions actives, liste de cartes MCP avec voyant de statut à gauche]`
+   `[SCREENSHOT: page Connexions, sidebar avec un MCP sélectionné en surbrillance, panneau de détail à droite]`
 
-3. Cliquez sur la carte du MCP à tester. Le panneau de détail s'ouvre à droite.
+2. Dans le panneau de détail, cliquez sur l'icône **plug** (prise) à côté du nom du serveur, ou sur **Tester la connexion** dans le menu d'actions.
 
-4. Cliquez sur le bouton **Tester la connexion** en haut du panneau. Un spinner *Test en cours…* apparaît.
-   `[SCREENSHOT: panneau de détail MCP, bouton "Tester la connexion" surligné, zone de résultat en dessous]`
+   `[SCREENSHOT: vue détail d'un MCP installé, bouton Test (icône prise) mis en évidence dans la zone d'actions]`
 
-5. Attendez le résultat (entre 1 et 5 secondes en général).
+3. Pendant le test, l'icône pulse et le bouton est désactivé. Le test dure typiquement moins d'une seconde.
 
-6. Si le test réussit, un voyant vert s'affiche avec la latence mesurée et la liste des outils exposés par le serveur.
+4. Le résultat s'affiche sous forme d'un badge :
 
-7. Si le test échoue, un voyant rouge s'affiche avec un message d'erreur traduit selon la nature du problème :
-   - **Authentification refusée — vérifiez votre clé API.** → token invalide ou expiré (HTTP 401).
-   - **Accès interdit — votre clé n'a pas les droits requis.** → permissions insuffisantes (HTTP 403).
-   - **Service introuvable — vérifiez l'URL ou le nom du serveur.** → mauvaise URL ou serveur absent (HTTP 404).
-   - **Erreur réseau — le service n'a pas répondu à temps.** → timeout ou connexion impossible.
-   - **Commande introuvable — le paquet n'est probablement pas installé.** → transport stdio, binaire absent.
-   - **La connexion a échoué. Vérifiez vos identifiants et réessayez.** → erreur générique.
+   - **Vert** : *"OK · XXX ms"*. Le serveur répond, la latence est indiquée.
+   - **Rouge** : *"Erreur : <message traduit>"*. Le serveur ne répond pas, le message précise la cause.
 
-   Un lien **Voir le détail technique** permet d'afficher le message brut du backend pour les utilisateurs avancés.
-   `[SCREENSHOT: panneau résultat, voyant rouge avec message traduit, lien "Voir le détail technique" et bouton "Modifier l'authentification"]`
+   `[SCREENSHOT: badge vert "OK · 247 ms" sous le bouton de test]`
 
-8. Vérifiez que les **outils attendus** apparaissent bien dans la liste. Si certains manquent, le serveur distant a peut-être désactivé des fonctionnalités côté compte.
+## Messages d'erreur traduits
 
-9. Pour tester un outil concret, ouvrez un chat avec un agent autorisé à utiliser ce MCP et demandez en langage naturel une action simple (par exemple : *Liste mes 3 dernières pages Notion*).
+Apollia traduit les erreurs techniques en messages clairs :
 
-10. Observez la réponse : si l'outil est appelé et renvoie un résultat cohérent, l'intégration est pleinement fonctionnelle.
+- *"Authentification refusée, vérifiez votre clé API"* : token invalide ou expiré (HTTP 401).
+- *"Accès interdit, votre clé n'a pas les droits requis"* : permissions insuffisantes (HTTP 403).
+- *"Service introuvable, vérifiez l'URL ou le nom du serveur"* : mauvaise URL ou serveur absent (HTTP 404).
+- *"Erreur réseau, le service n'a pas répondu à temps"* : timeout ou connexion impossible.
+- *"Commande introuvable, le paquet n'est probablement pas installé"* : transport stdio, binaire absent.
+- *"La connexion a échoué, vérifiez vos identifiants et réessayez"* : erreur générique.
+
+Un lien **Voir le détail technique** affiche le message brut du backend pour les utilisateurs avancés.
 
 ## Vérification
 
-Le voyant est vert, la latence est inférieure à 1 seconde, tous les outils attendus sont listés, et un agent réussit à appeler l'un d'eux depuis un chat.
+- Latence inférieure à 1 seconde pour un serveur en bonne santé.
+- Le compteur d'outils dans le panneau de détail est non nul.
+- Les outils attendus apparaissent dans la liste. Si certains manquent, le serveur distant a peut-être désactivé des fonctionnalités côté compte.
 
 ## Si ça ne marche pas
 
-- **Voyant rouge — Authentification refusée** : régénérez le token dans l'outil métier, puis cliquez sur **Modifier l'authentification** pour mettre à jour vos identifiants.
-- **Voyant rouge — Erreur réseau** : vérifiez votre connexion internet et l'URL du transport (HTTP/SSE). Pour un transport stdio, vérifiez que la commande locale est encore installée.
-- **Test OK mais l'agent n'appelle pas l'outil** : ouvrez la fiche de l'agent et vérifiez que ce MCP figure bien dans ses outils autorisés.
+- **Erreur réseau** : votre machine ne peut pas joindre le serveur. Vérifiez votre connexion internet ou, pour un MCP stdio, le PATH de la commande.
+- **Authentification refusée** : déconnectez le MCP puis reconnectez avec des identifiants valides, ou utilisez le bouton **Modifier l'authentification** pour mettre à jour le token sans tout réinstaller.
+- **Accès interdit** : votre compte n'a pas les droits côté fournisseur. Vérifiez les scopes accordés ou augmentez les permissions côté outil métier.
+- **Commande introuvable (stdio)** : pour un MCP en transport stdio, le binaire n'est pas dans le PATH d'Apollia. Installez l'outil ou ajustez la commande.
+- **Test OK mais l'agent n'appelle pas l'outil** : ouvrez la fiche de l'agent, vérifiez que ce MCP figure dans son manifest. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
 
-> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP)
+> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , codes d'erreur complets, sémantique handshake MCP.

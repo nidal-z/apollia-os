@@ -3,7 +3,7 @@
 **Date :** 2026-05-15
 **Statut :** Implémenté (en attente de validation utilisateur)
 **Sprint :** Release v0.1.0 — chantier OAuth MCP
-**Validation manuelle :** voir `docs/internal/release/validation-connecteurs-mcp.md` Pack L (Figma local-loopback) et Pack M (Linear/Sentry OAuth)
+**Validation manuelle :** Pack Figma OAuth (cloud + local-loopback) validé 2026-05. Pack Linear/Sentry à rejouer avant chaque release majeure.
 
 ---
 
@@ -132,7 +132,7 @@ Implémenter l'orchestration de bout en bout, **strictement générique** — au
 - `McpServerSettingsEditor.svelte` reconnaît `${APOLLIA_OAUTH}` dans la valeur env : affiche "Connecté via OAuth (identité: `<sub>`)" + bouton "Se reconnecter" (re-déclenche `mcp_oauth_login`).
 
 #### 7. CIMD hosting
-- Déploiement de `https://apollia.fr/.well-known/mcp-client-metadata` sur Cloudflare Pages (cf. tuto `OAUTH-SETUP-TUTO.md` §3) avant la première validation e2e.
+- Déploiement de `https://apollia.fr/.well-known/mcp-client-metadata` sur Cloudflare Pages avant la première validation e2e. Format CIMD : JSON `{client_name, client_uri, logo_uri, tos_uri, policy_uri}` servi avec `Content-Type: application/json` sur le path standardisé.
 - Sans CIMD hébergé, DCR fallback prend le relais — pas un blocage fonctionnel, juste moins propre côté AS.
 
 ### Standards respectés (zéro code spécifique provider)
@@ -219,7 +219,7 @@ Implémenter l'orchestration de bout en bout, **strictement générique** — au
 | **3 — Placeholder `${APOLLIA_OAUTH}`** | ✅ | `apollia-mcp/src/config.rs` — trait `SecretResolver` annoté `#[async_trait]`, méthode `resolve_oauth_bearer` avec default impl. `resolve_env/placeholders/single_var` async. Préfixe automatique `Bearer ` au substitut. **4 nouveaux tests + 8 migrations sync→async tokio. 174/174 verts.** |
 | **4 — IPC Tauri + extension test_mcp_connection** | ✅ | `apollia-runtime::routes_mcp` — enum tagged `Success \| OauthRequired` ; mapping structuré `TransportError::Unauthorized → McpSessionError::Unauthorized`. `apollia-desktop::commands::mcp` — 2 nouvelles IPCs `mcp_oauth_discover` + `mcp_oauth_login` ; `SecretResolver` impl étend `resolve_oauth_bearer` qui délègue à `ensure_fresh_token`. Registration dans `tauri::generate_handler!`. |
 | **5 — Wizard 3-modes + scope selector + settings editor** | ✅ | `ConnectorWizard.svelte` — sonde via `test_mcp_connection` à l'entrée du step Auth, `probeMode` à 6 valeurs, OAuth discovery + multi-checkbox scopes, `buildConfig` écrit `env.Authorization = "${APOLLIA_OAUTH}"` en mode OAuth. `WizardStepAuth.svelte` — branche OAuth dédiée avec carte primary, scope selector, bouton "Se connecter à `<provider>`", carte succès identité. `McpServerSettingsEditor.svelte` — détection `${APOLLIA_OAUTH}` + carte "Connecté via OAuth" + bouton "Se reconnecter". **15 nouvelles clés i18n FR+EN.** |
-| **6 — CIMD hosting + e2e + ADR final** | ⏳ Hosting à faire | CIMD déploiement Cloudflare Pages : à exécuter (Tâche release T7 dans `validation-connecteurs-mcp.md`). Sans CIMD, DCR fallback assure la fonctionnalité — le déploiement améliore le branding côté AS mais n'est pas un blocage. Validation manuelle : Packs L + M ajoutés au plan de validation. |
+| **6 — CIMD hosting + e2e + ADR final** | ⏳ Hosting à faire | CIMD déploiement Cloudflare Pages : à exécuter avant la validation e2e finale. Sans CIMD, DCR fallback assure la fonctionnalité — le déploiement améliore le branding côté AS mais n'est pas un blocage. Validation manuelle : Pack Figma OAuth (cloud + local) validé 2026-05, Pack Linear/Sentry à rejouer avant chaque release majeure. |
 
 **Total dev :** 4.2j conformes au budget annoncé.
 
@@ -233,8 +233,6 @@ Implémenter l'orchestration de bout en bout, **strictement générique** — au
 - ADR-088 — Architecture hybride connecteurs/MCP
 - ADR-089 — MCP OAuth 2.1 primitives (mis en orchestration par cet ADR)
 - ADR-094 — Linux keyring fallback (réutilisé pour le storage MCP token)
-- Tuto opérateur — `docs/internal/release/OAUTH-SETUP-TUTO.md` §3 (CIMD)
-- Plan de validation — `docs/internal/release/validation-connecteurs-mcp.md` Packs L + M
 - Spec MCP 2025-11-25 — https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
 - RFC 9728 — https://www.rfc-editor.org/rfc/rfc9728
 - RFC 8707 — https://www.rfc-editor.org/rfc/rfc8707

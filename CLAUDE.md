@@ -108,7 +108,7 @@ Ces principes ne peuvent pas être violés sans créer un ADR explicite.
 - `@skill(examples=[{...}])` : au moins 1 payload-modèle réaliste par skill, propagé au tool descriptor LLM-facing
 - TypedDict canoniques dans `<agent>/schemas.py` pour remplacer `list[dict[str, Any]]` / `dict[str, Any]` opaques — **sans** `from __future__ import annotations` (PEP 563 casse `TypedDict.__required_keys__`)
 - Validation : `python -m apollia inspect <agent.py> --json` doit montrer `description` sur chaque param + `examples` sur chaque skill + sous-schémas structurellement stricts
-- Référence : `docs/internal/release/AGENTKIT-REBUILD-2026-05-19.md` (section "Post-rebuild — Optimisations LLM tool descriptors") + commits `bed9e212`, `48f6cd83`, `566b79a1`
+- Référence : commits `bed9e212`, `48f6cd83`, `566b79a1` (refonte SDK AgentKit livrée 2026-05-19, plage `b9a92d49 → 8d4a4aee`) + ADRs 098-112
 
 **Convention book/wiki (sprint book-wiki-separation) :**
 - `book/src/` = contenu pédagogique ("The Rust Book") — apprendre en faisant, exemples concrets, 1-2 patterns

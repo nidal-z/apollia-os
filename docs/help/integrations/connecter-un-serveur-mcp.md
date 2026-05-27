@@ -1,59 +1,66 @@
-# Connecter un serveur MCP
+# Connecter un serveur MCP depuis le catalogue
 
-::: warning Section en cours de refonte
-Les pages **Intégrations** seront retravaillées après la release v0.1.0 : parcours UX revus, captures d'écran ajoutées, contenu enrichi. Le contenu actuel reste correct sur la mécanique, mais peut diverger de l'UI finale.
-:::
-
-> Pour les operators qui veulent brancher un outil métier (Notion, GitHub, Slack, base de données…) sur leurs agents, sans écrire de code.
-
-> **Voir aussi :** [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md) · [Câbler votre propre serveur MCP](mcp-vous-avez-votre-propre-serveur.md) · [Personnaliser le catalogue](personnaliser-le-catalogue-mcp.md)
->
-> Le catalogue v0.1.0 contient 18 entrées curées (Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Filesystem, Memory, Puppeteer, Brave Search). Pour Google Workspace et Microsoft 365, utilisez plutôt les **connecteurs natifs** (page [Intégrations](connecter-google-workspace.md)) plutôt qu'un MCP — Apollia a un connecteur natif OAuth pour ces deux providers.
+> Pour tout operator qui veut activer un serveur MCP du catalogue (Notion, GitHub, Linear, Atlassian, Stripe, Time, etc.) en quelques clics.
 
 ## Prérequis
 
-- Vous savez quel outil métier vous voulez brancher.
-- Vous avez les **identifiants** ou le **token** d'accès nécessaires à cet outil.
-- Connexion internet active (pour parcourir le catalogue).
+- Apollia lancé, page **Connexions** accessible.
+- Vous savez quel service vous voulez brancher. Le catalogue v0.1.0 propose 18 entrées soigneusement sélectionnées (voir la liste complète dans [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md)).
+- Pour les services authentifiés, vos identifiants (clé API ou compte OAuth chez le fournisseur).
 
 ## Étapes
 
-1. Dans la sidebar, cliquez sur **Connexions**.
+1. Dans la sidebar, ouvrez **Connexions**, puis cliquez sur **+ Découvrir** en haut. Le catalogue s'ouvre en panneau dédié.
 
-2. Cliquez sur le bouton **Ajouter une connexion** en haut à droite pour ouvrir le catalogue. Filtrez par catégorie (productivité, développement, communication…) ou tapez le nom de l'outil cherché dans la barre de recherche.
-   `[SCREENSHOT: overlay catalogue plein écran avec filtres par catégorie et niveau de confiance, recherche "Notion" tapée]`
+   `[SCREENSHOT: page Connexions, bouton "+ Découvrir" en haut à droite, panneau catalogue ouvert avec onglet Découvrir actif et grille d'entrées]`
 
-   > **Note :** le catalogue s'ouvre en overlay plein écran, pas en onglet — il se superpose à la page Connexions.
+2. Filtrez ou cherchez l'entrée souhaitée, puis cliquez dessus. L'assistant en 4 étapes démarre.
 
-3. Cliquez sur la carte du serveur souhaité. Vous voyez sa description, son auteur, son niveau de confiance (officiel, vérifié, communautaire), et la liste des outils qu'il expose.
+### Étape 1, Disclaimer
 
-4. Cliquez sur **Installer**. Apollia télécharge et prépare le serveur (quelques secondes), puis le **wizard de configuration** s'ouvre automatiquement.
+Quatre cases à cocher rappellent les implications d'installer un MCP externe (du code tiers s'exécute sur votre machine, des données peuvent être transférées, vous pouvez révoquer à tout moment, les capabilities sont visibles avant install). Cochez les quatre, puis cliquez **Suivant**.
 
-5. **Étape — Transport** : le wizard affiche le type de transport détecté depuis la configuration du package (stdio, HTTP ou SSE). Pour la plupart des packages, le transport est préconfiguré.
-   - **stdio** (recommandé) — le serveur tourne comme processus local, isolé, le plus sécurisé.
-   - **HTTP** — le serveur tourne ailleurs, accessible via une URL.
-   - **SSE** — pour les serveurs qui poussent des événements en streaming.
-   `[SCREENSHOT: ConnectorWizard étape transport, valeur auto-détectée affichée]`
+`[SCREENSHOT: étape 1 du wizard, 4 cases à cocher avec leurs libellés, bouton Suivant grisé tant que tout n'est pas coché]`
 
-6. **Étape — Identifiants**. Renseignez les paramètres demandés (token, URL, clé). Apollia les chiffre localement et ne les transmet à aucun tiers.
+### Étape 2, Authentification
 
-7. **Étape — Paramètres complémentaires**. Selon le serveur, vous pouvez préciser un identifiant de base, un dépôt cible, ou un espace de travail. Cette étape est facultative pour la plupart des MCP.
+Apollia détecte automatiquement le type d'authentification requis par le serveur. Trois cas possibles :
 
-8. **Étape — Tester la connexion**. Cliquez sur **Tester**. Un voyant vert apparaît avec la liste des outils détectés. Si le voyant est rouge, le message d'erreur indique précisément ce qui manque.
-   `[SCREENSHOT: étape Test du wizard, voyant vert "Connecté", latence affichée, liste des outils détectés en dessous]`
+- **Aucune authentification** : message *"Pas d'authentification nécessaire"*. Cliquez **Suivant**.
+- **Clé API ou jeton statique** : un champ mot de passe apparaît. Collez votre clé.
+- **OAuth** : un bouton *"Se connecter avec [Provider]"* apparaît avec la liste des scopes demandés. Cliquez, votre navigateur ouvre la page de consentement, autorisez, le retour est automatique.
 
-9. **Étape — Confirmation**. Lisez le disclaimer (responsabilité du serveur communautaire) et cliquez sur **Ajouter la connexion**. Le connecteur passe en statut **Connecté** dans la liste de vos connexions.
+`[SCREENSHOT: étape 2 du wizard exemple OAuth, bouton "Se connecter avec [Provider]" et liste des scopes en dessous]`
 
-10. Pour utiliser le MCP depuis un chat, ouvrez une conversation avec un agent qui a la permission d'utiliser ses outils, et formulez votre demande en langage naturel (par exemple : *Liste mes pages Notion récentes*). L'agent appelle automatiquement les bons outils.
+### Étape 3, Test
+
+Cliquez sur **Tester la connexion**. Pendant le test, l'icône pulse. À la fin, un badge affiche le résultat :
+
+- **Vert** : *"X outils détectés"*. Le serveur répond.
+- **Rouge** : message d'erreur précis (clé invalide, URL injoignable, etc.).
+
+Si le test échoue, revenez à l'étape 2 pour corriger.
+
+`[SCREENSHOT: étape 3 du wizard, bouton "Tester la connexion" et badge vert "12 outils détectés"]`
+
+### Étape 4, Coaching
+
+Apollia affiche quelques cartes d'exemples avec un bouton *"Essayer ce prompt"* qui pré-remplit la zone de chat. Cliquez **Terminer** pour clôturer l'assistant.
+
+`[SCREENSHOT: étape 4 du wizard, 3 cartes d'exemples avec bouton "Essayer ce prompt" et bouton Terminer]`
 
 ## Vérification
 
-Dans la page **Connexions**, sous le segment **Mes connexions actives**, votre MCP apparaît avec un voyant vert et la liste de ses outils disponibles. Un agent autorisé peut désormais l'invoquer depuis n'importe quel chat ou pipeline.
+- Le serveur apparaît dans la sidebar **Connexions** avec une pastille verte.
+- Le panneau de détail affiche les outils déclarés par le serveur, avec leur description.
+- Dans le chat libre, lancez un prompt suggéré par l'étape Coaching. L'outil correspondant est appelé.
 
 ## Si ça ne marche pas
 
-- **Voyant rouge à l'étape Test** : le token est invalide ou expiré. Régénérez-le côté outil métier puis revenez à l'étape d'identifiants du wizard.
-- **Aucun outil détecté** : le serveur tourne mais ne déclare rien. Vérifiez la version installée dans la fiche du catalogue ou consultez la page *Tester une connexion MCP*.
-- **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent et vérifiez que le MCP figure bien dans ses outils autorisés.
+- **Le test échoue avec "Authentification refusée"** : votre clé ou token est invalide ou révoqué. Revenez à l'étape 2 et recollez la valeur sans espaces parasites.
+- **Le test échoue avec "Service introuvable"** : le serveur n'est pas joignable. Vérifiez votre connexion ou le statut du fournisseur.
+- **Le serveur installé n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](tester-une-connexion-mcp.md) pour relancer le test, puis vérifier les logs côté fournisseur.
+- **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
+- **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
 
-> **Concept :** [book ch04 — Les outils](https://github.com/nidal-z/apollia-os/blob/main/book/src/ch04-00-les-outils.md)
+> **Référence technique :** [Briques-MCP](https://github.com/nidal-z/apollia-os/wiki/Briques-MCP) , protocole MCP, transports, trust levels, gouvernance.
