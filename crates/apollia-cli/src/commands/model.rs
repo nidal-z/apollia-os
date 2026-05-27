@@ -231,6 +231,13 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
             eprintln!("Error: HTTP {}: {}", resp.status, resp.body);
             exit_codes::GENERAL_ERROR
         }
+        Err(crate::client::ClientError::ConnectionRefused) => {
+            // ADR-008: daemon-off is exit 2 (RUNTIME_ERROR), distinct from
+            // generic CLI errors (exit 1). Aligns with tools describe / llm
+            // status / audit list / etc.
+            eprintln!("Error: runtime not started (connection refused)");
+            exit_codes::RUNTIME_ERROR
+        }
         Err(e) => {
             eprintln!("Error: {e}");
             exit_codes::GENERAL_ERROR

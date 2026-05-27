@@ -1068,7 +1068,7 @@ fn emit_error(msg: String, json: bool) -> i32 {
                 .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
         );
     } else {
-        eprintln!("Erreur : {msg}");
+        eprintln!("Error: {msg}");
     }
     exit_codes::GENERAL_ERROR
 }
@@ -1148,7 +1148,21 @@ fn format_unix_date(ts: i64) -> String {
 fn handle_client_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ConnectionRefused => {
-            emit_error("runtime not started (connection refused)".to_string(), json)
+            // Daemon-off is exit 2 per ADR-008 — distinct from generic
+            // failures (exit 1). `emit_error` returns GENERAL_ERROR, so we
+            // emit the message ourselves and override the return code here.
+            if json {
+                let out =
+                    serde_json::json!({"error": "runtime not started (connection refused)"});
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&out)
+                        .unwrap_or_else(|_| "{\"error\":\"runtime not started\"}".to_string())
+                );
+            } else {
+                eprintln!("Error: runtime not started (connection refused)");
+            }
+            exit_codes::RUNTIME_ERROR
         }
         other => emit_error(other.to_string(), json),
     }
@@ -1158,7 +1172,7 @@ fn handle_server_error(status: u16, body: &str, json: bool) -> i32 {
     let msg = serde_json::from_str::<serde_json::Value>(body)
         .ok()
         .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from))
-        .unwrap_or_else(|| format!("erreur serveur ({status})"));
+        .unwrap_or_else(|| format!("server error ({status})"));
     emit_error(msg, json)
 }
 

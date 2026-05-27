@@ -483,13 +483,16 @@ check_exit   "trace x (off)"                 2  "$BIN" --socket "$SOCK" trace du
 check_exit   "resilience list (off)"         2  "$BIN" --socket "$SOCK" resilience list
 check_exit   "hitl (off)"                    2  "$BIN" --socket "$SOCK" hitl
 check        "tools list (local)"               "$BIN" tools list
-# `tools describe` uses a slightly different error path (legacy French message)
-# and emits exit 1 instead of 2 when the runtime is unreachable.
-check_exit   "tools describe (off)"          1  "$BIN" --socket "$SOCK" tools describe bash_executor
+# `tools describe` is runtime-bound (queries the live tool registry) and
+# now emits exit 2 daemon-off, aligned on ADR-008 conventions.
+check_exit   "tools describe (off)"          2  "$BIN" --socket "$SOCK" tools describe bash_executor
 check_exit   "tools approvals pending (off)" 2  "$BIN" --socket "$SOCK" tools approvals pending
 check        "model list (no models)"           "$BIN" model list
-check        "model hardware"                   "$BIN" model hardware
-check_json   "model hardware --json"            "$BIN" model hardware --json
+# `model hardware` queries the runtime LLM registry (`/api/v1/llm/hardware`);
+# in Phase A there's no daemon so it's grouped here as a daemon-off check
+# (exit 2 per ADR-008 — F4 polish 2026-05-27).
+check_exit   "model hardware (daemon off)"   2  "$BIN" model hardware
+check_exit   "model hardware --json (off)"   2  "$BIN" model hardware --json
 # `model delete` round-trip on a stub `.gguf` we drop into the models dir.
 # `models_dir` is a symlink to the real ~/.apollia/models in this script,
 # so we drop the stub into a private tmp models dir and pass --models-dir
@@ -773,7 +776,7 @@ PYEOF
     # Model + resilience + plan-cache + digest
     section "B.4.4 model / resilience / plan-cache / digest"
     check       "model list (with GGUF in models dir)"  "$BIN" model list
-    check_json  "model hardware --json"             "$BIN" model hardware --json
+    check_json  "model hardware --json"             "$BIN" --socket "$SOCK" model hardware --json
     check       "resilience list"                   "$BIN" --socket "$SOCK" resilience list
     # bash_executor may not yet be registered in the circuit breaker registry
     # (it lazy-registers on first invocation). Skip when absent.

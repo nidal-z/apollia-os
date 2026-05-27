@@ -169,11 +169,11 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             }
             "failed" => {
                 let error = event.data["error"].as_str().unwrap_or("unknown error");
-                eprintln!("  x Échec : {error}");
+                eprintln!("  x Failed: {error}");
                 true
             }
             "plan_failed" => {
-                let reason = event.data["reason"].as_str().unwrap_or("Erreur inconnue");
+                let reason = event.data["reason"].as_str().unwrap_or("Unknown error");
                 eprintln!("  ✗ Plan failed: {reason}");
                 true
             }
@@ -300,7 +300,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
         // ── Common: task failed (direct mode) — terminal ──────────────────
         "failed" => {
             let error = event.data["error"].as_str().unwrap_or("unknown error");
-            eprintln!("  x Échec : {error}");
+            eprintln!("  x Failed: {error}");
             true
         }
 
@@ -345,7 +345,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
                             state.chosen_plan = Some(chosen);
                         }
                         Err(e) => {
-                            eprintln!("  x Erreur lors du choix : {e}");
+                            eprintln!("  x Error during plan choice: {e}");
                         }
                     }
                 }

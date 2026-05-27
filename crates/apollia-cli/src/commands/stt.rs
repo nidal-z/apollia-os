@@ -560,7 +560,7 @@ async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool)
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: transcription '{id}' introuvable");
+                eprintln!("Error: transcription '{id}' not found");
             }
             exit_codes::GENERAL_ERROR
         }

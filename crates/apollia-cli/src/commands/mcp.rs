@@ -550,7 +550,7 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Utiliser --confirm pour retirer le serveur '{name}' sans confirmation.");
+            eprintln!("Use --confirm to remove server '{name}' without prompt.");
         }
         return exit_codes::GENERAL_ERROR;
     }
@@ -572,7 +572,7 @@ async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: boo
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: serveur MCP '{name}' introuvable");
+                eprintln!("Error: MCP server '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -606,7 +606,7 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: serveur MCP '{name}' introuvable");
+                eprintln!("Error: MCP server '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -662,7 +662,7 @@ async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: serveur MCP '{name}' introuvable");
+                eprintln!("Error: MCP server '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -730,7 +730,7 @@ async fn run_update_server(
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: serveur MCP '{name}' introuvable");
+                eprintln!("Error: MCP server '{name}' not found");
             }
             exit_codes::GENERAL_ERROR
         }

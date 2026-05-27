@@ -408,7 +408,7 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(e) => {
-            eprintln!("Erreur : {e}");
+            eprintln!("Error: {e}");
             exit_codes::GENERAL_ERROR
         }
     }

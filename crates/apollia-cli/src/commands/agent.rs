@@ -2164,33 +2164,33 @@ async fn run_logs(
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent logs <id> --follow` — stream live log lines until Ctrl+C.
-async fn run_logs_follow(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
-    use futures::StreamExt;
-
-    let uri = format!("/api/v1/agents/{agent_id}/logs/stream");
-    match client.stream_sse_lines(&uri).await {
-        Ok(mut stream) => {
-            while let Some(item) = stream.next().await {
-                match item {
-                    Ok(line) if line.starts_with("data:") => {
-                        println!("{}", line.trim_start_matches("data:").trim());
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        if json {
-                            println!("{}", serde_json::json!({"error": e.to_string()}));
-                        } else {
-                            eprintln!("Stream error: {e}");
-                        }
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                }
-            }
-            exit_codes::SUCCESS
-        }
-        Err(e) => handle_error(e, json),
+/// `apollia-os agent logs <id> --follow` — live stream placeholder.
+///
+/// The runtime does not yet register `GET /api/v1/agents/:id/logs/stream`
+/// (no dedicated agent stderr persistence layer ships in v0.1.0 — the
+/// audit fallback used by `agent logs` covers the structured tool-call
+/// view). Rather than fail silently by hitting a missing endpoint, the
+/// CLI returns a clear, actionable error pointing at the same `--last`
+/// path and the v0.1.1 roadmap entry.
+async fn run_logs_follow(_client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    let msg = format!(
+        "agent logs --follow is not yet implemented (v0.1.1+).\n  \
+         For the latest activity, run: apollia-os agent logs {agent_id} --last 20\n  \
+         A dedicated agent log channel will land alongside the audit-event \
+         SSE stream in a future release."
+    );
+    if json {
+        let body = serde_json::json!({
+            "error": "agent logs --follow not implemented",
+            "agent_id": agent_id,
+            "hint": "use `agent logs <id> --last N` for the audit-trail fallback",
+            "tracking": "v0.1.1",
+        });
+        println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+    } else {
+        eprintln!("Error: {msg}");
     }
+    exit_codes::GENERAL_ERROR
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

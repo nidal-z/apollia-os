@@ -623,7 +623,7 @@ fn confirm(prompt: &str, yes: bool, json: bool) -> bool {
         return true;
     }
     if json || !io::stdin().is_terminal() {
-        eprintln!("Erreur : confirmation interactive requise — relancez avec --yes pour scripts");
+        eprintln!("Error: interactive confirmation required — re-run with --yes for scripts");
         return false;
     }
     print!("{prompt}");
@@ -659,7 +659,7 @@ fn emit_error(msg: String, json: bool) -> i32 {
                 .unwrap_or_else(|_| "{\"error\":\"unknown\"}".to_string())
         );
     } else {
-        eprintln!("Erreur : {msg}");
+        eprintln!("Error: {msg}");
     }
     exit_codes::GENERAL_ERROR
 }

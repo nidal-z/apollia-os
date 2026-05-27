@@ -64,8 +64,12 @@ pub enum TriggerCommand {
         /// Source type: cron, interval, oneshot, filewatch, webhook.
         #[arg(long, value_name = "TYPE")]
         kind: String,
-        /// Source-specific detail: cron expression / interval string /
-        /// RFC 3339 timestamp / path / webhook secret.
+        /// Source-specific detail:
+        ///   cron      → cron expression (e.g. `"0 9 * * 1"`)
+        ///   interval  → duration string (`30m`, `1h`, `6h`, `1d`)
+        ///   oneshot   → RFC 3339 timestamp
+        ///   filewatch → path to a file or directory
+        ///   webhook   → shared HMAC-SHA256 secret of at least 32 chars
         #[arg(long)]
         detail: Option<String>,
         /// Policy when the agent is busy when a fire arrives.
@@ -336,7 +340,7 @@ async fn run_reload(client: &RuntimeClient, json: bool) -> i32 {
                     serde_json::to_string_pretty(&output).unwrap_or_default()
                 );
             } else {
-                eprintln!("Erreur reload triggers ({status}): {body}");
+                eprintln!("Error: trigger reload failed ({status}): {body}");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -420,14 +424,15 @@ fn format_relative_time(ts: &str) -> String {
 fn format_trigger_detail(resp: &serde_json::Value) {
     let id = resp.get("id").and_then(|v| v.as_str()).unwrap_or("?");
     let agent = resp.get("agent").and_then(|v| v.as_str()).unwrap_or("?");
+    // The runtime returns `source_type` + structured `source_config` (a JSON
+    // object). Older CLI builds looked for `source_kind` / `source_detail`
+    // which never existed — fix here so `trigger status` shows the real
+    // kind + the kind-specific config slot.
     let kind = resp
-        .get("source_kind")
+        .get("source_type")
         .and_then(|v| v.as_str())
         .unwrap_or("?");
-    let detail = resp
-        .get("source_detail")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let detail = trigger_detail_from_config(kind, resp.get("source_config"));
     let on_busy = resp.get("on_busy").and_then(|v| v.as_str()).unwrap_or("?");
     let enabled = resp
         .get("enabled")
@@ -448,6 +453,28 @@ fn format_trigger_detail(resp: &serde_json::Value) {
     println!("  On busy   : {on_busy}");
     println!("  Enabled   : {enabled}");
     println!("  Fires     : {fires} total, {skips} skipped");
+}
+
+/// Extract the human-readable detail string from a `source_config` JSON
+/// object, picking the right field per `source_type`. Webhook intentionally
+/// renders as `(secret hidden)` so we never print a shared secret in the
+/// status output.
+fn trigger_detail_from_config(kind: &str, config: Option<&serde_json::Value>) -> String {
+    let Some(cfg) = config else { return String::new() };
+    let pick = |k: &str| {
+        cfg.get(k)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .unwrap_or_default()
+    };
+    match kind {
+        "cron" => pick("schedule"),
+        "interval" => pick("every"),
+        "oneshot" => pick("fire_at"),
+        "file_watch" => pick("path"),
+        "webhook" => "secret hidden".to_string(),
+        _ => String::new(),
+    }
 }
 
 /// Format trigger logs as human-readable rows.
@@ -579,10 +606,24 @@ fn build_trigger_source(kind: &str, detail: Option<&str>) -> Result<serde_json::
             // `exclude_patterns` when these are absent.
             "events": ["any"],
         })),
-        "webhook" => Ok(serde_json::json!({
-            "type": "webhook",
-            "secret": detail_str()?,
-        })),
+        "webhook" => {
+            let secret = detail_str()?;
+            // The runtime rejects shared-secret < 32 chars with HMAC-SHA256
+            // strength reasoning; validate locally so the error is actionable
+            // and avoids a confusing 422 round-trip.
+            if secret.len() < 32 {
+                return Err(format!(
+                    "--detail must be a shared secret of at least 32 characters \
+                     for kind webhook (got {} chars). HMAC-SHA256 needs a key \
+                     length comparable to its 32-byte output to avoid weakness.",
+                    secret.len()
+                ));
+            }
+            Ok(serde_json::json!({
+                "type": "webhook",
+                "secret": secret,
+            }))
+        }
         other => Err(format!(
             "unknown trigger kind '{other}' (expected: cron, interval, oneshot, filewatch, webhook)"
         )),
@@ -735,7 +776,7 @@ async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool)
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Utiliser --confirm pour supprimer le trigger '{id}' sans confirmation.");
+            eprintln!("Use --confirm to delete trigger '{id}' without prompt.");
         }
         return exit_codes::GENERAL_ERROR;
     }

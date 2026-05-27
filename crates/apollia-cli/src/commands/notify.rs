@@ -534,7 +534,7 @@ async fn run_update_channel(
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: canal '{id}' introuvable");
+                eprintln!("Error: channel '{id}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
@@ -552,7 +552,7 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Utiliser --confirm pour supprimer le canal '{id}' sans confirmation.");
+            eprintln!("Use --confirm to delete channel '{id}' without prompt.");
         }
         return exit_codes::GENERAL_ERROR;
     }
@@ -574,7 +574,7 @@ async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, jso
                 let out = serde_json::json!({"error": body});
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
             } else {
-                eprintln!("Error: canal '{id}' introuvable");
+                eprintln!("Error: channel '{id}' not found");
             }
             exit_codes::GENERAL_ERROR
         }
