@@ -39,15 +39,22 @@ pub enum NotifyCommand {
     },
     /// Create a new notification channel.
     Create {
-        /// Channel type: desktop, webhook.
-        #[arg(long, value_name = "TYPE")]
+        /// Channel type: `desktop` or `webhook`.
+        #[arg(long, value_name = "TYPE", value_parser = ["desktop", "webhook"])]
         kind: String,
-        /// Target URL (for webhook).
+        /// Target URL (required for `webhook`).
         #[arg(long)]
         url: Option<String>,
-        /// Enable immediately.
-        #[arg(long, default_value_t = true)]
-        enabled: bool,
+        /// Channel identifier. Auto-generated as `<kind>-<timestamp>` when
+        /// omitted (operator-friendly default for ad-hoc creation).
+        #[arg(long, value_name = "ID")]
+        id: Option<String>,
+        /// Human-readable label shown in the UI. Defaults to the id.
+        #[arg(long, value_name = "TEXT")]
+        label: Option<String>,
+        /// Create the channel disabled (default: enabled).
+        #[arg(long)]
+        disabled: bool,
     },
     /// Update an existing notification channel.
     Update {
@@ -102,8 +109,23 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
         NotifyCommand::Test => run_test(&client, json).await,
         NotifyCommand::List => run_list(&client, json).await,
         NotifyCommand::Logs { last } => run_logs(&client, *last, json).await,
-        NotifyCommand::Create { kind, url, enabled } => {
-            run_create(&client, kind, url.as_deref(), *enabled, json).await
+        NotifyCommand::Create {
+            kind,
+            url,
+            id,
+            label,
+            disabled,
+        } => {
+            run_create(
+                &client,
+                kind,
+                url.as_deref(),
+                id.as_deref(),
+                label.as_deref(),
+                !*disabled,
+                json,
+            )
+            .await
         }
         NotifyCommand::Update { id, url, enabled } => {
             run_update_channel(&client, id, url.as_deref(), *enabled, json).await
@@ -395,19 +417,63 @@ fn format_log_entries(resp: &serde_json::Value) {
 }
 
 /// `apollia-os notify create --kind <type>` — créer un canal de notification.
+///
+/// Builds the `CreateChannelRequest` body the runtime expects
+/// (`routes_notifications.rs:37`): `{ id, label?, channel_type, enabled,
+/// config }`. The kind-specific config slot is populated from `--url` for
+/// webhook channels; desktop channels carry an empty config.
 async fn run_create(
     client: &RuntimeClient,
     kind: &str,
     url: Option<&str>,
+    id: Option<&str>,
+    label: Option<&str>,
     enabled: bool,
     json: bool,
 ) -> i32 {
+    // Webhook requires `url`; fail fast with a clear message rather than
+    // letting the runtime return a generic 422.
+    if kind == "webhook" && url.is_none() {
+        let msg = "--url is required for webhook channels";
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({ "error": msg })
+            );
+        } else {
+            eprintln!("Error: {msg}");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    // Auto-generate a sensible id when the caller didn't pass one. Format
+    // `<kind>-<unix-seconds>` is unique-enough for scripting use cases and
+    // mirrors how the Desktop UI labels new channels.
+    let channel_id: String = match id {
+        Some(s) => s.to_string(),
+        None => {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            format!("{kind}-{ts}")
+        }
+    };
+
+    let config = if kind == "webhook" {
+        serde_json::json!({ "url": url.unwrap_or("") })
+    } else {
+        serde_json::json!({})
+    };
+
     let mut body = serde_json::json!({
-        "kind": kind,
+        "id": channel_id,
+        "channel_type": kind,
         "enabled": enabled,
+        "config": config,
     });
-    if let Some(u) = url {
-        body["url"] = serde_json::Value::String(u.to_string());
+    if let Some(l) = label {
+        body["label"] = serde_json::Value::String(l.to_string());
     }
 
     match client.create_notification_channel(&body).await {
@@ -418,11 +484,12 @@ async fn run_create(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                let id = resp
-                    .get("channel_id")
+                let echoed = resp
+                    .get("id")
+                    .or_else(|| resp.get("channel_id"))
                     .and_then(|v| v.as_str())
-                    .unwrap_or("?");
-                println!("✔ Notification channel '{id}' created (type: {kind})");
+                    .unwrap_or(channel_id.as_str());
+                println!("✔ Notification channel '{echoed}' created (type: {kind})");
             }
             exit_codes::SUCCESS
         }
@@ -431,6 +498,10 @@ async fn run_create(
 }
 
 /// `apollia-os notify update <id>` — mettre à jour un canal de notification.
+///
+/// Maps `--url` (kind-specific config) to `config.url`, and leaves all
+/// untouched fields absent so the runtime preserves them
+/// (`UpdateChannelRequest` merge semantics, `routes_notifications.rs:63`).
 async fn run_update_channel(
     client: &RuntimeClient,
     id: &str,
@@ -440,7 +511,7 @@ async fn run_update_channel(
 ) -> i32 {
     let mut body = serde_json::json!({});
     if let Some(u) = url {
-        body["url"] = serde_json::Value::String(u.to_string());
+        body["config"] = serde_json::json!({ "url": u });
     }
     if let Some(e) = enabled {
         body["enabled"] = serde_json::Value::Bool(e);
@@ -777,10 +848,15 @@ mod tests {
         ]);
         // THEN
         match &cli.command {
-            NotifyCommand::Create { kind, url, enabled } => {
+            NotifyCommand::Create {
+                kind,
+                url,
+                disabled,
+                ..
+            } => {
                 assert_eq!(kind, "webhook");
                 assert_eq!(url.as_deref(), Some("https://hooks.example.com"));
-                assert!(*enabled);
+                assert!(!*disabled);
             }
             other => panic!("expected Create, got {other:?}"),
         }

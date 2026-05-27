@@ -61,16 +61,18 @@ pub enum TriggerCommand {
         /// Target agent.
         #[arg(long)]
         agent: String,
-        /// Type: cron, interval, filewatch, webhook.
+        /// Source type: cron, interval, oneshot, filewatch, webhook.
         #[arg(long, value_name = "TYPE")]
         kind: String,
-        /// Trigger detail (cron expression, interval, path, etc.).
+        /// Source-specific detail: cron expression / interval string /
+        /// RFC 3339 timestamp / path / webhook secret.
         #[arg(long)]
         detail: Option<String>,
-        /// Policy when the agent is busy (skip, queue, preempt).
-        #[arg(long, default_value = "skip")]
+        /// Policy when the agent is busy when a fire arrives.
+        /// `queue` enqueues the fire (default), `drop` discards it.
+        #[arg(long, value_parser = ["queue", "drop"], default_value = "queue")]
         on_busy: String,
-        /// Input payload sent to the agent when fired.
+        /// Input template sent to the agent when fired.
         #[arg(long)]
         input: Option<String>,
     },
@@ -78,13 +80,13 @@ pub enum TriggerCommand {
     Update {
         /// Trigger identifier.
         id: String,
-        /// New detail (cron expression, interval, etc.).
+        /// New source detail (kind is read from the existing definition).
         #[arg(long)]
         detail: Option<String>,
-        /// New on-busy policy.
-        #[arg(long)]
+        /// New on-busy policy (`queue` or `drop`).
+        #[arg(long, value_parser = ["queue", "drop"])]
         on_busy: Option<String>,
-        /// New input payload.
+        /// New input template.
         #[arg(long)]
         input: Option<String>,
     },
@@ -494,17 +496,34 @@ async fn run_create(
     input: Option<&str>,
     json: bool,
 ) -> i32 {
+    // Build the `source` object the runtime expects (`CreateTriggerRequest`
+    // in routes_triggers.rs). The CLI `--kind` is the friendly name; the
+    // runtime accepts the canonical `TriggerSourceConfig` tag — most kinds
+    // map 1:1, except `filewatch` which the runtime spells `file_watch`.
+    let source = match build_trigger_source(kind, detail) {
+        Ok(s) => s,
+        Err(msg) => {
+            let payload = serde_json::json!({ "error": msg });
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&payload).unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
     let mut body = serde_json::json!({
         "id": id,
         "agent": agent,
-        "kind": kind,
         "on_busy": on_busy,
+        "source": source,
     });
-    if let Some(d) = detail {
-        body["detail"] = serde_json::Value::String(d.to_string());
-    }
     if let Some(i) = input {
-        body["input"] = serde_json::Value::String(i.to_string());
+        body["input_template"] = serde_json::Value::String(i.to_string());
     }
 
     match client.create_trigger(&body).await {
@@ -523,9 +542,62 @@ async fn run_create(
     }
 }
 
+/// Build the `source` JSON object expected by `CreateTriggerRequest` /
+/// `UpdateTriggerRequest`.
+///
+/// User-facing `--kind` values map to the runtime canonical tags:
+///
+/// | `--kind`    | `source.type` | required `--detail`                      |
+/// |-------------|---------------|------------------------------------------|
+/// | `cron`      | `cron`        | cron expression (e.g. `"0 9 * * 1"`)     |
+/// | `interval`  | `interval`    | duration string (e.g. `"30m"`, `"1h"`)   |
+/// | `oneshot`   | `oneshot`     | RFC 3339 timestamp                       |
+/// | `filewatch` | `file_watch`  | path to file or directory                |
+/// | `webhook`   | `webhook`     | shared HMAC-SHA256 secret                |
+fn build_trigger_source(kind: &str, detail: Option<&str>) -> Result<serde_json::Value, String> {
+    let detail_str = || -> Result<&str, String> {
+        detail.ok_or_else(|| format!("--detail is required for kind '{kind}'"))
+    };
+    match kind {
+        "cron" => Ok(serde_json::json!({
+            "type": "cron",
+            "schedule": detail_str()?,
+        })),
+        "interval" => Ok(serde_json::json!({
+            "type": "interval",
+            "every": detail_str()?,
+        })),
+        "oneshot" => Ok(serde_json::json!({
+            "type": "oneshot",
+            "fire_at": detail_str()?,
+        })),
+        "filewatch" | "file_watch" => Ok(serde_json::json!({
+            "type": "file_watch",
+            "path": detail_str()?,
+            // Watch every kind of FS event by default; the runtime keeps
+            // sensible defaults for `recursive`, `follow_symlinks`, and
+            // `exclude_patterns` when these are absent.
+            "events": ["any"],
+        })),
+        "webhook" => Ok(serde_json::json!({
+            "type": "webhook",
+            "secret": detail_str()?,
+        })),
+        other => Err(format!(
+            "unknown trigger kind '{other}' (expected: cron, interval, oneshot, filewatch, webhook)"
+        )),
+    }
+}
+
 /// `apollia-os trigger update <id> [options]`
 ///
 /// Met à jour un trigger existant via `PUT /api/v1/triggers/{id}`.
+///
+/// Le runtime attend un body **complet** (`UpdateTriggerRequest` exige
+/// notamment `source: { type, … }` — pas de patch partiel), donc on lit
+/// d'abord la définition courante via `GET /api/v1/triggers/{id}` pour
+/// préserver les champs non modifiés. Cela garde la sémantique merge
+/// que l'utilisateur attend.
 async fn run_update(
     client: &RuntimeClient,
     id: &str,
@@ -534,15 +606,96 @@ async fn run_update(
     input: Option<&str>,
     json: bool,
 ) -> i32 {
-    let mut body = serde_json::json!({});
+    let current = match client.get_trigger(id).await {
+        Ok(v) => v,
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: trigger '{id}' not found");
+            }
+            return exit_codes::GENERAL_ERROR;
+        }
+        Err(e) => return handle_client_error(e, json),
+    };
+
+    let source_type = current
+        .get("source_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let mut source_config = current
+        .get("source_config")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+
     if let Some(d) = detail {
-        body["detail"] = serde_json::Value::String(d.to_string());
+        // Patch the kind-specific detail field on the existing source_config.
+        let field = match source_type.as_str() {
+            "cron" => "schedule",
+            "interval" => "every",
+            "oneshot" => "fire_at",
+            "file_watch" => "path",
+            "webhook" => "secret",
+            other => {
+                let msg = format!("cannot patch --detail on unknown source type '{other}'");
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::json!({ "error": msg })
+                    );
+                } else {
+                    eprintln!("Error: {msg}");
+                }
+                return exit_codes::GENERAL_ERROR;
+            }
+        };
+        if let Some(obj) = source_config.as_object_mut() {
+            obj.insert(field.to_string(), serde_json::Value::String(d.to_string()));
+        }
     }
-    if let Some(ob) = on_busy {
-        body["on_busy"] = serde_json::Value::String(ob.to_string());
+
+    let mut source = serde_json::Map::new();
+    source.insert(
+        "type".to_string(),
+        serde_json::Value::String(source_type.clone()),
+    );
+    if let Some(obj) = source_config.as_object() {
+        for (k, v) in obj {
+            source.insert(k.clone(), v.clone());
+        }
     }
-    if let Some(i) = input {
-        body["input"] = serde_json::Value::String(i.to_string());
+
+    let agent = current.get("agent").cloned().unwrap_or(serde_json::Value::Null);
+    let enabled = current
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let effective_on_busy = on_busy
+        .map(str::to_string)
+        .or_else(|| {
+            current
+                .get("on_busy")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "skip".to_string());
+    let input_template = input.map(str::to_string).or_else(|| {
+        current
+            .get("input_template")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    });
+
+    let mut body = serde_json::json!({
+        "agent": agent,
+        "enabled": enabled,
+        "on_busy": effective_on_busy,
+        "source": source,
+    });
+    if let Some(t) = input_template {
+        body["input_template"] = serde_json::Value::String(t);
     }
 
     match client.update_trigger(id, &body).await {
@@ -782,7 +935,10 @@ mod tests {
                 assert_eq!(agent, "mon-agent");
                 assert_eq!(kind, "cron");
                 assert_eq!(detail.as_deref(), Some("0 9 * * 1"));
-                assert_eq!(on_busy, "skip");
+                // Default on_busy was changed from "skip" (CLI-only fiction)
+                // to "queue" (runtime canonical value) in the v0.1.0 trigger
+                // payload fix — see run_create.
+                assert_eq!(on_busy, "queue");
                 assert!(input.is_none());
             }
             other => panic!("expected Create, got {other:?}"),

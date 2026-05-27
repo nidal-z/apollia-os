@@ -2046,10 +2046,19 @@ fn handle_error(err: ClientError, json: bool) -> i32 {
 // Logs
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent logs <id> [--last N] [--follow]` — display agent log lines.
+/// `apollia-os agent logs <id> [--last N] [--follow]` — display recent
+/// activity for an agent.
 ///
-/// Without `--follow`, fetches the last `N` lines via `GET /api/v1/agents/{id}/logs?last={N}`.
-/// With `--follow`, opens an SSE stream at `GET /api/v1/agents/{id}/logs/stream`.
+/// Until a dedicated agent stderr persistence layer ships (v0.1.1+), the
+/// runtime does not expose `/api/v1/agents/:id/logs`. We fall back to the
+/// audit trail: every tool invocation attributed to `<agent_id>` is fetched
+/// from `GET /api/v1/audit?limit=…` and rendered as one timestamped line per
+/// event. This gives operators the "what did this agent do recently?" view
+/// that `agent logs` should answer.
+///
+/// With `--follow`, opens the SSE stream at
+/// `GET /api/v1/agents/{id}/logs/stream` (server-side route — when absent,
+/// the CLI prints a clear "not implemented" message and exits 1).
 async fn run_logs(
     client: &RuntimeClient,
     agent_id: &str,
@@ -2074,37 +2083,85 @@ async fn run_logs(
         return run_logs_follow(client, agent_id, json).await;
     }
 
-    match client.get_agent_logs(agent_id, last).await {
-        Ok(resp) => {
+    // Fetch a generous slice of recent audit events. We cap at 500
+    // (runtime hard limit) and client-side filter on agent_id, then keep
+    // the last `last` matches. This is O(500) per call — fine for an
+    // interactive CLI; a dedicated route would be faster but is out of
+    // scope.
+    let fetch_limit = 500u32;
+    let uri = format!("/api/v1/audit?limit={fetch_limit}");
+    let resp = match client.get(&uri).await {
+        Ok(r) if r.status < 400 => r,
+        Ok(r) => {
+            let msg = format!("HTTP {} from /audit: {}", r.status, r.body);
             if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&resp).unwrap_or_default()
-                );
-            } else {
-                let logs = resp.get("logs").and_then(|v| v.as_array());
-                match logs.map(Vec::as_slice) {
-                    None | Some([]) => println!("(no logs)"),
-                    Some(lines) => {
-                        for line in lines {
-                            println!("{}", line.as_str().unwrap_or(""));
-                        }
-                    }
-                }
-            }
-            exit_codes::SUCCESS
-        }
-        Err(ClientError::ServerError { status: 404, .. }) => {
-            let msg = format!("Agent '{agent_id}' introuvable");
-            if json {
-                println!("{}", serde_json::json!({"error": msg}));
+                println!("{}", serde_json::json!({ "error": msg }));
             } else {
                 eprintln!("Error: {msg}");
             }
-            exit_codes::GENERAL_ERROR
+            return exit_codes::GENERAL_ERROR;
         }
-        Err(e) => handle_error(e, json),
+        Err(e) => return handle_error(e, json),
+    };
+    let body: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            let msg = format!("invalid audit JSON: {e}");
+            if json {
+                println!("{}", serde_json::json!({ "error": msg }));
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    let empty: Vec<serde_json::Value> = Vec::new();
+    let events: Vec<&serde_json::Value> = body
+        .get("events")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty)
+        .iter()
+        .filter(|e| {
+            e.get("agent_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s == agent_id)
+                .unwrap_or(false)
+        })
+        .take(last as usize)
+        .collect();
+
+    if json {
+        let array: Vec<serde_json::Value> = events.iter().map(|e| (*e).clone()).collect();
+        let out = serde_json::json!({
+            "agent_id": agent_id,
+            "events": array,
+            "source": "audit-trail (no dedicated agent log channel yet)",
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+        return exit_codes::SUCCESS;
     }
+
+    if events.is_empty() {
+        println!("(no recent activity for {agent_id} in the audit trail)");
+        return exit_codes::SUCCESS;
+    }
+
+    println!(
+        "  Recent audit events for {agent_id} ({} of last {fetch_limit}):",
+        events.len()
+    );
+    for e in &events {
+        let ts = e.get("timestamp").and_then(|v| v.as_str()).unwrap_or("?");
+        let tool = e.get("tool").and_then(|v| v.as_str()).unwrap_or("?");
+        let outcome = e
+            .get("outcome")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let task = e.get("task_id").and_then(|v| v.as_str()).unwrap_or("-");
+        println!("  {ts}  {tool:<20} {outcome:<10} task={task}");
+    }
+    exit_codes::SUCCESS
 }
 
 /// `apollia-os agent logs <id> --follow` — stream live log lines until Ctrl+C.
