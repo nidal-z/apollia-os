@@ -40,12 +40,12 @@ deferred v0.1.1 items).
 | stt / model / resilience / plan-cache / digest / rollback | — | ~14 | — |
 | auth (login/status/logout), update, onboard, mcp-server | — | — | 5 (UI/network) |
 
-Totals (latest run on dev machine):
+Totals (latest run on dev machine, 2026-05-27 post bug fixes):
 
-| Mode | PASS | FAIL | SKIP |
-|---|---|---|---|
-| Phase A only | 173 | 0 | 17 |
-| Phase A + B | 239 | 0 | 28 |
+| Mode | PASS | FAIL | SKIP | Wall-clock |
+|---|---|---|---|---|
+| Phase A only | **180** | 0 | 15 | ~6 s |
+| Phase A + B | **271** | 0 | 19 | ~18 s |
 
 ## Environment variables
 
@@ -85,26 +85,43 @@ script — the defaults inside the script use the `:-` operator.
 
 ## What is **not** tested (and why)
 
-These are intentional skips, documented inline in the script (`A.13 SKIP
-justifiés`):
+These are intentional skips documented inline in the script (`A.13` for
+Phase A skips; in-place reasons for Phase B environment skips). Each
+remaining skip falls in one of four categories: (a) interactive UI,
+(b) outbound network, (c) deferred v0.1.1 items, (d) environment limits
+the script can't synthesize.
+
+### Phase A SKIPs (15)
+
+| Cmd | Category | Reason |
+|---|---|---|
+| `chat` (REPL) | UI | rustyline editor needs a tty / pty |
+| `auth login <provider>` | UI | spawns the browser at the AS authorize URL |
+| `update` / `update --check` | Network | outbound HTTPS to api.github.com |
+| `onboard` / `onboard --topic` | UI | chat-based onboarding agent |
+| `mcp-server` / `--with-runtime` | Long-running | stdio JSON-RPC server, never returns |
+| `model search` / `model show` | Network | HTTPS to huggingface.co |
+| `stt transcribe` / `stt model download` | Network + model | needs Whisper model on disk (~1 GB HF download) |
+| `notify test` | Side-effect | dispatches a real desktop notif / webhook POST |
+| `agent install <git-url>` | Network | git clone |
+| `agent package install` | External | needs an `agent.toml` bundle to install from |
+| `mcp oauth login` | UI | AS authorize URL + browser callback |
+| `tools credentials set` / `test` | UI + side-effect | masked stdin prompt + live backend call |
+| `chat-config authorizations list` / `revoke` | Deferred v0.1.1 | in-memory daemon state, no HTTP route yet |
+| `mcp catalogue` / `mcp enrichments list` | Deferred v0.1.1 | backend (`McpRegistryClient` + `enrichments.json`) lives in `apollia-desktop`; exposing to CLI requires moving the modules into `apollia-mcp` |
+
+### Phase B SKIPs (4 additional, with daemon)
 
 | Cmd | Reason |
 |---|---|
-| `chat` (REPL) | rustyline — interactive, non-scriptable. |
-| `auth login` / `status` / `logout` | OAuth2 PKCE browser flow + OS keyring side-effects. |
-| `update`, `update --check` | network (GitHub Releases). |
-| `onboard`, `onboard --topic` | spawns an interactive chat agent. |
-| `mcp-server`, `mcp-server --with-runtime` | long-running stdio server. |
-| `model search`, `model show` | network (HF API). |
-| `model delete --confirm` | destructive on a real `.gguf` — covered by unit tests. |
-| `stt transcribe`, `stt model download` | network + whisper model. |
-| `notify test` | sends a real desktop notification. |
-| `agent install <git-url>` | network (Git clone). |
-| `agent package install` | requires an external `agent.toml` package. |
-| `mcp oauth login` | browser + callback. |
-| `tools credentials test` / `set` | live calls + masked stdin prompt. |
-| `chat-config authorizations list` / `revoke` | deferred v0.1.1 — runtime route absent (cf. `docs/internal/release/CLI-STATE.md` §3). |
-| `mcp catalogue`, `mcp enrichments list` | deferred v0.1.1 — backend lives in `apollia-desktop`, exposing to CLI requires cross-crate refactor. |
+| `agent repair e2e-hello` | the E2E stub agent is standalone — `agent repair` only fixes agents installed as part of an `agent_packages` bundle |
+| `llm reload` + `llm ping` + `llm chat` | the `apollia-runner` sidecar isn't reachable inside the script's $HOME — the daemon falls back to UNAVAILABLE for model-bound ops. Pure metadata CRUD on backends still runs (created, updated, set-default, deleted in Phase B). |
+| `resilience show bash_executor` + `reset bash_executor` | circuit-breaker registry is empty — bash_executor isn't registered until a real agent invokes it; the stub agent never does |
+| `review .` | opt-in (`APOLLIA_TEST_REVIEW=1`) — spawns the heavy apollia-review agent, several minutes wall-clock |
+
+The Phase B skips that **were** issues before the 2026-05-27 bug fixes
+(trigger CRUD across kinds, notify CRUD, agent logs, auth status/logout)
+are now executed and asserted — see commits `bfe1ab0f` and `6bfcc854`.
 
 ## When a test fails
 
