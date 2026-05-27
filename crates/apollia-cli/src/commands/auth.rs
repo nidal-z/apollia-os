@@ -7,6 +7,11 @@ use clap::Subcommand;
 
 use crate::exit_codes;
 
+/// Keychain service name historically used by `KeyringStorage`. We mirror
+/// it here so CLI reads/writes through `select_secret_store()` end up at
+/// the same entry on systems where both backends share storage.
+const AUTH_SERVICE: &str = "apollia-auth";
+
 // ─── Subcommands ──────────────────────────────────────────────────────────────
 
 /// Auth subcommands: `apollia-os auth <verb>`.
@@ -105,8 +110,27 @@ async fn run_login(provider_name: &str, json: bool) -> i32 {
         }
     };
 
-    if let Err(e) = apollia_auth::KeyringStorage::store(provider_name, &token) {
-        eprintln!("Error: could not store token in keyring: {e}");
+    // Use the pluggable SecretStore so `APOLLIA_TOKEN_STORAGE=file` works
+    // for `auth login` like it does for `connector` and `mcp oauth`. On
+    // dev workstations the default (KeyringSecretStore) still hits the OS
+    // keychain; in CI or under an isolated $HOME we honour the env var
+    // and persist to `~/.apollia/secrets/…age`.
+    let store = match apollia_auth::select_secret_store() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error: secret store unavailable: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    let json_payload = match serde_json::to_string(&token) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error: serialize token: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    if let Err(e) = store.set(AUTH_SERVICE, provider_name, &json_payload) {
+        eprintln!("Error: could not store token: {e}");
         return exit_codes::GENERAL_ERROR;
     }
 
@@ -122,18 +146,27 @@ async fn run_login(provider_name: &str, json: bool) -> i32 {
 // ─── Status ───────────────────────────────────────────────────────────────────
 
 fn run_status(json: bool) -> i32 {
+    let store_result = apollia_auth::select_secret_store();
     let rows: Vec<(&str, &str)> = apollia_auth::SUPPORTED_PROVIDERS
         .iter()
         .map(|name| {
-            let status = match apollia_auth::KeyringStorage::load(name) {
-                Ok(Some(token)) => {
-                    if token.is_expired() {
-                        "expired"
-                    } else {
-                        "valid"
+            let status = match &store_result {
+                Ok(store) => match store.get(AUTH_SERVICE, name) {
+                    Ok(Some(payload)) => {
+                        match serde_json::from_str::<apollia_auth::StoredToken>(&payload) {
+                            Ok(token) => {
+                                if token.is_expired() {
+                                    "expired"
+                                } else {
+                                    "valid"
+                                }
+                            }
+                            Err(_) => "corrupted",
+                        }
                     }
-                }
-                Ok(None) | Err(_) => "not configured",
+                    Ok(None) | Err(_) => "not configured",
+                },
+                Err(_) => "not configured",
             };
             (*name, status)
         })
@@ -170,7 +203,14 @@ fn run_logout(provider_name: &str, json: bool) -> i32 {
         return exit_codes::GENERAL_ERROR;
     }
 
-    match apollia_auth::KeyringStorage::delete(provider_name) {
+    let store = match apollia_auth::select_secret_store() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error: secret store unavailable: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    match store.delete(AUTH_SERVICE, provider_name) {
         Ok(()) => {
             if json {
                 println!(r#"{{"status":"ok","provider":"{provider_name}"}}"#);

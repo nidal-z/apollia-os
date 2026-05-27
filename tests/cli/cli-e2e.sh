@@ -298,6 +298,16 @@ check        "project chats unknown-pid (empty ok)"         "$BIN" project chats
 check_exit   "project link with empty session"  1           "$BIN" project link "$PROJECT_ID" --session "" --chat-db "$CHAT_DB"
 check        "project delete --confirm"                     "$BIN" project delete "$PROJECT_ID" --confirm --db "$PROJECTS_DB"
 
+# A.3b — auth (read-only paths)
+section "A.3b auth (read-only — token storage forced to age-file)"
+check        "auth status (no token)"               "$BIN" auth status
+check_json   "auth status --json"                   "$BIN" --json auth status
+# `auth logout` deletes from the keychain backend (here AgeFileSecretStore in
+# the tmp $HOME). With no token stored, it's an idempotent no-op (exit 0).
+check        "auth logout anthropic (no-op)"        "$BIN" auth logout anthropic
+check        "auth logout openai (no-op)"           "$BIN" auth logout openai
+check        "auth logout vertex (no-op)"           "$BIN" auth logout vertex
+
 # A.4 — user-memory
 section "A.4 user-memory"
 check        "user-memory show (empty)"                     "$BIN" user-memory show --db "$USER_DB"
@@ -480,6 +490,22 @@ check_exit   "tools approvals pending (off)" 2  "$BIN" --socket "$SOCK" tools ap
 check        "model list (no models)"           "$BIN" model list
 check        "model hardware"                   "$BIN" model hardware
 check_json   "model hardware --json"            "$BIN" model hardware --json
+# `model delete` round-trip on a stub `.gguf` we drop into the models dir.
+# `models_dir` is a symlink to the real ~/.apollia/models in this script,
+# so we drop the stub into a private tmp models dir and pass --models-dir
+# isn't supported; we use the symlinked dir but delete a path that only we
+# created (no clash with real models).
+STUB_GGUF="$MODELS_DIR/e2e-stub-$(/bin/date +%s).gguf"
+/usr/bin/touch "$STUB_GGUF" 2>/dev/null || true
+if [[ -f "$STUB_GGUF" ]]; then
+    check    "model delete --confirm"           "$BIN" model delete "$(/usr/bin/basename "$STUB_GGUF")" --confirm
+    if [[ ! -f "$STUB_GGUF" ]]; then
+        printf '  %s %s\n' "$(green ✔)" "model delete actually removed the file"
+        PASS=$((PASS + 1))
+    fi
+else
+    skip "model delete --confirm" "could not create stub .gguf in $MODELS_DIR (symlink writable?)"
+fi
 check        "plan-cache stats (db absent)"     "$BIN" plan-cache stats
 check        "plan-cache clear --force"         "$BIN" plan-cache clear --force
 check        "plan-cache evict --max-age-days 7"  "$BIN" plan-cache evict --max-age-days 7
@@ -492,24 +518,39 @@ check_exit   "logs --last 5 (no log file)"   1  "$BIN" logs --last 5
 # a missing path returns 1 (not the runtime-off exit 2).
 check_exit   "agent install (missing file)"  1  "$BIN" --socket "$SOCK" agent install /tmp/never-exists.py
 
-# A.13 — Skipped (interactive / network / deferred)
+# A.13 — Skipped paths (and the *precise* reason each is unreachable here).
+# Trimmed aggressively in the 2026-05-27 polish; the remaining skips fall in
+# four categories: (a) interactive UI, (b) network, (c) deferred v0.1.1
+# items, (d) environment limitations the script can't synthesize.
 section "A.13 SKIP justifiés"
-skip "chat (REPL)"                  "interactive (rustyline)"
-skip "auth login"                   "browser OAuth2 PKCE"
-skip "auth status / logout"         "OS keyring side effects"
-skip "update / update --check"      "réseau (GitHub Releases)"
-skip "onboard / onboard --topic"    "chat agent interactif"
-skip "mcp-server / --with-runtime"  "long-running stdio"
-skip "model search / show"          "réseau (HF API)"
-skip "model delete --confirm"       "destructeur — couvert par unit tests"
-skip "stt transcribe / model download"  "réseau + modèle whisper"
-skip "notify test"                  "envoie vraie notif"
-skip "agent install <git-url>"      "réseau (Git clone)"
-skip "agent package install"        "package.toml externe"
-skip "mcp oauth login"              "browser callback"
-skip "tools credentials test/set"   "live calls + stdin masqué"
-skip "chat-config authorizations"   "déféré v0.1.1 (arbitrage)"
-skip "mcp catalogue / enrichments"  "déféré v0.1.1 (refacto cross-crate)"
+skip "chat (REPL)" \
+     "interactive rustyline editor (no pty in non-tty CI)"
+skip "auth login <provider>" \
+     "spawns the browser at the provider authorize URL — needs a human"
+skip "update / update --check" \
+     "outbound HTTPS to api.github.com (script policy: no network)"
+skip "onboard / onboard --topic" \
+     "runs a chat-based onboarding agent — interactive by design"
+skip "mcp-server / mcp-server --with-runtime" \
+     "long-running stdio JSON-RPC server, never returns"
+skip "model search / model show" \
+     "outbound HTTPS to huggingface.co"
+skip "stt transcribe / stt model download" \
+     "whisper-rs model on disk + HF download (~1 GB), out of suite scope"
+skip "notify test" \
+     "dispatches a real desktop notif / webhook POST"
+skip "agent install <git-url>" \
+     "git clone over network"
+skip "agent package install" \
+     "needs an external agent.toml bundle to install from"
+skip "mcp oauth login" \
+     "opens the AS authorize URL + waits on a browser callback"
+skip "tools credentials set / test" \
+     "set: masked stdin prompt; test: live call to the credentialed backend"
+skip "chat-config authorizations list / revoke" \
+     "deferred v0.1.1 — in-memory daemon state, no HTTP route yet"
+skip "mcp catalogue / mcp enrichments list" \
+     "deferred v0.1.1 — backend (McpRegistryClient + enrichments.json) lives in apollia-desktop"
 
 # ═══════════════════════════════════════════════════════════════════════════
 #                                 PHASE B
@@ -575,27 +616,23 @@ PYEOF
     check_json   "agent info --json"                "$BIN" --socket "$SOCK" agent info e2e-hello --json
     # `--skip-tests` registers the agent without spawning it in the runtime.
     # We must `agent start` to load it before status/messages/logs work.
-    # logs + repair query downstream stores that only the live agent
-    # populates — if its Python child failed to spawn (no SDK in env) those
-    # commands legitimately exit 1; we skip them instead of failing the run.
     if "$BIN" --socket "$SOCK" agent start e2e-hello >/dev/null 2>&1; then
         printf '  %s %s\n' "$(green ✔)" "agent start (post-install)"
         PASS=$((PASS + 1))
         check    "agent status"                     "$BIN" --socket "$SOCK" agent status e2e-hello
         check    "agent messages --limit 5"         "$BIN" --socket "$SOCK" agent messages e2e-hello --limit 5
-        if "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5 >/dev/null 2>&1; then
-            check  "agent logs --last 5"            "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5
-        else
-            skip   "agent logs --last 5" "Python child didn't spawn — no logs yet"
-        fi
+        # `agent logs` now falls back to the audit trail (cf. CLI fix
+        # 2026-05-27); it always exits 0 with "(no recent activity)" when
+        # the agent has no events yet, so we assert the command runs cleanly.
+        check    "agent logs --last 5"              "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5
         if "$BIN" --socket "$SOCK" agent repair e2e-hello >/dev/null 2>&1; then
             check  "agent repair (no-op)"           "$BIN" --socket "$SOCK" agent repair e2e-hello
         else
-            skip   "agent repair (no-op)" "not in a package registry (standalone stub)"
+            skip   "agent repair (no-op)" "standalone stub isn't in any agent_packages bundle (repair only fixes packaged agents)"
         fi
         AGENT_RUNNING=1
     else
-        skip     "agent status/messages/logs/repair" "agent start failed (Python/SDK env)"
+        skip     "agent status/messages/logs/repair" "agent start failed — Python bundled runner couldn't spawn the SDK loader inside the tmp \$HOME"
         AGENT_RUNNING=0
     fi
     check        "agent enable"                     "$BIN" --socket "$SOCK" agent enable e2e-hello
@@ -631,15 +668,7 @@ PYEOF
             check       "trace <id> --format human" "$BIN" --socket "$SOCK" trace "$TASK_ID" --format human
             check_json  "trace <id> --format json"  "$BIN" --socket "$SOCK" trace "$TASK_ID" --format json
             check       "hitl"                      "$BIN" --socket "$SOCK" hitl
-            # Now that the agent has handled at least one task, logs *should*
-            # be present. If the agent's Python child still didn't spawn
-            # (no real activity in the runtime mailbox), the route returns
-            # "introuvable" and we skip rather than fail.
-            if "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5 >/dev/null 2>&1; then
-                check   "agent logs --last 5 (post-task)"  "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5
-            else
-                skip    "agent logs --last 5 (post-task)" "agent runtime registry empty — Python child didn't fully attach"
-            fi
+            check       "agent logs --last 5 (post-task)"  "$BIN" --socket "$SOCK" agent logs e2e-hello --last 5
         else
             skip "task lifecycle" "run --detach didn't return a task_id (out: ${RUN_OUT:0:200})"
         fi
@@ -697,89 +726,47 @@ PYEOF
     check_json  "audit stats --json"                "$BIN" --socket "$SOCK" audit stats --json
     check       "audit export"                      "$BIN" --socket "$SOCK" audit export --output "$TMPDIR/audit.json" --limit 100
 
-    # Triggers — exercise multiple kinds.
-    #
-    # KNOWN BUG (v0.1.0, 2026-05-27): `trigger create` is broken end-to-end.
-    # `crates/apollia-cli/src/commands/trigger.rs::run_create` builds the
-    # payload as `{id, agent, kind, detail, on_busy, input}` but the runtime
-    # route at `POST /api/v1/triggers` expects
-    # `{id, agent, source: {type, …config}, …}` (`CreateTriggerRequest` in
-    # `crates/apollia-runtime/src/api/routes_triggers.rs:42`). Result:
-    # `422 missing field source`, regardless of kind. The 4 conditional
-    # branches below SKIP cleanly when this returns non-zero — they will
-    # auto-activate the day the CLI mapping is fixed.
+    # Triggers — exercise all 5 source kinds end-to-end (CRUD).
+    # The runtime requires the webhook secret to be ≥ 32 chars, so the
+    # test secret is padded accordingly.
     section "B.4.1 triggers (multi-kind CRUD)"
     check       "trigger list (empty)"              "$BIN" --socket "$SOCK" trigger list
     check       "trigger reload"                    "$BIN" --socket "$SOCK" trigger reload
-    # Cron trigger
-    if "$BIN" --socket "$SOCK" trigger create t-cron --agent e2e-hello --kind cron --detail "@daily" >/dev/null 2>&1; then
-        printf '  %s %s\n' "$(green ✔)" "trigger create cron"
-        PASS=$((PASS + 1))
-        check  "trigger status t-cron"              "$BIN" --socket "$SOCK" trigger status t-cron
-        check  "trigger enable t-cron"              "$BIN" --socket "$SOCK" trigger enable t-cron
-        check  "trigger disable t-cron"             "$BIN" --socket "$SOCK" trigger disable t-cron
-        check  "trigger update t-cron"              "$BIN" --socket "$SOCK" trigger update t-cron --detail "@hourly"
-        check  "trigger logs t-cron --last 5"       "$BIN" --socket "$SOCK" trigger logs t-cron --last 5
-        check  "trigger delete t-cron --confirm"    "$BIN" --socket "$SOCK" trigger delete t-cron --confirm
-    else
-        skip "trigger cron CRUD" "trigger create payload missing 'source' (CLI bug, v0.1.0)"
-    fi
-    # Interval trigger
-    if "$BIN" --socket "$SOCK" trigger create t-interval --agent e2e-hello --kind interval --detail "30m" >/dev/null 2>&1; then
-        printf '  %s %s\n' "$(green ✔)" "trigger create interval"
-        PASS=$((PASS + 1))
-        check  "trigger delete t-interval --confirm"  "$BIN" --socket "$SOCK" trigger delete t-interval --confirm
-    else
-        skip "trigger interval CRUD" "trigger create payload missing 'source' (CLI bug, v0.1.0)"
-    fi
-    # Filewatch trigger
-    if "$BIN" --socket "$SOCK" trigger create t-watch --agent e2e-hello --kind filewatch --detail "$TMPDIR/.apollia/logs" >/dev/null 2>&1; then
-        printf '  %s %s\n' "$(green ✔)" "trigger create filewatch"
-        PASS=$((PASS + 1))
-        check  "trigger delete t-watch --confirm"  "$BIN" --socket "$SOCK" trigger delete t-watch --confirm
-    else
-        skip "trigger filewatch CRUD" "trigger create payload missing 'source' (CLI bug, v0.1.0)"
-    fi
-    # Webhook trigger
-    if "$BIN" --socket "$SOCK" trigger create t-hook --agent e2e-hello --kind webhook --detail "shared-secret-e2e" >/dev/null 2>&1; then
-        printf '  %s %s\n' "$(green ✔)" "trigger create webhook"
-        PASS=$((PASS + 1))
-        check  "trigger delete t-hook --confirm"   "$BIN" --socket "$SOCK" trigger delete t-hook --confirm
-    else
-        skip "trigger webhook CRUD" "trigger create payload missing 'source' (CLI bug, v0.1.0)"
-    fi
+    check       "trigger create cron"               "$BIN" --socket "$SOCK" trigger create t-cron --agent e2e-hello --kind cron --detail "@daily"
+    check       "trigger status t-cron"             "$BIN" --socket "$SOCK" trigger status t-cron
+    check       "trigger disable t-cron"            "$BIN" --socket "$SOCK" trigger disable t-cron
+    check       "trigger enable t-cron"             "$BIN" --socket "$SOCK" trigger enable t-cron
+    check       "trigger update t-cron"             "$BIN" --socket "$SOCK" trigger update t-cron --detail "@hourly"
+    check       "trigger logs t-cron --last 5"      "$BIN" --socket "$SOCK" trigger logs t-cron --last 5
+    check       "trigger delete t-cron --confirm"   "$BIN" --socket "$SOCK" trigger delete t-cron --confirm
+    check       "trigger create interval"           "$BIN" --socket "$SOCK" trigger create t-int --agent e2e-hello --kind interval --detail "30m"
+    check       "trigger delete t-int --confirm"    "$BIN" --socket "$SOCK" trigger delete t-int --confirm
+    check       "trigger create oneshot"            "$BIN" --socket "$SOCK" trigger create t-os --agent e2e-hello --kind oneshot --detail "2099-12-31T23:59:59Z"
+    check       "trigger delete t-os --confirm"     "$BIN" --socket "$SOCK" trigger delete t-os --confirm
+    /bin/mkdir -p "$TMPDIR/watched"
+    check       "trigger create filewatch"          "$BIN" --socket "$SOCK" trigger create t-fw --agent e2e-hello --kind filewatch --detail "$TMPDIR/watched"
+    check       "trigger delete t-fw --confirm"     "$BIN" --socket "$SOCK" trigger delete t-fw --confirm
+    check       "trigger create webhook"            "$BIN" --socket "$SOCK" trigger create t-wh --agent e2e-hello --kind webhook --detail "this-is-a-32-char-or-more-secret-aa"
+    check       "trigger delete t-wh --confirm"     "$BIN" --socket "$SOCK" trigger delete t-wh --confirm
 
-    # Notify.
-    #
-    # KNOWN BUG (v0.1.0, 2026-05-27): `notify create` is broken end-to-end.
-    # `crates/apollia-cli/src/commands/notify.rs::run_create` builds the
-    # payload without an `id` field but the runtime route
-    # (`CreateChannelRequest` in `routes_notifications.rs:37`) requires it.
-    # Result: `422 missing field id`. We exercise list + events get + log
-    # paths that work, and SKIP create/update/delete until the CLI emits
-    # the right body. Re-runs auto-activate when fixed.
+    # Notify — exercise full CRUD with explicit id, webhook + desktop kinds.
     section "B.4.2 notify"
     check       "notify list"                       "$BIN" --socket "$SOCK" notify list
     check       "notify events get"                 "$BIN" --socket "$SOCK" notify events get
     check       "notify logs --last 5 (no channel)"  "$BIN" --socket "$SOCK" notify logs --last 5
-    NOTIFY_OUT=$("$BIN" --socket "$SOCK" notify create --kind webhook --url "https://example.invalid/notify" --json 2>/dev/null)
-    NOTIFY_ID=$(printf '%s' "$NOTIFY_OUT" | /usr/bin/python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('id') or d.get('channel_id') or d.get('name', ''))" 2>/dev/null)
-    if [[ -n "$NOTIFY_ID" ]]; then
-        printf '  %s %s (id=%s)\n' "$(green ✔)" "notify create --kind webhook" "$NOTIFY_ID"
-        PASS=$((PASS + 1))
-        check  "notify update url"                  "$BIN" --socket "$SOCK" notify update "$NOTIFY_ID" --url "https://other.invalid/notify"
-        check  "notify delete --confirm"            "$BIN" --socket "$SOCK" notify delete "$NOTIFY_ID" --confirm
-    else
-        skip "notify CRUD (create/update/delete)" "notify create payload missing 'id' (CLI bug, v0.1.0)"
-    fi
+    check       "notify create webhook"             "$BIN" --socket "$SOCK" notify create --kind webhook --id e2e-hook --label "E2E webhook" --url "https://example.invalid/notify"
+    check       "notify create desktop"             "$BIN" --socket "$SOCK" notify create --kind desktop --id e2e-desk
+    check       "notify update url"                 "$BIN" --socket "$SOCK" notify update e2e-hook --url "https://other.invalid/notify"
+    check       "notify update --enabled false"     "$BIN" --socket "$SOCK" notify update e2e-hook --enabled false
+    check       "notify delete e2e-hook --confirm"  "$BIN" --socket "$SOCK" notify delete e2e-hook --confirm
+    check       "notify delete e2e-desk --confirm"  "$BIN" --socket "$SOCK" notify delete e2e-desk --confirm
 
-    # STT (engine may be disabled by default — accept either 0 or 1).
+    # STT — engine is disabled by default in the test env (no Whisper model
+    # bundled). The runtime returns 503 "STT engine not available", which the
+    # CLI surfaces as exit 1. That's the *expected* state on a fresh $HOME,
+    # so we assert exit 1 explicitly rather than skipping.
     section "B.4.3 stt"
-    if "$BIN" --socket "$SOCK" stt status >/dev/null 2>&1; then
-        check   "stt status"                        "$BIN" --socket "$SOCK" stt status
-    else
-        skip    "stt status" "STT engine disabled (stt.enabled=false or model absent)"
-    fi
+    check_exit  "stt status (engine disabled, 503)"   1  "$BIN" --socket "$SOCK" stt status
     check       "stt model list"                    "$BIN" --socket "$SOCK" stt model list
     check       "stt config get"                    "$BIN" --socket "$SOCK" stt config get
 
