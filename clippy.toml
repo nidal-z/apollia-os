@@ -1,0 +1,6 @@
+msrv = "1.85"
+cognitive-complexity-threshold = 30
+type-complexity-threshold = 250
+too-many-arguments-threshold = 5
+too-many-lines-threshold = 800
+trivial-copy-size-limit = 16

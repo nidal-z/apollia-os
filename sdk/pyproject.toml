@@ -26,3 +26,64 @@ include = ["apollia*"]
 
 [tool.mypy]
 strict = true
+
+[tool.pyright]
+include = ["apollia"]
+pythonVersion = "3.12"
+strict = ["apollia/**"]
+reportMissingImports = "error"
+reportUnusedImport = "warning"
+reportMissingTypeStubs = "warning"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apollia", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",       # pycodestyle + pyflakes
+    "I",                  # isort
+    "B",                  # bugbear
+    "UP",                 # pyupgrade
+    "RUF",                # ruff-specific
+    "S",                  # bandit (security)
+    "SIM",                # simplify
+    "ANN",                # annotations
+    "ASYNC",              # async-specific
+    "TCH",                # type-checking
+    "PT",                 # pytest
+    "D",                  # pydocstyle (google)
+]
+ignore = [
+    "D100", "D104",       # missing module/package docstring
+    "ANN101", "ANN102",   # self/cls annotation
+    "COM812",             # trailing comma (conflicts with formatter)
+    "ISC001",             # implicit string concat (conflicts with formatter)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "D", "ANN"]
+"apollia/stubs/*.pyi" = ["D", "ANN"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+]
+markers = [
+    "unit: fast unit test",
+    "integration: integration test, may touch the filesystem",
+    "slow: skipped unless --run-slow is passed",
+]

@@ -1,0 +1,84 @@
+# Pre-commit hooks for Apollia OS.
+#
+# Install :
+#   pre-commit install
+#   pre-commit install --hook-type commit-msg
+#
+# Run on demand :
+#   pre-commit run --all-files
+#
+# Never bypass with --no-verify. Fix the underlying issue.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^sdk/
+      - id: ruff-format
+        files: ^sdk/
+
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: clippy
+        name: clippy
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check --workspace
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: no-em-dash
+        name: no em-dash in prose
+        entry: bash -c 'grep -nP "—" --include="*.md" --include="*.rs" --include="*.py" --include="*.svelte" -r . && exit 1 || exit 0'
+        language: system
+        pass_filenames: false
+        exclude: 'docs/agents/(FORBIDDEN|DOCS-WRITING)\.md|AGENTS\.md$'
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - refactor
+          - test
+          - docs
+          - chore
+          - perf
+          - build
+          - ci
+          - revert
+          - style
