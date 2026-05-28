@@ -59,3 +59,7 @@ demo/
 # Staged Python bundle (rebuilt at release build time)
 /crates/apollia-desktop/resources/python/*
 !/crates/apollia-desktop/resources/python/.placeholder
+
+# SonarQube local scan artifacts (pre-launch sanitize, chantier G)
+/.sonar/
+/.scannerwork/
