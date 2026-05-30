@@ -20,8 +20,8 @@ Préserve les blocs ```...``` (le code Rust/Python comportant des commentaires
 sprint reste touché en surface uniquement — voir CODE_AWARE).
 
 Usage :
-  python3 scripts/lints/strip-sprint-refs.py --dry-run book/src docs/wiki help
-  python3 scripts/lints/strip-sprint-refs.py book/src docs/wiki help
+  python3 scripts/lints/strip-sprint-refs.py --dry-run docs/book/src docs/wiki help
+  python3 scripts/lints/strip-sprint-refs.py docs/book/src docs/wiki help
 """
 
 import argparse

@@ -58,9 +58,10 @@
   }
 
   onMount(() => {
-    // TODO Lot ultérieur — étendre `get_config` côté Rust pour exposer
-    // [observability] et hydrater `config`. Pour l'instant on reste sur
-    // les defaults pour ne pas afficher d'info trompeuse.
+    // FUTURE: extend the Rust `get_config` command to expose the
+    // `[observability]` section so we can hydrate `config` from disk.
+    // For now we stick to the defaults so we do not display misleading
+    // values to the user.
   });
 
   const SETTINGS = [

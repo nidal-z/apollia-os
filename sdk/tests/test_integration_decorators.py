@@ -12,7 +12,6 @@ import types
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
 
 from apollia._internal.manifest import MANIFEST_ATTR
 from apollia.agent import agent

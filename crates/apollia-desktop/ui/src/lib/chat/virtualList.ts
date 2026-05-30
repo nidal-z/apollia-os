@@ -18,14 +18,6 @@ export function shouldVirtualize(count: number): boolean {
   return count > VIRTUALIZATION_THRESHOLD;
 }
 
-export interface VirtualizerOptions {
-  /** Total number of rows. */
-  count: number;
-  /** Estimated row height in pixels. */
-  estimateSize?: number;
-  /** Extra rows to render outside the viewport for smoother scrolling. */
-  overscan?: number;
-}
 
 /**
  * Lazy import of `@tanstack/svelte-virtual` to keep it out of the initial

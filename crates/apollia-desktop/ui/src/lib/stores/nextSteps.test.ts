@@ -3,7 +3,7 @@ import { vi, describe, test, expect, beforeEach } from "vitest";
 // Minimal localStorage shim — the default vitest env is `node`, but the
 // store uses `localStorage` for dismiss/feedback persistence.
 class MemoryStorage {
-  private s = new Map<string, string>();
+  private readonly s = new Map<string, string>();
   getItem(k: string) {
     return this.s.has(k) ? (this.s.get(k) as string) : null;
   }

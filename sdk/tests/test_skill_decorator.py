@@ -187,9 +187,7 @@ def test_skill_description_must_be_string() -> None:
             return {}
 
 
-# ──────────────────────────────────────────────────────────────────────  # NOSONAR
-# examples= keyword
-# ──────────────────────────────────────────────────────────────────────
+# Tests for the examples= decorator keyword
 
 
 def test_skill_examples_propagated() -> None:

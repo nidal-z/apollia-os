@@ -70,10 +70,6 @@ export const gradient = {
   accent: "var(--gradient-accent)",
 } as const;
 
-export type ElevationKey = keyof typeof elevation;
-export type PrimaryShadowKey = keyof typeof primaryShadow;
-export type SurfaceKey = keyof typeof surface;
-
 /**
  * Chat shell layout bounds.
  *
@@ -99,5 +95,3 @@ export const tokens = {
   gradient,
   chatLayout,
 } as const;
-
-export default tokens;

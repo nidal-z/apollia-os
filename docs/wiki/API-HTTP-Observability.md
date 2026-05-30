@@ -28,7 +28,7 @@ Host: localhost:7771
 Authorization: Bearer 4a3b2c1d...  (64 hex chars)
 ```
 
-Le token est généré au premier démarrage et stocké dans `~/.apollia/api-token` (permissions `0600`). Voir [API-HTTP-Agents](./API-HTTP-Agents#authentification-tcp-sprint-34) pour les détails complets.
+Le token est généré au premier démarrage et stocké dans `~/.apollia/api-token` (permissions `0600`). Voir [API-HTTP-Agents](./API-HTTP-Agents#authentification-tcp-) pour les détails complets.
 
 > Les endpoints `/dashboard` HTML et `/api/v1/dashboard/*` requièrent le même bearer token sur TCP.
 

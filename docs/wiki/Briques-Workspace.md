@@ -354,7 +354,7 @@ Le `workspace_path` est immutable pendant la durée de la session — un changem
 
 Le `NativeChatToolInvoker` (refactoré) reçoit le `workspace_path` à l'initialisation de chaque session, au lieu d'un CWD global hardcodé. Les 5 call sites identifiés (`a2a_tools.rs`, `routes_chat.rs`, etc.) passent désormais le chemin du projet.
 
-> **Voir aussi :** [Sécurité Sandbox Isolation — Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem--sprint-38-adr-069)
+> **Voir aussi :** [Sécurité Sandbox Isolation — Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem---adr-069)
 
 ---
 

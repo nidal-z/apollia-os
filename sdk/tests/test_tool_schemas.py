@@ -9,7 +9,6 @@ canonical descriptors from ``ctx.tools.describe()``.
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 import pytest
@@ -80,7 +79,7 @@ class _StubToolProxy:
     def __init__(self, descriptors: dict[str, dict[str, Any] | None]) -> None:
         self._descriptors = descriptors
 
-    async def describe(self, name: str) -> dict[str, Any] | None:
+    async def describe(self, name: str) -> dict[str, Any] | None:  # NOSONAR python:S7503: async signature required by the ToolProxy Protocol under test
         return self._descriptors.get(name)
 
 

@@ -196,7 +196,7 @@
 
 ---
 
-## ADR-011 — AgentId et TaskId ajoutés dans apollia-core (STORY-006)
+## ADR-011 — AgentId et TaskId ajoutés dans apollia-core
 
 **Date :** 2026-03-05
 **Statut :** Accepté
@@ -206,7 +206,7 @@
 **Décision :** `pub type AgentId = String` et `pub type TaskId = String` dans `apollia-core/src/events.rs`. Alias de type (pas de newtype) pour la friction minimale à l'utilisation.
 
 **Alternatives considérées :**
-- Newtype wrapping `String` : Plus de sécurité de type mais friction à la construction (`.into()` partout), non justifiée au Sprint 1.
+- Newtype wrapping `String` : Plus de sécurité de type mais friction à la construction (`.into()` partout), non justifiée au .
 - UUID natif (`uuid::Uuid`) : Contraint les callers à dépendre de `uuid`, sur-ingénierie pour des IDs qui peuvent être slugs ou UUIDs selon le contexte.
 
 **Conséquences :** Les alias resteront des `String` jusqu'à ce qu'un besoin de distinction de type fort soit identifié. Migration vers newtype possible sans impact binaire.
@@ -238,7 +238,7 @@
 **Date :** 2026-03-06
 **Statut :** Accepté
 
-**Contexte :** STORY-026 specifie `pyo3_async_runtimes::tokio::into_future` pour convertir les coroutines Python en Futures Rust. En pratique, `into_future` necessite un event loop asyncio actif en arriere-plan et un custom test harness, complexite disproportionnee pour Sprint 4.
+**Contexte :** specifie `pyo3_async_runtimes::tokio::into_future` pour convertir les coroutines Python en Futures Rust. En pratique, `into_future` necessite un event loop asyncio actif en arriere-plan et un custom test harness, complexite disproportionnee pour .
 
 **Decision :** Utiliser `tokio::task::spawn_blocking` + `asyncio.run()` pour executer les coroutines Python. Le GIL est tenu uniquement sur le blocking thread pool, jamais sur les workers Tokio.
 
@@ -257,11 +257,11 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-027 (ToolProxy) necessite un point d'entree unifie pour executer les outils par nom, mais `ToolRegistryHandle` est un catalogue pur (register/get/list) sans methode d'execution.
+**Contexte :** (ToolProxy) necessite un point d'entree unifie pour executer les outils par nom, mais `ToolRegistryHandle` est un catalogue pur (register/get/list) sans methode d'execution.
 
 **Decision :** Introduire un trait `ToolExecutor` (Send+Sync) avec `execute(tool_name, input) -> Result<Value, String>`. `ToolProxy` detient un `Arc<dyn ToolExecutor>`.
 
-**Alternatives considerees :** Ajouter execute() a ToolRegistryHandle (rejetee : couple catalogue et execution, modifie Sprint 2), Execution hardcodee dans ToolProxy (rejetee : impossible a tester unitairement)
+**Alternatives considerees :** Ajouter execute() a ToolRegistryHandle (rejetee : couple catalogue et execution, modifie ), Execution hardcodee dans ToolProxy (rejetee : impossible a tester unitairement)
 
 **Consequences :** Tests unitaires sans Python ni outils reels. Champ `executor` ajoute au struct ToolProxy par rapport a la spec initiale. Le NativeToolExecutor concret sera implemente dans une story ulterieure.
 
@@ -276,13 +276,13 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-030 (ORIAEngine execute_direct) necessite de tester la supervision StepBudget sans Python reel. `AIPBridge` depend de PyO3 et ne peut etre instancie sans interpreteur.
+**Contexte :** (ORIAEngine execute_direct) necessite de tester la supervision StepBudget sans Python reel. `AIPBridge` depend de PyO3 et ne peut etre instancie sans interpreteur.
 
 **Decision :** Introduire un trait `AgentRunner` (Send+Sync) avec `call_run(task) -> Pin<Box<dyn Future<...>>>`. `execute_direct()` prend `&dyn AgentRunner` au lieu de `&AIPBridge`.
 
 **Alternatives considerees :** Prendre `&AIPBridge` directement (rejetee : tests impossibles sans Python), fonction libre inner (rejetee : le Future doit etre fourni par le caller)
 
-**Consequences :** Tests unitaires sans Python. Pattern coherent avec ADR-015 (ToolExecutor). Signature diverge legerement de la spec STORY-030 initiale.
+**Consequences :** Tests unitaires sans Python. Pattern coherent avec ADR-015 (ToolExecutor). Signature diverge legerement de la spec initiale.
 
 **Principes impactes :** Principe #5 — Un acteur, une responsabilite (respecte), Principe #7 — Garde-fous non-negociables (respecte)
 
@@ -295,7 +295,7 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-033 (APIServer axum). `axum::serve()` en 0.7.9 n'accepte que `TcpListener`. Le Unix socket listener necessite une boucle accept manuelle via hyper-util.
+**Contexte :** (APIServer axum). `axum::serve()` en 0.7.9 n'accepte que `TcpListener`. Le Unix socket listener necessite une boucle accept manuelle via hyper-util.
 
 **Decision :** Ajouter `hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }` au workspace et a `apollia-runtime`. Ajouter la feature `util` a `tower = "0.4"` pour `ServiceExt`.
 
@@ -314,13 +314,13 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-037 (CLI niveau 1) depend de STORY-039 (Supervisor) non encore implementee. La commande `start()` doit demarrer le runtime en foreground.
+**Contexte :** (CLI niveau 1) depend de (Supervisor) non encore implementee. La commande `start()` doit demarrer le runtime en foreground.
 
-**Decision :** Bootstrap sequentiel inline dans la commande `start()` (EventBus -> AgentRegistry -> TaskRouter -> APIServer). Endpoint `POST /api/v1/shutdown` emet `RuntimeEvent::ShutdownRequested` via EventBus. Sera remplace par le Supervisor (STORY-039).
+**Decision :** Bootstrap sequentiel inline dans la commande `start()` (EventBus -> AgentRegistry -> TaskRouter -> APIServer). Endpoint `POST /api/v1/shutdown` emet `RuntimeEvent::ShutdownRequested` via EventBus. Sera remplace par le Supervisor.
 
-**Alternatives considerees :** Attendre STORY-039 (rejetee : bloque le Sprint Goal), implementer le Supervisor dans STORY-037 (rejetee : augmente trop la taille de la story)
+**Alternatives considerees :** Attendre (rejetee : bloque le Sprint Goal), implementer le Supervisor dans (rejetee : augmente trop la taille de la story)
 
-**Consequences :** CLI fonctionnelle immediatement. Code bootstrap temporaire a remplacer. Endpoint shutdown reutilisable par STORY-039/040.
+**Consequences :** CLI fonctionnelle immediatement. Code bootstrap temporaire a remplacer. Endpoint shutdown reutilisable par /040.
 
 **Principes impactes :** Principe #5 — Un acteur, une responsabilite (respecte), Principe #8 — CLI humaine, API machine (respecte)
 
@@ -333,7 +333,7 @@
 **Date :** 2026-03-06
 **Statut :** Accepte
 
-**Contexte :** STORY-044 resout DT-031 (manifest_from_path placeholder). Le handler `start_agent` doit charger le module Python reel via AIPLoader, mais ajouter apollia-aip comme dependance de apollia-runtime couplerait le runtime a PyO3.
+**Contexte :** resout DT-031 (manifest_from_path placeholder). Le handler `start_agent` doit charger le module Python reel via AIPLoader, mais ajouter apollia-aip comme dependance de apollia-runtime couplerait le runtime a PyO3.
 
 **Decision :** Introduire un trait `AgentLoader` (Send+Sync) avec `load_and_validate(path) -> Result<AgentManifest, String>`. Injecte dans `AppState` via `Arc<dyn AgentLoader>`. L'implementation concrete `AIPAgentLoader` vit dans apollia-cli.
 
@@ -352,7 +352,7 @@
 **Date :** 2026-03-08 (architecture) / 2026-03-26 (llama.cpp) / 2026-04-04 (Bedrock + Vertex)
 **Statut :** Accepté
 
-**Contexte :** Sprint 8 introduit `ctx.llm`. Trois contraintes : inférence locale offline (Principe #1), zéro daemon tiers requis (Principe #2), fail fast si modèle absent (Principe #4). Sprint 25 : `mistralrs` v0.7 bloquant — 16 architectures GGUF seulement, crash Metal sur MoE, streaming non-`'static`. Sprint 37 : intégration Bedrock (AWS) et Vertex AI (Google).
+**Contexte :** introduit `ctx.llm`. Trois contraintes : inférence locale offline (Principe #1), zéro daemon tiers requis (Principe #2), fail fast si modèle absent (Principe #4). : `mistralrs` v0.7 bloquant — 16 architectures GGUF seulement, crash Metal sur MoE, streaming non-`'static`. : intégration Bedrock (AWS) et Vertex AI (Google).
 
 **Décision :** Crate `apollia-llm` avec feature flags : `cloud` (défaut, clients HTTP via `async-openai` + `reqwest`) et `local` (compile `EmbeddedBackend` via `llama-cpp-2`, lié statiquement — 30+ architectures GGUF, Metal MoE natif, streaming token-by-token). Le modèle `.gguf` est toujours un fichier externe dans `~/.apollia/models/`. Backend absent → warning. Aucun backend → `ctx.llm = None`, agent `DEGRADED`. **Bedrock :** signature SigV4 native via `aws-sigv4` + `reqwest` (aws-sdk-rust complet rejeté — +50 crates, +8 MB, 2% des fonctionnalités utilisées). **Vertex AI :** Application Default Credentials via `gcp-auth` (clé de service JSON rejetée — secret statique exfiltrable, pas d'expiration).
 
@@ -372,7 +372,7 @@
 **Date :** 2026-03-09
 **Statut :** Accepté
 
-**Contexte :** Sprint 10 implémente le Mode Orchestré d'ORIA (ADR-004). La question centrale est : pendant l'exécution d'un plan multi-step, qui exécute les outils — ORIA ou l'agent Python ? Trois options ont été considérées : (A) ORIA délègue chaque step à `agent.run()`, (B) ORIA exécute les outils directement sans appeler `run()`, (C) ORIA injecte le plan dans un `agent.run()` unique. Une décision connexe porte sur le post-traitement optionnel des outputs agrégés par l'agent.
+**Contexte :** implémente le Mode Orchestré d'ORIA (ADR-004). La question centrale est : pendant l'exécution d'un plan multi-step, qui exécute les outils — ORIA ou l'agent Python ? Trois options ont été considérées : (A) ORIA délègue chaque step à `agent.run()`, (B) ORIA exécute les outils directement sans appeler `run()`, (C) ORIA injecte le plan dans un `agent.run()` unique. Une décision connexe porte sur le post-traitement optionnel des outputs agrégés par l'agent.
 
 **Décision :** Option B — ORIA exécute les outils directement via `ActorLoop`. `agent.run()` n'est jamais appelé pendant les steps du plan. L'agent est déclaratif : il fournit `manifest()` + `system_prompt`. Hook optionnel `on_plan_complete(step_results, ctx)` détecté via `hasattr` Python (duck typing ADR-003) pour le post-traitement métier custom. Si absent, ORIA concatène automatiquement les outputs.
 
@@ -396,7 +396,7 @@
 **Date :** 2026-03-09
 **Statut :** Accepté
 
-**Contexte :** Sprint 11 introduit le Human-in-the-Loop. Deux décisions de design encadrent le contrat AIP : (1) comment le runtime communique-t-il la réponse humaine à l'agent lors de la relance ? (2) comment l'agent déclare-t-il les outils nécessitant approbation avant exécution en Mode Orchestré ?
+**Contexte :** introduit le Human-in-the-Loop. Deux décisions de design encadrent le contrat AIP : (1) comment le runtime communique-t-il la réponse humaine à l'agent lors de la relance ? (2) comment l'agent déclare-t-il les outils nécessitant approbation avant exécution en Mode Orchestré ?
 
 **Décision :** Réutiliser `agent.run()` comme unique point d'entrée. `AIPTask` est enrichi de deux champs optionnels (`is_resumed: bool`, `input_response: InputResponse | None`). L'agent vérifie `if task.is_resumed` pour brancher sa logique de reprise. `tools_requiring_approval: list[str]` est un champ optionnel de `AgentManifest` — l'`ActorLoop` le consulte avant chaque step en Mode Orchestré.
 
@@ -421,7 +421,7 @@
 **Date :** 2026-03-09
 **Statut :** Accepté
 
-**Contexte :** Sprint 11 introduit `apollia-notifications`. Trois décisions structurantes engagent l'interface publique et la configuration `apollia.toml` : (1) architecture push (EventBus) ou pull (polling SQLite), (2) canaux câblés en dur ou via trait commun extensible, (3) payload webhook JSON fixe Apollia ou templates configurables (Handlebars/Tera).
+**Contexte :** introduit `apollia-notifications`. Trois décisions structurantes engagent l'interface publique et la configuration `apollia.toml` : (1) architecture push (EventBus) ou pull (polling SQLite), (2) canaux câblés en dur ou via trait commun extensible, (3) payload webhook JSON fixe Apollia ou templates configurables (Handlebars/Tera).
 
 **Décision :** `NotificationEngine` s'abonne directement à l'`EventBus` (push). Trait `NotificationChannel: Send + Sync` avec `send(&Notification)` — trois implémentations initiales : `DesktopChannel` (notify-rust v4), `SseChannel` (bridge EventBus → dashboard), `WebhookChannel` (reqwest). Payload webhook JSON fixe versionné (`"runtime": "apollia-os"`, `"version": "..."`, `"severity"`, `"metadata.resume_url"`). La transformation vers les formats propriétaires (Slack Block Kit, PagerDuty) est déléguée à l'intégrateur (n8n, Zapier).
 
@@ -436,7 +436,7 @@
 - Latence quasi-nulle (abonnement EventBus direct).
 - Échec canal → `tracing::warn!` uniquement, runtime non affecté.
 - `notify-rust v4` requiert libnotify sur Linux headless → `NotifError::DesktopUnavailable` non-critique.
-- Table SQLite `notification_logs` nécessaire pour `apollia-os notify logs` — rotation TTL 30j à prévoir Sprint 12.
+- Table SQLite `notification_logs` nécessaire pour `apollia-os notify logs` — rotation TTL 30j à prévoir .
 
 **Principes impactés :** Principe #1 — Local-first (desktop/SSE offline), Principe #2 — Zéro dépendance externe (dépendances compilées statiquement), Principe #4 — Fail fast (config validée au démarrage), Principe #5 — Un acteur une responsabilité (dispatch uniquement)
 
@@ -449,7 +449,7 @@
 **Date :** 2026-03-10
 **Statut :** SUPERSEDED — crate retirée du workspace v0.1.0 (composition multi-agent désormais via triggers + agents ReAct autonomes)
 
-**Contexte :** Sprint 12 introduit `apollia-pipelines` pour la coordination multi-agent. Quatre décisions structurantes engagent des interfaces difficiles à inverser : (1) format de déclaration des pipelines, (2) expression des topologies (séquentiel, fan-out, fan-in, conditionnel, fallback), (3) intégration du HITL Sprint 11 dans le cycle de vie pipeline, (4) rendu des templates `{{steps.x.output}}` entre steps.
+**Contexte :** introduit `apollia-pipelines` pour la coordination multi-agent. Quatre décisions structurantes engagent des interfaces difficiles à inverser : (1) format de déclaration des pipelines, (2) expression des topologies (séquentiel, fan-out, fan-in, conditionnel, fallback), (3) intégration du HITL dans le cycle de vie pipeline, (4) rendu des templates `{{steps.x.output}}` entre steps.
 
 **Décision :** (1) Configuration TOML-only via `[[pipelines]]` + `[[pipelines.steps]]` dans `apollia.toml` — même source de vérité que les triggers (ADR-021). Validation sémantique exhaustive dans `ApolliaConfig::load()` : unicité des IDs, `depends_on` existants, `fallback_for` valides, absence de cycles. Pipeline invalide = démarrage refusé (Principe #4). (2) Les 5 topologies émergent du graph `depends_on` + champs `condition`/`fallback_for` sans primitive TOML explicite. `topological_layers()` partitionne les steps en layers — `FuturesUnordered` exécute une layer en parallèle (fan-out naturel), le join est implicite (fan-in = step avec plusieurs `depends_on`). (3) `PipelineExecutor` réutilise les événements `TaskInputRequired`/`TaskResumed` (ADR-023) sans nouveau mécanisme HITL — il observe l'EventBus, émet `PipelineSuspended`, attend `TaskResumed`, reprend avec le nouveau `task_id`. (4) `TemplateRenderer` par remplacement de chaîne (`render()` pur, pas de moteur externe) — variables non résolues nettoyées via regex, jamais de `panic!`.
 
@@ -457,7 +457,7 @@
 - API REST CRUD pipelines + SQLite (rejetée : double source de vérité TOML/base, pas de fail fast au démarrage — même raison qu'ADR-021 Option A)
 - Topologies explicites `topology: "fan-out"` dans le TOML (rejetée : redondant avec `depends_on`, conflits possibles entre clé et graph réel)
 - DSL externe type Argo Workflows / Prefect (rejetée : viole Principe #2, surface massive, pas d'intégration HITL native)
-- Canal oneshot dédié `PipelineExecutor → ResumeHandler` pour le HITL (rejetée : duplique le mécanisme Sprint 11, non restaurable après restart depuis SQLite)
+- Canal oneshot dédié `PipelineExecutor → ResumeHandler` pour le HITL (rejetée : duplique le mécanisme , non restaurable après restart depuis SQLite)
 - Moteur de templates Handlebars/Tera (rejetée : même décision qu'ADR-024 — dépendance ~500 Ko inutile pour du string replace)
 
 **Conséquences :**
@@ -511,8 +511,7 @@
 - Distribution simplifiée : un seul `.dmg` / `.AppImage`
 - Handles Tokio réutilisés sans modification architecturale
 - Binaire plus gros (~50MB avec Tauri + WebView engine)
-- Risque de conflit linker PyO3 + Tauri sur macOS — à diagnostiquer dès STORY-135
-
+- Risque de conflit linker PyO3 + Tauri sur macOS — à diagnostiquer dès 
 **Principes impactés :** Principe #1 — Local-first (renforcé), Principe #2 — Zéro dépendance externe (respecté), Principe #4 — Fail fast (respecté), Principe #8 — CLI humaine, API machine (étendu au desktop)
 
 [Détail complet → docs/adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md](adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md)
@@ -524,9 +523,9 @@
 **Date :** 2026-03-13
 **Statut :** Accepté
 
-**Contexte :** Le Sprint 14 introduit une app desktop (ADR-027). Le dashboard HTMX existant est insuffisant pour les interactions complexes (HITL real-time, timeline interactive, file picker natif). Choix de la stack frontend et stratégie de design à définir.
+**Contexte :** Le introduit une app desktop (ADR-027). Le dashboard HTMX existant est insuffisant pour les interactions complexes (HITL real-time, timeline interactive, file picker natif). Choix de la stack frontend et stratégie de design à définir.
 
-**Décision :** Svelte 5 (runes) + Vite + shadcn-svelte (headless). Pour Sprint 14-15, aucune customisation visuelle — shadcn par défaut. La patte visuelle Apollia sera appliquée dans un sprint UI dédié après validation des parcours utilisateurs sur des utilisateurs réels.
+**Décision :** Svelte 5 (runes) + Vite + shadcn-svelte (headless). Pour -15, aucune customisation visuelle — shadcn par défaut. La patte visuelle Apollia sera appliquée dans un sprint UI dédié après validation des parcours utilisateurs sur des utilisateurs réels.
 
 **Alternatives considérées :** React/Next.js (rejetée : overhead, pas d'expérience récente, bundle lourd, framework SSR inadapté à Tauri), HTMX étendu (rejetée : insuffisant pour HITL compteur live, timeline interactive, file picker natif, pas de typage TS), design custom immédiat (rejetée : risque de bikeshedding, budget solo)
 
@@ -547,7 +546,7 @@
 **Date :** 2026-03-13
 **Statut :** Accepté
 
-**Contexte :** Sprint 15 introduit la vue Settings dans l'application desktop (STORY-149). La question est de savoir si l'édition de `apollia.toml` doit être intégrée dans l'app ou déléguée à un éditeur externe.
+**Contexte :** introduit la vue Settings dans l'application desktop. La question est de savoir si l'édition de `apollia.toml` doit être intégrée dans l'app ou déléguée à un éditeur externe.
 
 **Décision :** La vue Settings est lecture seule. L'édition est déléguée à l'éditeur natif du système via `open::that(config_path)`.
 
@@ -566,7 +565,7 @@
 **Date :** 2026-03-17 (install) / 2026-04-17 (bundle) / 2026-04-24 (packages)
 **Statut :** Accepté
 
-**Contexte :** Les agents Python étaient 100% éphémères (seul composant non-persisté dans `~/.apollia/`). Le lancement v0.1.0 requiert un format de distribution auto-descriptif pour les 4 assistants (avec modules `lib/`). Sprint 43 : installer un groupe d'agents liés (director + workers) requiert N commandes séparées sans concept de package.
+**Contexte :** Les agents Python étaient 100% éphémères (seul composant non-persisté dans `~/.apollia/`). Le lancement v0.1.0 requiert un format de distribution auto-descriptif pour les 4 assistants (avec modules `lib/`). : installer un groupe d'agents liés (director + workers) requiert N commandes séparées sans concept de package.
 
 **Décision :** (1) **Install :** copie du bundle dans `~/.apollia/agents/<name>/`, persistance SQLite `agents.db`, auto-reload au boot. Commandes : `agent install/uninstall/enable/disable/update`. (2) **Bundle format :** dossier standardisé avec `manifest.toml` + `agent.py` (obligatoires), `lib/` (modules), `assets/` (read-only). `manifest.toml` contient métadonnées statiques (name, version, tools_required, permissions). Modules via `from lib import helpers` (jamais `from shared`). Chargement PyO3 : prepend `<install_path>/` à `sys.path`, nettoyé après. (3) **Package system :** dossier avec `agent.toml` décrivant N agents + triggers déclarés — une commande installe l'ensemble. Tables SQLite `installed_packages` + `package_agents`.
 
@@ -585,7 +584,7 @@
 **Date :** 2026-03-08 (HMAC + hot reload) / 2026-03-20 (config SQLite)
 **Statut :** Accepté
 
-**Contexte :** Sprint 9 : authentification des webhooks entrants + hot reload des triggers sans downtime. Sprint 17 : `apollia.toml` mélange config structurelle (ports, LLM) et opérationnelle (triggers, pipelines, notifications) — un non-développeur ne peut pas configurer sans éditer du TOML.
+**Contexte :** : authentification des webhooks entrants + hot reload des triggers sans downtime. : `apollia.toml` mélange config structurelle (ports, LLM) et opérationnelle (triggers, pipelines, notifications) — un non-développeur ne peut pas configurer sans éditer du TOML.
 
 **Décision :** (1) **SQLite opérationnel :** triggers/pipelines/notifications migrent dans SQLite (une DB par sous-système). TOML = config structurelle uniquement. Pattern : API handler → SQLite write → `Handle.reload()` synchrone. (2) **HMAC-SHA256 webhooks :** header `X-Apollia-Signature: sha256=<hex>` (standard GitHub), comparaison via `constant_time_eq` (timing attacks éliminées). Ordre réponse : 503 → 404 → 401 → 200. (3) **Hot reload :** `TriggerEngineHandle::reload()` — timeout 2s par `JoinHandle<()>`, full-replace, compteurs SQLite préservés, `TriggersReloaded` sur EventBus. Erreur au reload → 422, triggers actuels inchangés.
 
@@ -720,7 +719,7 @@
 
 **Contexte :** Apollia OS a besoin d'un flux d'onboarding pour collecter le contexte utilisateur initial. La plupart des applications utilisent des wizards déterministes avec des étapes numérotées, ce qui contredit la philosophie agentique.
 
-**Décision :** L'onboarding est un ConversationalAgent standard (SDK Sprint 21), déployé via une session chat. Le system prompt guide 5 domaines (identité, préférences, outils, domaine, agents) mais l'agent DÉCIDE l'ordre et la profondeur. Chaque insight est persisté immédiatement via ctx.memory.remember(). Pas de schéma rigide, pas d'étapes numérotées.
+**Décision :** L'onboarding est un ConversationalAgent standard (SDK ), déployé via une session chat. Le system prompt guide 5 domaines (identité, préférences, outils, domaine, agents) mais l'agent DÉCIDE l'ordre et la profondeur. Chaque insight est persisté immédiatement via ctx.memory.remember(). Pas de schéma rigide, pas d'étapes numérotées.
 
 **Alternatives considérées :** Wizard déterministe à étapes (rejetée — mécanique, ne showcase pas les capacités agents), Apprentissage passif uniquement (rejetée — prend trop de sessions, mauvaise première expérience).
 
@@ -800,7 +799,7 @@
 **Date :** 2026-08-01
 **Statut :** Accepté
 
-**Contexte :** Le client MCP (ADR-044) est opérationnel, mais la configuration des serveurs nécessite d'éditer `~/.apollia/mcp.toml` manuellement — bloquant pour les opérateurs non-techniques. Le Sprint 27 ajoute une page Intégrations dans le desktop Apollia. Elle doit permettre la découverte, la configuration, et la gestion sécurisée des secrets (tokens API) pour 16 000+ serveurs MCP sans qu'aucune modification du code soit requise pour chaque nouveau connecteur.
+**Contexte :** Le client MCP (ADR-044) est opérationnel, mais la configuration des serveurs nécessite d'éditer `~/.apollia/mcp.toml` manuellement — bloquant pour les opérateurs non-techniques. Le ajoute une page Intégrations dans le desktop Apollia. Elle doit permettre la découverte, la configuration, et la gestion sécurisée des secrets (tokens API) pour 16 000+ serveurs MCP sans qu'aucune modification du code soit requise pour chaque nouveau connecteur.
 
 **Décision :** Wizard générique unique (`ConnectorWizard`) piloté dynamiquement par les metadata du MCP Registry officiel (`registry.modelcontextprotocol.io/v0.1/servers`). Aucun composant par connecteur. Les 6 connecteurs les plus courants (Notion, Slack, GitHub, Linear, PostgreSQL, Filesystem) bénéficient d'enrichissements builtin (labels UX, liens doc, valeurs par défaut). Les secrets sont stockés dans le keychain OS via la crate `keyring` et référencés dans `mcp.toml` par le préfixe `APOLLIA_SECRET:<service>/<key>`. Cache local du registry (TTL 24h) pour le mode offline.
 
@@ -819,7 +818,7 @@
 **Date :** 2026-03-30
 **Statut :** Accepté
 
-**Contexte :** Le Sprint 27 a livré le catalogue MCP et le wizard, mais ~70% des serveurs du registry utilisent des transports distants (streamable-http, SSE) au lieu de packages npm (stdio subprocess). Le backend MCP ne supporte que stdio — la majorité du catalogue est non-installable, y compris les serveurs officiels (Notion, Brave).
+**Contexte :** Le a livré le catalogue MCP et le wizard, mais ~70% des serveurs du registry utilisent des transports distants (streamable-http, SSE) au lieu de packages npm (stdio subprocess). Le backend MCP ne supporte que stdio — la majorité du catalogue est non-installable, y compris les serveurs officiels (Notion, Brave).
 
 **Décision :** Nous adoptons un trait `McpTransport` abstrait dans `apollia-mcp` avec trois implémentations : `StdioTransport` (refactoring existant), `StreamableHttpTransport` (nouveau), `SseTransport` (nouveau). Le transport est sélectionné dynamiquement depuis `McpServerConfig.transport`.
 
@@ -857,7 +856,7 @@
 **Date :** 2026-03-31
 **Statut :** Accepté
 
-**Contexte :** MCP (Sprint 26) livre 16K+ outils tiers. Mais pour les tâches de domaine complexes (Excel, CSV, PDF...), l'expertise de séquençage — guardrails, patterns d'erreur, imports corrects — se dégrade significativement sur les modèles 7-14B utilisés par les utilisateurs finaux d'Apollia. La fenêtre de contexte limitée (4K-8K tokens) et la fidélité moindre aux instructions longues rendent l'injection Markdown (style "skills" de Claude) inefficace sur ces modèles.
+**Contexte :** MCP () livre 16K+ outils tiers. Mais pour les tâches de domaine complexes (Excel, CSV, PDF...), l'expertise de séquençage — guardrails, patterns d'erreur, imports corrects — se dégrade significativement sur les modèles 7-14B utilisés par les utilisateurs finaux d'Apollia. La fenêtre de contexte limitée (4K-8K tokens) et la fidélité moindre aux instructions longues rendent l'injection Markdown (style "skills" de Claude) inefficace sur ces modèles.
 
 **Décision :** Nous adoptons le pattern Worker Agent : des agents Python built-in dont l'expertise est compilée dans le code (`SYSTEM_PROMPT` constant, imports, guardrails, patterns d'erreur), pas injectée en contexte LLM. Chaque Worker Agent déclare `packages: list[str]` dans son manifest (installés au `INITIALIZING` via `setup_venv`), étend `WorkerAgent(BaseReActAgent)` du SDK Python, et expose `supports_a2a: True`. Le champ `packages` est ajouté à `AgentManifest` dans `apollia-core`.
 
@@ -876,9 +875,9 @@
 **Date :** 2026-04-01
 **Statut :** Accepté
 
-**Contexte :** Sprint 29 (ADR-048) a posé la fondation Worker Agent (`supports_a2a: True` + `skills` dans les manifests) mais sans routing effectif. Sprint 30 implémente ce routing — cinq questions architecturales doivent être formalisées avant l'implémentation : gestion des conflits de skills, mode d'invocation, format du résultat, trust model mémoire, profondeur de récursivité.
+**Contexte :** (ADR-048) a posé la fondation Worker Agent (`supports_a2a: True` + `skills` dans les manifests) mais sans routing effectif. implémente ce routing — cinq questions architecturales doivent être formalisées avant l'implémentation : gestion des conflits de skills, mode d'invocation, format du résultat, trust model mémoire, profondeur de récursivité.
 
-**Décision :** (1) Conflit de skills → erreur `AmbiguousSkill` à la résolution, premier enregistré gagne en cas de coexistence transitoire. (2) Invocation synchrone pour V1, timeout configurable (défaut 120 s). (3) Résultat encapsulé dans `A2aDelegateResult { task_id, output: serde_json::Value }`, aligné sur `AIPResult`. (4) Trust model explicite : le Worker reçoit uniquement le payload transmis par le Director, aucune injection de mémoire automatique. (5) Récursivité non limitée en V1, garde-fous de profondeur planifiés pour Sprint 32. Type alias `A2aDelegateFn` pour contourner la contrainte `#[pyclass]` sans paramètre générique.
+**Décision :** (1) Conflit de skills → erreur `AmbiguousSkill` à la résolution, premier enregistré gagne en cas de coexistence transitoire. (2) Invocation synchrone pour V1, timeout configurable (défaut 120 s). (3) Résultat encapsulé dans `A2aDelegateResult { task_id, output: serde_json::Value }`, aligné sur `AIPResult`. (4) Trust model explicite : le Worker reçoit uniquement le payload transmis par le Director, aucune injection de mémoire automatique. (5) Récursivité non limitée en V1, garde-fous de profondeur planifiés pour . Type alias `A2aDelegateFn` pour contourner la contrainte `#[pyclass]` sans paramètre générique.
 
 **Alternatives considérées :** Résolution par nom d'agent (rejetée — couplage fort), routing via EventBus seul (rejetée — pas de request/response natif), invocation asynchrone V1 (rejetée — complexité injustifiée), injection automatique de mémoire vers le Worker (rejetée — viole ADR-007).
 
@@ -895,13 +894,13 @@
 **Date :** 2026-04-01
 **Statut :** Accepté
 
-**Contexte :** Les Sprints 29-31 livrent quatre Worker Agents sans packaging ni séparation formalisée. Avant d'implémenter le packaging bundled (STORY-410) et le registre communautaire (STORY-411), six questions doivent être tranchées : quels agents sont bundled, format du registre, commande d'installation, validation à l'installation, séparation physique `bundled/` vs `community/`, auto-installation au premier boot.
+**Contexte :** Les Sprints 29-31 livrent quatre Worker Agents sans packaging ni séparation formalisée. Avant d'implémenter le packaging bundled et le registre communautaire, six questions doivent être tranchées : quels agents sont bundled, format du registre, commande d'installation, validation à l'installation, séparation physique `bundled/` vs `community/`, auto-installation au premier boot.
 
 **Décision :** (1) Agents bundled = excel-worker, csv-data-worker, pdf-worker, code-worker (4 agents couvrant les cas PME généraux, maintenus par Apollia). (2) Registre communautaire V1 = répertoire local `agents/community/<agent-name>/` avec `agent.py` + `manifest.json` + `README.md` ; V2 = repo Git public avec `registry.json` d'index. (3) Installation via `apollia-os agent install <path|git-url>` — synchrone, interactif, confirmation requise. (4) Validation en 4 étapes à l'installation : manifest conforme, scan `dangerous_tools_allowed`, résolution packages pip, smoke test optionnel. (5) Séparation stricte `agents/bundled/` (Apollia) vs `agents/community/` (tiers). (6) Auto-installation des bundled au premier boot via `agents/bundled/registry.json`; venvs pip différés au premier `INITIALIZING`.
 
 **Alternatives considérées :** Agents bundled embarqués dans le binaire (binaire trop lourd), endpoint distant pour les bundled (viole Principe #2), registre centralisé hébergé (infrastructure + point de défaillance), validation lazy au premier `agent start` (viole Principe #4), venv installé au boot (dégrade le démarrage).
 
-**Conséquences :** Runtime fonctionnel hors ligne. Séparation physique lisible. Validation à l'installation non-contournable. `sql-worker` et `git-worker` (Sprint 32) servent de template communautaire. V2 compatible V1 sans migration.
+**Conséquences :** Runtime fonctionnel hors ligne. Séparation physique lisible. Validation à l'installation non-contournable. `sql-worker` et `git-worker` () servent de template communautaire. V2 compatible V1 sans migration.
 
 **Principes impactés :** Principe #1 — Local-first (bundled inclus dans le repo, zéro réseau obligatoire), Principe #2 — Zéro dépendance externe (packages pip sont des dépendances de l'agent, pas du runtime), Principe #4 — Fail fast (validation complète à l'installation), Principe #7 — Garde-fous non-négociables (scan `dangerous_tools_allowed` non-contournable en mode interactif).
 
@@ -914,7 +913,7 @@
 **Date :** 2026-04-03
 **Statut :** Accepté
 
-**Contexte :** L'API REST TCP `:7771` est ouverte sans aucune authentification depuis le Sprint 5. Toute application locale peut appeler des endpoints destructifs sans preuve d'identité. Avant la beta publique, ce vecteur doit être fermé sans infrastructure externe (Principe #1).
+**Contexte :** L'API REST TCP `:7771` est ouverte sans aucune authentification depuis le . Toute application locale peut appeler des endpoints destructifs sans preuve d'identité. Avant la beta publique, ce vecteur doit être fermé sans infrastructure externe (Principe #1).
 
 **Décision :** Token statique 32 octets hexadécimaux (256 bits, `rand::rngs::OsRng`) stocké dans `~/.apollia/api-token` avec permissions `0600`. Toutes les requêtes TCP doivent porter `Authorization: Bearer <token>`. Comparaison à temps constant via `subtle::ConstantTimeEq` (pas de timing attack). TCP `:7771` bindé sur `127.0.0.1` par défaut. Socket Unix non authentifiée (permissions filesystem suffisent). Config `api.require_token = true` (défaut), `api.bind = "127.0.0.1"`. Rotation manuelle via `apollia-os config rotate-token`.
 
@@ -953,7 +952,7 @@
 **Date :** 2026-04-03
 **Statut :** Accepté
 
-**Contexte :** La mémoire épisodique croît sans mécanisme de consolidation depuis le Sprint 3. La littérature (MemGPT, Letta) propose des consolidations automatiques — mais ces approches introduisent du coût LLM non maîtrisé, un comportement imprévisible, et un risque de perte de données pour la beta.
+**Contexte :** La mémoire épisodique croît sans mécanisme de consolidation depuis le . La littérature (MemGPT, Letta) propose des consolidations automatiques — mais ces approches introduisent du coût LLM non maîtrisé, un comportement imprévisible, et un risque de perte de données pour la beta.
 
 **Décision :** La consolidation automatique de la mémoire épisodique est reportée à post-v1. Garde-fou unique acceptable : troncature `STEP_MEMORY_OUTPUT_MAX_CHARS = 200` (Principe #7, configurable via `oria.step_memory_max_chars`) — borne la taille des épisodes sans modifier leur sémantique. La consolidation sera opt-in, contrôlée par l'agent via `ctx.memory.consolidate()` — jamais déclenchée automatiquement par le runtime (Principe #6). Design préliminaire post-v1 : `[memory.consolidation]` avec `enabled = false`, `interval`, `min_episodes`.
 
@@ -972,7 +971,7 @@
 **Date :** 2026-04-03
 **Statut :** Accepté
 
-**Contexte :** ADR-050 a défini la V1 du registry communautaire (installation par path local). La V2 — résolution d'une URL Git → clonage → validation → installation — est implémentée dans STORY-450. Cette ADR formalise l'architecture du registre distribué.
+**Contexte :** ADR-050 a défini la V1 du registry communautaire (installation par path local). La V2 — résolution d'une URL Git → clonage → validation → installation — est implémentée dans . Cette ADR formalise l'architecture du registre distribué.
 
 **Décision :** (1) Format : chaque agent communautaire est un repo Git autonome avec `agent.py` + `manifest.json` + `requirements.txt` + `tests/test_smoke.py`. (2) Découverte optionnelle : un `registry.json` dans un repo Git public (ex. `apollia-os/community-registry`) indexe les agents disponibles — optionnel, pas requis pour l'installation directe. (3) Validation 4 étapes ADR-050 inchangées (manifest, `dangerous_tools_allowed`, packages pip, smoke test). (4) Pas de signature cryptographique en V2 — confiance sur URL Git présentée à l'utilisateur ; GPG encouragé mais non requis. (5) Commandes : `agent install <git-url>`, `agent search <keyword>`, `agent list --source community`, `agent update <name>`. Fallback `gitoxide` si Git absent (Windows).
 
@@ -991,7 +990,7 @@
 **Date :** 2026-04-04 (workspace + trait) / 2026-04-15 (namespace + bootstrap)
 **Statut :** Accepté
 
-**Contexte :** (1) Sprint 35 : l'agent ignore le projet dans lequel il opère — il re-découvre branche git, APOLLIA.md, arborescence à chaque session. (2) Le contexte workspace doit être extensible (providers Rust, Python, scripts). (3) Sprint 39 : `dev-assistant` sur deux projets partage le même namespace mémoire — contamination inter-projets. (4) Sprint 40 : pattern bootstrap copié-collé dans 3 agents sans détection de péremption.
+**Contexte :** (1) : l'agent ignore le projet dans lequel il opère — il re-découvre branche git, APOLLIA.md, arborescence à chaque session. (2) Le contexte workspace doit être extensible (providers Rust, Python, scripts). (3) : `dev-assistant` sur deux projets partage le même namespace mémoire — contamination inter-projets. (4) : pattern bootstrap copié-collé dans 3 agents sans détection de péremption.
 
 **Décision :** (1) Crate `apollia-workspace` avec `WorkspaceAssembler` (timeout 2s, TTL 30s), `GitContextCollector` (subprocess `git`, pas de `libgit2`), `ApolliamdFinder`, `DirectoryTreeBuilder`. (2) Trait `ContextProvider` dans `apollia-core` — 3 niveaux : Rust natif, duck-typing Python, script stdin/stdout JSON. Distingué de la mémoire (Principe #6) : le Context = situation courante, pas accumulation. (3) Namespace effectif = `"{project_id}:{manifest_namespace}"` si `project_id` est `Some(_)`, sinon namespace tel quel. Transparent pour l'agent Python. (4) `ContextBootstrap` : protocole SDK (`sdk/apollia/bootstrap.py`) avec 2 méthodes abstraites (`is_stale()`, `run_bootstrap()`) + 4 méthodes infrastructure. Opt-in, jamais injecté par le runtime.
 
@@ -1137,7 +1136,7 @@ Binaire et `.dmg` signés avec un certificat Apple Developer (Developer ID Appli
 
 ## ADR-076 — Internationalisation frontend (svelte-i18n, FR/EN)
 
-**Date :** 2026-03-16 / spec complète Sprint 42 — **Statut :** Accepté
+**Date :** 2026-03-16 / spec complète — **Statut :** Accepté
 
 `svelte-i18n` v4 avec fichiers JSON plats (`en.json`, `fr.json`) organisés en 13 namespaces. ~1700 clés. Détection locale système au premier lancement via `getLocaleFromNavigator()`. Persistance dans `localStorage`. Script `audit-i18n.mjs` vérifie la parité FR/EN en CI. Convention capitalisation : première lettre majuscule uniquement pour les phrases, tout en minuscule pour les labels.
 
@@ -1389,7 +1388,7 @@ Le décorateur `@agent(...)` instancie automatiquement la classe décorée et ex
 
 **Date :** 2026-05-19 — **Statut :** Accepté
 
-Suppression sans remplacement des méthodes `ctx.send(to_agent, message)` et `ctx.receive(timeout)` (fire-and-forget mailbox introduite sprint 22). Audit : aucun agent bundled ne les utilise (`grep -r "ctx\.send\|ctx\.receive" agents/` = 0 résultats), aucun test SDK, aucune doc book/wiki, sémantique floue (push vs poll ? TTL ? persistance ?), conflit conceptuel avec `ctx.a2a.invoke` (ADR-102). `ctx.a2a.invoke` couvre 100 % des cas synchrones inter-agents. Usages asynchrones fire-and-forget reportés à v2.0 sous forme d'un vrai event bus spec'd (si demande émerge — aucun signal aujourd'hui). Suppression bridge PyO3 (`apollia-aip/src/context.rs`), suppression stub (`sdk/apollia/stubs/context.py:155-179`), suppression acteur mailbox côté runtime si présent. Pas de shim, pas de deprecation window. Alternatives rejetées : conserver+documenter (zone confusion pérennisée), renommer en `ctx.a2a.notify` (réintroduit notion mailbox non-spec'd), alias deprecated (sémantique différente d'invoke).
+Suppression sans remplacement des méthodes `ctx.send(to_agent, message)` et `ctx.receive(timeout)` (fire-and-forget mailbox introduite ). Audit : aucun agent bundled ne les utilise (`grep -r "ctx\.send\|ctx\.receive" agents/` = 0 résultats), aucun test SDK, aucune doc docs/book/wiki, sémantique floue (push vs poll ? TTL ? persistance ?), conflit conceptuel avec `ctx.a2a.invoke` (ADR-102). `ctx.a2a.invoke` couvre 100 % des cas synchrones inter-agents. Usages asynchrones fire-and-forget reportés à v2.0 sous forme d'un vrai event bus spec'd (si demande émerge — aucun signal aujourd'hui). Suppression bridge PyO3 (`apollia-aip/src/context.rs`), suppression stub (`sdk/apollia/stubs/context.py:155-179`), suppression acteur mailbox côté runtime si présent. Pas de shim, pas de deprecation window. Alternatives rejetées : conserver+documenter (zone confusion pérennisée), renommer en `ctx.a2a.notify` (réintroduit notion mailbox non-spec'd), alias deprecated (sémantique différente d'invoke).
 
 [Détail → docs/adr/ADR-108-sdk-mailbox-a2a-suppression.md](adr/ADR-108-sdk-mailbox-a2a-suppression.md)
 

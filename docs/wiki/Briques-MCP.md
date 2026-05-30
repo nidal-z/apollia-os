@@ -785,5 +785,5 @@ $ apollia mcp revoke-approval code-tools bash_exec
 - [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration `mcp.toml`, exemples, troubleshooting
 - [MCP — Intégration](./MCP-Integration) — alignement Apollia OS ↔ standard MCP
 - [Briques Tool Registry](./Briques-Tool-Registry) — section 10 : outils MCP dans le registry
-- [API-HTTP-Observability](./API-HTTP-Observability#mcp-sprint-26-adr-044) — section MCP : `/api/v1/mcp/*`
+- [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) — section MCP : `/api/v1/mcp/*`
 - [ADR-046](../adr/ADR-046-transport-http-sse-mcp.md) — décision transport HTTP/SSE pour serveurs MCP distants

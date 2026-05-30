@@ -18,8 +18,6 @@ export const NOTIFICATION_EVENT_TYPES = [
   "chat.user_input_required",
 ] as const;
 
-export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
-
 /**
  * i18n key for the short human label of an event type.
  * Convention: `notifications.events.<event_type>` (dotted as-is).

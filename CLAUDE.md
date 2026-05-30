@@ -1,15 +1,33 @@
 # CLAUDE.md, Claude Code overlay
 
-> This file is the Claude-Code-specific overlay for the Apollia OS repo.
-> It is short by design.
->
-> **The authoritative rulebook is `AGENTS.md` at the repo root and
-> `docs/agents/*.md`.** Read those first. This file adds only the
-> Claude-Code-specific session context.
+> Loaded automatically at session start. Imports the project rulebook into
+> context via the `@filename` directive below.
 
----
+## Auto-loaded rulebook (do NOT remove these imports)
 
-## Where to read first
+These three files are imported into your context at session start. Read
+them like you would read this overlay.
+
+@AGENTS.md
+@docs/agents/INDEX.md
+@docs/agents/FORBIDDEN.md
+
+## Discipline for this session
+
+1. Before any code change, mentally check `FORBIDDEN.md` (just loaded).
+2. Touching Rust ? Open `docs/agents/RUST-PATTERNS.md` and the nearest
+   `crates/<crate>/AGENTS.md`.
+3. Touching Python SDK or an agent ? Open `docs/agents/PYTHON-PATTERNS.md`
+   and `sdk/AGENTS.md`.
+4. Touching the desktop UI ? Open `docs/agents/FRONTEND-PATTERNS.md` and
+   `crates/apollia-desktop/ui/AGENTS.md`.
+5. Writing tests ? Open `docs/agents/TESTING.md`.
+6. Writing a commit ? Open `docs/agents/COMMITS.md`.
+
+The `INDEX.md` (just loaded) holds the full routing table. Lean on it
+rather than guessing.
+
+## Where to read first (legacy block, kept for orientation)
 
 1. `AGENTS.md` (root), the standard entry point for any LLM coding
    assistant.
@@ -33,7 +51,7 @@ Project-specific skills configured under `.claude/skills/` :
 - **apollia-sprint** : plan or close a sprint in
   `docs/internal/STORIES/sprint-N/plan.md`.
 - **apollia-adr** : generate a new ADR in `docs/adr/ADR-NNN.md`.
-- **apollia-doc-setup** : initialize `docs/` and `book/` mdBook scaffold
+- **apollia-doc-setup** : initialize `docs/` and `docs/book/` mdBook scaffold
   (one-shot, first time only).
 - **apollia-doc-sync** : update docs after a sprint, story, architectural
   change, or diagram update.

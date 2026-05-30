@@ -47,7 +47,7 @@ Principaux endpoints couverts :
 
 **Transports :**
 - **Unix socket** `/tmp/apollia.sock` — non authentifié (permissions filesystem).
-- **TCP** `http://localhost:7771` — bearer token obligatoire (`Authorization: Bearer <token>`, voir [API-HTTP-Agents](./API-HTTP-Agents#authentification-tcp-sprint-34)).
+- **TCP** `http://localhost:7771` — bearer token obligatoire (`Authorization: Bearer <token>`, voir [API-HTTP-Agents](./API-HTTP-Agents#authentification-tcp-)).
 
 **Base URL :** `http://localhost:7771/api/v1`
 

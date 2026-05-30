@@ -46,7 +46,7 @@ async function installTauriStub(page: import("@playwright/test").Page): Promise<
       list_llm_backends: () => [],
     };
 
-    (window as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
+    (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
         const h = handlers[cmd];
         return Promise.resolve(h ? h(args) : null);

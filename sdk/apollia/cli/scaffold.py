@@ -55,9 +55,7 @@ def to_module_name(name: str) -> str:
     return name.replace("-", "_")
 
 
-# ---------------------------------------------------------------------------
-# Templates (decorator-first)
-# ---------------------------------------------------------------------------
+# Section: scaffold templates (decorator-first style)
 
 REACT_TEMPLATE = '''\
 """Agent {name} (ReAct mode, decorator SDK)."""

@@ -276,4 +276,4 @@ DevTools (F12) → Application → Local Storage → apollia-mcp-disclaimer-acce
 - [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration manuelle via `mcp.toml`, référence des champs, API REST
 - [Sécurité — Local-First](./Securite-Local-First) — principes de souveraineté des données
 - [Briques Desktop](./Briques-Desktop) — architecture de l'application desktop Tauri
-- [API-HTTP-Observability](./API-HTTP-Observability#mcp-sprint-26-adr-044) — routes REST MCP (`/api/v1/mcp/`)
+- [API-HTTP-Observability](./API-HTTP-Observability#mcp--adr-044) — routes REST MCP (`/api/v1/mcp/`)

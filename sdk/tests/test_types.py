@@ -1,6 +1,5 @@
 """Tests for apollia.types — AIPResult dataclass and factory methods."""
 
-import pytest
 from apollia.types import AIPResult
 
 
@@ -77,7 +76,6 @@ def test_import_aipresult_from_types():
     """AIPResult remains importable from apollia.types (legacy compat)."""
     from apollia.types import AIPResult as R
 
-    assert R is not None
     assert R is AIPResult
 
 

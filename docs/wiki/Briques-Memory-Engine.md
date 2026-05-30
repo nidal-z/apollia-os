@@ -770,7 +770,7 @@ CREATE TABLE IF NOT EXISTS plan_choices (
 );
 ```
 
-> **Voir aussi :** [Briques ORIA Engine — Binary Feedback](./Briques-ORIA-Engine.md#13-binary-feedback--deux-plans-alternatifs--sprint-36)
+> **Voir aussi :** [Briques ORIA Engine — Binary Feedback](./Briques-ORIA-Engine.md#13-binary-feedback--deux-plans-alternatifs--)
 
 ---
 

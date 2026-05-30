@@ -24,7 +24,7 @@ async function installTauriStub(page: Page): Promise<void> {
       list_llm_backends: () => [],
       get_onboarding_status: () => ({ completed: true, phase: "done", required: false }),
     };
-    (window as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
+    (globalThis as unknown as { __TAURI_INTERNALS__?: { invoke: InvokeStub } }).__TAURI_INTERNALS__ = {
       invoke: (cmd: string, args: unknown) => {
         const fn = handlers[cmd];
         return fn ? Promise.resolve(fn(args)) : Promise.resolve(null);

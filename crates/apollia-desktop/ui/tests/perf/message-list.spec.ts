@@ -21,7 +21,7 @@ test.describe("chat message list — 500 messages", () => {
         seq: i,
         created_at: new Date(Date.now() - (500 - i) * 60_000).toISOString(),
       }));
-      window.sessionStorage.setItem(
+      globalThis.sessionStorage.setItem(
         "apollia.perftest.messages",
         JSON.stringify(msgs),
       );

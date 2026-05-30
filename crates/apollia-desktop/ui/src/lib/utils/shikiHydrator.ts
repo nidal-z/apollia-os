@@ -42,6 +42,10 @@ async function getHighlighter(): Promise<Highlighter> {
   return highlighterPromise;
 }
 
+function isBundledLanguage(s: string): s is BundledLanguage {
+  return (SUPPORTED_LANGS as readonly string[]).includes(s);
+}
+
 function normaliseLang(raw: string): BundledLanguage | null {
   const lower = raw.toLowerCase();
   const map: Record<string, BundledLanguage> = {
@@ -53,9 +57,7 @@ function normaliseLang(raw: string): BundledLanguage | null {
     markdown: "md",
   };
   const resolved = map[lower] ?? lower;
-  return (SUPPORTED_LANGS as readonly string[]).includes(resolved)
-    ? (resolved as BundledLanguage)
-    : null;
+  return isBundledLanguage(resolved) ? resolved : null;
 }
 
 function detectTheme(): "github-light" | "github-dark" {

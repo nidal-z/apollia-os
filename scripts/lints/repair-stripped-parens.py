@@ -12,8 +12,8 @@ Patterns réparés :
   - "MethodName, " → si suivi d'une autre méthode, OK ; sinon laisser
 
 Usage :
-  python3 scripts/lints/repair-stripped-parens.py --dry-run book/src docs/wiki
-  python3 scripts/lints/repair-stripped-parens.py book/src docs/wiki
+  python3 scripts/lints/repair-stripped-parens.py --dry-run docs/book/src docs/wiki
+  python3 scripts/lints/repair-stripped-parens.py docs/book/src docs/wiki
 """
 
 import argparse

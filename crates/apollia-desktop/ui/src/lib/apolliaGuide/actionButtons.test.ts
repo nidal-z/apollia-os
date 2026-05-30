@@ -6,7 +6,7 @@ import {
 } from "./actionButtons";
 
 describe("apolliaGuide/actionButtons", () => {
-  it("accepts whitelisted navigate routes", () => {
+  it("accepts allowlisted navigate routes", () => {
     const raw: RawActionButton = {
       label: "Ouvrir l'assistant",
       action: "navigate",

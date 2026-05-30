@@ -4,7 +4,7 @@
  * The meta-chat coach (backend `apollia_coach_invoke`) returns structured
  * `action_buttons` alongside its narrative text. The frontend renders them
  * inline inside the reply bubble. To keep the attack surface minimal and
- * prevent prompt-injected links, we enforce a **strict whitelist** here —
+ * prevent prompt-injected links, we enforce a **strict allowlist** here —
  * both the action kind AND the payload shape are validated before the
  * button is rendered.
  *
@@ -33,18 +33,18 @@ export interface RawActionButton {
 export interface SafeActionButton {
   label: string;
   action: CoachActionKind;
-  /** Resolved, whitelisted target — `Route` for navigate, command name for invoke. */
+  /** Resolved, allowlisted target — `Route` for navigate, command name for invoke. */
   target: string;
   /** Extra query string for navigate actions (e.g. `wizard=open`). `""` when absent. */
   query: string;
 }
 
 /**
- * Whitelist of routes the coach is allowed to deep-link to. Mirrors the
+ * Allowlist of routes the coach is allowed to deep-link to. Mirrors the
  * `_ALLOWED_ROUTES` set in `agent.py` — routes absent from this list are
  * dropped silently.
  */
-const ROUTE_WHITELIST: Record<string, Route> = {
+const ROUTE_ALLOWLIST: Record<string, Route> = {
   "/dashboard": "dashboard",
   "/agents": "agents",
   "/projects": "projects",
@@ -63,12 +63,12 @@ const ROUTE_WHITELIST: Record<string, Route> = {
 };
 
 /**
- * Whitelist of Tauri commands the coach may invoke. Currently empty — the
+ * Allowlist of Tauri commands the coach may invoke. Currently empty — the
  * `invoke` action kind is reserved for future capabilities (e.g. "Run the
  * onboarding tour from here"). Commands must be explicitly added here AND
  * must be read-only / idempotent.
  */
-const INVOKE_WHITELIST = new Set<string>([]);
+const INVOKE_ALLOWLIST = new Set<string>([]);
 
 /**
  * Parse a raw action button. Returns `null` if the button fails validation
@@ -80,7 +80,7 @@ export function validateActionButton(raw: RawActionButton): SafeActionButton | n
   if (raw.action === "navigate") {
     const route = typeof raw.payload?.route === "string" ? raw.payload.route : "";
     const [basePath, query = ""] = route.split("?", 2);
-    const resolved = ROUTE_WHITELIST[basePath];
+    const resolved = ROUTE_ALLOWLIST[basePath];
     if (!resolved) return null;
     return {
       label: raw.label,
@@ -92,7 +92,7 @@ export function validateActionButton(raw: RawActionButton): SafeActionButton | n
 
   if (raw.action === "invoke") {
     const command = typeof raw.payload?.command === "string" ? raw.payload.command : "";
-    if (!INVOKE_WHITELIST.has(command)) return null;
+    if (!INVOKE_ALLOWLIST.has(command)) return null;
     return {
       label: raw.label,
       action: "invoke",

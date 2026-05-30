@@ -84,6 +84,6 @@ describe("sessionMetricsV2 store", () => {
     handleSessionMetricsUpdated(makeEvent("a"));
     handleSessionMetricsUpdated(makeEvent("b"));
     const snap = get(sessionMetricsSlots);
-    expect(Object.keys(snap).sort()).toEqual(["a", "b"]);
+    expect(Object.keys(snap).sort((a, b) => a.localeCompare(b))).toEqual(["a", "b"]);
   });
 });

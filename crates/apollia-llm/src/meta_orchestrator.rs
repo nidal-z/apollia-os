@@ -107,7 +107,7 @@ impl MetaRoutine {
         }
     }
 
-    /// `true` if the routine must stay off even when the master toggle is on;
+    /// `true` if the routine must stay off even when the main toggle is on;
     /// the user must enable it explicitly via `per_routine` (e.g.
     /// `routines.decision_branches` for `GenerateAlternativeBranches`).
     pub fn is_opt_in_by_default(self) -> bool {
@@ -134,11 +134,11 @@ impl MetaRoutine {
 
 /// User-persistable (SQLite) configuration of the meta service.
 ///
-/// `enabled` is the "Enable AI narration" master toggle; `per_routine` lets the
-/// user disable an individual routine even when the master is on.
+/// `enabled` is the "Enable AI narration" main toggle; `per_routine` lets the
+/// user disable an individual routine even when the main toggle is on.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaLlmSettings {
-    /// Master toggle, default `false` (strict opt-in).
+    /// Main toggle, default `false` (strict opt-in).
     #[serde(default)]
     pub enabled: bool,
     /// Per-routine overrides; if absent, the routine inherits `enabled`.
@@ -830,7 +830,7 @@ mod tests {
         );
     }
 
-    // GIVEN a disabled orchestrator (master toggle off)
+    // GIVEN a disabled orchestrator (main toggle off)
     // WHEN run() is called
     // THEN Ok(None) with no LLM call
     #[tokio::test]
@@ -949,7 +949,7 @@ mod tests {
         assert!(result.is_none(), "backend error must fall back to None");
     }
 
-    // GIVEN a routine disabled via `per_routine` (master on but routine off)
+    // GIVEN a routine disabled via `per_routine` (main on but routine off)
     // WHEN run() is called for this routine
     // THEN Ok(None) without an LLM call
     #[tokio::test]

@@ -30,7 +30,7 @@ ok()   { printf "  \033[32m✓\033[0m %s\n" "$1"; }
 fail() { printf "  \033[31m✗\033[0m %s\n" "$1"; exit 1; }
 
 build_book() {
-  log "Build mdBook (book/)"
+  log "Build mdBook (docs/book/)"
   command -v mdbook >/dev/null 2>&1 || fail "mdbook non installé. cargo install mdbook"
   cd "$ROOT/book"
   mdbook build

@@ -5,7 +5,7 @@
 
 ---
 
-## Sprint 0 — Fondations
+## — Fondations
 
 **Statut :** LIVRÉ ✅ | **Stories :** 5/5 | **Crates :** 7 squelettes + apollia-core peuplé
 
@@ -18,12 +18,12 @@
 Aucune — types définis mais pas encore de runtime.
 
 ### Écarts
-- 6 crates vides (squelettes uniquement — normal pour Sprint 0)
+- 6 crates vides (squelettes uniquement — normal pour )
 - DT-001→005 : `Cargo.lock` non commité, CI Linux only, sprint-index non synchronisé automatiquement
 
 ---
 
-## Sprint 1 — EventBus + AgentRegistry
+## — EventBus + AgentRegistry
 
 **Statut :** LIVRÉ ✅ | **Stories :** 4/4 | **Tests :** 17
 
@@ -43,7 +43,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## Sprint 2 — Tool Registry + Outils natifs
+## — Tool Registry + Outils natifs
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **Tests :** 55
 
@@ -51,7 +51,7 @@ Aucune directement — infrastructure acteur interne.
 - `ToolDescriptor`, `ToolKind`, `McpTransport` dans `apollia-tools`
 - `ToolRegistry` acteur Tokio + `ToolRegistryHandle`
 - `ToolResolver` : validation des outils requis/optionnels au démarrage agent
-- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher) — *Note : `file_io` a été déprécié au Sprint 25 et remplacé par `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (ADR-043)*
+- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher) — *Note : `file_io` a été déprécié au et remplacé par `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (ADR-043)*
 - `AuditTrail` SQLite (acteur `std::thread` + `mpsc::sync_channel`, fire-and-forget, SHA-256)
 
 ### Primitives agent disponibles
@@ -60,14 +60,14 @@ Aucune directement — infrastructure acteur interne.
 - `file_io` : lecture/écriture fichiers avec protection traversal
 
 ### Écarts
-- STORY-015 livrée avant STORY-013 (ordre inversé vs plan)
+- livrée avant (ordre inversé vs plan)
 - `AgentManifest` étendu en cours de sprint avec `dangerous_tools_allowed: bool` (friction cross-crate ~30min)
 - **ADR-012** (non planifié) : `SandboxMode::Dev` macOS via `#[cfg]` (sandbox-exec deprecated)
 - DT-010/011 : cgroups / mount namespace hardening incomplet (suffisant pour MVP)
 
 ---
 
-## Sprint 3 — Memory Engine
+## — Memory Engine
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **Tests :** 56
 
@@ -91,7 +91,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## Sprint 4 — Bridge PyO3 + ORIA Direct
+## — Bridge PyO3 + ORIA Direct
 
 **Statut :** LIVRÉ ✅ | **Stories :** 9/9 | **Tests :** 32 (apollia-aip) + 16 (apollia-oria)
 
@@ -124,7 +124,7 @@ Aucune directement — infrastructure acteur interne.
 
 ---
 
-## Sprint 5 — APIServer + CLI complète
+## — APIServer + CLI complète
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **Tests :** 73 (apollia-runtime) + 35 (apollia-cli)
 
@@ -141,14 +141,14 @@ Pas de nouvelles primitives Python. API REST et CLI opérationnelles pour admini
 
 ### Écarts
 - axum 0.7.9 : path params `:id` (pas `{id}` qui est 0.8+)
-- `manifest_from_path()` MVP sans chargement Python réel — DT-031 (résolu Sprint 6 via ADR-019)
+- `manifest_from_path()` MVP sans chargement Python réel — DT-031 (résolu via ADR-019)
 - Fichiers longs : `shutdown.rs` (829 loc), `router.rs` (649 loc), `supervisor.rs` (623 loc)
 - **ADR-017** (non planifié) : hyper-util explicite pour Unix socket (axum 0.7 ne supporte pas nativement)
 - **ADR-018** (non planifié) : CLI bootstrap sans Supervisor
 
 ---
 
-## Sprint 6 — Hardening + Agent démo
+## — Hardening + Agent démo
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **Tests :** 336 workspace
 
@@ -164,14 +164,13 @@ Pas de nouvelles primitives Python. API REST et CLI opérationnelles pour admini
 - Résilience automatique : retry + circuit breaker transparent pour les appels outils
 
 ### Écarts
-- **STORY-043** (ORIA Mode Orchestré) reportée → soldée par STORY-061 dans Sprint 8
-- DT-031 plus profond qu'anticipé → nécessité **ADR-019** (AgentLoader trait) + refactoring `AppState`, `Supervisor::start()`, `routes_agents`
+- **** (ORIA Mode Orchestré) reportée → soldée par dans - DT-031 plus profond qu'anticipé → nécessité **ADR-019** (AgentLoader trait) + refactoring `AppState`, `Supervisor::start()`, `routes_agents`
 - `apollia-cli` dépend maintenant de `apollia-aip` (couplage non prévu initialement)
 - Tests `python-tests` ne tournent pas en CI Linux (DT-035)
 
 ---
 
-## Sprint 7 — Hardening tests + CI verte
+## — Hardening tests + CI verte
 
 **Statut :** LIVRÉ ✅ | **Stories :** 4/4 | **Tests :** 340+ workspace
 
@@ -188,7 +187,7 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 
 ---
 
-## Sprint 8 — apollia-llm : moteur embarqué + ctx.llm
+## — apollia-llm : moteur embarqué + ctx.llm
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14 | **Crate :** `apollia-llm` créée
 
@@ -201,7 +200,7 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 - `ToolCallHelper.run_tools()` : boucle ReAct, garde-fous `max_iterations` + `StepBudget`
 - Observabilité : `LlmCallCompleted` EventBus, `cost_usd` cloud, `debug_log_prompt` TRACE
 - CLI : `llm status|ping|chat`, `model list`
-- STORY-043 soldée via STORY-061 : `Reasoner` fonctionnel avec `Arc<dyn CompletionModel>`
+- soldée via : `Reasoner` fonctionnel avec `Arc<dyn CompletionModel>`
 
 ### Primitives agent disponibles
 - **`ctx.llm`** — Proxy LLM complet :
@@ -218,7 +217,7 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 
 ---
 
-## Sprint 9 — apollia-triggers + Dashboard
+## — apollia-triggers + Dashboard
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14 | **Crate :** `apollia-triggers` créée
 
@@ -237,11 +236,11 @@ Aucun — sprint purement technique, 4/4 livré conforme.
 Les agents ne déclenchent pas directement les triggers — les triggers déclenchent les agents.
 
 ### Écarts
-- **ADR-021** : TOML-only (pas SQLite pour les définitions — migré SQLite en Sprint 17), HMAC-SHA256 header `X-Apollia-Signature`, hot reload timeout 2s + abort forcé
+- **ADR-021** : TOML-only (pas SQLite pour les définitions — migré SQLite en ), HMAC-SHA256 header `X-Apollia-Signature`, hot reload timeout 2s + abort forcé
 
 ---
 
-## Sprint 10 — ORIA Mode Orchestré
+## — ORIA Mode Orchestré
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
@@ -266,7 +265,7 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 
 ---
 
-## Sprint 11 — HITL + Notifications
+## — HITL + Notifications
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **Crate :** `apollia-notifications` créée
 
@@ -293,7 +292,7 @@ Les agents ne déclenchent pas directement les triggers — les triggers déclen
 
 ---
 
-## Sprint 12 — Orchestration multi-agent (Pipelines)
+## — Orchestration multi-agent (Pipelines)
 
 **Statut :** LIVRÉ ✅ | **Stories :** 18/18 | **Crate :** `apollia-pipelines` créée — ⚠️ **retirée du workspace v0.1.0** (composition multi-agent désormais via triggers + agents ReAct autonomes, ADR-066)
 
@@ -318,7 +317,7 @@ Les agents participent aux pipelines sans le savoir — le pipeline orchestre le
 
 ---
 
-## Sprint 13 — Observabilité complète
+## — Observabilité complète
 
 **Statut :** LIVRÉ ✅ | **Stories :** 10/12 (2 abandonnées)
 
@@ -336,13 +335,13 @@ Les agents participent aux pipelines sans le savoir — le pipeline orchestre le
 Aucune nouvelle primitive Python — l'observabilité est automatique et transparente pour les agents.
 
 ### Écarts
-- **STORY-133** 🚫 abandonnée (Dashboard HTMX observabilité) — migration Tauri+Svelte prévue
-- **STORY-134** 🚫 abandonnée (Tests e2e observabilité) — couverture unitaire jugée suffisante
+- **** 🚫 abandonnée (Dashboard HTMX observabilité) — migration Tauri+Svelte prévue
+- **** 🚫 abandonnée (Tests e2e observabilité) — couverture unitaire jugée suffisante
 - **ADR-026** : Timeline unifiée 5 sources SQLite (conforme)
 
 ---
 
-## Sprint 14 — Application desktop native
+## — Application desktop native
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **Crate :** `apollia-desktop` créée (Tauri v2)
 
@@ -362,13 +361,13 @@ Aucune — les agents ne sont pas conscients du desktop.
 
 ---
 
-## Sprint 15 — Svelte frontend complet
+## — Svelte frontend complet
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
 ### Ce qui a été implémenté
 - 10 routes Svelte (Agents, Tasks, Approvals, LLM, Triggers, Pipelines, Memory, Notifications, Observabilité, Settings)
-- 29 Tauri IPC commands (vs 9 Sprint 14)
+- 29 Tauri IPC commands (vs 9 )
 - 7 SSE stores + 4 derived
 - 35+ types TypeScript
 - Sidebar restructurée 4 catégories (Operations / Infrastructure / Données / Settings)
@@ -385,7 +384,7 @@ Aucune — frontend uniquement.
 
 ---
 
-## Sprint 17 — Config opérateur CRUD SQLite
+## — Config opérateur CRUD SQLite
 
 **Statut :** LIVRÉ ✅ | **Stories :** 14/14
 
@@ -408,7 +407,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## Sprint 18 — Chat hybride
+## — Chat hybride
 
 **Statut :** LIVRÉ ✅ | **Stories :** 12/12
 
@@ -430,7 +429,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## Sprint 20 — Système Agentique Amélioré
+## — Système Agentique Amélioré
 
 **Statut :** LIVRÉ ✅ | **Stories :** 18/18
 
@@ -455,7 +454,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## Sprint 21 — apollia-sdk : Bibliothèque Python
+## — apollia-sdk : Bibliothèque Python
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **Package :** `sdk/apollia/`
 
@@ -485,7 +484,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## Sprint 22 — Chat Intelligent + Mémoire Utilisateur Globale
+## — Chat Intelligent + Mémoire Utilisateur Globale
 
 **Statut :** LIVRÉ ✅ (d'après implémentation constatée)
 
@@ -512,7 +511,7 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
-## Sprint 23 — Onboarding Utilisateur
+## — Onboarding Utilisateur
 
 **Statut :** EN COURS | **Stories :** 14 planifiées
 
@@ -533,11 +532,11 @@ Aucune — configuration opérateur uniquement.
 
 ### Écarts
 - Sprint-index marque le sprint 🔲 (À planifier) alors que l'implémentation est avancée
-- Sprint 22 aussi marqué 🔲 dans l'index alors que le code existe (index non synchronisé)
+- aussi marqué 🔲 dans l'index alors que le code existe (index non synchronisé)
 
 ---
 
-## Sprint 24 — apollia-stt : moteur STT embarqué
+## — apollia-stt : moteur STT embarqué
 
 **Statut :** LIVRÉ ✅ | **Stories :** 17/17 | **ADR :** ADR-041
 
@@ -557,7 +556,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 25 — Surface outil complète : outils atomiques + HTTP + mémoire
+## — Surface outil complète : outils atomiques + HTTP + mémoire
 
 **Statut :** LIVRÉ ✅ | **Stories :** 22/22 | **ADR :** ADR-043
 
@@ -576,7 +575,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 26 — Client MCP : intégration universelle des outils externes
+## — Client MCP : intégration universelle des outils externes
 
 **Statut :** LIVRÉ ✅ | **Stories :** 19/19 | **ADR :** ADR-044
 
@@ -595,7 +594,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 28 — Configuration Runtime Unifiée : SQLite-first
+## — Configuration Runtime Unifiée : SQLite-first
 
 **Statut :** LIVRÉ ✅ | **Stories :** 12/12 | **ADR :** ADR-047
 
@@ -613,9 +612,9 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 29 — Worker Agents V1 : excel-worker + csv-data-worker
+## — Worker Agents V1 : excel-worker + csv-data-worker
 
-**Statut :** LIVRÉ ✅ | **Stories :** 6/7 (STORY-392 différée Sprint 30) | **ADR :** ADR-048
+**Statut :** LIVRÉ ✅ | **Stories :** 6/7 (différée ) | **ADR :** ADR-048
 
 ### Ce qui a été implémenté
 - Pattern Worker Agent : `WorkerAgent(BaseReActAgent)` dans le SDK Python
@@ -631,7 +630,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 30 — A2A Routing V1 + Benchmark Worker Agent Pattern
+## — A2A Routing V1 + Benchmark Worker Agent Pattern
 
 **Statut :** LIVRÉ ✅ | **Stories :** 9/9 | **ADR :** ADR-049
 
@@ -650,7 +649,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 31 — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre
+## — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADR :** —
 
@@ -666,7 +665,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires
+## — A2A complet + Distribution locale + Worker Agents communautaires
 
 **Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **ADR :** ADR-050
 
@@ -690,7 +689,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 33 — Onboarding interactif multi-phases
+## — Onboarding interactif multi-phases
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13
 
@@ -703,7 +702,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 34 — Beta Hardening: Technical Debt, Security & Robustness
+## — Beta Hardening: Technical Debt, Security & Robustness
 
 **Statut :** LIVRÉ ✅ | **Stories :** 24/25 (1 🚫 Windows sandbox reporté) | **ADRs :** ADR-051→055
 
@@ -719,7 +718,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 - Tests E2E Tauri automatisés (5 tests)
 - apollia-stt tests renforcés (22 → ~40)
 - CUDA compile check CI
-- 🚫 STORY-451 (Windows sandbox) reporté post-v1
+- 🚫 (Windows sandbox) reporté post-v1
 
 ### Primitives agent disponibles
 - 9 Worker Agents total (6 précédents + browser + email + slack)
@@ -727,7 +726,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 35 — Workspace Intelligence & Execution Performance
+## — Workspace Intelligence & Execution Performance
 
 **Statut :** LIVRÉ ✅ | **Stories :** 13/13 | **ADRs :** ADR-056→060
 
@@ -753,7 +752,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 36 — Permissions, MCP Server & Intelligence UX
+## — Permissions, MCP Server & Intelligence UX
 
 **Statut :** LIVRÉ ✅ | **Stories :** 16/16 | **ADRs :** ADR-061→063
 
@@ -781,7 +780,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 37 — Parité complète TypeScript
+## — Parité complète TypeScript
 
 **Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **ADRs :** ADR-064→068
 
@@ -811,7 +810,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 38 — Autonomie filesystem
+## — Autonomie filesystem
 
 **Statut :** LIVRÉ ✅ | **Stories :** 5/5 | **ADR :** ADR-069
 
@@ -828,7 +827,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 39 — Agents qui travaillent : Restructuration & Premiers Assistants Réels
+## — Agents qui travaillent : Restructuration & Premiers Assistants Réels
 
 **Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **ADR :** ADR-070
 
@@ -848,7 +847,7 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ---
 
-## Sprint 40 — Context Bootstrapping & SDK 0.3.0
+## — Context Bootstrapping & SDK 0.3.0
 
 **Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADRs :** ADR-070, ADR-071
 
@@ -870,11 +869,11 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 
 ## Sprints non livrés
 
-### Sprint 16 — MVP Demo-Ready UI/UX bimodale
+### — MVP Demo-Ready UI/UX bimodale
 **Statut :** 🔲 À planifier | **Stories :** 27 planifiées
 Objectif : UI bimodale (Builder + Opérateur), agent install/persistence SQLite, dark mode, i18n, glassmorphism.
 
-### Sprint 19 — Refonte UI/UX 8 pages restantes
+### — Refonte UI/UX 8 pages restantes
 **Statut :** 🔲 À faire | **Stories :** 14 planifiées
 Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 
@@ -925,10 +924,10 @@ Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 
 | ID | Sévérité | Description | Depuis |
 |---|---|---|---|
-| DT-010 | Moyenne | cgroups hardening incomplet | Sprint 2 |
-| DT-011 | Moyenne | mount namespace tmpfs non implémenté | Sprint 2 |
-| DT-023 | Moyenne | `Arc<Mutex<MemoryManager>>` viole pattern acteur | Sprint 4 |
-| DT-030 | Basse | `main.rs` apollia-cli monolithique (539+ loc) | Sprint 5 |
-| DT-034 | Basse | Socket path Unix hardcodé | Sprint 5 |
-| DT-035 | Moyenne | Tests `python-tests` pas en CI Linux | Sprint 6 |
-| DT-037 | Basse | `apollia-cli` couplé à `apollia-aip` | Sprint 6 |
+| DT-010 | Moyenne | cgroups hardening incomplet | |
+| DT-011 | Moyenne | mount namespace tmpfs non implémenté | |
+| DT-023 | Moyenne | `Arc<Mutex<MemoryManager>>` viole pattern acteur | |
+| DT-030 | Basse | `main.rs` apollia-cli monolithique (539+ loc) | |
+| DT-034 | Basse | Socket path Unix hardcodé | |
+| DT-035 | Moyenne | Tests `python-tests` pas en CI Linux | |
+| DT-037 | Basse | `apollia-cli` couplé à `apollia-aip` | |

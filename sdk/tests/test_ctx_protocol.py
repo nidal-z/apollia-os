@@ -8,9 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Importability  # NOSONAR
-# ──────────────────────────────────────────────────────────────────────
+# Importability
 
 
 def test_ctx_importable_from_apollia_types() -> None:

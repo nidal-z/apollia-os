@@ -646,4 +646,4 @@ pub struct PastSessionSummary {
 - [Memory Engine](./Briques-Memory-Engine.md) — UserMemoryRepository et namespace `__user__`
 - [Notifications](./Briques-Notifications.md) — evenement `chat.approval_required`
 - [Desktop](./Briques-Desktop.md) — commandes Tauri IPC
-- [API-HTTP-Agents](./API-HTTP-Agents#chat-sprint-18) — reference complete des endpoints Chat
+- [API-HTTP-Agents](./API-HTTP-Agents#chat-) — reference complete des endpoints Chat

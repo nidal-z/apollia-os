@@ -7,10 +7,10 @@
 //! - **Reuses the user's default LLM backend** via [`LlmRouter::get(None)`]:
 //!   never allocates a second model nor performs a cloud call the user
 //!   has not already authorised.
-//! - **Whitelisted action surface**: each suggestion points to either a
+//! - **Allowlisted action surface**: each suggestion points to either a
 //!   known Apollia route (`/memory`, `/automations`, `/templates`, …) or
 //!   a known Tauri command (`memory_insert`, …). The parser drops any
-//!   action outside the whitelist so the LLM cannot invent invalid links.
+//!   action outside the allowlist so the LLM cannot invent invalid links.
 //! - **Graceful fallback**: any LLM error yields 3 generic heuristics so
 //!   the panel always renders something useful.
 //! - **Bounded output**: max 3 cards, each with `{title, description,
@@ -30,7 +30,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 /// Max number of cards ever returned, regardless of LLM output.
 pub const MAX_NEXT_STEPS: usize = 3;
 
-/// Allowed navigation routes, a mirror of the frontend whitelist. Any suggestion
+/// Allowed navigation routes, a mirror of the frontend allowlist. Any suggestion
 /// referencing a route not in this list is silently dropped.
 const ALLOWED_ROUTES: &[&str] = &[
     "/dashboard",
@@ -140,9 +140,9 @@ pub struct NextStepsFacts {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum NextStepAction {
-    /// Navigate to a whitelisted Apollia route.
+    /// Navigate to an allowlisted Apollia route.
     Navigate,
-    /// Invoke a whitelisted Tauri command.
+    /// Invoke an allowlisted Tauri command.
     Invoke,
 }
 
@@ -152,7 +152,7 @@ pub enum NextStepAction {
 pub struct NextStepButton {
     /// User-visible label (translated by the frontend when needed).
     pub label: String,
-    /// Action kind, restricted to the whitelist above.
+    /// Action kind, restricted to the allowlist above.
     pub action: NextStepAction,
     /// For `navigate`: `{"route": "/memory?new"}`. For `invoke`:
     /// `{"command": "memory_insert", "args": {...}}`.
@@ -218,7 +218,7 @@ const PROMPT_HEADER: &str = "\
 You are a productivity coach inside Apollia OS. From the provided facts, \
 propose 2 to 3 concrete, immediately doable next steps the user can take \
 INSIDE Apollia. Each step MUST reference a real Apollia route or Tauri \
-command from the whitelist below — never invent routes.
+command from the allowlist below — never invent routes.
 
 Respond with a single JSON object matching EXACTLY this schema:
 {

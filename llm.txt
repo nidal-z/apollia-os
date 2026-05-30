@@ -50,7 +50,7 @@ apollia-v2/
 │   ├── stubs/memory.py     ← MemoryProxy stub (remember, recall, recall_procedure, etc.)
 │   └── apollia/            ← Public package (exports, agent base classes)
 │
-├── book/                   ← mdBook pedagogical documentation (ch01–ch19 + appendices A-F)
+├── docs/book/                   ← mdBook pedagogical documentation (ch01–ch19 + appendices A-F)
 │   ├── book.toml           ← Build config (output: target/book/)
 │   └── src/                ← Markdown chapters + appendix-a-diagrams/ (SVGs)
 │
@@ -320,7 +320,7 @@ Default locale: system → FR fallback.
 | Design system | `docs/wiki/DESIGN-SYSTEM.md` |
 | All ADRs | `docs/adr/` (ADR-001 to ADR-082) |
 | ADR summary | `docs/wiki/Decisions-Log.md` |
-| Pedagogical book | `book/src/` (build: `mdbook build book/`) |
+| Pedagogical book | `docs/book/src/` (build: `mdbook build docs/book/`) |
 | Sprint history | `docs/internal/STORIES/sprint-index.md` |
 | Launch backlog | `docs/internal/LAUNCH-BACKLOG.md` |
 
@@ -358,8 +358,8 @@ governance.db, ToolRegistry scope-aware, 3-scope HITL).
 cargo test --workspace             # all tests
 cargo test -p apollia-XXX          # specific crate
 just docs                          # build all documentation
-mdbook serve book/ --open          # local book dev server
-just diagrams                      # regenerate PlantUML SVGs → book/src/appendix-a-diagrams/
+mdbook serve docs/book/ --open          # local book dev server
+just diagrams                      # regenerate PlantUML SVGs → docs/book/src/appendix-a-diagrams/
 ```
 
 **Python SDK testing:**

@@ -340,7 +340,7 @@ def test_validate_extra_field_rejected() -> None:
 
 def test_validate_payload_not_dict() -> None:
     with pytest.raises(PayloadError):
-        validate_payload([], {"type": "object"})  # type: ignore[arg-type]
+        validate_payload([], {"type": "object"})  # type: ignore[arg-type]  # NOSONAR S5655: intentional bad type to verify PayloadError is raised on non-dict payload
 
 
 def test_validate_with_optional() -> None:

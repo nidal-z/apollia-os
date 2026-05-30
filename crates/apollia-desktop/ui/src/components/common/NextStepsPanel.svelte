@@ -5,7 +5,7 @@
    * or the end-of-session debrief (`context="session_end"`).
    *
    * The store handles caching, dismiss persistence, and feedback. This
-   * component is the thin presentational layer + a whitelist-enforcing
+   * component is the thin presentational layer + an allowlist-enforcing
    * action resolver so the LLM cannot steer the app anywhere it should
    * not go.
    */
@@ -46,9 +46,9 @@
 
   const visible = $derived(nextSteps.visible(scopeKey));
 
-  // ── Whitelists (mirror backend, last line of defence) ────────────────
+  // ── Allowlists (mirror backend, last line of defence) ────────────────
 
-  const ROUTE_WHITELIST: Record<string, { route: Route }> = {
+  const ROUTE_ALLOWLIST: Record<string, { route: Route }> = {
     "/dashboard": { route: "dashboard" },
     "/agents": { route: "agents" },
     "/projects": { route: "projects" },
@@ -67,7 +67,7 @@
     "/settings": { route: "settings" },
   };
 
-  const COMMAND_WHITELIST = new Set([
+  const COMMAND_ALLOWLIST = new Set([
     "memory_insert",
     "create_trigger",
     "install_agent",
@@ -101,18 +101,18 @@
     const btn = step.actionButton;
     if (btn.action === "navigate") {
       const route = btn.payload?.route as string | undefined;
-      const hit = route ? ROUTE_WHITELIST[route] : undefined;
+      const hit = route ? ROUTE_ALLOWLIST[route] : undefined;
       if (hit) {
         navigateTo(hit.route);
       } else {
-        console.warn("next-steps: dropped non-whitelisted route", route);
+        console.warn("next-steps: dropped non-allowlisted route", route);
       }
       return;
     }
     if (btn.action === "invoke") {
       const command = btn.payload?.command as string | undefined;
-      if (!command || !COMMAND_WHITELIST.has(command)) {
-        console.warn("next-steps: dropped non-whitelisted command", command);
+      if (!command || !COMMAND_ALLOWLIST.has(command)) {
+        console.warn("next-steps: dropped non-allowlisted command", command);
         return;
       }
       const args = (btn.payload?.args as Record<string, unknown> | undefined) ?? {};

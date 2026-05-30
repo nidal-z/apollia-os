@@ -23,7 +23,7 @@ export const pendingCount = derived(
 
 /** Request notification permission if not already granted or denied. */
 export function requestNotificationPermission(): void {
-  if ("Notification" in window && Notification.permission === "default") {
+  if ("Notification" in globalThis && Notification.permission === "default") {
     Notification.requestPermission();
   }
 }

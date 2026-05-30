@@ -163,9 +163,7 @@ async def test_react_negative_max_steps_raises_domain_error() -> None:
     assert exc_info.value.code == "REACT_MAX_STEPS"
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Observability  # NOSONAR
-# ──────────────────────────────────────────────────────────────────────
+# Observability
 
 
 @pytest.mark.asyncio

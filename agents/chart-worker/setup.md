@@ -92,7 +92,7 @@ Le `skill_id` reçu n'est pas dans la liste : `"chart.bar", "chart.line", "chart
 
 ### `INVALID_FORMAT`
 
-Extension non whitelistée. Seuls `.png` et `.svg` sont acceptés. Pour JPEG/PDF/EPS/PS : non supportés en v0.1.0.
+Extension hors allowlist. Seuls `.png` et `.svg` sont acceptés. Pour JPEG/PDF/EPS/PS : non supportés en v0.1.0.
 
 ### `INVALID_DATA: NaN ou Inf`
 
@@ -106,7 +106,7 @@ Total data points > 1 000 000. Options :
 
 ### `INVALID_COLORMAP`
 
-Colormap hors whitelist. Valeurs acceptées : `viridis`, `plasma`, `magma`, `inferno`, `Blues`, `Reds`, `Greens`, `RdBu`.
+Colormap hors allowlist. Valeurs acceptées : `viridis`, `plasma`, `magma`, `inferno`, `Blues`, `Reds`, `Greens`, `RdBu`.
 
 ### `INVALID_STYLE: Couleur hex invalide`
 

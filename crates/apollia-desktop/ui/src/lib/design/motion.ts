@@ -78,9 +78,6 @@ export function rm<T extends { duration?: number; delay?: number }>(params: T): 
   return { ...params, duration: 0, delay: 0 };
 }
 
-export type SpringPreset = keyof typeof spring;
-export type DurationKey = keyof typeof duration;
-
 export const motion = {
   spring,
   springPhysics,
@@ -89,5 +86,3 @@ export const motion = {
   prefersReducedMotion,
   rm,
 } as const;
-
-export default motion;

@@ -251,15 +251,12 @@ name = "apollia-auth"
 version = "0.1.0"
 dependencies = [
  "age",
- "apollia-core",
  "axum",
  "base64 0.22.1",
  "chrono",
  "dashmap",
  "dirs 5.0.1",
- "futures",
  "keyring",
- "open",
  "rand 0.8.5",
  "reqwest 0.12.28",
  "serde",
@@ -288,7 +285,6 @@ dependencies = [
  "apollia-oria",
  "apollia-permissions",
  "apollia-runtime",
- "apollia-stt",
  "apollia-tools",
  "apollia-triggers",
  "apollia-workspace",
@@ -439,13 +435,11 @@ dependencies = [
  "hex",
  "hmac",
  "pyo3",
- "reqwest 0.12.28",
  "rusqlite",
  "serde_json",
  "sha2",
  "tempfile",
  "tokio",
- "tracing",
  "uuid",
  "wiremock",
 ]
@@ -469,7 +463,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
  "tokio-util",
  "toml 0.8.23",
  "tracing",
@@ -592,17 +585,13 @@ dependencies = [
  "futures",
  "hound",
  "llama-cpp-2",
- "llama-cpp-sys-2",
- "prometheus",
  "reqwest 0.12.28",
  "rubato",
  "serde",
  "serde_json",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
- "tokio-util",
  "tracing",
  "tracing-subscriber",
  "uuid",
@@ -5521,27 +5510,6 @@ checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
 ]
-
-[[package]]
-name = "prometheus"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d33c28a30771f7f96db69893f78b857f7450d7e0237e9c8fc6427a81bae7ed1"
-dependencies = [
- "cfg-if",
- "fnv",
- "lazy_static",
- "memchr",
- "parking_lot",
- "protobuf",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protobuf"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
 name = "pxfm"

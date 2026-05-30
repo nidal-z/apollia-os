@@ -10,14 +10,6 @@ export interface ToolStatusDto {
   active_backend: string | null;
 }
 
-/** Métadonnée d'une credential — la valeur claire ne traverse jamais la frontière IPC. */
-export interface CredentialEntryDto {
-  tool_name: string;
-  key_name: string;
-  created_at: string;
-  last_used_at: string | null;
-}
-
 /** Résultat d'une validation live de credential. */
 export interface CredentialTestResultDto {
   ok: boolean;

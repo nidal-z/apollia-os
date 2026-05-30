@@ -4,13 +4,13 @@ use std::collections::HashMap;
 // ─── Figma: remote MCP awaiting Catalog approval ───────────────────────────
 //
 // Figma's `https://mcp.figma.com/mcp` endpoint is gated to a private MCP
-// Catalog whitelist (Claude.ai, Cursor, Windsurf, ...). Apollia has applied
+// Catalog allowlist (Claude.ai, Cursor, Windsurf, ...). Apollia has applied
 // for inclusion via the waitlist at https://figma.com/mcp-catalog. Until
 // approval, the curated `com.figma/mcp` entry points to the LOCAL Dev Mode
 // MCP server (127.0.0.1:3845/mcp, no auth; identity provided by the
 // running Figma Desktop session).
 //
-// Once Figma whitelists Apollia, restore the remote enrichment by replacing
+// Once Figma allowlists Apollia, restore the remote enrichment by replacing
 // the local block in `enrichments.json` with the snippet below (and re-add
 // `oauth_pre_registered_client_id_env` in `ConnectorEnrichment` consumers
 // (already present in the struct, no schema change needed):

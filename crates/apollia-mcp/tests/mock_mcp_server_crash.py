@@ -9,8 +9,8 @@ import json
 import sys
 
 
-def respond(id, result):
-    response = {"jsonrpc": "2.0", "id": id, "result": result}
+def respond(request_id, result):
+    response = {"jsonrpc": "2.0", "id": request_id, "result": result}
     sys.stdout.write(json.dumps(response) + "\n")
     sys.stdout.flush()
 
@@ -22,10 +22,10 @@ def main():
             continue
         msg = json.loads(line)
         method = msg.get("method")
-        id = msg.get("id")
+        request_id = msg.get("id")
 
         if method == "initialize":
-            respond(id, {
+            respond(request_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "crash-mcp-server", "version": "1.0.0"}
@@ -33,7 +33,7 @@ def main():
         elif method == "notifications/initialized":
             pass  # notification, no response
         elif method == "tools/list":
-            respond(id, {
+            respond(request_id, {
                 "tools": [
                     {
                         "name": "echo",

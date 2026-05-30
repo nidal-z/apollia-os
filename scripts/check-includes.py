@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Vérifie les includes cassés dans book/src/."""
+"""Vérifie les includes cassés dans docs/book/src/."""
 import os
 import glob
 import re
 import sys
 
 errors = 0
-for md in glob.glob('book/src/**/*.md', recursive=True):
+for md in glob.glob('docs/book/src/**/*.md', recursive=True):
     d = os.path.dirname(md)
     for line in open(md):
         m = re.search(r'#include\s+([^\s}]+)', line)

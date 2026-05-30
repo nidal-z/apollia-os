@@ -1,6 +1,3 @@
-//! Logging structuré + métriques optionnelles.
+//! Structured logging for the runner.
 
 pub mod logs;
-
-#[cfg(feature = "metrics")]
-pub mod metrics;

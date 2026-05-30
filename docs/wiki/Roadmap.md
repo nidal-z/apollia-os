@@ -16,9 +16,9 @@
 - ✅ CLI complète niveau 1 + niveau 2
 - ✅ Supervisor + graceful shutdown
 - ✅ 342 tests + CI GitHub Actions
-- ✅ Chat hybride : Chat Libre (ReAct Rust, streaming) + Chat Agent (Python) [Sprint 18]
-- ✅ HITL inline (Accept/Refuse/Always Accept) dans le chat [Sprint 18]
-- ✅ Application Desktop (Tauri v2 + Svelte 5) avec 46 commandes IPC [Sprint 14-18]
+- ✅ Chat hybride : Chat Libre (ReAct Rust, streaming) + Chat Agent (Python) []
+- ✅ HITL inline (Accept/Refuse/Always Accept) dans le chat []
+- ✅ Application Desktop (Tauri v2 + Svelte 5) avec 46 commandes IPC [-18]
 
 **Livrable :** `cargo install apollia-os` — premier agent en 5 minutes.
 

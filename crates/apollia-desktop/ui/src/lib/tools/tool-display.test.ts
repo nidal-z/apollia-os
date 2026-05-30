@@ -292,7 +292,7 @@ describe("truncatePath", () => {
   });
 
   test("handles Windows-style backslash paths", () => {
-    const result = truncatePath("C:\\Users\\user\\Documents\\Projects\\code\\file.ts", 30);
+    const result = truncatePath(String.raw`C:\Users\user\Documents\Projects\code\file.ts`, 30);
     expect(result.endsWith("file.ts")).toBe(true);
   });
 

@@ -18,7 +18,6 @@ apollia-tools    = { workspace = true }
 apollia-llm      = { workspace = true }
 apollia-triggers = { workspace = true }
 tokio            = { workspace = true }
-tracing          = { workspace = true }
 uuid             = { workspace = true }
 serde_json       = { workspace = true }
 async-trait      = { workspace = true }
@@ -33,7 +32,6 @@ pyo3                  = { workspace = true, optional = true }
 apollia-memory       = { workspace = true }
 apollia-mcp          = { workspace = true }
 apollia-notifications = { workspace = true }
-reqwest               = { workspace = true, features = ["json"] }
 rusqlite              = { workspace = true }
 chrono                = { workspace = true }
 

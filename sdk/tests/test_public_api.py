@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
 
-import pytest
 
 
 def test_top_level_decorators_importable() -> None:

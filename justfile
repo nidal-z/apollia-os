@@ -15,10 +15,10 @@ macos_target := "aarch64-apple-darwin"
 # Generate all SVGs from .puml files
 diagrams:
     @echo "→ Génération des diagrammes PlantUML..."
-    @mkdir -p book/src/appendix-a-diagrams
+    @mkdir -p docs/book/src/appendix-a-diagrams
     @if command -v plantuml > /dev/null 2>&1; then \
         plantuml -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
-        echo "✅ SVGs générés dans book/src/appendix-a-diagrams/"; \
+        echo "✅ SVGs générés dans docs/book/src/appendix-a-diagrams/"; \
     elif [ -f ~/.local/bin/plantuml.jar ]; then \
         java -jar ~/.local/bin/plantuml.jar -tsvg -o "$(pwd)/book/src/appendix-a-diagrams/" docs/diagrams/*.puml && \
         echo "✅ SVGs générés depuis plantuml.jar"; \
@@ -49,14 +49,14 @@ adr-index:
             slug=$$(basename "$$f" .md | tr '[:upper:]' '[:lower:]'); \
             echo "| $$num | [$$title](./$$slug.md) | Accepté |"; \
         done; \
-    } > book/src/decisions/index.md
-    @echo "✅ Index ADR → book/src/decisions/index.md"
+    } > docs/book/src/decisions/index.md
+    @echo "✅ Index ADR → docs/book/src/decisions/index.md"
 
 # Build mdBook
 book:
     @echo "→ Build mdBook..."
     @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
-    mdbook build book/
+    mdbook build docs/book/
     @echo "✅ Book → target/book/"
 
 # Full docs build (order: diagrams -> adr-index -> book)
@@ -70,9 +70,9 @@ docs: diagrams adr-index book
 dev:
     @echo "→ Démarrage du serveur de dev..."
     @command -v mdbook > /dev/null 2>&1 || (echo "❌ mdbook non installé: cargo install mdbook" && exit 1)
-    mdbook serve book/ --open
+    mdbook serve docs/book/ --open
 
-# Check broken includes in book/src/
+# Check broken includes in docs/book/src/
 check-includes:
     @python3 scripts/check-includes.py
 
@@ -191,5 +191,5 @@ clean:
 
 # Full clean including generated SVGs
 clean-all: clean
-    rm -f book/src/appendix-a-diagrams/*.svg
+    rm -f docs/book/src/appendix-a-diagrams/*.svg
     @echo "✅ Nettoyage complet"

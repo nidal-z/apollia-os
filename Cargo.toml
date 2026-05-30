@@ -43,6 +43,11 @@ default-members = [
     "tests",
 ]
 
+# Shared workspace-level package metadata. Individual crates may opt into
+# these defaults via `<field>.workspace = true` in their own Cargo.toml.
+[workspace.package]
+rust-version = "1.84"
+
 # Centralize all dependency versions here.
 # Individual crates use { workspace = true } — never specify versions inline.
 [workspace.dependencies]

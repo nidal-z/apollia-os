@@ -46,12 +46,12 @@ class MockA2A:
         self.skill_cards: dict[str, dict[str, Any]] = {}
         self.skills_list: list[dict[str, Any]] = []
 
-    async def invoke(  # NOSONAR S7503,S1172 — Protocol contract
+    async def invoke(  # NOSONAR S7503 S1172: Protocol contract
         self,
         skill_id: str,
         input: dict[str, Any] | None = None,
         *,
-        timeout_secs: int = 120,
+        timeout_secs: int = 120,  # noqa: ARG002  # NOSONAR S1172: Protocol kwarg
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Record the call and return the configured response.

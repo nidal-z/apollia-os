@@ -534,18 +534,31 @@ def _validate_type_decl(value: Any, type_decl: Any, path: str) -> None:
     )
 
 
+def _index_path(path: str, idx: int) -> str:
+    return f"{path}[{idx}]" if path else f"[{idx}]"
+
+
+def _validate_items(value: list[Any], items_schema: dict[str, Any], path: str) -> None:
+    for idx, item in enumerate(value):
+        _validate_value(item, items_schema, _index_path(path, idx))
+
+
+def _validate_prefix_items(
+    value: list[Any], prefix_items: list[Any], path: str
+) -> None:
+    for idx, sub_schema in enumerate(prefix_items):
+        if idx >= len(value):
+            break
+        _validate_value(value[idx], sub_schema, _index_path(path, idx))
+
+
 def _validate_array_value(value: list[Any], schema: dict[str, Any], path: str) -> None:
     items_schema = schema.get("items")
     if isinstance(items_schema, dict):
-        for idx, item in enumerate(value):
-            _validate_value(item, items_schema, f"{path}[{idx}]" if path else f"[{idx}]")
+        _validate_items(value, items_schema, path)
     prefix_items = schema.get("prefixItems")
     if isinstance(prefix_items, list):
-        for idx, sub_schema in enumerate(prefix_items):
-            if idx < len(value):
-                _validate_value(
-                    value[idx], sub_schema, f"{path}[{idx}]" if path else f"[{idx}]"
-                )
+        _validate_prefix_items(value, prefix_items, path)
 
 
 def _is_array_type(type_decl: Any, value: Any) -> bool:

@@ -101,7 +101,8 @@ describe("agent filtering", () => {
   });
 
   test("detects empty state when list is empty", () => {
-    const list: AgentListItem[] = []; // NOSONAR typescript:S4158
-    expect(list.filter((a) => a.agent_type !== "system").length).toBe(0);
+    const list: AgentListItem[] = [];
+    // Verify the filter doesn't throw on an empty list (the empty result is the assertion).
+    expect(list.filter((a) => a.agent_type !== "system").length).toBe(0); // NOSONAR typescript:S4158
   });
 });

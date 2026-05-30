@@ -119,7 +119,7 @@ jobs:
       - uses: taiki-e/install-action@mdbook
       - run: mdbook build book
       - name: Generate sitemap + robots
-        run: bash book/scripts/gen-sitemap.sh book.apollia.fr target/book
+        run: bash docs/book/scripts/gen-sitemap.sh book.apollia.fr target/book
 
   doc-charte:
     name: Doc Charte L1.4
@@ -128,7 +128,7 @@ jobs:
     # chaque changement code.
     if: |
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'book/src/') ||
+      contains(github.event.head_commit.modified, 'docs/book/src/') ||
       contains(github.event.head_commit.modified, 'docs/wiki/') ||
       contains(github.event.head_commit.modified, 'docs/help/') ||
       contains(github.event.head_commit.modified, 'scripts/lints/')

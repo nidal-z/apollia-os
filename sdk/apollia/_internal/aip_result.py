@@ -173,6 +173,47 @@ def from_handler_return(value: Any) -> dict[str, Any]:
     return completed(text=str(value))
 
 
+def _payload_error_details(exc: PayloadError) -> dict[str, Any] | None:
+    """Build the ``details`` dict for a PayloadError.
+
+    Preserves the explicit ``field`` over any duplicate inside
+    ``exc.details``.
+    """
+    details: dict[str, Any] = {}
+    if exc.field is not None:
+        details["field"] = exc.field
+    if exc.details:
+        for k, v in exc.details.items():
+            # Don't overwrite explicit "field" from the exception.
+            if k not in details:
+                details[k] = v
+    return details if details else None
+
+
+def _from_payload_error(exc: PayloadError) -> dict[str, Any]:
+    return failed("PAYLOAD_ERROR", exc.message, _payload_error_details(exc))
+
+
+def _from_skill_not_found(exc: SkillNotFound) -> dict[str, Any]:
+    return failed(
+        "UNKNOWN_SKILL_ID",
+        str(exc),
+        {"requested": exc.skill_id, "known": list(exc.known)},
+    )
+
+
+# Dispatch table: each entry maps an exception type to a builder function.
+# Ordered: first match wins, so subclasses must appear before parents.
+_EXCEPTION_DISPATCH: tuple[tuple[type, Any], ...] = (
+    (DomainError, lambda exc: failed(exc.code, exc.message, exc.details)),
+    (NeedHumanInput, lambda exc: input_required(exc.prompt, exc.context)),
+    (PayloadError, _from_payload_error),
+    (SchemaError, lambda exc: failed("SCHEMA_ERROR", str(exc))),
+    (SkillNotFound, _from_skill_not_found),
+    (AgentConfigError, lambda exc: failed("AGENT_CONFIG_ERROR", str(exc))),
+)
+
+
 def from_exception(
     exc: BaseException,
     *,
@@ -191,35 +232,9 @@ def from_exception(
     - any other ``Exception`` → ``failed("EXECUTION_FAILED", str(exc))`` and
       logged via ``logger.exception`` when a logger is provided.
     """
-    if isinstance(exc, DomainError):
-        return failed(exc.code, exc.message, exc.details)
-
-    if isinstance(exc, NeedHumanInput):
-        return input_required(exc.prompt, exc.context)
-
-    if isinstance(exc, PayloadError):
-        details: dict[str, Any] = {}
-        if exc.field is not None:
-            details["field"] = exc.field
-        if exc.details:
-            for k, v in exc.details.items():
-                # Don't overwrite explicit "field" from the exception.
-                if k not in details:
-                    details[k] = v
-        return failed("PAYLOAD_ERROR", exc.message, details if details else None)
-
-    if isinstance(exc, SchemaError):
-        return failed("SCHEMA_ERROR", str(exc))
-
-    if isinstance(exc, SkillNotFound):
-        return failed(
-            "UNKNOWN_SKILL_ID",
-            str(exc),
-            {"requested": exc.skill_id, "known": list(exc.known)},
-        )
-
-    if isinstance(exc, AgentConfigError):
-        return failed("AGENT_CONFIG_ERROR", str(exc))
+    for exc_type, builder in _EXCEPTION_DISPATCH:
+        if isinstance(exc, exc_type):
+            return builder(exc)
 
     if logger is not None:
         logger.exception("agent handler raised an unhandled exception")

@@ -44,7 +44,7 @@ def test_orchestrated_whitespace_only_prompt_raises() -> None:
 
 def test_orchestrated_non_string_prompt_raises() -> None:
     with pytest.raises(AgentConfigError, match="non-empty"):
-        orchestrated(system_prompt=42)  # type: ignore[arg-type]
+        orchestrated(system_prompt=42)  # type: ignore[arg-type]  # NOSONAR S5655: intentional bad type to verify the decorator rejects non-strings
 
 
 def test_orchestrated_on_non_class_raises() -> None:

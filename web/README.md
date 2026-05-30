@@ -4,7 +4,7 @@ Trois sites statiques HTML/CSS/JS prêts à déployer sur 3 sous-domaines indép
 
 | Sous-domaine cible | Source | Générateur | Build path |
 |---|---|---|---|
-| `book.apollia.fr` | `book/src/` | mdBook (Rust) | `target/book/` → `web/dist/book/` |
+| `book.apollia.fr` | `docs/book/src/` | mdBook (Rust) | `target/book/` → `web/dist/book/` |
 | `docs.apollia.fr` | `docs/wiki/` | VitePress (Vue/Vite) | `web/wiki-site/.vitepress/dist/` → `web/dist/wiki/` |
 | `guide.apollia.fr` | `help/` | VitePress (Vue/Vite) | `web/help-site/.vitepress/dist/` → `web/dist/help/` |
 

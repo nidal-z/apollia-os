@@ -166,28 +166,53 @@ function intervalToSeconds(config: string): number | null {
   return value;
 }
 
+/**
+ * Picks the largest time-unit bucket the seconds value fits into evenly.
+ * Falls back to seconds.
+ */
+function pickIntervalBucket(
+  seconds: number,
+): { count: number; unit: "d" | "h" | "m" | "s" } {
+  if (seconds >= 86_400 && seconds % 86_400 === 0) {
+    return { count: seconds / 86_400, unit: "d" };
+  }
+  if (seconds >= 3600 && seconds % 3600 === 0) {
+    return { count: seconds / 3600, unit: "h" };
+  }
+  if (seconds >= 60 && seconds % 60 === 0) {
+    return { count: seconds / 60, unit: "m" };
+  }
+  return { count: seconds, unit: "s" };
+}
+
+const INTERVAL_LABELS: Record<
+  "d" | "h" | "m" | "s",
+  Record<Locale, (n: number, plural: string) => string>
+> = {
+  d: {
+    fr: (n, p) => `Tous les ${n} jour${p}`,
+    en: (n, p) => `Every ${n} day${p}`,
+  },
+  h: {
+    fr: (n, p) => `Toutes les ${n} heure${p}`,
+    en: (n, p) => `Every ${n} hour${p}`,
+  },
+  m: {
+    fr: (n) => `Toutes les ${n} minutes`,
+    en: (n) => `Every ${n} minutes`,
+  },
+  s: {
+    fr: (n, p) => `Toutes les ${n} seconde${p}`,
+    en: (n, p) => `Every ${n} second${p}`,
+  },
+};
+
 function humanizeInterval(config: string, loc: Locale): string | null {
   const seconds = intervalToSeconds(config);
   if (seconds === null) return null;
-
-  if (seconds >= 86_400 && seconds % 86_400 === 0) {
-    const d = seconds / 86_400;
-    const plural = d > 1 ? "s" : "";
-    return loc === "fr" ? `Tous les ${d} jour${plural}` : `Every ${d} day${plural}`;
-  }
-  if (seconds >= 3600 && seconds % 3600 === 0) {
-    const h = seconds / 3600;
-    const plural = h > 1 ? "s" : "";
-    return loc === "fr" ? `Toutes les ${h} heure${plural}` : `Every ${h} hour${plural}`;
-  }
-  if (seconds >= 60 && seconds % 60 === 0) {
-    const m = seconds / 60;
-    return loc === "fr" ? `Toutes les ${m} minutes` : `Every ${m} minutes`;
-  }
-  const plural = seconds > 1 ? "s" : "";
-  return loc === "fr"
-    ? `Toutes les ${seconds} seconde${plural}`
-    : `Every ${seconds} second${plural}`;
+  const { count, unit } = pickIntervalBucket(seconds);
+  const plural = count > 1 ? "s" : "";
+  return INTERVAL_LABELS[unit][loc](count, plural);
 }
 
 function extractWebhookSource(config: string): string | null {

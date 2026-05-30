@@ -21,7 +21,7 @@ from apollia.types import (
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
-# text()
+# Tests for the text() helper
 
 
 def test_text_returns_text_block() -> None:
@@ -33,7 +33,7 @@ def test_text_empty_string() -> None:
     assert text("") == {"type": "text", "text": ""}
 
 
-# image_from_url()
+# Tests for the image_from_url() helper
 
 
 def test_image_from_url_structure() -> None:
@@ -47,7 +47,7 @@ def test_image_from_url_structure() -> None:
         assert src["url"] == "https://example.com/cat.png"
 
 
-# image_from_bytes()
+# Tests for the image_from_bytes() helper
 
 
 def test_image_from_bytes_base64_encodes() -> None:
@@ -75,7 +75,7 @@ def test_image_from_bytes_accepts_various_image_mimes() -> None:
             assert src["media_type"] == mime
 
 
-# image_from_path()
+# Tests for the image_from_path() helper
 
 
 def test_image_from_path_encodes_file(tmp_path: Path) -> None:

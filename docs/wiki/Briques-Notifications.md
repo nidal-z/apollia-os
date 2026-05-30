@@ -610,8 +610,7 @@ Le `NotificationEngine` est démarré en **position 9** dans la séquence du Sup
 6. TriggerEngine   → déclenchement automatique
 7. APIServer       → connexions externes
 8. Dashboard       → observabilité HTMX + SSE
-9. NotifEngine     → alertes desktop / webhook  ← SPRINT 11
-```
+9. NotifEngine     → alertes desktop / webhook  ← ```
 
 Au démarrage, le Supervisor ouvre le `NotificationConfigRepository` depuis `data_dir/notifications.db`, reconstruit la `NotificationConfig` depuis les lignes SQLite, et instancie le `NotificationEngine` si des canaux sont configurés. Le repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
@@ -740,4 +739,4 @@ impl NotificationEngine {
 
 ---
 
-*Voir aussi : [API-HTTP-Workspace](./API-HTTP-Workspace#notifications-sprint-11-crud-sprint-17) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*
+*Voir aussi : [API-HTTP-Workspace](./API-HTTP-Workspace#notifications--crud-) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*

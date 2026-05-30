@@ -29,7 +29,7 @@ providers cloud.
 - 1 occurrence dans le repo (`agents/veille-ia/workers/synthesis-worker.py`)
   d'un dict `{"role": "user", "content": [{"type": "text", "text":
   "..."}, {"type": "image", ...}]}` manuel — aucune validation.
-- Aucune documentation book/wiki ne montre comment envoyer une image.
+- Aucune documentation docs/book/wiki ne montre comment envoyer une image.
 - Pas d'helper côté SDK (`apollia.types.image_from_path(p)`, etc.).
 
 **2. Memory export/import**

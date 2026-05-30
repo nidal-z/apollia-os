@@ -26,7 +26,7 @@ mailbox d'un autre sans bloquer.
   (recherche `grep -r "ctx\.send\|ctx\.receive" agents/` : 0 résultats).
 - **Aucun test SDK** ne couvre ces méthodes (`grep "send\|receive" sdk/
   tests/`: 0 hits sur les versions modernes).
-- **Aucune documentation** book/wiki n'explique quand utiliser
+- **Aucune documentation** docs/book/wiki n'explique quand utiliser
   `ctx.send/receive` vs `ctx.a2a_invoke` — la frontière est floue.
 - Sémantique douteuse : si A `send`-e à B, est-ce que B doit avoir un
   `on_message` ? Que se passe-t-il si B n'est pas démarré ? Persistance ?

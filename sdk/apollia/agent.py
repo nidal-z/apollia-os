@@ -19,8 +19,6 @@ from apollia._internal.dispatch import dispatch_task
 from apollia._internal.manifest import (
     AGENT_META_ATTR,
     MANIFEST_ATTR,
-    ON_MESSAGE_HANDLER_ATTR,
-    ORCHESTRATED_ATTR,
     SKILLS_REGISTRY_ATTR,
     build_manifest,
     find_on_message_handler,
@@ -92,7 +90,7 @@ def _check_optional_dict(name: str, value: Any) -> None:
         raise AgentConfigError(f"@agent: {name!r} must be a dict or None")
 
 
-def agent(  # noqa: PLR0913  # NOSONAR(python:S107)
+def agent(  # noqa: PLR0913  # NOSONAR S107: public decorator API surface
     *,
     name: str,
     version: str,

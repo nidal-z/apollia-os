@@ -95,8 +95,6 @@ export type ReasoningItem =
       url?: string | null;
     });
 
-export type ReasoningKind = ReasoningItem["kind"];
-
 const TOOL_STATUS_MAP: Record<ToolCallView["status"], ReasoningStatus> = {
   pending: "pending",
   authorized: "running",

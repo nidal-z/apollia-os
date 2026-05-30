@@ -30,12 +30,6 @@ export interface AuditEntryDto {
   decided_at: string;
 }
 
-/** Filtres appliqués à la liste des règles. `null` ⇒ pas de filtre. */
-export interface PermissionRuleFilter {
-  scope: PermissionRuleScope | null;
-  tool_name: string | null;
-}
-
 export const permissionRules = writable<PermissionRuleDto[]>([]);
 export const auditEntries = writable<AuditEntryDto[]>([]);
 export const loadingRules = writable<boolean>(false);

@@ -864,7 +864,7 @@ $ apollia mcp list --discover
   notion-mcp  192.168.1.10  8080  [search_pages, create_page]
 ```
 
-> **Voir aussi :** [Briques MCP §15](./Briques-MCP.md#15-hitl-mcp--approbations-sqlite--sprint-37)
+> **Voir aussi :** [Briques MCP §15](./Briques-MCP.md#15-hitl-mcp--approbations-sqlite--)
 
 ### `apollia memory export` / `import` / `purge` amélioré
 
@@ -897,7 +897,7 @@ $ apollia mcp-server                # 9 outils natifs
 $ apollia mcp-server --with-runtime # + outil submit_task
 ```
 
-> **Voir aussi :** [Briques MCP — Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--sprint-36)
+> **Voir aussi :** [Briques MCP — Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--)
 
 ### `apollia workspace`
 

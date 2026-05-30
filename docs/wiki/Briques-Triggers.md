@@ -473,8 +473,7 @@ Comportement interne :
 3. Tool Registry   → catalogue outils
 4. Memory Engine   → SQLite
 5. LlmRouter       → backends LLM
-6. TriggerEngine   → moteur de déclenchement  ← SPRINT 9
-7. APIServer       → connexions externes
+6. TriggerEngine   → moteur de déclenchement  ← 7. APIServer       → connexions externes
 ```
 
 Au démarrage, le Supervisor :

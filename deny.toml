@@ -1,5 +1,30 @@
 [advisories]
 unmaintained = "workspace"
+# Transitive vulnerabilities we cannot upgrade away in this release window.
+# Each entry should be revisited every release; remove once the upstream fix
+# is released or the dependency tree no longer pulls the affected version.
+ignore = [
+    # Transitive from tauri GTK backend, Linux desktop only, no patch yet.
+    # Not encountered on macOS/Windows builds (kept for cross-platform CI).
+    "RUSTSEC-2024-0413", # atk: unmaintained
+    "RUSTSEC-2024-0416", # atk-sys: unmaintained
+    # Transitive in apollia-llm via async-openai's HTTP retry layer (backoff).
+    # Not encountered with current async-openai 0.28 lockfile, but kept
+    # defensively until async-openai migrates off backoff upstream.
+    "RUSTSEC-2025-0012", # backoff: unmaintained
+    # Transitive in tauri via tauri-utils / kuchikiki (fxhash).
+    # Not encountered with current tauri 2.x lockfile on this platform.
+    "RUSTSEC-2025-0057", # fxhash: unmaintained
+    # Unsound IterMut in lru 0.12 (apollia-llm MetaLlmOrchestrator cache).
+    # Fix lands in lru 0.16.3; deferred to a follow-up workspace dep bump
+    # because lru 0.16 changes the public API (separate migration story).
+    "RUSTSEC-2026-0002", # lru: IterMut soundness
+    # Unsound rand 0.8 ThreadRng when used from a custom log:: logger.
+    # We do not install a custom logger that calls rand from within log
+    # callbacks; the exploit path does not apply to our usage. Deferred
+    # until the workspace migrates to rand 0.9.
+    "RUSTSEC-2026-0097", # rand: ThreadRng soundness with custom logger
+]
 
 [licenses]
 allow = [

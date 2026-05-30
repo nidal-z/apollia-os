@@ -653,7 +653,7 @@ pub struct ChatAgentResponse {
     pub content: String,
     /// All tool calls made during the exchange.
     pub tool_calls: Vec<ToolCallRecord>,
-    /// Tool names newly added to the session whitelist (via AlwaysAccept).
+    /// Tool names newly added to the session allowlist (via AlwaysAccept).
     pub newly_authorized: Vec<String>,
     /// Cumulative token usage across all LLM calls in the exchange.
     pub tokens_used: TokenUsage,
@@ -691,10 +691,10 @@ pub struct BuiltInChatAgent {
     /// Gestionnaire de fenêtre de contexte, compacte `llm_messages` dans la boucle ReAct
     /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
     context_manager: ContextManager,
-    /// Handle optionnel vers le `MetaLlmOrchestrator`, utilisé pour produire la
-    /// `ToolCallRationale` narrée avant chaque exécution d'outil.
-    /// Absent par défaut pour compatibilité descendante ; injecté par le manager
-    /// lorsque le master-toggle "Explain tool calls" est actif.
+    /// Optional handle to the `MetaLlmOrchestrator`, used to produce the
+    /// `ToolCallRationale` narrated before each tool execution.
+    /// Absent by default for backward compatibility; injected by the manager
+    /// when the "Explain tool calls" main toggle is active.
     meta_handle: Option<MetaOrchestratorHandle>,
     /// Workspace directory injected into the system prompt so the LLM knows its
     /// effective working directory (project workspace or ~/.apollia/ for free chat).
@@ -2316,7 +2316,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// Tool call HITL AlwaysAccept: tool whitelisted.
+    /// Tool call HITL AlwaysAccept: tool allowlisted.
     #[tokio::test]
     async fn test_tool_call_hitl_always_accept() {
         // GIVEN unauthorized tool, decision = AlwaysAccept
